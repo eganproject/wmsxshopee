@@ -69,6 +69,12 @@
                 </button>
             @endif
         @endcan
+
+        @if ($order->hasStatus('shipped'))
+            @can('returns.create')
+                <a href="{{ route('sales.returns.create', ['order' => $order->id]) }}" class="btn-secondary"><x-heroicon-o-arrow-uturn-left class="size-5" /> Buat Retur</a>
+            @endcan
+        @endif
     </x-page-header>
 
     @if ($errors->any())
@@ -305,6 +311,28 @@
             @default Pesanan dibatalkan; cadangan stok sudah dilepas.
         @endswitch
     </p>
+
+    @if ($order->returns->isNotEmpty())
+        <div class="card mt-6">
+            <div class="border-b border-slate-100 px-5 py-3">
+                <h2 class="flex items-center gap-2 text-base font-semibold text-slate-900">
+                    <x-heroicon-o-arrow-uturn-left class="size-5 text-slate-400" /> Retur
+                </h2>
+            </div>
+            <div class="divide-y divide-slate-100">
+                @foreach ($order->returns as $return)
+                    <a href="{{ route('sales.returns.show', $return) }}" class="flex items-center justify-between gap-3 px-5 py-2.5 text-sm hover:bg-slate-50/60">
+                        <span class="flex items-center gap-3">
+                            <span class="font-mono font-medium text-slate-900">{{ $return->number }}</span>
+                            <span class="text-slate-500">{{ $return->return_date->format('d/m/Y') }}</span>
+                            <span class="text-slate-600">layak jual {{ $return->items->sum('qty_good') }} · rusak {{ $return->items->sum('qty_damaged') }}</span>
+                        </span>
+                        @include('sales.returns._status')
+                    </a>
+                @endforeach
+            </div>
+        </div>
+    @endif
 
     @if ($order->isCancellable())
         @can('sales.cancel')

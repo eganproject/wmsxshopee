@@ -65,6 +65,12 @@ class Activity
         'tracking_number' => 'No. Resi',
         'shipping_fee' => 'Ongkir',
         'cancel_reason' => 'Alasan Batal',
+        'return_date' => 'Tanggal Retur',
+        'source' => 'Sumber',
+        'sales_order_id' => 'Pesanan',
+        'sender_name' => 'Nama Pengirim',
+        'sender_phone' => 'Telepon Pengirim',
+        'external_return_number' => 'No. Retur Channel',
         'levels' => 'Jumlah Level',
         'level' => 'Level',
         'position' => 'Posisi',
@@ -286,6 +292,10 @@ class Activity
 
         if ($attribute === 'status' && defined($model::class.'::STATUSES')) {
             return $model::STATUSES[$raw]['label'] ?? $raw;
+        }
+
+        if ($attribute === 'source' && defined($model::class.'::SOURCES')) {
+            return $model::SOURCES[$raw] ?? $raw;
         }
 
         if ($attribute === 'type' && defined($model::class.'::TYPES')) {

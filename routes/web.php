@@ -24,6 +24,7 @@ use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\Sales\SalesOrderController;
 use App\Http\Controllers\Sales\SalesOrderImportController;
+use App\Http\Controllers\Sales\SalesReturnController;
 use Illuminate\Support\Facades\Route;
 
 Route::redirect('/', '/dashboard');
@@ -130,6 +131,19 @@ Route::middleware(['auth', 'active'])->group(function () {
         Route::get('orders/{order}/pick-list', [SalesOrderController::class, 'pickList'])->middleware('can:sales.view')->name('orders.pick-list');
         Route::post('orders/{order}/pack', [SalesOrderController::class, 'pack'])->middleware('can:sales.fulfill')->name('orders.pack');
         Route::post('orders/{order}/ship', [SalesOrderController::class, 'ship'])->middleware('can:sales.fulfill')->name('orders.ship');
+
+        // Retur penjualan: cari pesanan lewat resi / no. SO / no. pesanan, atau tanpa
+        // pesanan. Draft bisa diubah/dihapus; saat diterima, barang layak jual masuk
+        // stok lewat mutasi Barang Masuk dan dokumen terkunci. Barang rusak dicatat saja.
+        Route::get('returns', [SalesReturnController::class, 'index'])->middleware('can:returns.view')->name('returns.index');
+        Route::get('returns/create', [SalesReturnController::class, 'create'])->middleware('can:returns.create')->name('returns.create');
+        Route::get('returns/lookup', [SalesReturnController::class, 'lookup'])->middleware('can:returns.create')->name('returns.lookup');
+        Route::post('returns', [SalesReturnController::class, 'store'])->middleware('can:returns.create')->name('returns.store');
+        Route::get('returns/{return}', [SalesReturnController::class, 'show'])->middleware('can:returns.view')->name('returns.show');
+        Route::get('returns/{return}/edit', [SalesReturnController::class, 'edit'])->middleware('can:returns.create')->name('returns.edit');
+        Route::put('returns/{return}', [SalesReturnController::class, 'update'])->middleware('can:returns.create')->name('returns.update');
+        Route::post('returns/{return}/receive', [SalesReturnController::class, 'receive'])->middleware('can:returns.receive')->name('returns.receive');
+        Route::delete('returns/{return}', [SalesReturnController::class, 'destroy'])->middleware('can:returns.delete')->name('returns.destroy');
     });
 
     Route::prefix('admin')->name('admin.')->group(function () {

@@ -100,6 +100,11 @@ class SalesOrder extends Model
         return $this->hasMany(SalesOrderBundle::class)->orderBy('id');
     }
 
+    public function returns(): HasMany
+    {
+        return $this->hasMany(SalesReturn::class)->orderBy('id');
+    }
+
     public function hasStatus(string ...$statuses): bool
     {
         return in_array($this->status, $statuses, true);

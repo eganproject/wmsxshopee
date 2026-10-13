@@ -100,6 +100,17 @@ return [
             ],
         ],
 
+        'returns' => [
+            'label' => 'Retur Penjualan',
+            'icon' => 'heroicon-o-arrow-uturn-left',
+            'actions' => [
+                'view' => 'Lihat retur penjualan',
+                'create' => 'Buat & ubah draft retur',
+                'receive' => 'Terima retur (barang layak jual masuk stok)',
+                'delete' => 'Hapus draft retur',
+            ],
+        ],
+
         'suppliers' => [
             'label' => 'Master Supplier',
             'icon' => 'heroicon-o-building-storefront',

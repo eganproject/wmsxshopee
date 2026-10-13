@@ -83,7 +83,7 @@ class SalesOrderController extends Controller
 
     public function show(SalesOrder $order, SalesOrderService $service): View
     {
-        $order->load(['warehouse', 'courier', 'creator', 'movement', 'items.variant.product.unit', 'items.picks.location', 'bundles.bundle.items']);
+        $order->load(['warehouse', 'courier', 'creator', 'movement', 'items.variant.product.unit', 'items.picks.location', 'bundles.bundle.items', 'returns.items']);
 
         $draft = $order->hasStatus('draft');
 
