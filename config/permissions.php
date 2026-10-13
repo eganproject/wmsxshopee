@@ -25,6 +25,28 @@ return [
             ],
         ],
 
+        'warehouses' => [
+            'label' => 'Master Gudang',
+            'icon' => 'heroicon-o-building-office-2',
+            'actions' => [
+                'view' => 'Lihat gudang, zona, rak & lokasi',
+                'create' => 'Tambah gudang, zona, rak & lokasi',
+                'edit' => 'Ubah gudang, zona, rak & lokasi',
+                'delete' => 'Hapus gudang, zona, rak & lokasi',
+            ],
+        ],
+
+        'couriers' => [
+            'label' => 'Master Kurir',
+            'icon' => 'heroicon-o-truck',
+            'actions' => [
+                'view' => 'Lihat daftar kurir',
+                'create' => 'Tambah kurir',
+                'edit' => 'Ubah data kurir',
+                'delete' => 'Hapus kurir',
+            ],
+        ],
+
         'users' => [
             'label' => 'Manajemen User',
             'icon' => 'heroicon-o-users',

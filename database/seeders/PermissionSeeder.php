@@ -28,12 +28,16 @@ class PermissionSeeder extends Seeder
 
         if (! Role::where('name', 'Admin')->exists()) {
             Role::create(['name' => 'Admin', 'guard_name' => 'web'])
-                ->syncPermissions(['dashboard.view', 'users.view', 'users.create', 'users.edit', 'roles.view']);
+                ->syncPermissions([
+                    'dashboard.view', 'users.view', 'users.create', 'users.edit', 'roles.view',
+                    'warehouses.view', 'warehouses.create', 'warehouses.edit', 'warehouses.delete',
+                    'couriers.view', 'couriers.create', 'couriers.edit', 'couriers.delete',
+                ]);
         }
 
         if (! Role::where('name', 'Staff Gudang')->exists()) {
             Role::create(['name' => 'Staff Gudang', 'guard_name' => 'web'])
-                ->syncPermissions(['dashboard.view']);
+                ->syncPermissions(['dashboard.view', 'warehouses.view', 'couriers.view']);
         }
 
         app(PermissionRegistrar::class)->forgetCachedPermissions();

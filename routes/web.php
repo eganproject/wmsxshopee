@@ -4,6 +4,11 @@ use App\Http\Controllers\Admin\RoleController;
 use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\Master\CourierController;
+use App\Http\Controllers\Master\LocationController;
+use App\Http\Controllers\Master\RackController;
+use App\Http\Controllers\Master\WarehouseController;
+use App\Http\Controllers\Master\ZoneController;
 use App\Http\Controllers\ProfileController;
 use Illuminate\Support\Facades\Route;
 
@@ -23,6 +28,26 @@ Route::middleware(['auth', 'active'])->group(function () {
     Route::get('profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::put('profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::put('profile/password', [ProfileController::class, 'updatePassword'])->name('profile.password');
+
+    Route::prefix('master')->name('master.')->group(function () {
+        // Zona, rak & lokasi bin memakai permission yang sama dengan gudang.
+        $resources = [
+            'warehouses' => [WarehouseController::class, 'warehouses', 'warehouse'],
+            'zones' => [ZoneController::class, 'warehouses', 'zone'],
+            'racks' => [RackController::class, 'warehouses', 'rack'],
+            'locations' => [LocationController::class, 'warehouses', 'location'],
+            'couriers' => [CourierController::class, 'couriers', 'courier'],
+        ];
+
+        foreach ($resources as $uri => [$controller, $permission, $param]) {
+            Route::get($uri, [$controller, 'index'])->middleware("can:{$permission}.view")->name("{$uri}.index");
+            Route::get("{$uri}/create", [$controller, 'create'])->middleware("can:{$permission}.create")->name("{$uri}.create");
+            Route::post($uri, [$controller, 'store'])->middleware("can:{$permission}.create")->name("{$uri}.store");
+            Route::get("{$uri}/{{$param}}/edit", [$controller, 'edit'])->middleware("can:{$permission}.edit")->name("{$uri}.edit");
+            Route::put("{$uri}/{{$param}}", [$controller, 'update'])->middleware("can:{$permission}.edit")->name("{$uri}.update");
+            Route::delete("{$uri}/{{$param}}", [$controller, 'destroy'])->middleware("can:{$permission}.delete")->name("{$uri}.destroy");
+        }
+    });
 
     Route::prefix('admin')->name('admin.')->group(function () {
         Route::get('users', [UserController::class, 'index'])->middleware('can:users.view')->name('users.index');
