@@ -101,13 +101,11 @@
                             </td>
                         </tr>
                     @empty
-                        <tr>
-                            <td colspan="8" class="px-5 py-16 text-center">
-                                <x-heroicon-o-building-office-2 class="mx-auto size-12 text-slate-300" />
-                                <p class="mt-3 font-medium text-slate-700">Belum ada gudang</p>
-                                <p class="text-sm text-slate-500">Tambahkan gudang pertama untuk mulai menyusun zona, rak, dan lokasi bin.</p>
-                            </td>
-                        </tr>
+                        <x-empty-state colspan="8" icon="heroicon-o-building-office-2" title="Belum ada gudang" description="Tambahkan gudang pertama untuk mulai menyusun zona, rak, dan lokasi bin.">
+                            @can('warehouses.create')
+                                <a href="{{ route('master.warehouses.create') }}" class="btn-primary"><x-heroicon-o-plus class="size-5" /> Tambah Gudang</a>
+                            @endcan
+                        </x-empty-state>
                     @endforelse
                 </tbody>
             </table>

@@ -43,7 +43,7 @@
     <div class="card">
         <div class="overflow-x-auto">
             <table class="min-w-full text-sm">
-                <thead class="bg-slate-50 text-left text-xs font-semibold tracking-wider text-slate-500 uppercase">
+                <thead class="bg-slate-50 text-left text-[13px] text-slate-500">
                     <tr>
                         <th class="px-5 py-3">#</th>
                         <th class="px-5 py-3">SKU</th>
@@ -95,4 +95,6 @@
     <p class="mt-4 flex items-center gap-1.5 text-xs text-slate-500">
         <x-heroicon-o-lock-closed class="size-4" /> Mutasi yang sudah disimpan tidak bisa diubah. Untuk koreksi, catat penyesuaian stok.
     </p>
+
+    <x-activity.history :subject="$movement" />
 </x-layouts.app>

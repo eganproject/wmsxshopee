@@ -59,25 +59,59 @@
         @endif
 
         @can('sales.fulfill')
+            @if ($order->hasShippingLabel())
+                <a href="{{ route('sales.orders.shipping-label', $order) }}" target="_blank" class="btn-secondary"><x-heroicon-o-printer class="size-5" /> Cetak Resi</a>
+            @endif
+            @if ($order->canArrangeShipment())
+                <a href="{{ route('sales.orders.shipment', $order) }}" @class(['btn-primary' => ! $order->isShipmentArranged() && $order->hasStatus('confirmed'), 'btn-secondary' => $order->isShipmentArranged() || ! $order->hasStatus('confirmed')])>
+                    <x-heroicon-o-truck class="size-5" /> {{ $order->isShipmentArranged() ? 'Ubah Pengiriman' : 'Atur Pengiriman' }}
+                </a>
+            @endif
             @if ($order->hasStatus('confirmed'))
                 <a href="{{ route('sales.orders.picking', $order) }}" class="btn-primary"><x-heroicon-o-hand-raised class="size-5" /> Picking</a>
             @elseif ($order->hasStatus('picked'))
-                <form id="pack-order" method="POST" action="{{ route('sales.orders.pack', $order) }}">@csrf</form>
-                <button type="button" class="btn-primary"
-                        @click="$dispatch('confirm', { form: 'pack-order', title: 'Tandai sudah dikemas?', message: 'Pastikan semua barang sudah dicek dan dikemas.', confirmText: 'Sudah Dikemas', variant: 'primary' })">
-                    <x-heroicon-o-archive-box class="size-5" /> Kemas
-                </button>
+                @can('sales.skip_scan')
+                    <form id="pack-order" method="POST" action="{{ route('sales.orders.pack', $order) }}">@csrf</form>
+                    <button type="button" class="btn-secondary"
+                            @click="$dispatch('confirm', { form: 'pack-order', title: 'Kemas tanpa QC scan?', message: 'Pesanan ditandai dikemas tanpa scan barang. Pastikan semua barang sudah dicek manual.', confirmText: 'Sudah Dikemas', variant: 'primary' })">
+                        <x-heroicon-o-archive-box class="size-5" /> Kemas tanpa Scan
+                    </button>
+                @endcan
+                <a href="{{ route('sales.qc.show', $order) }}" class="btn-primary"><x-heroicon-o-viewfinder-circle class="size-5" /> QC Scan</a>
+            @elseif ($order->hasStatus('packed'))
+                <a href="{{ route('sales.handovers.index') }}" class="btn-primary"><x-heroicon-o-paper-airplane class="size-5" /> Serah Terima</a>
             @endif
         @endcan
+
+        @if ($order->hasStatus('shipped'))
+            @can('returns.create')
+                <a href="{{ route('sales.returns.create', ['order' => $order->id]) }}" class="btn-secondary"><x-heroicon-o-arrow-uturn-left class="size-5" /> Buat Retur</a>
+            @endcan
+        @endif
     </x-page-header>
 
-    @if ($errors->any())
-        <div class="mb-6 rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
-            @foreach ($errors->all() as $message)
-                <p class="flex items-center gap-1.5"><x-heroicon-o-exclamation-triangle class="size-4 shrink-0" /> {{ $message }}</p>
-            @endforeach
+    @if ($order->shopee_shop_id)
+        <div @class([
+            'mb-5 flex items-start gap-3 rounded-lg border px-4 py-3 text-sm',
+            'border-amber-200 bg-amber-50 text-amber-800' => $order->shopee_sync_error,
+            'border-slate-200 bg-slate-50 text-slate-600' => ! $order->shopee_sync_error,
+        ])>
+            <x-heroicon-o-building-storefront class="mt-0.5 size-5 shrink-0" />
+            <div>
+                <p>
+                    Pesanan Shopee <span class="font-mono">{{ $order->external_number }}</span>
+                    · status di Shopee <span class="font-medium">{{ $order->shopee_order_status ?? '—' }}</span>
+                    @if ($order->shopee_synced_at)
+                        · disinkron {{ $order->shopee_synced_at->diffForHumans() }}
+                    @endif
+                </p>
+                @if ($order->shopee_sync_error)
+                    <p class="mt-0.5 font-medium">{{ $order->shopee_sync_error }}</p>
+                @endif
+            </div>
         </div>
     @endif
+
 
     @if ($order->hasStatus('cancelled'))
         <div class="mb-6 rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
@@ -110,6 +144,55 @@
                 </li>
             @endforeach
         </ol>
+    @endif
+
+    @if ($order->isShipmentArranged() || $order->shopeeShipmentArranged() || $order->shipment_handover_id)
+        <div class="card mb-6 grid gap-5 p-5 sm:grid-cols-2 lg:grid-cols-4">
+            <div>
+                <p class="text-xs text-slate-500">Cara Kirim</p>
+                <p class="mt-1 flex items-center gap-1.5 text-sm font-medium text-slate-900">
+                    @if ($order->shipping_method)
+                        <x-dynamic-component :component="\App\Models\SalesOrder::SHIPPING_METHODS[$order->shipping_method]['icon']" class="size-4 text-slate-400" />
+                        {{ $order->shippingMethodLabel() }}
+                    @else
+                        Diatur di Shopee Seller Centre
+                    @endif
+                </p>
+                @if ($order->shipment_arranged_at)
+                    <p class="text-xs text-slate-500">{{ $order->arranger?->name ?? 'Sistem' }} · {{ $order->shipment_arranged_at->format('d/m/Y H:i') }}</p>
+                @endif
+            </div>
+            <div class="lg:col-span-2">
+                @if ($order->shipping_method === 'pickup')
+                    <p class="text-xs text-slate-500">Jadwal & Alamat Pickup</p>
+                    <p class="mt-1 text-sm font-medium text-slate-900">{{ $order->pickup_slot ?? $order->pickup_at?->translatedFormat('l, d M Y H:i') ?? '—' }}</p>
+                    @if ($order->pickup_address)
+                        <p class="text-xs text-slate-500">{{ $order->pickup_address }}</p>
+                    @endif
+                @elseif ($order->shipping_method === 'dropoff')
+                    <p class="text-xs text-slate-500">Lokasi Drop Off</p>
+                    <p class="mt-1 text-sm font-medium text-slate-900">{{ $order->dropoff_point ?? '—' }}</p>
+                @else
+                    <p class="text-xs text-slate-500">Resi</p>
+                    <p class="mt-1 font-mono text-sm text-slate-900">{{ $order->tracking_number ?? 'Menunggu resi dari Shopee' }}</p>
+                @endif
+                @if ($order->shopee_ship_by && ! $order->hasStatus('shipped'))
+                    <p class="mt-1 text-xs text-slate-500">Batas kirim Shopee {{ $order->shopee_ship_by->format('d/m/Y H:i') }}</p>
+                @endif
+            </div>
+            <div>
+                <p class="text-xs text-slate-500">QC & Serah Terima</p>
+                <div class="mt-1 space-y-0.5 text-xs text-slate-600">
+                    <p>Label resi: {{ $order->shipping_label_printed_at ? 'dicetak '.$order->shipping_label_printed_at->format('d/m H:i') : 'belum dicetak' }}</p>
+                    @if ($order->qc_checked_by)
+                        <p>QC scan: {{ $order->qcChecker?->name }}</p>
+                    @endif
+                    @if ($order->handover)
+                        <p>Serah terima: <a href="{{ route('sales.handovers.show', $order->handover) }}" class="font-mono text-brand-600 hover:underline">{{ $order->handover->number }}</a></p>
+                    @endif
+                </div>
+            </div>
+        </div>
     @endif
 
     <div class="card mb-6 grid gap-5 p-5 sm:grid-cols-2 lg:grid-cols-4">
@@ -189,11 +272,18 @@
 
     @if ($order->hasStatus('packed'))
         @can('sales.fulfill')
-            <form method="POST" action="{{ route('sales.orders.ship', $order) }}" class="card mb-6">
+            <div class="mb-6 flex items-start gap-3 rounded-lg border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-800">
+                <x-heroicon-o-paper-airplane class="mt-0.5 size-5 shrink-0" />
+                <p>Paket sudah lolos QC. Scan resinya di <a href="{{ route('sales.handovers.index') }}" class="font-medium underline">Serah Terima</a> saat diserahkan ke kurir; pesanan otomatis jadi Dikirim dan stok keluar.</p>
+            </div>
+        @endcan
+        @can('sales.skip_scan')
+            <form method="POST" action="{{ route('sales.orders.ship', $order) }}" class="card mb-6"
+                  data-confirm-title="Kirim pesanan {{ $order->number }}?" data-confirm="Stok keluar dari bin hasil picking dan status pesanan menjadi Dikirim. Pastikan kurir dan nomor resi sudah benar." data-confirm-text="Kirim">
                 @csrf
                 <div class="border-b border-slate-100 px-5 py-3">
-                    <h2 class="flex items-center gap-2 text-base font-semibold text-slate-900"><x-heroicon-o-truck class="size-5 text-slate-400" /> Kirim Pesanan</h2>
-                    <p class="mt-0.5 text-sm text-slate-500">Isi kurir dan nomor resi. Saat dikirim, stok keluar dari bin hasil picking.</p>
+                    <h2 class="flex items-center gap-2 text-base font-semibold text-slate-900"><x-heroicon-o-truck class="size-5 text-slate-400" /> Kirim tanpa Serah Terima</h2>
+                    <p class="mt-0.5 text-sm text-slate-500">Cadangan bila scan tidak bisa dipakai. Isi kurir dan nomor resi; stok keluar dari bin hasil picking.</p>
                 </div>
                 <div class="grid gap-x-6 gap-y-4 p-5 sm:grid-cols-4">
                     <x-select name="courier_id" label="Kurir" required>
@@ -294,17 +384,45 @@
         </div>
     </div>
 
+    @if ($order->shopee_income)
+        @can('sales.income')
+            @include('sales.orders._shopee-income')
+        @endcan
+    @endif
+
     <p class="mt-4 flex items-center gap-1.5 text-xs text-slate-500">
         <x-heroicon-o-information-circle class="size-4" />
         @switch($order->status)
             @case('draft') Stok belum dicadangkan. Klik Konfirmasi bila barang siap diproses. @break
-            @case('confirmed') Stok sudah dicadangkan. Cetak picking list lalu klik Picking untuk mencatat bin pengambilan. @break
-            @case('picked') Barang sudah diambil dari bin. Kemas lalu klik Kemas. @break
-            @case('packed') Paket siap. Isi kurir & resi lalu klik Kirim, stok akan keluar dari gudang. @break
+            @case('confirmed') Stok sudah dicadangkan. Atur pengiriman (pickup / drop off) dan cetak resi, lalu cetak picking list dan klik Picking. @break
+            @case('picked') Barang sudah diambil dari bin. Lakukan QC Scan: scan resi lalu scan tiap barang sebelum paket ditutup. @break
+            @case('packed') Paket lolos QC. Scan resinya di Serah Terima saat diserahkan ke kurir; stok keluar dari gudang. @break
             @case('shipped') Pesanan sudah dikirim dan stok sudah keluar lewat mutasi Barang Keluar. @break
             @default Pesanan dibatalkan; cadangan stok sudah dilepas.
         @endswitch
     </p>
+
+    @if ($order->returns->isNotEmpty())
+        <div class="card mt-6">
+            <div class="border-b border-slate-100 px-5 py-3">
+                <h2 class="flex items-center gap-2 text-base font-semibold text-slate-900">
+                    <x-heroicon-o-arrow-uturn-left class="size-5 text-slate-400" /> Retur
+                </h2>
+            </div>
+            <div class="divide-y divide-slate-100">
+                @foreach ($order->returns as $return)
+                    <a href="{{ route('sales.returns.show', $return) }}" class="flex items-center justify-between gap-3 px-5 py-2.5 text-sm hover:bg-slate-50/60">
+                        <span class="flex items-center gap-3">
+                            <span class="font-mono font-medium text-slate-900">{{ $return->number }}</span>
+                            <span class="text-slate-500">{{ $return->return_date->format('d/m/Y') }}</span>
+                            <span class="text-slate-600">layak jual {{ $return->items->sum('qty_good') }} · rusak {{ $return->items->sum('qty_damaged') }}@if ($missing = $return->items->sum('qty_missing')) · hilang {{ $missing }}@endif</span>
+                        </span>
+                        @include('sales.returns._status')
+                    </a>
+                @endforeach
+            </div>
+        </div>
+    @endif
 
     @if ($order->isCancellable())
         @can('sales.cancel')
@@ -331,4 +449,6 @@
             </div>
         @endcan
     @endif
+
+    <x-activity.history :subject="$order" />
 </x-layouts.app>

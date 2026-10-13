@@ -11,7 +11,7 @@
         <a href="{{ route('master.warehouses.index') }}" class="btn-secondary"><x-heroicon-o-arrow-left class="size-5" /> Kembali</a>
     </x-page-header>
 
-    <form method="POST" action="{{ route('master.warehouses.update', $warehouse) }}" class="max-w-4xl">
+    <form method="POST" action="{{ route('master.warehouses.update', $warehouse) }}" data-dirty-guard class="max-w-4xl">
         @csrf
         @method('PUT')
         @include('master.warehouses._form')
@@ -21,4 +21,6 @@
             <button type="submit" class="btn-primary"><x-heroicon-o-check class="size-5" /> Simpan Perubahan</button>
         </div>
     </form>
+
+    <x-activity.history :subject="$warehouse" class="max-w-4xl" />
 </x-layouts.app>

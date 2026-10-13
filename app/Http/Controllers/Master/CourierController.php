@@ -4,24 +4,35 @@ namespace App\Http\Controllers\Master;
 
 use App\Http\Controllers\Controller;
 use App\Models\Courier;
+use App\Support\XlsxExport;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class CourierController extends Controller
 {
-    public function index(Request $request): View
+    public function index(Request $request): View|BinaryFileResponse
     {
-        $couriers = Courier::query()
+        $query = Courier::query()
             ->when($request->filled('search'), function ($query) use ($request) {
                 $search = $request->string('search');
                 $query->where(fn ($q) => $q->where('name', 'like', "%{$search}%")->orWhere('code', 'like', "%{$search}%"));
             })
             ->when($request->filled('status'), fn ($query) => $query->where('is_active', $request->input('status') === 'active'))
-            ->orderBy('name')
-            ->paginate(15)
-            ->withQueryString();
+            ->orderBy('name');
+
+        if ($request->input('export') === 'xlsx') {
+            return XlsxExport::download('kurir-'.now()->format('Ymd-His').'.xlsx',
+                ['Kode', 'Nama', 'Layanan', 'Kontak', 'Telepon', 'Batas Pickup', 'URL Lacak', 'Status', 'Catatan'],
+                $query->lazy(500)->map(fn ($c) => [
+                    $c->code, $c->name, collect($c->services ?? [])->map(fn ($s) => trim(($s['code'] ?? '').' '.($s['name'] ?? '')))->implode(', '), $c->contact_name, $c->contact_phone,
+                    $c->pickup_cutoff ? substr((string) $c->pickup_cutoff, 0, 5) : null, $c->tracking_url, $c->is_active ? 'Aktif' : 'Nonaktif', $c->notes,
+                ]));
+        }
+
+        $couriers = $query->paginate(15)->withQueryString();
 
         return view('master.couriers.index', ['couriers' => $couriers]);
     }

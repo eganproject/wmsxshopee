@@ -94,9 +94,22 @@ return [
                 'view' => 'Lihat pesanan & cetak picking list',
                 'create' => 'Buat, ubah & impor draft pesanan',
                 'confirm' => 'Konfirmasi pesanan (cadangkan stok)',
-                'fulfill' => 'Picking, packing & kirim (stok keluar)',
+                'fulfill' => 'Picking, QC scan, atur pickup / drop off, cetak resi & serah terima (stok keluar)',
+                'skip_scan' => 'Kemas & kirim tanpa scan (lewati QC / serah terima)',
                 'cancel' => 'Batalkan pesanan',
                 'delete' => 'Hapus draft pesanan',
+                'income' => 'Lihat rincian pendapatan Shopee (harga, potongan & dana diterima)',
+            ],
+        ],
+
+        'returns' => [
+            'label' => 'Retur Penjualan',
+            'icon' => 'heroicon-o-arrow-uturn-left',
+            'actions' => [
+                'view' => 'Lihat retur penjualan',
+                'create' => 'Buat & ubah draft retur',
+                'receive' => 'Terima retur (barang layak jual masuk stok)',
+                'delete' => 'Hapus draft retur',
             ],
         ],
 
@@ -141,6 +154,36 @@ return [
                 'create' => 'Buat role',
                 'edit' => 'Ubah role & permission',
                 'delete' => 'Hapus role',
+            ],
+        ],
+
+        'activity' => [
+            'label' => 'Log Aktivitas',
+            'icon' => 'heroicon-o-clock',
+            'actions' => [
+                'view' => 'Lihat log aktivitas semua user',
+            ],
+        ],
+
+        'backups' => [
+            'label' => 'Backup Database',
+            'icon' => 'heroicon-o-circle-stack',
+            'actions' => [
+                'view' => 'Lihat & unduh backup database',
+                'create' => 'Buat backup sekarang',
+                'delete' => 'Hapus file backup',
+            ],
+        ],
+
+        'shopee' => [
+            'label' => 'Integrasi Shopee',
+            'icon' => 'heroicon-o-building-storefront',
+            'actions' => [
+                'view' => 'Lihat toko Shopee & pemetaan SKU',
+                'settings' => 'Ubah Partner ID & Partner Key Shopee',
+                'connect' => 'Hubungkan, perbarui token & hapus koneksi toko',
+                'mapping' => 'Tarik produk & atur pemetaan SKU',
+                'sync' => 'Sinkron pesanan, resi, stok & retur sekarang',
             ],
         ],
     ],

@@ -100,13 +100,11 @@
                             </td>
                         </tr>
                     @empty
-                        <tr>
-                            <td colspan="6" class="px-5 py-16 text-center">
-                                <x-heroicon-o-squares-2x2 class="mx-auto size-12 text-slate-300" />
-                                <p class="mt-3 font-medium text-slate-700">Belum ada zona</p>
-                                <p class="text-sm text-slate-500">Tambahkan zona untuk membagi area gudang.</p>
-                            </td>
-                        </tr>
+                        <x-empty-state colspan="6" icon="heroicon-o-squares-2x2" title="Belum ada zona" description="Tambahkan zona untuk membagi area gudang." :ignore="['warehouse']" :reset-url="route('master.zones.index', ['warehouse' => request('warehouse')])">
+                            @can('warehouses.create')
+                                <a href="{{ route('master.zones.create', ['warehouse' => request('warehouse')]) }}" class="btn-primary"><x-heroicon-o-plus class="size-5" /> Tambah Zona</a>
+                            @endcan
+                        </x-empty-state>
                     @endforelse
                 </tbody>
             </table>

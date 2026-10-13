@@ -25,7 +25,7 @@
         <a href="{{ route('inventory.movements.index') }}" class="btn-secondary"><x-heroicon-o-arrow-left class="size-5" /> Kembali</a>
     </x-page-header>
 
-    <form method="POST" action="{{ route('inventory.movements.store') }}" class="space-y-6"
+    <form method="POST" action="{{ route('inventory.movements.store') }}" data-dirty-guard class="space-y-6"
           x-data="{
               warehouse: @js((string) old('warehouse_id', $warehouses->count() === 1 ? $warehouses->first()->id : '')),
               items: @js($items->isEmpty() ? [$blank] : $items),
@@ -105,7 +105,7 @@
 
             <div class="overflow-x-auto p-6 pt-4">
                 <table class="min-w-full text-sm">
-                    <thead class="text-left text-xs font-semibold tracking-wider text-slate-500 uppercase">
+                    <thead class="text-left text-[13px] text-slate-500">
                         <tr>
                             <th class="py-2 pr-2">Varian *</th>
                             @if ($needsFrom)

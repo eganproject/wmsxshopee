@@ -47,7 +47,7 @@
     @if ($isSelf)
         <div class="flex items-start gap-3 rounded-xl bg-sky-50 p-4 text-sm text-sky-800 ring-1 ring-sky-200">
             <x-heroicon-o-information-circle class="size-5 shrink-0" />
-            Anda sedang mengedit akun sendiri. Status, role, dan permission tidak bisa diubah sendiri untuk mencegah akun terkunci.
+            Anda sedang mengedit akun sendiri. Status, role, permission, dan akses gudang tidak bisa diubah sendiri untuk mencegah akun terkunci.
         </div>
     @else
         {{-- Status --}}
@@ -98,6 +98,61 @@
                     @empty
                         <p class="text-sm text-slate-500">Belum ada role yang dapat Anda berikan.</p>
                     @endforelse
+                </div>
+            </div>
+        </div>
+
+        {{-- Akses gudang --}}
+        <div class="card" x-data="{ all: @js($allWarehouses) }">
+            <div class="flex items-center justify-between gap-4 border-b border-slate-100 px-5 py-3">
+                <div>
+                    <h2 class="flex items-center gap-2 text-base font-semibold text-slate-900">
+                        Akses Gudang
+                    </h2>
+                    <p class="mt-0.5 text-sm text-slate-500">User hanya bisa melihat & mengelola data dari gudang yang dipilih.</p>
+                </div>
+                @if ($canGrantAllWarehouses)
+                    <label class="flex shrink-0 cursor-pointer items-center gap-2 text-sm text-slate-700">
+                        <span>Semua gudang</span>
+                        <span class="relative inline-flex items-center">
+                            <input type="hidden" name="all_warehouses" value="0">
+                            <input type="checkbox" name="all_warehouses" value="1" class="peer sr-only" x-model="all">
+                            <span class="h-5 w-9 rounded-full bg-slate-300 transition peer-checked:bg-slate-900 peer-focus-visible:ring-2 peer-focus-visible:ring-slate-300 peer-focus-visible:ring-offset-2"></span>
+                            <span class="absolute left-0.5 size-4 rounded-full bg-white shadow-sm transition peer-checked:translate-x-4"></span>
+                        </span>
+                    </label>
+                @else
+                    <input type="hidden" name="all_warehouses" value="0">
+                @endif
+            </div>
+            <div class="p-5">
+                <p x-show="all" x-cloak class="text-sm text-slate-500">User bisa mengakses semua gudang, termasuk gudang yang ditambahkan nanti.</p>
+                <div x-show="! all" x-cloak>
+                    @error('all_warehouses')
+                        <p class="mb-3 flex items-center gap-1 text-sm text-rose-600"><x-heroicon-o-exclamation-triangle class="size-4" /> {{ $message }}</p>
+                    @enderror
+                    @error('warehouses')
+                        <p class="mb-3 flex items-center gap-1 text-sm text-rose-600"><x-heroicon-o-exclamation-triangle class="size-4" /> {{ $message }}</p>
+                    @enderror
+                    @error('warehouses.*')
+                        <p class="mb-3 flex items-center gap-1 text-sm text-rose-600"><x-heroicon-o-exclamation-triangle class="size-4" /> {{ $message }}</p>
+                    @enderror
+                    <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3" x-data="{ selected: @js($selectedWarehouses) }">
+                        @forelse ($warehouses as $warehouse)
+                            <label class="flex cursor-pointer items-start gap-3 rounded-lg border border-slate-200 p-3 transition hover:border-slate-300"
+                                   :class="selected.includes({{ $warehouse->id }}) && 'border-slate-900 ring-1 ring-slate-900'">
+                                <input type="checkbox" name="warehouses[]" value="{{ $warehouse->id }}" class="form-checkbox mt-0.5" x-model.number="selected" :disabled="all">
+                                <span class="min-w-0">
+                                    <span class="block text-sm font-medium text-slate-900">{{ $warehouse->code }} · {{ $warehouse->name }}</span>
+                                    @unless ($warehouse->is_active)
+                                        <span class="block text-xs text-slate-500">Nonaktif</span>
+                                    @endunless
+                                </span>
+                            </label>
+                        @empty
+                            <p class="text-sm text-slate-500">Belum ada gudang yang dapat Anda berikan.</p>
+                        @endforelse
+                    </div>
                 </div>
             </div>
         </div>

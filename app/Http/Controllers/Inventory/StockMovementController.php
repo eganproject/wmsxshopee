@@ -7,18 +7,21 @@ use App\Models\ProductVariant;
 use App\Models\StockMovement;
 use App\Models\Warehouse;
 use App\Models\WarehouseLocation;
+use App\Rules\AccessibleRecord;
 use App\Services\StockService;
+use App\Support\XlsxExport;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class StockMovementController extends Controller
 {
-    public function index(Request $request): View
+    public function index(Request $request): View|BinaryFileResponse
     {
-        $movements = StockMovement::query()
+        $query = StockMovement::query()
             ->with(['warehouse', 'creator'])
             ->withCount('items')
             ->when($request->filled('type'), fn ($query) => $query->where('type', $request->input('type')))
@@ -30,9 +33,17 @@ class StockMovementController extends Controller
                 $query->where(fn ($q) => $q->where('number', 'like', "%{$search}%")->orWhere('reference', 'like', "%{$search}%"));
             })
             ->latest('movement_date')
-            ->latest('id')
-            ->paginate(20)
-            ->withQueryString();
+            ->latest('id');
+
+        if ($request->input('export') === 'xlsx') {
+            return XlsxExport::download('mutasi-stok-'.now()->format('Ymd-His').'.xlsx',
+                ['No. Dokumen', 'Tanggal', 'Jenis', 'Gudang', 'Referensi', 'Jumlah Item', 'Dibuat Oleh', 'Catatan'],
+                $query->lazy(500)->map(fn ($m) => [
+                    $m->number, $m->movement_date->format('d/m/Y'), $m->typeLabel(), $m->warehouse?->code, $m->reference, $m->items_count, $m->creator?->name, $m->notes,
+                ]));
+        }
+
+        $movements = $query->paginate(20)->withQueryString();
 
         return view('inventory.movements.index', [
             'movements' => $movements,
@@ -118,7 +129,7 @@ class StockMovementController extends Controller
         $location = fn () => Rule::exists('warehouse_locations', 'id')->where('warehouse_id', $warehouseId);
 
         $data = $request->validate([
-            'warehouse_id' => ['required', 'integer', Rule::exists('warehouses', 'id')->where('is_active', true)],
+            'warehouse_id' => ['required', 'integer', Rule::exists('warehouses', 'id')->where('is_active', true), new AccessibleRecord(Warehouse::class)],
             'movement_date' => ['required', 'date', 'before_or_equal:today'],
             'reference' => ['nullable', 'string', 'max:100'],
             'notes' => ['nullable', 'string', 'max:1000'],

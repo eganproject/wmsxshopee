@@ -4,6 +4,9 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use App\Models\Warehouse;
+use App\Rules\AccessibleRecord;
+use App\Support\Activity;
 use App\Support\PermissionGroups;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -18,7 +21,7 @@ class UserController extends Controller
     public function index(Request $request): View
     {
         $users = User::query()
-            ->with(['roles', 'creator'])
+            ->with(['roles', 'creator', 'warehouses:id,code'])
             ->when($request->filled('search'), function ($query) use ($request) {
                 $search = $request->string('search');
                 $query->where(fn ($q) => $q
@@ -57,6 +60,7 @@ class UserController extends Controller
 
             $user->syncRoles(Role::whereIn('id', $data['roles'] ?? [])->get());
             $user->syncPermissions($data['permissions'] ?? []);
+            $user->syncWarehouseAccess($data['all_warehouses'], $data['warehouses']);
         });
 
         return redirect()->route('admin.users.index')
@@ -78,7 +82,7 @@ class UserController extends Controller
         $data = $this->validated($request, $actor, $user);
         $isSelf = $actor->is($user);
 
-        DB::transaction(function () use ($data, $user, $isSelf) {
+        Activity::track($user, fn () => DB::transaction(function () use ($data, $user, $isSelf) {
             $user->fill(collect($data)->only(['name', 'username', 'email', 'phone'])->all());
 
             if (! empty($data['password'])) {
@@ -90,10 +94,11 @@ class UserController extends Controller
                 $user->is_active = $data['is_active'] ?? false;
                 $user->syncRoles(Role::whereIn('id', $data['roles'] ?? [])->get());
                 $user->syncPermissions($data['permissions'] ?? []);
+                $user->syncWarehouseAccess($data['all_warehouses'], $data['warehouses']);
             }
 
             $user->save();
-        });
+        }));
 
         return redirect()->route('admin.users.index')
             ->with('success', "Akun {$user->name} berhasil diperbarui.");
@@ -134,8 +139,17 @@ class UserController extends Controller
     {
         $assignableRoles = $actor->assignableRoles()->pluck('id');
         $grantable = $actor->grantablePermissions()->pluck('name');
+        $isSelf = $user !== null && $actor->is($user);
 
-        return $request->validate([
+        // Tanpa isian akses gudang: akses lama tetap, user baru ikut cakupan pembuatnya.
+        if (! $request->has('all_warehouses')) {
+            $request->merge([
+                'all_warehouses' => $user ? $user->all_warehouses : $actor->hasAllWarehouses(),
+                'warehouses' => $request->input('warehouses', $user?->warehouses()->pluck('warehouses.id')->all() ?? $actor->accessibleWarehouseIds()),
+            ]);
+        }
+
+        $data = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'username' => ['required', 'string', 'alpha_dash', 'min:3', 'max:50', Rule::unique('users')->ignore($user)],
             'email' => ['required', 'email', 'max:255', Rule::unique('users')->ignore($user)],
@@ -146,13 +160,26 @@ class UserController extends Controller
             'roles.*' => ['integer', Rule::in($assignableRoles)],
             'permissions' => ['nullable', 'array'],
             'permissions.*' => ['string', Rule::in($grantable)],
+            // Akun sendiri tidak bisa mengubah akses gudangnya. User yang aksesnya
+            // terbatas tidak bisa memberi akses semua gudang.
+            'all_warehouses' => ['nullable', 'boolean', Rule::prohibitedIf(! $isSelf && ! $actor->hasAllWarehouses() && $request->boolean('all_warehouses'))],
+            'warehouses' => [Rule::requiredIf(! $isSelf && ! $request->boolean('all_warehouses')), 'nullable', 'array'],
+            'warehouses.*' => ['integer', 'distinct', new AccessibleRecord(Warehouse::class)],
         ], [
             'roles.*.in' => 'Anda tidak bisa memberikan role tersebut.',
             'permissions.*.in' => 'Anda tidak bisa memberikan permission yang tidak Anda miliki.',
+            'all_warehouses.prohibited' => 'Anda tidak bisa memberikan akses ke semua gudang.',
+            'warehouses.required' => 'Pilih minimal satu gudang, atau aktifkan akses semua gudang.',
         ], [
             'name' => 'nama',
             'phone' => 'no. telepon',
+            'warehouses.*' => 'gudang',
         ]);
+
+        $data['all_warehouses'] = $request->boolean('all_warehouses');
+        $data['warehouses'] = $data['all_warehouses'] ? [] : array_map('intval', $data['warehouses'] ?? []);
+
+        return $data;
     }
 
     /**
@@ -169,6 +196,11 @@ class UserController extends Controller
             'permissionGroups' => PermissionGroups::all($grantable),
             'selectedRoles' => old('roles', $user->exists ? $user->roles->pluck('id')->all() : []),
             'selectedPermissions' => old('permissions', $user->exists ? $user->getDirectPermissions()->pluck('name')->all() : []),
+            // Hanya gudang yang bisa diakses user yang sedang mengedit.
+            'warehouses' => Warehouse::orderBy('code')->get(['id', 'code', 'name', 'is_active']),
+            'canGrantAllWarehouses' => $actor->hasAllWarehouses(),
+            'allWarehouses' => (bool) old('all_warehouses', $user->exists ? $user->all_warehouses : $actor->hasAllWarehouses()),
+            'selectedWarehouses' => array_map('intval', old('warehouses', $user->exists ? $user->warehouses()->pluck('warehouses.id')->all() : [])),
         ];
     }
 }

@@ -12,6 +12,7 @@ Dibangun dengan Laravel 12, Blade, Tailwind CSS dan Alpine.js.
 - Profil pengguna
 - Master produk: SKU internal, varian, barcode, satuan, berat, dimensi dan gambar produk
 - Stok per varian per lokasi bin, mutasi stok (masuk, keluar, transfer lokasi, penyesuaian) dan kartu stok dengan saldo berjalan
+- Cetak label barcode (Code128 / QR) untuk SKU produk, produk paket dan lokasi bin, di roll thermal atau lembar stiker A4
 
 Rencana tahap berikutnya ada di [docs/ROADMAP.md](docs/ROADMAP.md).
 

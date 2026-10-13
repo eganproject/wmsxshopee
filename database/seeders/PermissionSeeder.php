@@ -36,8 +36,10 @@ class PermissionSeeder extends Seeder
                     'inventory.view', 'inventory.create', 'inventory.adjust',
                     'suppliers.view', 'suppliers.create', 'suppliers.edit', 'suppliers.delete',
                     'receipts.view', 'receipts.create', 'receipts.receive', 'receipts.delete',
-                    'sales.view', 'sales.create', 'sales.confirm', 'sales.fulfill', 'sales.cancel', 'sales.delete',
+                    'sales.view', 'sales.create', 'sales.confirm', 'sales.fulfill', 'sales.skip_scan', 'sales.cancel', 'sales.delete',
+                    'returns.view', 'returns.create', 'returns.receive', 'returns.delete',
                     'opname.view', 'opname.create', 'opname.post', 'opname.delete', 'reports.view',
+                    'activity.view', 'shopee.view', 'shopee.mapping', 'shopee.sync',
                 ]);
         }
 
@@ -45,7 +47,7 @@ class PermissionSeeder extends Seeder
             Role::create(['name' => 'Staff Gudang', 'guard_name' => 'web'])
                 ->syncPermissions(['dashboard.view', 'warehouses.view', 'products.view', 'couriers.view', 'inventory.view', 'inventory.create',
                     'suppliers.view', 'receipts.view', 'receipts.create', 'receipts.receive',
-                    'sales.view', 'sales.fulfill', 'opname.view', 'opname.create']);
+                    'sales.view', 'sales.fulfill', 'returns.view', 'returns.create', 'returns.receive', 'opname.view', 'opname.create']);
         }
 
         app(PermissionRegistrar::class)->forgetCachedPermissions();

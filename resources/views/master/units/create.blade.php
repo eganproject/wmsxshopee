@@ -11,7 +11,7 @@
         <a href="{{ route('master.units.index') }}" class="btn-secondary"><x-heroicon-o-arrow-left class="size-5" /> Kembali</a>
     </x-page-header>
 
-    <form method="POST" action="{{ route('master.units.store') }}" class="mx-auto max-w-3xl">
+    <form method="POST" action="{{ route('master.units.store') }}" data-dirty-guard class="mx-auto max-w-3xl">
         @csrf
         @include('master.units._form')
 

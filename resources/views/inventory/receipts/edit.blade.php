@@ -13,7 +13,7 @@
         <a href="{{ route('inventory.receipts.show', $receipt) }}" class="btn-secondary"><x-heroicon-o-arrow-left class="size-5" /> Kembali</a>
     </x-page-header>
 
-    <form method="POST" action="{{ route('inventory.receipts.update', $receipt) }}" enctype="multipart/form-data">
+    <form method="POST" action="{{ route('inventory.receipts.update', $receipt) }}" data-dirty-guard enctype="multipart/form-data">
         @csrf
         @method('PUT')
         @include('inventory.receipts._form')

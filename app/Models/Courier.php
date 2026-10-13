@@ -2,10 +2,13 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\LogsActivity;
 use Illuminate\Database\Eloquent\Model;
 
 class Courier extends Model
 {
+    use LogsActivity;
+
     protected $fillable = [
         'code',
         'name',
@@ -33,5 +36,15 @@ class Courier extends Model
         return $this->tracking_url
             ? str_replace('{resi}', urlencode($trackingNumber), $this->tracking_url)
             : null;
+    }
+
+    public function activityModule(): string
+    {
+        return 'couriers';
+    }
+
+    public function activityName(): string
+    {
+        return 'Kurir';
     }
 }

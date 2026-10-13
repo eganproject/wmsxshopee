@@ -2,12 +2,16 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\LogsActivity;
+use App\Models\Concerns\ScopedToWarehouse;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class StockMovement extends Model
 {
+    use LogsActivity, ScopedToWarehouse;
+
     /** Jenis mutasi: label, prefix nomor dokumen, ikon & warna badge. */
     public const TYPES = [
         'in' => ['label' => 'Barang Masuk', 'prefix' => 'MSK', 'icon' => 'heroicon-o-arrow-down-tray', 'color' => 'emerald'],
@@ -56,5 +60,27 @@ class StockMovement extends Model
     public static function typeMeta(string $type, string $key): ?string
     {
         return self::TYPES[$type][$key] ?? null;
+    }
+
+    public function activityModule(): string
+    {
+        return 'inventory';
+    }
+
+    public function activityName(): string
+    {
+        return 'Mutasi Stok';
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function activityRelations(): array
+    {
+        return [
+            'Item' => $this->items()->with(['variant', 'fromLocation', 'toLocation'])->get()->map(fn ($item) => $item->variant?->sku.' × '.$item->qty
+                .($item->fromLocation || $item->toLocation ? ' · '.($item->fromLocation?->code ?? '—').' → '.($item->toLocation?->code ?? '—') : '')
+                .($item->notes ? ' · '.$item->notes : ''))->all(),
+        ];
     }
 }

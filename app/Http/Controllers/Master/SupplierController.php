@@ -4,16 +4,18 @@ namespace App\Http\Controllers\Master;
 
 use App\Http\Controllers\Controller;
 use App\Models\Supplier;
+use App\Support\XlsxExport;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class SupplierController extends Controller
 {
-    public function index(Request $request): View
+    public function index(Request $request): View|BinaryFileResponse
     {
-        $suppliers = Supplier::query()
+        $query = Supplier::query()
             ->withCount('receipts')
             ->when($request->filled('search'), function ($query) use ($request) {
                 $search = $request->string('search');
@@ -23,9 +25,18 @@ class SupplierController extends Controller
                     ->orWhere('city', 'like', "%{$search}%"));
             })
             ->when($request->filled('status'), fn ($query) => $query->where('is_active', $request->input('status') === 'active'))
-            ->orderBy('name')
-            ->paginate(15)
-            ->withQueryString();
+            ->orderBy('name');
+
+        if ($request->input('export') === 'xlsx') {
+            return XlsxExport::download('supplier-'.now()->format('Ymd-His').'.xlsx',
+                ['Kode', 'Nama', 'Kontak', 'Telepon', 'Email', 'Alamat', 'Kota', 'NPWP', 'Termin', 'Jumlah Penerimaan', 'Status', 'Catatan'],
+                $query->lazy(500)->map(fn ($s) => [
+                    $s->code, $s->name, $s->contact_name, $s->phone, $s->email, $s->address, $s->city, $s->npwp, $s->paymentTermLabel(),
+                    $s->receipts_count, $s->is_active ? 'Aktif' : 'Nonaktif', $s->notes,
+                ]));
+        }
+
+        $suppliers = $query->paginate(15)->withQueryString();
 
         return view('master.suppliers.index', ['suppliers' => $suppliers]);
     }

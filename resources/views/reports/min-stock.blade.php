@@ -99,13 +99,7 @@
                             </td>
                         </tr>
                     @empty
-                        <tr>
-                            <td colspan="8" class="px-5 py-16 text-center">
-                                <x-heroicon-o-bell-alert class="mx-auto size-12 text-slate-300" />
-                                <p class="mt-3 font-medium text-slate-700">{{ $withMinCount ? 'Semua stok aman' : 'Belum ada stok minimum' }}</p>
-                                <p class="text-sm text-slate-500">{{ $withMinCount ? 'Tidak ada barang di bawah stok minimum.' : 'Isi kolom Stok Minimum pada varian di Master Produk.' }}</p>
-                            </td>
-                        </tr>
+                        <x-empty-state colspan="8" icon="heroicon-o-bell-alert" :title="$withMinCount ? 'Semua stok aman' : 'Belum ada stok minimum'" :description="$withMinCount ? 'Tidak ada barang di bawah stok minimum.' : 'Isi kolom Stok Minimum pada varian di Master Produk.'" />
                     @endforelse
                 </tbody>
             </table>

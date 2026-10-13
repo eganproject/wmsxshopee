@@ -7,11 +7,13 @@ use App\Models\Bundle;
 use App\Models\ProductVariant;
 use App\Models\Warehouse;
 use App\Services\SalesOrderService;
+use App\Support\XlsxExport;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 /**
  * Produk paket (bundling). Paket tidak punya stok sendiri: stok tersedianya
@@ -19,12 +21,12 @@ use Illuminate\View\View;
  */
 class BundleController extends Controller
 {
-    public function index(Request $request, SalesOrderService $service): View
+    public function index(Request $request, SalesOrderService $service): View|BinaryFileResponse
     {
         $warehouses = Warehouse::where('is_active', true)->orderBy('code')->get();
         $warehouse = $warehouses->firstWhere('id', $request->integer('warehouse')) ?? $warehouses->first();
 
-        $bundles = Bundle::query()
+        $query = Bundle::query()
             ->with('items.variant.product')
             ->when($request->filled('search'), function ($query) use ($request) {
                 $search = $request->string('search');
@@ -35,9 +37,18 @@ class BundleController extends Controller
                     ->orWhereHas('items.variant', fn ($q) => $q->where('sku', 'like', "%{$search}%")));
             })
             ->when($request->filled('status'), fn ($query) => $query->where('is_active', $request->input('status') === 'active'))
-            ->orderBy('sku')
-            ->paginate(15)
-            ->withQueryString();
+            ->orderBy('sku');
+
+        if ($request->input('export') === 'xlsx') {
+            return XlsxExport::download('produk-paket-'.now()->format('Ymd-His').'.xlsx',
+                ['SKU Paket', 'Nama', 'Barcode', 'Harga', 'Isi Paket', 'Status'],
+                $query->lazy(200)->map(fn ($b) => [
+                    $b->sku, $b->name, $b->barcode, (float) $b->price,
+                    $b->items->map(fn ($item) => $item->variant?->sku.' × '.$item->qty)->implode(', '), $b->is_active ? 'Aktif' : 'Nonaktif',
+                ]));
+        }
+
+        $bundles = $query->paginate(15)->withQueryString();
 
         return view('master.bundles.index', [
             'bundles' => $bundles,
