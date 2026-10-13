@@ -146,13 +146,16 @@ class ReportController extends Controller
             ->groupBy('stock_ledgers.product_variant_id', 'product_variants.sku', 'product_variants.name', 'products.name', 'units.code')
             ->when(! $request->boolean('all'), fn ($q) => $q->havingRaw("SUM(CASE WHEN {$inRange} THEN 1 ELSE 0 END) > 0"))
             ->orderBy('product_variants.sku')
+            // qty_in/qty_out unsigned: di MySQL "qty_in - qty_out" per baris ditolak bila
+            // hasilnya minus, jadi masuk dan keluar dijumlahkan dulu baru dikurangkan.
             ->selectRaw("stock_ledgers.product_variant_id, product_variants.sku, product_variants.name as variant_name,
                 products.name as product_name, units.code as unit_code,
-                SUM(CASE WHEN {$inRange} THEN 0 ELSE stock_ledgers.qty_in - stock_ledgers.qty_out END) as opening,
+                SUM(CASE WHEN {$inRange} THEN 0 ELSE stock_ledgers.qty_in END) - SUM(CASE WHEN {$inRange} THEN 0 ELSE stock_ledgers.qty_out END) as opening,
                 SUM(CASE WHEN {$inRange} AND stock_ledgers.type = 'in' THEN stock_ledgers.qty_in ELSE 0 END) as qty_in,
                 SUM(CASE WHEN {$inRange} AND stock_ledgers.type = 'out' THEN stock_ledgers.qty_out ELSE 0 END) as qty_out,
-                SUM(CASE WHEN {$inRange} AND stock_ledgers.type = 'adjustment' THEN stock_ledgers.qty_in - stock_ledgers.qty_out ELSE 0 END) as adjusted,
-                SUM(stock_ledgers.qty_in - stock_ledgers.qty_out) as closing");
+                SUM(CASE WHEN {$inRange} AND stock_ledgers.type = 'adjustment' THEN stock_ledgers.qty_in ELSE 0 END)
+                    - SUM(CASE WHEN {$inRange} AND stock_ledgers.type = 'adjustment' THEN stock_ledgers.qty_out ELSE 0 END) as adjusted,
+                SUM(stock_ledgers.qty_in) - SUM(stock_ledgers.qty_out) as closing");
 
         if ($request->input('export') === 'xlsx') {
             return XlsxExport::download("pergerakan-barang-{$from->format('Ymd')}-{$to->format('Ymd')}.xlsx",

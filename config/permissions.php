@@ -162,6 +162,16 @@ return [
                 'view' => 'Lihat log aktivitas semua user',
             ],
         ],
+
+        'backups' => [
+            'label' => 'Backup Database',
+            'icon' => 'heroicon-o-circle-stack',
+            'actions' => [
+                'view' => 'Lihat & unduh backup database',
+                'create' => 'Buat backup sekarang',
+                'delete' => 'Hapus file backup',
+            ],
+        ],
     ],
 
 ];

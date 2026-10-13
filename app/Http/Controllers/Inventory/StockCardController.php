@@ -39,7 +39,8 @@ class StockCardController extends Controller
                 ->when($request->input('location') === 'none', fn ($query) => $query->whereNull('warehouse_location_id'))
                 ->when($request->filled('location') && $request->input('location') !== 'none', fn ($query) => $query->where('warehouse_location_id', $request->integer('location')));
 
-            $opening = (int) $scope()->whereDate('movement_date', '<', $from)->sum(DB::raw('qty_in - qty_out'));
+            // qty_in/qty_out unsigned: di MySQL selisih per baris yang minus ditolak, jadi jumlahkan dulu.
+            $opening = (int) $scope()->whereDate('movement_date', '<', $from)->value(DB::raw('COALESCE(SUM(qty_in), 0) - COALESCE(SUM(qty_out), 0)'));
 
             $balance = $opening;
             $rows = $scope()

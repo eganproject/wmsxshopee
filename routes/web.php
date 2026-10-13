@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Admin\ActivityLogController;
+use App\Http\Controllers\Admin\BackupController;
 use App\Http\Controllers\Admin\RoleController;
 use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\Auth\LoginController;
@@ -180,5 +181,11 @@ Route::middleware(['auth', 'active'])->group(function () {
         Route::delete('roles/{role}', [RoleController::class, 'destroy'])->middleware('can:roles.delete')->name('roles.destroy');
 
         Route::get('activity', [ActivityLogController::class, 'index'])->middleware('can:activity.view')->name('activity.index');
+
+        // Backup database: otomatis tiap hari lewat scheduler, atau manual dari sini.
+        Route::get('backups', [BackupController::class, 'index'])->middleware('can:backups.view')->name('backups.index');
+        Route::post('backups', [BackupController::class, 'store'])->middleware('can:backups.create')->name('backups.store');
+        Route::get('backups/{name}', [BackupController::class, 'download'])->middleware('can:backups.view')->name('backups.download');
+        Route::delete('backups/{name}', [BackupController::class, 'destroy'])->middleware('can:backups.delete')->name('backups.destroy');
     });
 });
