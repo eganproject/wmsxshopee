@@ -3,11 +3,13 @@ import Alpine from 'alpinejs';
 import collapse from '@alpinejs/collapse';
 import { enhance, enhanceDate, enhanceSelect, registerAlpine } from './form-controls';
 import { labelBuilder } from './labels';
+import { globalSearch } from './search';
 import { initUi, registerToasts } from './ui';
 
 Alpine.plugin(collapse);
 registerAlpine(Alpine);
 Alpine.data('labelBuilder', labelBuilder);
+Alpine.data('globalSearch', globalSearch);
 const toast = registerToasts(Alpine);
 
 // Modal konfirmasi global: <button @click="$dispatch('confirm', { form: 'form-id', ... })">
