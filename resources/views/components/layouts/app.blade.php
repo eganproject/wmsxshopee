@@ -18,6 +18,12 @@
             ],
         ],
         [
+            'heading' => 'Penjualan',
+            'items' => [
+                ['label' => 'Pesanan', 'route' => 'sales.orders.index', 'active' => 'sales.orders.*', 'icon' => 'heroicon-o-shopping-cart', 'can' => 'sales.view'],
+            ],
+        ],
+        [
             'heading' => 'Inventori',
             'items' => [
                 ['label' => 'Penerimaan Barang', 'route' => 'inventory.receipts.index', 'active' => 'inventory.receipts.*', 'icon' => 'heroicon-o-inbox-arrow-down', 'can' => 'receipts.view'],

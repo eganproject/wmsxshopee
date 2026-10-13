@@ -18,6 +18,8 @@ use App\Http\Controllers\Master\UnitController;
 use App\Http\Controllers\Master\WarehouseController;
 use App\Http\Controllers\Master\ZoneController;
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\Sales\SalesOrderController;
+use App\Http\Controllers\Sales\SalesOrderImportController;
 use Illuminate\Support\Facades\Route;
 
 Route::redirect('/', '/dashboard');
@@ -83,6 +85,29 @@ Route::middleware(['auth', 'active'])->group(function () {
         Route::put('receipts/{receipt}', [GoodsReceiptController::class, 'update'])->middleware('can:receipts.create')->name('receipts.update');
         Route::post('receipts/{receipt}/receive', [GoodsReceiptController::class, 'receive'])->middleware('can:receipts.receive')->name('receipts.receive');
         Route::delete('receipts/{receipt}', [GoodsReceiptController::class, 'destroy'])->middleware('can:receipts.delete')->name('receipts.destroy');
+    });
+
+    // Pesanan penjualan manual: draft -> dikonfirmasi (stok dicadangkan) -> diambil ->
+    // dikemas -> dikirim (stok keluar lewat mutasi Barang Keluar). Batal melepas cadangan.
+    Route::prefix('sales')->name('sales.')->group(function () {
+        Route::get('orders', [SalesOrderController::class, 'index'])->middleware('can:sales.view')->name('orders.index');
+        Route::get('orders/create', [SalesOrderController::class, 'create'])->middleware('can:sales.create')->name('orders.create');
+        Route::post('orders', [SalesOrderController::class, 'store'])->middleware('can:sales.create')->name('orders.store');
+        Route::get('orders/import', [SalesOrderImportController::class, 'create'])->middleware('can:sales.create')->name('orders.import');
+        Route::post('orders/import', [SalesOrderImportController::class, 'store'])->middleware('can:sales.create')->name('orders.import.store');
+        Route::get('orders/import/template.{format}', [SalesOrderImportController::class, 'template'])->middleware('can:sales.create')->name('orders.import.template');
+        Route::get('orders/{order}', [SalesOrderController::class, 'show'])->middleware('can:sales.view')->name('orders.show');
+        Route::get('orders/{order}/edit', [SalesOrderController::class, 'edit'])->middleware('can:sales.create')->name('orders.edit');
+        Route::put('orders/{order}', [SalesOrderController::class, 'update'])->middleware('can:sales.create')->name('orders.update');
+        Route::delete('orders/{order}', [SalesOrderController::class, 'destroy'])->middleware('can:sales.delete')->name('orders.destroy');
+        Route::post('orders/{order}/confirm', [SalesOrderController::class, 'confirm'])->middleware('can:sales.confirm')->name('orders.confirm');
+        Route::post('orders/{order}/reopen', [SalesOrderController::class, 'reopen'])->middleware('can:sales.confirm')->name('orders.reopen');
+        Route::post('orders/{order}/cancel', [SalesOrderController::class, 'cancel'])->middleware('can:sales.cancel')->name('orders.cancel');
+        Route::get('orders/{order}/picking', [SalesOrderController::class, 'picking'])->middleware('can:sales.fulfill')->name('orders.picking');
+        Route::post('orders/{order}/pick', [SalesOrderController::class, 'pick'])->middleware('can:sales.fulfill')->name('orders.pick');
+        Route::get('orders/{order}/pick-list', [SalesOrderController::class, 'pickList'])->middleware('can:sales.view')->name('orders.pick-list');
+        Route::post('orders/{order}/pack', [SalesOrderController::class, 'pack'])->middleware('can:sales.fulfill')->name('orders.pack');
+        Route::post('orders/{order}/ship', [SalesOrderController::class, 'ship'])->middleware('can:sales.fulfill')->name('orders.ship');
     });
 
     Route::prefix('admin')->name('admin.')->group(function () {

@@ -68,6 +68,19 @@ return [
             ],
         ],
 
+        'sales' => [
+            'label' => 'Pesanan Penjualan',
+            'icon' => 'heroicon-o-shopping-cart',
+            'actions' => [
+                'view' => 'Lihat pesanan & cetak picking list',
+                'create' => 'Buat, ubah & impor draft pesanan',
+                'confirm' => 'Konfirmasi pesanan (cadangkan stok)',
+                'fulfill' => 'Picking, packing & kirim (stok keluar)',
+                'cancel' => 'Batalkan pesanan',
+                'delete' => 'Hapus draft pesanan',
+            ],
+        ],
+
         'suppliers' => [
             'label' => 'Master Supplier',
             'icon' => 'heroicon-o-building-storefront',
