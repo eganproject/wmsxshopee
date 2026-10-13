@@ -6,6 +6,7 @@ use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\Inventory\GoodsReceiptController;
+use App\Http\Controllers\Inventory\OpeningStockImportController;
 use App\Http\Controllers\Inventory\StockCardController;
 use App\Http\Controllers\Inventory\StockController;
 use App\Http\Controllers\Inventory\StockCountController;
@@ -16,6 +17,7 @@ use App\Http\Controllers\Master\BundleController;
 use App\Http\Controllers\Master\CourierController;
 use App\Http\Controllers\Master\LocationController;
 use App\Http\Controllers\Master\ProductController;
+use App\Http\Controllers\Master\ProductImportController;
 use App\Http\Controllers\Master\RackController;
 use App\Http\Controllers\Master\SupplierController;
 use App\Http\Controllers\Master\UnitController;
@@ -46,6 +48,11 @@ Route::middleware(['auth', 'active'])->group(function () {
     Route::put('profile/password', [ProfileController::class, 'updatePassword'])->name('profile.password');
 
     Route::prefix('master')->name('master.')->group(function () {
+        // Impor massal produk dari Excel/CSV.
+        Route::get('products/import', [ProductImportController::class, 'create'])->middleware('can:products.create')->name('products.import');
+        Route::post('products/import', [ProductImportController::class, 'store'])->middleware('can:products.create')->name('products.import.store');
+        Route::get('products/import/template.{format}', [ProductImportController::class, 'template'])->middleware('can:products.create')->name('products.import.template');
+
         // Zona, rak & lokasi bin memakai permission yang sama dengan gudang;
         // satuan & produk paket memakai permission produk.
         $resources = [
@@ -72,6 +79,9 @@ Route::middleware(['auth', 'active'])->group(function () {
 
     Route::prefix('inventory')->name('inventory.')->group(function () {
         Route::get('stocks', [StockController::class, 'index'])->middleware('can:inventory.view')->name('stocks.index');
+        Route::get('opening-stock', [OpeningStockImportController::class, 'create'])->middleware('can:inventory.create')->name('opening-stock.create');
+        Route::post('opening-stock', [OpeningStockImportController::class, 'store'])->middleware('can:inventory.create')->name('opening-stock.store');
+        Route::get('opening-stock/template.{format}', [OpeningStockImportController::class, 'template'])->middleware('can:inventory.create')->name('opening-stock.template');
         Route::get('stock-card', [StockCardController::class, 'index'])->middleware('can:inventory.view')->name('stock-card.index');
         Route::get('lookup/variants', VariantLookupController::class)->middleware('can:inventory.view')->name('lookup.variants');
 

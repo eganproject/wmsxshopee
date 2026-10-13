@@ -17,6 +17,13 @@
                     <x-dynamic-component :component="$meta['icon']" class="size-5 text-slate-400" /> {{ $meta['label'] }}
                 </a>
             @endforeach
+            @can('inventory.create')
+                <div class="my-1 border-t border-slate-100"></div>
+                <a href="{{ route('inventory.opening-stock.create') }}"
+                   class="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-slate-700 hover:bg-slate-100">
+                    <x-heroicon-o-arrow-up-tray class="size-5 text-slate-400" /> Impor Stok Awal (Excel)
+                </a>
+            @endcan
         </div>
     </div>
 @endif

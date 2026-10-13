@@ -8,6 +8,7 @@
     </x-slot:breadcrumb>
 
     <x-page-header title="Stock Opname" description="Hitung fisik per gudang atau zona, bandingkan dengan saldo sistem, lalu posting selisihnya." icon="heroicon-o-clipboard-document-check">
+        <x-reports.export-button />
         @can('opname.create')
             <a href="{{ route('inventory.counts.create') }}" class="btn-primary"><x-heroicon-o-plus class="size-5" /> Opname Baru</a>
         @endcan

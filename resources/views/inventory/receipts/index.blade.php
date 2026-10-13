@@ -8,6 +8,7 @@
     </x-slot:breadcrumb>
 
     <x-page-header title="Penerimaan Barang" description="Barang datang dari supplier: cek jumlah, catat yang rusak, lalu simpan ke lokasi bin." icon="heroicon-o-inbox-arrow-down">
+        <x-reports.export-button />
         @can('receipts.create')
             <a href="{{ route('inventory.receipts.create') }}" class="btn-primary">
                 <x-heroicon-o-plus class="size-5" /> Penerimaan Baru

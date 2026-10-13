@@ -8,6 +8,7 @@
     </x-slot:breadcrumb>
 
     <x-page-header title="Pesanan" description="Pesanan manual: konfirmasi untuk mencadangkan stok, lalu picking, kemas dan kirim." icon="heroicon-o-shopping-cart">
+        <x-reports.export-button />
         @can('sales.create')
             <a href="{{ route('sales.orders.import') }}" class="btn-secondary">
                 <x-heroicon-o-arrow-up-tray class="size-5" /> Impor Excel / CSV

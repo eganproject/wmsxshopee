@@ -8,6 +8,7 @@
     </x-slot:breadcrumb>
 
     <x-page-header title="Stok" description="Saldo stok saat ini per varian di setiap lokasi bin." icon="heroicon-o-archive-box">
+        <x-reports.export-button />
         <x-inventory.create-menu />
     </x-page-header>
 

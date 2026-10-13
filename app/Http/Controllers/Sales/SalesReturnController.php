@@ -11,6 +11,7 @@ use App\Models\WarehouseLocation;
 use App\Rules\AccessibleRecord;
 use App\Services\StockService;
 use App\Support\Activity;
+use App\Support\XlsxExport;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -19,12 +20,13 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class SalesReturnController extends Controller
 {
-    public function index(Request $request): View
+    public function index(Request $request): View|BinaryFileResponse
     {
-        $returns = SalesReturn::query()
+        $query = SalesReturn::query()
             ->with(['order', 'warehouse'])
             ->withSum('items', 'qty_good')
             ->withSum('items', 'qty_damaged')
@@ -46,9 +48,19 @@ class SalesReturnController extends Controller
                     ->orWhereHas('order', fn ($o) => $o->where('number', 'like', "%{$search}%")->orWhere('tracking_number', 'like', "%{$search}%")));
             })
             ->latest('return_date')
-            ->latest('id')
-            ->paginate(20)
-            ->withQueryString();
+            ->latest('id');
+
+        if ($request->input('export') === 'xlsx') {
+            return XlsxExport::download('retur-'.now()->format('Ymd-His').'.xlsx',
+                ['No. Retur', 'Tanggal', 'Status', 'Sumber', 'No. SO', 'No. Resi', 'Pengirim', 'Saluran / Toko', 'No. Pesanan Marketplace', 'Gudang', 'Qty Layak Jual', 'Qty Rusak', 'Qty Hilang', 'Catatan'],
+                $query->lazy(500)->map(fn ($r) => [
+                    $r->number, $r->return_date->format('d/m/Y'), $r->statusLabel(), $r->sourceLabel(), $r->order?->number, $r->tracking_number, $r->sender_name,
+                    $r->channel_name, $r->external_number, $r->warehouse?->code,
+                    (int) $r->items_sum_qty_good, (int) $r->items_sum_qty_damaged, (int) $r->items_sum_qty_missing, $r->notes,
+                ]));
+        }
+
+        $returns = $query->paginate(20)->withQueryString();
 
         return view('sales.returns.index', [
             'returns' => $returns,

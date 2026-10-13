@@ -8,6 +8,7 @@
     </x-slot:breadcrumb>
 
     <x-page-header title="Master Kurir" description="Ekspedisi pengiriman beserta jenis layanannya." icon="heroicon-o-truck">
+        <x-reports.export-button />
         @can('couriers.create')
             <a href="{{ route('master.couriers.create') }}" class="btn-primary">
                 <x-heroicon-o-plus class="size-5" /> Tambah Kurir

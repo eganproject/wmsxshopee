@@ -12,6 +12,7 @@ use App\Models\WarehouseLocation;
 use App\Rules\AccessibleRecord;
 use App\Services\SalesOrderService;
 use App\Support\Activity;
+use App\Support\XlsxExport;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -19,12 +20,13 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class SalesOrderController extends Controller
 {
-    public function index(Request $request): View
+    public function index(Request $request): View|BinaryFileResponse
     {
-        $orders = SalesOrder::query()
+        $query = SalesOrder::query()
             ->with(['warehouse', 'courier'])
             ->withSum('items', 'qty')
             ->when($request->filled('status'), fn ($query) => $query->where('status', $request->input('status')))
@@ -41,9 +43,19 @@ class SalesOrderController extends Controller
                     ->orWhere('tracking_number', 'like', "%{$search}%"));
             })
             ->latest('order_date')
-            ->latest('id')
-            ->paginate(20)
-            ->withQueryString();
+            ->latest('id');
+
+        if ($request->input('export') === 'xlsx') {
+            return XlsxExport::download('pesanan-'.now()->format('Ymd-His').'.xlsx',
+                ['No. SO', 'Tanggal', 'Status', 'Saluran / Toko', 'No. Pesanan Marketplace', 'Pembeli', 'Telepon', 'Alamat', 'Gudang', 'Kurir', 'Layanan', 'No. Resi', 'Total Qty', 'Ongkir', 'Catatan'],
+                $query->lazy(500)->map(fn ($o) => [
+                    $o->number, $o->order_date->format('d/m/Y'), $o->statusLabel(), $o->channel_name, $o->external_number, $o->customer_name, $o->customer_phone,
+                    $o->shipping_address, $o->warehouse?->code, $o->courier?->name, $o->courier_service, $o->tracking_number,
+                    (int) $o->items_sum_qty, (float) $o->shipping_fee, $o->notes,
+                ]));
+        }
+
+        $orders = $query->paginate(20)->withQueryString();
 
         $counts = SalesOrder::query()->groupBy('status')->selectRaw('status, COUNT(*) as total')->pluck('total', 'status');
 

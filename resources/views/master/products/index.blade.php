@@ -8,7 +8,11 @@
     </x-slot:breadcrumb>
 
     <x-page-header title="Master Produk" description="SKU internal, varian, barcode, berat dan dimensi barang." icon="heroicon-o-cube">
+        <x-reports.export-button />
         @can('products.create')
+            <a href="{{ route('master.products.import') }}" class="btn-secondary">
+                <x-heroicon-o-arrow-up-tray class="size-5" /> Impor Excel / CSV
+            </a>
             <a href="{{ route('master.products.create') }}" class="btn-primary">
                 <x-heroicon-o-plus class="size-5" /> Tambah Produk
             </a>

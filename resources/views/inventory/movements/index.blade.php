@@ -8,6 +8,7 @@
     </x-slot:breadcrumb>
 
     <x-page-header title="Mutasi Stok" description="Dokumen barang masuk, keluar, transfer antar lokasi dan penyesuaian." icon="heroicon-o-arrows-right-left">
+        <x-reports.export-button />
         <x-inventory.create-menu />
     </x-page-header>
 
