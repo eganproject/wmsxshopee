@@ -13,6 +13,7 @@ class SalesReturnItem extends Model
         'product_variant_id',
         'qty_good',
         'qty_damaged',
+        'qty_missing',
         'warehouse_location_id',
         'reason',
         'photo_path',
@@ -24,6 +25,7 @@ class SalesReturnItem extends Model
         return [
             'qty_good' => 'integer',
             'qty_damaged' => 'integer',
+            'qty_missing' => 'integer',
         ];
     }
 
@@ -54,6 +56,6 @@ class SalesReturnItem extends Model
 
     public function qty(): int
     {
-        return $this->qty_good + $this->qty_damaged;
+        return $this->qty_good + $this->qty_damaged + $this->qty_missing;
     }
 }

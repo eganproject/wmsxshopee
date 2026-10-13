@@ -325,7 +325,7 @@
                         <span class="flex items-center gap-3">
                             <span class="font-mono font-medium text-slate-900">{{ $return->number }}</span>
                             <span class="text-slate-500">{{ $return->return_date->format('d/m/Y') }}</span>
-                            <span class="text-slate-600">layak jual {{ $return->items->sum('qty_good') }} · rusak {{ $return->items->sum('qty_damaged') }}</span>
+                            <span class="text-slate-600">layak jual {{ $return->items->sum('qty_good') }} · rusak {{ $return->items->sum('qty_damaged') }}@if ($missing = $return->items->sum('qty_missing')) · hilang {{ $missing }}@endif</span>
                         </span>
                         @include('sales.returns._status')
                     </a>

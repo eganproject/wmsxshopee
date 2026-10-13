@@ -47,9 +47,12 @@
             <label class="flex items-center gap-1.5 text-sm whitespace-nowrap text-slate-600">
                 <input type="checkbox" name="damaged" value="1" class="rounded border-slate-300" @checked(request()->boolean('damaged')) onchange="this.form.submit()"> Ada rusak
             </label>
+            <label class="flex items-center gap-1.5 text-sm whitespace-nowrap text-slate-600">
+                <input type="checkbox" name="missing" value="1" class="rounded border-slate-300" @checked(request()->boolean('missing')) onchange="this.form.submit()"> Ada hilang
+            </label>
             <div class="flex gap-2">
                 <button type="submit" class="btn-secondary"><x-heroicon-o-funnel class="size-5" /> Filter</button>
-                @if (request()->hasAny(['search', 'status', 'source', 'warehouse', 'from', 'to', 'damaged']))
+                @if (request()->hasAny(['search', 'status', 'source', 'warehouse', 'from', 'to', 'damaged', 'missing']))
                     <a href="{{ route('sales.returns.index') }}" class="btn-icon" title="Reset filter"><x-heroicon-o-x-mark class="size-5" /></a>
                 @endif
             </div>
@@ -67,6 +70,7 @@
                         <th class="h-8 px-4 py-0 font-normal">Gudang</th>
                         <th class="h-8 px-4 py-0 font-normal text-right">Layak Jual</th>
                         <th class="h-8 px-4 py-0 font-normal text-right">Rusak</th>
+                        <th class="h-8 px-4 py-0 font-normal text-right">Hilang</th>
                         <th class="h-8 px-4 py-0 font-normal">Status</th>
                         <th class="h-8 px-4 py-0 font-normal text-right">Aksi</th>
                     </tr>
@@ -95,6 +99,9 @@
                             <td @class(['px-4 py-2.5 text-right tabular-nums', 'text-rose-600' => $return->items_sum_qty_damaged > 0, 'text-slate-400' => ! $return->items_sum_qty_damaged])>
                                 {{ number_format((int) $return->items_sum_qty_damaged, 0, ',', '.') }}
                             </td>
+                            <td @class(['px-4 py-2.5 text-right tabular-nums', 'font-medium text-amber-600' => $return->items_sum_qty_missing > 0, 'text-slate-400' => ! $return->items_sum_qty_missing])>
+                                {{ number_format((int) $return->items_sum_qty_missing, 0, ',', '.') }}
+                            </td>
                             <td class="px-4 py-2.5">@include('sales.returns._status')</td>
                             <td class="px-4 py-2.5">
                                 <div class="flex justify-end gap-1">
@@ -113,7 +120,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="10" class="px-5 py-16 text-center">
+                            <td colspan="11" class="px-5 py-16 text-center">
                                 <x-heroicon-o-arrow-uturn-left class="mx-auto size-12 text-slate-300" />
                                 <p class="mt-3 font-medium text-slate-700">Belum ada retur penjualan</p>
                                 <p class="text-sm text-slate-500">Scan resi paket yang kembali untuk mencatat retur.</p>
