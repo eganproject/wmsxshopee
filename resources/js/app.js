@@ -2,9 +2,11 @@ import './bootstrap';
 import Alpine from 'alpinejs';
 import collapse from '@alpinejs/collapse';
 import { enhance, enhanceDate, enhanceSelect, registerAlpine } from './form-controls';
+import { labelBuilder } from './labels';
 
 Alpine.plugin(collapse);
 registerAlpine(Alpine);
+Alpine.data('labelBuilder', labelBuilder);
 
 // Modal konfirmasi global: <button @click="$dispatch('confirm', { ... })">
 Alpine.data('confirmDialog', () => ({
