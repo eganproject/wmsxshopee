@@ -233,44 +233,47 @@
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-slate-100">
-                    @foreach ($order->items as $item)
-                        <tr>
-                            <td class="px-4 py-2.5 text-slate-400">{{ $loop->iteration }}</td>
-                            <td class="px-4 py-2.5 font-mono font-medium text-slate-900">{{ $item->variant->sku }}</td>
+                    @php($line = 0)
+                    @foreach ($order->items->whereNull('sales_order_bundle_id') as $item)
+                        @include('sales.orders._item-row', ['item' => $item, 'number' => ++$line])
+                    @endforeach
+                    @foreach ($order->bundles as $bundleLine)
+                        <tr class="bg-slate-50/60">
+                            <td class="px-4 py-2.5 text-slate-400">{{ ++$line }}</td>
+                            <td class="px-4 py-2.5 font-mono font-medium text-slate-900">{{ $bundleLine->bundle->sku }}</td>
                             <td class="px-4 py-2.5">
-                                <p class="font-medium text-slate-900">{{ $item->variant->product->name }}</p>
-                                @if ($item->variant->name)
-                                    <p class="text-xs text-slate-500">{{ $item->variant->name }}</p>
-                                @endif
+                                <p class="flex items-center gap-1.5 font-medium text-slate-900">
+                                    {{ $bundleLine->bundle->name }}
+                                    <span class="inline-flex items-center gap-1 rounded-full bg-violet-50 px-2 py-0.5 text-[11px] font-medium text-violet-700"><x-heroicon-o-gift class="size-3" /> Paket</span>
+                                </p>
                             </td>
                             <td class="px-4 py-2.5 text-right font-semibold tabular-nums text-slate-900">
-                                {{ number_format($item->qty, 0, ',', '.') }}
-                                <span class="text-xs font-normal text-slate-500">{{ $item->variant->product->unit->code }}</span>
+                                {{ number_format($bundleLine->qty, 0, ',', '.') }}
+                                <span class="text-xs font-normal text-slate-500">paket</span>
                             </td>
                             @if ($order->hasStatus('draft'))
-                                @php($available = $availability[$item->product_variant_id]['available'] ?? 0)
-                                @php($needed = $order->items->where('product_variant_id', $item->product_variant_id)->sum('qty'))
-                                <td @class(['px-4 py-2.5 text-right tabular-nums', 'text-rose-600 font-medium' => $available < $needed, 'text-slate-600' => $available >= $needed])>
-                                    {{ number_format($available, 0, ',', '.') }}
+                                @php($possible = $bundleAvailability[$bundleLine->bundle_id] ?? 0)
+                                <td @class(['px-4 py-2.5 text-right tabular-nums', 'text-rose-600 font-medium' => $possible < $bundleLine->qty, 'text-slate-600' => $possible >= $bundleLine->qty])
+                                    title="Jumlah paket yang bisa dipenuhi dari stok isinya">
+                                    {{ number_format($possible, 0, ',', '.') }} <span class="text-xs font-normal">paket</span>
                                 </td>
                             @endif
                             @if ($showPicks)
-                                <td class="px-4 py-2.5">
-                                    @foreach ($item->picks as $pick)
-                                        <p class="text-xs whitespace-nowrap"><span @class(['font-mono text-slate-700' => $pick->location, 'text-slate-400' => ! $pick->location])>{{ $pick->location?->code ?? 'Tanpa bin' }}</span> <span class="text-slate-500">× {{ $pick->qty }}</span></p>
-                                    @endforeach
-                                </td>
+                                <td class="px-4 py-2.5"></td>
                             @endif
-                            <td class="px-4 py-2.5 text-right tabular-nums text-slate-600">{{ $money($item->price) }}</td>
-                            <td class="px-4 py-2.5 text-right tabular-nums text-slate-900">{{ $money($item->qty * $item->price) }}</td>
-                            <td class="px-4 py-2.5 text-slate-600">{{ $item->notes ?? '—' }}</td>
+                            <td class="px-4 py-2.5 text-right tabular-nums text-slate-600">{{ $money($bundleLine->price) }}</td>
+                            <td class="px-4 py-2.5 text-right tabular-nums text-slate-900">{{ $money($bundleLine->qty * $bundleLine->price) }}</td>
+                            <td class="px-4 py-2.5 text-slate-600">{{ $bundleLine->notes ?? '—' }}</td>
                         </tr>
+                        @foreach ($order->items->where('sales_order_bundle_id', $bundleLine->id) as $item)
+                            @include('sales.orders._item-row', ['item' => $item, 'number' => null])
+                        @endforeach
                     @endforeach
                 </tbody>
                 @php($extraCols = ($order->hasStatus('draft') ? 1 : 0) + ($showPicks ? 1 : 0))
                 <tfoot class="border-t border-slate-200 bg-slate-50 text-[13px]">
                     <tr>
-                        <td colspan="3" class="px-4 py-2 text-right text-slate-500">Total</td>
+                        <td colspan="3" class="px-4 py-2 text-right text-slate-500">Total barang</td>
                         <td class="px-4 py-2 text-right font-semibold tabular-nums text-slate-900">{{ number_format($order->items->sum('qty'), 0, ',', '.') }}</td>
                         <td colspan="{{ $extraCols + 1 }}" class="px-4 py-2 text-right text-slate-500">Subtotal</td>
                         <td class="px-4 py-2 text-right font-medium tabular-nums text-slate-700">{{ $money($subtotal) }}</td>

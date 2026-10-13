@@ -86,6 +86,17 @@ class SalesOrder extends Model
         return $this->hasMany(SalesOrderItem::class)->orderBy('id');
     }
 
+    /** Baris barang biasa (bukan isi paket). */
+    public function looseItems(): HasMany
+    {
+        return $this->items()->whereNull('sales_order_bundle_id');
+    }
+
+    public function bundles(): HasMany
+    {
+        return $this->hasMany(SalesOrderBundle::class)->orderBy('id');
+    }
+
     public function hasStatus(string ...$statuses): bool
     {
         return in_array($this->status, $statuses, true);
@@ -108,7 +119,9 @@ class SalesOrder extends Model
 
     public function subtotal(): float
     {
-        return (float) $this->items->sum(fn ($item) => $item->qty * $item->price);
+        // Isi paket berharga 0; harga paket ada di baris paketnya.
+        return (float) $this->items->sum(fn ($item) => $item->qty * $item->price)
+            + (float) $this->bundles->sum(fn ($line) => $line->qty * $line->price);
     }
 
     public function trackingUrl(): ?string

@@ -46,6 +46,9 @@
                     <div>
                         <p class="font-mono text-sm font-medium text-slate-900">{{ $item->variant->sku }}</p>
                         <p class="text-sm text-slate-700">{{ $item->variant->product->name }}{{ $item->variant->name ? ' / '.$item->variant->name : '' }}</p>
+                        @if ($item->bundleLine)
+                            <p class="text-xs text-violet-600">Isi paket {{ $item->bundleLine->bundle->sku }}</p>
+                        @endif
                         <p class="mt-1 text-sm">
                             Diambil <span class="font-semibold tabular-nums" :class="total({{ $item->id }}) === {{ $item->qty }} ? 'text-emerald-600' : 'text-rose-600'" x-text="total({{ $item->id }})"></span>
                             dari <span class="font-semibold tabular-nums text-slate-900">{{ $item->qty }}</span> {{ $item->variant->product->unit->code }}

@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\Bundle;
 use App\Models\Courier;
 use App\Models\ProductVariant;
 use App\Models\SalesOrder;
@@ -31,7 +32,7 @@ class SalesOrderImporter
         'kurir' => 'Kode atau nama kurir di master kurir. Opsional.',
         'layanan' => 'Layanan kurir, cth. REG. Opsional.',
         'ongkir' => 'Ongkos kirim. Opsional.',
-        'sku' => 'Wajib. SKU varian atau barcode.',
+        'sku' => 'Wajib. SKU varian, SKU produk paket, atau barcode.',
         'qty' => 'Wajib. Bilangan bulat lebih dari 0.',
         'harga' => 'Harga satuan. Opsional.',
         'catatan' => 'Catatan pesanan. Opsional.',
@@ -85,7 +86,7 @@ class SalesOrderImporter
                     'status' => 'draft',
                     'created_by' => $userId,
                 ]);
-                $order->items()->createMany($group['items']);
+                $this->orders->fillLines($order, $group['items'], $group['bundles']);
                 $created[$order->id] = $order->number;
             }
         });
@@ -150,7 +151,7 @@ class SalesOrderImporter
 
     /**
      * @param  array<int, array<int, mixed>>  $rows
-     * @return Collection<int, array{header: array<string, mixed>, items: array<int, array<string, mixed>>}>
+     * @return Collection<int, array{header: array<string, mixed>, items: array<int, array<string, mixed>>, bundles: array<int, array<string, mixed>>}>
      *
      * @throws ValidationException
      */
@@ -184,6 +185,14 @@ class SalesOrderImporter
         $variantByCode = $variants->keyBy(fn ($v) => mb_strtoupper($v->sku))
             ->union($variants->filter(fn ($v) => $v->barcode)->keyBy(fn ($v) => mb_strtoupper($v->barcode)));
 
+        $bundles = Bundle::query()
+            ->where('is_active', true)
+            ->whereHas('items')
+            ->where(fn ($q) => $q->whereIn('sku', $codes)->orWhereIn('barcode', $codes))
+            ->get(['id', 'sku', 'barcode']);
+        $bundleByCode = $bundles->keyBy(fn ($b) => mb_strtoupper($b->sku))
+            ->union($bundles->filter(fn ($b) => $b->barcode)->keyBy(fn ($b) => mb_strtoupper($b->barcode)));
+
         $couriers = Courier::where('is_active', true)->get(['id', 'code', 'name']);
         $courierByName = $couriers->keyBy(fn ($c) => mb_strtoupper($c->code))->union($couriers->keyBy(fn ($c) => mb_strtoupper($c->name)));
 
@@ -194,6 +203,7 @@ class SalesOrderImporter
             $line = $record['line'];
             $sku = mb_strtoupper((string) ($record['sku'] ?? ''));
             $variant = $sku !== '' ? $variantByCode->get($sku) : null;
+            $bundle = $sku !== '' && ! $variant ? $bundleByCode->get($sku) : null;
             $qty = $record['qty'] ?? null;
             $date = $this->date($record['tanggal'] ?? null);
             $courier = filled($record['kurir'] ?? null) ? $courierByName->get(mb_strtoupper((string) $record['kurir'])) : null;
@@ -203,7 +213,7 @@ class SalesOrderImporter
             }
             if ($sku === '') {
                 $errors[] = "Baris {$line}: SKU wajib diisi.";
-            } elseif (! $variant) {
+            } elseif (! $variant && ! $bundle) {
                 $errors[] = "Baris {$line}: SKU {$record['sku']} tidak ditemukan atau nonaktif.";
             }
             if (! is_numeric($qty) || (int) $qty != $qty || (int) $qty < 1) {
@@ -226,7 +236,7 @@ class SalesOrderImporter
             if (count($errors) >= 50) {
                 break;
             }
-            if (! $variant) {
+            if (! $variant && ! $bundle) {
                 continue;
             }
 
@@ -248,12 +258,17 @@ class SalesOrderImporter
                     'notes' => $record['catatan'] ?? null,
                 ],
                 'items' => [],
+                'bundles' => [],
             ];
-            $groups[$key]['items'][] = [
-                'product_variant_id' => $variant->id,
+            $row = [
                 'qty' => (int) $qty,
                 'price' => is_numeric($record['harga'] ?? null) ? $record['harga'] : 0,
             ];
+            if ($variant) {
+                $groups[$key]['items'][] = ['product_variant_id' => $variant->id, ...$row];
+            } else {
+                $groups[$key]['bundles'][] = ['bundle_id' => $bundle->id, ...$row];
+            }
         }
 
         if ($errors) {
