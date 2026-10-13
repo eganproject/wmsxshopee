@@ -19,6 +19,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Factory;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
+use OpenSpout\Reader\XLSX\Reader;
 use Tests\TestCase;
 
 class ShopeeSyncTest extends TestCase
@@ -94,7 +95,20 @@ class ShopeeSyncTest extends TestCase
             '*/order/get_order_detail*' => Http::response(['error' => '', 'response' => ['order_list' => $orders]]),
             '*/logistics/get_tracking_number*' => Http::response(['error' => '', 'response' => ['tracking_number' => 'SPXID001']]),
             ...$more,
+            '*/payment/get_escrow_detail*' => Http::response(['error' => '', 'response' => ['order_income' => $this->income(129000)]]),
         ]);
+    }
+
+    /** @return array<string, mixed> */
+    private function income(int $escrow): array
+    {
+        return [
+            'escrow_amount' => $escrow, 'original_price' => 150000, 'seller_discount' => 10000, 'voucher_from_seller' => 5000,
+            'shopee_discount' => 3000, 'voucher_from_shopee' => 2000, 'commission_fee' => 6750, 'service_fee' => 4500,
+            'seller_transaction_fee' => 2750, 'buyer_paid_shipping_fee' => 12000, 'actual_shipping_fee' => 12000, 'shopee_shipping_rebate' => 0,
+            'items' => [['item_id' => 11, 'item_name' => 'Kaos Polos', 'model_sku' => 'KAOS-M', 'model_name' => 'M', 'quantity_purchased' => 2,
+                'original_price' => 150000, 'discounted_price' => 140000, 'discount_from_voucher_seller' => 5000]],
+        ];
     }
 
     private function available(ProductVariant $variant): int
@@ -124,6 +138,78 @@ class ShopeeSyncTest extends TestCase
         // Sinkron ulang tidak menggandakan pesanan.
         $this->artisan('shopee:sync --only=orders')->assertSuccessful();
         $this->assertSame(1, SalesOrder::count());
+    }
+
+    public function test_income_breakdown_is_stored_and_finalised_when_completed(): void
+    {
+        $this->actingAs(User::where('username', 'superadmin')->first());
+        $this->fakeOrders([$this->order('I1', 'READY_TO_SHIP', [$this->line(11, 101, 2)])]);
+        $this->artisan('shopee:sync --only=orders')->assertSuccessful();
+
+        $order = SalesOrder::where('external_number', 'I1')->firstOrFail();
+        $this->assertSame('129000.00', $order->shopee_escrow_amount);
+        $this->assertFalse($order->shopee_income_final);
+        $this->assertSame(6750, $order->shopee_income['commission_fee']);
+
+        $this->get("/sales/orders/{$order->id}")->assertOk()
+            ->assertSee('Rincian Pendapatan Shopee')->assertSee('Biaya administrasi')->assertSee('Voucher toko')
+            ->assertSee('Rp 129.000')->assertSee('Perkiraan')->assertSee('Voucher Shopee');
+
+        // Sinkron berikutnya tidak memanggil escrow lagi sampai pesanan Selesai.
+        $this->artisan('shopee:sync --only=orders')->assertSuccessful();
+        Http::assertSentCount(5);
+
+        Http::swap(new Factory);
+        Http::preventStrayRequests();
+        Http::fake([
+            '*/order/get_order_list*' => Http::response(['error' => '', 'response' => ['order_list' => [['order_sn' => 'I1']], 'more' => false]]),
+            '*/order/get_order_detail*' => Http::response(['error' => '', 'response' => ['order_list' => [$this->order('I1', 'COMPLETED', [$this->line(11, 101, 2)])]]]),
+            '*/payment/get_escrow_detail*' => Http::response(['error' => '', 'response' => ['order_income' => $this->income(127500)]]),
+            '*/logistics/get_tracking_number*' => Http::response(['error' => '', 'response' => ['tracking_number' => 'SPXID002']]),
+        ]);
+        $this->artisan('shopee:sync --only=orders')->assertSuccessful();
+
+        $order->refresh();
+        $this->assertTrue($order->shopee_income_final);
+        $this->assertSame('127500.00', $order->shopee_escrow_amount);
+        $this->get("/sales/orders/{$order->id}")->assertSee('Final')->assertDontSee('Perkiraan');
+    }
+
+    public function test_income_is_only_visible_with_permission(): void
+    {
+        $this->fakeOrders([$this->order('J1', 'READY_TO_SHIP', [$this->line(11, 101, 1)])]);
+        $this->artisan('shopee:sync --only=orders')->assertSuccessful();
+        $order = SalesOrder::where('external_number', 'J1')->firstOrFail();
+
+        $staff = User::factory()->create(['username' => 'admin2', 'is_active' => true]);
+        $staff->assignRole('Admin');
+        $this->actingAs($staff);
+
+        $this->get("/sales/orders/{$order->id}")->assertOk()->assertDontSee('Rincian Pendapatan Shopee')->assertDontSee('Rp 129.000');
+        $header = $this->xlsxHeader('/sales/orders?export=xlsx');
+        $this->assertNotContains('Dana Diterima Shopee', $header);
+        $this->assertArrayNotHasKey('shopee_escrow_amount', $order->toArray());
+
+        $staff->givePermissionTo('sales.income');
+        $this->actingAs($staff->fresh());
+        $this->get("/sales/orders/{$order->id}")->assertSee('Rincian Pendapatan Shopee')->assertSee('Rp 129.000');
+        $this->assertContains('Dana Diterima Shopee', $this->xlsxHeader('/sales/orders?export=xlsx'));
+    }
+
+    /** @return list<mixed> */
+    private function xlsxHeader(string $url): array
+    {
+        $reader = new Reader;
+        $reader->open($this->get($url)->assertOk()->getFile()->getPathname());
+        foreach ($reader->getSheetIterator() as $sheet) {
+            foreach ($sheet->getRowIterator() as $row) {
+                $header = $row->toArray();
+                break 2;
+            }
+        }
+        $reader->close();
+
+        return $header ?? [];
     }
 
     public function test_unmapped_sku_keeps_order_as_draft_until_mapped(): void

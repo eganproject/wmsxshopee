@@ -33,6 +33,9 @@ class SalesOrder extends Model
         'dropoff' => ['label' => 'Drop Off', 'description' => 'Paket diantar ke cabang / agen kurir', 'icon' => 'heroicon-o-building-storefront'],
     ];
 
+    /** Rincian pendapatan Shopee tidak ikut ke JSON/array (hanya untuk hak sales.income). */
+    protected $hidden = ['shopee_income', 'shopee_escrow_amount'];
+
     protected $fillable = [
         'number',
         'status',
@@ -46,6 +49,10 @@ class SalesOrder extends Model
         'shopee_sync_error',
         'shopee_synced_at',
         'shopee_ship_by',
+        'shopee_income',
+        'shopee_escrow_amount',
+        'shopee_income_final',
+        'shopee_income_synced_at',
         'customer_name',
         'customer_phone',
         'shipping_address',
@@ -90,6 +97,10 @@ class SalesOrder extends Model
             'pickup_at' => 'datetime',
             'shipment_arranged_at' => 'datetime',
             'shipping_label_printed_at' => 'datetime',
+            'shopee_income' => 'array',
+            'shopee_escrow_amount' => 'decimal:2',
+            'shopee_income_final' => 'boolean',
+            'shopee_income_synced_at' => 'datetime',
         ];
     }
 
@@ -300,7 +311,7 @@ class SalesOrder extends Model
     /** Jejak waktu sinkron Shopee berubah tiap tarikan; tidak perlu masuk log. */
     public function activityIgnored(): array
     {
-        return ['shopee_synced_at', 'shipping_label_printed_at'];
+        return ['shopee_synced_at', 'shipping_label_printed_at', 'shopee_income', 'shopee_escrow_amount', 'shopee_income_final', 'shopee_income_synced_at'];
     }
 
     /**

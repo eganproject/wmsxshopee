@@ -98,6 +98,7 @@ return [
                 'skip_scan' => 'Kemas & kirim tanpa scan (lewati QC / serah terima)',
                 'cancel' => 'Batalkan pesanan',
                 'delete' => 'Hapus draft pesanan',
+                'income' => 'Lihat rincian pendapatan Shopee (harga, potongan & dana diterima)',
             ],
         ],
 

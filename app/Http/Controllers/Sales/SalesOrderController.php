@@ -12,6 +12,7 @@ use App\Models\WarehouseLocation;
 use App\Rules\AccessibleRecord;
 use App\Services\SalesOrderService;
 use App\Support\Activity;
+use App\Support\ShopeeIncome;
 use App\Support\XlsxExport;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -51,12 +52,18 @@ class SalesOrderController extends Controller
             ->latest('id');
 
         if ($request->input('export') === 'xlsx') {
+            // Kolom pendapatan Shopee hanya untuk user dengan hak sales.income.
+            $income = $request->user()->can('sales.income');
+
             return XlsxExport::download('pesanan-'.now()->format('Ymd-His').'.xlsx',
-                ['No. SO', 'Tanggal', 'Status', 'Saluran / Toko', 'No. Pesanan Marketplace', 'Pembeli', 'Telepon', 'Alamat', 'Gudang', 'Kurir', 'Layanan', 'No. Resi', 'Total Qty', 'Ongkir', 'Catatan'],
+                ['No. SO', 'Tanggal', 'Status', 'Saluran / Toko', 'No. Pesanan Marketplace', 'Pembeli', 'Telepon', 'Alamat', 'Gudang', 'Kurir', 'Layanan', 'No. Resi', 'Total Qty', 'Ongkir',
+                    ...($income ? ['Biaya Shopee', 'Dana Diterima Shopee'] : []), 'Catatan'],
                 $query->lazy(500)->map(fn ($o) => [
                     $o->number, $o->order_date->format('d/m/Y'), $o->statusLabel(), $o->channel_name, $o->external_number, $o->customer_name, $o->customer_phone,
                     $o->shipping_address, $o->warehouse?->code, $o->courier?->name, $o->courier_service, $o->tracking_number,
-                    (int) $o->items_sum_qty, (float) $o->shipping_fee, $o->notes,
+                    (int) $o->items_sum_qty, (float) $o->shipping_fee,
+                    ...($income ? [$o->shopee_income ? ShopeeIncome::fees($o->shopee_income) : null, $o->shopee_escrow_amount !== null ? (float) $o->shopee_escrow_amount : null] : []),
+                    $o->notes,
                 ]));
         }
 
