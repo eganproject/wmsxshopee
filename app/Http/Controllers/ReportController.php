@@ -3,11 +3,11 @@
 namespace App\Http\Controllers;
 
 use App\Models\ProductVariant;
-use App\Models\SalesOrder;
 use App\Models\Stock;
 use App\Models\StockLedger;
 use App\Models\Warehouse;
 use App\Models\WarehouseZone;
+use App\Support\StockLevels;
 use App\Support\XlsxExport;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
@@ -88,41 +88,14 @@ class ReportController extends Controller
         $warehouseId = $request->filled('warehouse') ? $request->integer('warehouse') : null;
         $all = $request->input('show') === 'all';
 
-        $onHand = DB::table('stocks')
-            ->when($warehouseId, fn ($q) => $q->where('warehouse_id', $warehouseId))
-            ->groupBy('product_variant_id')
-            ->selectRaw('product_variant_id, SUM(qty) as qty');
-
-        $reserved = DB::table('sales_order_items')
-            ->join('sales_orders', 'sales_orders.id', '=', 'sales_order_items.sales_order_id')
-            ->whereIn('sales_orders.status', SalesOrder::RESERVING)
-            ->when($warehouseId, fn ($q) => $q->where('sales_orders.warehouse_id', $warehouseId))
-            ->groupBy('sales_order_items.product_variant_id')
-            ->selectRaw('sales_order_items.product_variant_id, SUM(sales_order_items.qty) as qty');
-
-        $available = 'COALESCE(on_hand.qty, 0) - COALESCE(reserved.qty, 0)';
-
-        $query = ProductVariant::query()
-            ->join('products', 'products.id', '=', 'product_variants.product_id')
-            ->leftJoin('units', 'units.id', '=', 'products.unit_id')
-            ->leftJoinSub($onHand, 'on_hand', 'on_hand.product_variant_id', '=', 'product_variants.id')
-            ->leftJoinSub($reserved, 'reserved', 'reserved.product_variant_id', '=', 'product_variants.id')
-            ->whereNotNull('product_variants.min_stock')
-            ->where('product_variants.is_active', true)
-            ->where('products.is_active', true)
-            ->when(! $all, fn ($q) => $q->whereRaw("{$available} <= product_variants.min_stock"))
+        $query = StockLevels::minStockQuery($warehouseId)
+            ->when(! $all, fn ($q) => StockLevels::belowMinimum($q))
             ->when($request->filled('search'), function (Builder $q) use ($request) {
                 $like = '%'.$request->string('search')->trim().'%';
                 $q->where(fn ($q) => $q->where('product_variants.sku', 'like', $like)->orWhere('products.name', 'like', $like));
-            })
-            // Paling kritis dulu: kekurangan terbesar terhadap stok minimum.
-            ->orderByRaw("product_variants.min_stock - ({$available}) desc")
-            ->orderBy('product_variants.sku')
-            ->selectRaw("product_variants.id, product_variants.sku, product_variants.name as variant_name, product_variants.min_stock,
-                products.name as product_name, units.code as unit_code,
-                COALESCE(on_hand.qty, 0) as on_hand, COALESCE(reserved.qty, 0) as reserved, {$available} as available");
+            });
 
-        $belowCount = (clone $query)->reorder()->whereRaw("{$available} <= product_variants.min_stock")->count();
+        $belowCount = StockLevels::belowMinimum((clone $query)->reorder())->count();
 
         if ($request->input('export') === 'xlsx') {
             return XlsxExport::download('stok-minimum-'.now()->format('Ymd-His').'.xlsx',
