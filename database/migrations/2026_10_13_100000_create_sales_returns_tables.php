@@ -46,8 +46,11 @@ return new class extends Migration
             $table->foreignId('sales_order_item_id')->nullable()->constrained()->restrictOnDelete();
             $table->foreignId('product_variant_id')->constrained()->restrictOnDelete();
             // Hanya qty_good (layak jual) yang masuk stok; qty_damaged dicatat terpisah.
+            // qty_missing = seharusnya ikut kembali tapi tidak ada di paket (bahan klaim
+            // ke channel / kurir); tidak menambah stok.
             $table->unsignedInteger('qty_good')->default(0);
             $table->unsignedInteger('qty_damaged')->default(0);
+            $table->unsignedInteger('qty_missing')->default(0);
             $table->foreignId('warehouse_location_id')->nullable()->constrained()->restrictOnDelete();
             $table->string('reason', 30);
             $table->string('photo_path')->nullable();

@@ -32,6 +32,7 @@ class SalesReturn extends Model
         'wrong_size' => 'Ukuran / varian tidak cocok',
         'changed_mind' => 'Pembeli berubah pikiran',
         'failed_delivery' => 'Gagal kirim / ditolak',
+        'missing' => 'Tidak ada di paket (hilang)',
         'other' => 'Lainnya',
     ];
 
@@ -145,7 +146,7 @@ class SalesReturn extends Model
             ->whereIn('sales_order_item_id', $orderItemIds)
             ->when($exceptReturnId, fn ($q) => $q->where('sales_return_id', '!=', $exceptReturnId))
             ->groupBy('sales_order_item_id')
-            ->selectRaw('sales_order_item_id, SUM(qty_good + qty_damaged) as total')
+            ->selectRaw('sales_order_item_id, SUM(qty_good + qty_damaged + qty_missing) as total')
             ->pluck('total', 'sales_order_item_id')
             ->map(fn ($total) => (int) $total)
             ->all();
@@ -171,6 +172,7 @@ class SalesReturn extends Model
                 $item->variant?->sku
                 .($item->qty_good ? ' · layak jual '.$item->qty_good.' ('.($item->location?->code ?? 'tanpa bin').')' : '')
                 .($item->qty_damaged ? ' · rusak '.$item->qty_damaged : '')
+                .($item->qty_missing ? ' · hilang '.$item->qty_missing : '')
                 .' · '.(self::REASONS[$item->reason] ?? $item->reason)
                 .($item->notes ? ' · '.$item->notes : '')
             ))->all(),

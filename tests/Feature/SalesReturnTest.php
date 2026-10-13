@@ -231,6 +231,29 @@ class SalesReturnTest extends TestCase
         $this->assertSame(0, $this->qty(null, $this->other));
     }
 
+    public function test_missing_items_are_recorded_without_stock_and_count_toward_the_return_limit(): void
+    {
+        $this->post(route('sales.returns.store'), $this->orderPayload([
+            ['sales_order_item_id' => $this->line($this->variant), 'qty_good' => 1, 'qty_missing' => 2, 'reason' => 'changed_mind'],
+            // Baris yang isinya hanya hilang otomatis beralasan "Tidak ada di paket".
+            ['sales_order_item_id' => $this->line($this->other), 'qty_missing' => 1, 'reason' => ''],
+        ], ['action' => 'receive']))->assertSessionHasNoErrors();
+
+        $return = SalesReturn::with('items')->sole();
+        $this->assertSame([2, 1], $return->items->pluck('qty_missing')->all());
+        $this->assertSame('missing', $return->items[1]->reason);
+        $this->assertSame(1, $this->qty(null));
+        $this->assertSame(0, $this->qty(null, $this->other));
+
+        // 1 + 2 dari 3 sudah terpakai; tidak bisa diretur lagi.
+        $this->post(route('sales.returns.store'), $this->orderPayload([
+            ['sales_order_item_id' => $this->line($this->variant), 'qty_good' => 1, 'reason' => 'changed_mind'],
+        ]))->assertSessionHasErrors('items.0.qty_good');
+
+        $this->get(route('sales.returns.index', ['missing' => 1]))->assertOk()->assertSee($return->number);
+        $this->get(route('sales.returns.show', $return))->assertOk()->assertSee('Tidak ada di paket (hilang)');
+    }
+
     public function test_received_return_is_locked(): void
     {
         $this->post(route('sales.returns.store'), $this->orderPayload([

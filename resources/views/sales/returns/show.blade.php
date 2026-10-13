@@ -1,5 +1,8 @@
 @php
-    $totals = ['good' => $return->items->sum('qty_good'), 'damaged' => $return->items->sum('qty_damaged')];
+    $totals = ['good' => $return->items->sum('qty_good'), 'damaged' => $return->items->sum('qty_damaged'), 'missing' => $return->items->sum('qty_missing')];
+    $confirmMessage = "{$totals['good']} barang layak jual akan masuk stok, {$totals['damaged']} barang rusak"
+        .($totals['missing'] ? " dan {$totals['missing']} barang hilang" : '')
+        .' dicatat tanpa menambah stok. Setelah ini dokumen tidak bisa diubah.';
 @endphp
 
 <x-layouts.app :title="$return->number">
@@ -27,7 +30,7 @@
             @can('returns.receive')
                 <form id="receive-return" method="POST" action="{{ route('sales.returns.receive', $return) }}">@csrf</form>
                 <button type="button" class="btn-primary"
-                        @click="$dispatch('confirm', { form: 'receive-return', title: 'Terima retur?', message: @js("{$totals['good']} barang layak jual akan masuk stok, {$totals['damaged']} barang rusak dicatat tanpa menambah stok. Setelah ini dokumen tidak bisa diubah."), confirmText: 'Terima', variant: 'primary' })">
+                        @click="$dispatch('confirm', { form: 'receive-return', title: 'Terima retur?', message: @js($confirmMessage), confirmText: 'Terima', variant: 'primary' })">
                     <x-heroicon-o-check class="size-5" /> Terima
                 </button>
             @endcan
@@ -42,7 +45,7 @@
         </div>
     @endif
 
-    <div class="mb-6 grid gap-4 sm:grid-cols-3">
+    <div class="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <div class="card p-4">
             <p class="text-xs text-slate-500">Layak Jual (masuk stok)</p>
             <p class="mt-1 text-2xl font-semibold tabular-nums text-emerald-600">{{ number_format($totals['good'], 0, ',', '.') }}</p>
@@ -52,11 +55,15 @@
             <p @class(['mt-1 text-2xl font-semibold tabular-nums', 'text-rose-600' => $totals['damaged'] > 0, 'text-slate-400' => ! $totals['damaged']])>{{ number_format($totals['damaged'], 0, ',', '.') }}</p>
         </div>
         <div class="card p-4">
+            <p class="text-xs text-slate-500">Hilang (tidak ada di paket)</p>
+            <p @class(['mt-1 text-2xl font-semibold tabular-nums', 'text-amber-600' => $totals['missing'] > 0, 'text-slate-400' => ! $totals['missing']])>{{ number_format($totals['missing'], 0, ',', '.') }}</p>
+        </div>
+        <div class="card p-4">
             <p class="text-xs text-slate-500">Mutasi Stok</p>
             @if ($return->movement)
                 <a href="{{ route('inventory.movements.show', $return->movement) }}" class="mt-1 inline-block font-mono text-lg font-semibold text-brand-600 hover:underline">{{ $return->movement->number }}</a>
             @else
-                <p class="mt-1 text-sm text-slate-400">{{ $return->isDraft() ? 'Dibuat saat retur diterima' : 'Tidak ada (semua rusak)' }}</p>
+                <p class="mt-1 text-sm text-slate-400">{{ $return->isDraft() ? 'Dibuat saat retur diterima' : 'Tidak ada (tidak ada yang layak jual)' }}</p>
             @endif
         </div>
     </div>
@@ -130,6 +137,7 @@
                         <th class="h-8 px-4 py-0 font-normal">Produk / Varian</th>
                         <th class="h-8 px-4 py-0 text-right font-normal">Layak Jual</th>
                         <th class="h-8 px-4 py-0 text-right font-normal">Rusak</th>
+                        <th class="h-8 px-4 py-0 text-right font-normal">Hilang</th>
                         <th class="h-8 px-4 py-0 font-normal">Lokasi Bin</th>
                         <th class="h-8 px-4 py-0 font-normal">Alasan</th>
                         <th class="h-8 px-4 py-0 font-normal">Keterangan</th>
@@ -165,6 +173,9 @@
                             <td @class(['px-4 py-2.5 text-right tabular-nums', 'font-semibold text-rose-600' => $item->qty_damaged > 0, 'text-slate-400' => ! $item->qty_damaged])>
                                 {{ number_format($item->qty_damaged, 0, ',', '.') }}
                             </td>
+                            <td @class(['px-4 py-2.5 text-right tabular-nums', 'font-semibold text-amber-600' => $item->qty_missing > 0, 'text-slate-400' => ! $item->qty_missing])>
+                                {{ number_format($item->qty_missing, 0, ',', '.') }}
+                            </td>
                             <td @class(['px-4 py-2.5', 'font-mono text-slate-700' => $item->location, 'text-slate-400' => ! $item->location])>
                                 {{ $item->qty_good ? ($item->location?->code ?? 'Tanpa bin') : '—' }}
                             </td>
@@ -178,6 +189,7 @@
                         <td colspan="4" class="px-4 py-2 text-right text-slate-500">Total</td>
                         <td class="px-4 py-2 text-right font-semibold tabular-nums text-slate-900">{{ number_format($totals['good'], 0, ',', '.') }}</td>
                         <td class="px-4 py-2 text-right font-semibold tabular-nums text-rose-600">{{ number_format($totals['damaged'], 0, ',', '.') }}</td>
+                        <td class="px-4 py-2 text-right font-semibold tabular-nums text-amber-600">{{ number_format($totals['missing'], 0, ',', '.') }}</td>
                         <td colspan="3"></td>
                     </tr>
                 </tfoot>
