@@ -38,6 +38,12 @@
               locationsFor(activeOnly) {
                   return this.locations.filter(l => String(l.warehouse_id) === String(this.warehouse) && (! activeOnly || l.active));
               },
+              get variantOptions() {
+                  return this.variants.map(v => ({ value: v.id, text: v.label }));
+              },
+              locationOptions(activeOnly) {
+                  return this.locationsFor(activeOnly).map(l => ({ value: l.id, text: l.code }));
+              },
               addScanned() {
                   const code = this.scan.trim().toUpperCase();
                   if (! code) return;
@@ -118,35 +124,23 @@
                             <tr class="align-top">
                                 <td class="py-1.5 pr-2">
                                     <select class="form-input min-w-64" :name="`items[${index}][product_variant_id]`" x-model="item.product_variant_id"
-                                            :class="errors[`items.${index}.product_variant_id`] && 'form-input-error'">
-                                        <option value="">Pilih varian</option>
-                                        <template x-for="variant in variants" :key="variant.id">
-                                            <option :value="variant.id" x-text="variant.label" :selected="String(variant.id) === String(item.product_variant_id)"></option>
-                                        </template>
-                                    </select>
+                                            x-tom-select="{ options: variantOptions, value: item.product_variant_id }" data-placeholder="Cari SKU / nama varian"
+                                            :class="errors[`items.${index}.product_variant_id`] && 'form-input-error'"></select>
                                     <p class="mt-1 text-xs text-rose-600" x-show="errors[`items.${index}.product_variant_id`]" x-text="errors[`items.${index}.product_variant_id`]"></p>
                                 </td>
                                 @if ($needsFrom)
                                     <td class="px-2 py-1.5">
                                         <select class="form-input min-w-40" :name="`items[${index}][from_location_id]`" x-model="item.from_location_id"
-                                                :class="errors[`items.${index}.from_location_id`] && 'form-input-error'">
-                                            <option value="">Pilih lokasi</option>
-                                            <template x-for="location in locationsFor(false)" :key="location.id">
-                                                <option :value="location.id" x-text="location.code" :selected="String(location.id) === String(item.from_location_id)"></option>
-                                            </template>
-                                        </select>
+                                                x-tom-select="{ options: locationOptions(false), value: item.from_location_id }" data-placeholder="Cari lokasi"
+                                                :class="errors[`items.${index}.from_location_id`] && 'form-input-error'"></select>
                                         <p class="mt-1 text-xs text-rose-600" x-show="errors[`items.${index}.from_location_id`]" x-text="errors[`items.${index}.from_location_id`]"></p>
                                     </td>
                                 @endif
                                 @if ($needsTo)
                                     <td class="px-2 py-1.5">
                                         <select class="form-input min-w-40" :name="`items[${index}][to_location_id]`" x-model="item.to_location_id"
-                                                :class="errors[`items.${index}.to_location_id`] && 'form-input-error'">
-                                            <option value="">Pilih lokasi</option>
-                                            <template x-for="location in locationsFor(true)" :key="location.id">
-                                                <option :value="location.id" x-text="location.code" :selected="String(location.id) === String(item.to_location_id)"></option>
-                                            </template>
-                                        </select>
+                                                x-tom-select="{ options: locationOptions(true), value: item.to_location_id }" data-placeholder="Cari lokasi"
+                                                :class="errors[`items.${index}.to_location_id`] && 'form-input-error'"></select>
                                         <p class="mt-1 text-xs text-rose-600" x-show="errors[`items.${index}.to_location_id`]" x-text="errors[`items.${index}.to_location_id`]"></p>
                                     </td>
                                 @endif

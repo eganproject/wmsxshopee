@@ -161,12 +161,25 @@ class StockTest extends TestCase
         $this->assertSame(6, $this->qty($this->binA));
     }
 
+    public function test_variant_lookup_searches_sku_barcode_and_name(): void
+    {
+        $this->actingAs($this->superAdmin());
+
+        $expected = [['value' => $this->variant->id, 'text' => 'KAOS-M · Kaos Polos / M']];
+
+        $this->getJson('/inventory/lookup/variants?q=kaos-m')->assertOk()->assertExactJson($expected);
+        $this->getJson('/inventory/lookup/variants?q=8991001')->assertOk()->assertExactJson($expected);
+        $this->getJson('/inventory/lookup/variants?q=polos')->assertOk()->assertExactJson($expected);
+        $this->getJson('/inventory/lookup/variants?q=tidak-ada')->assertOk()->assertExactJson([]);
+    }
+
     public function test_user_without_permission_cannot_access_inventory(): void
     {
         $this->actingAs(User::factory()->create());
 
         $this->get('/inventory/stocks')->assertForbidden();
         $this->get('/inventory/stock-card')->assertForbidden();
+        $this->getJson('/inventory/lookup/variants?q=KAOS')->assertForbidden();
         $this->get('/inventory/movements')->assertForbidden();
         $this->get('/inventory/movements/create?type=in')->assertForbidden();
         $this->record('in', [['product_variant_id' => $this->variant->id, 'to_location_id' => $this->binA->id, 'qty' => 1]])->assertForbidden();

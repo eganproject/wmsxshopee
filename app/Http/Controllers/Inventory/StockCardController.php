@@ -56,7 +56,6 @@ class StockCardController extends Controller
 
         return view('inventory.stock-card.index', [
             'variant' => $variant,
-            'variants' => ProductVariant::with('product:id,name')->orderBy('sku')->get(),
             'warehouses' => Warehouse::orderBy('code')->get(),
             'locations' => WarehouseLocation::query()
                 ->when($request->filled('warehouse'), fn ($query) => $query->where('warehouse_id', $request->integer('warehouse')))

@@ -18,11 +18,13 @@
     <form method="GET" class="card mb-6 grid gap-4 p-4 md:grid-cols-6">
         <div class="md:col-span-3">
             <label for="variant" class="form-label">Varian</label>
-            <select id="variant" name="variant" class="form-input" onchange="this.form.submit()">
+            {{-- Varian bisa ribuan: dicari lewat AJAX, hanya pilihan aktif yang dirender. --}}
+            <select id="variant" name="variant" class="form-input" onchange="this.form.submit()"
+                    data-remote="{{ route('inventory.lookup.variants') }}" data-placeholder="Ketik SKU, barcode atau nama varian">
                 <option value="">Pilih varian</option>
-                @foreach ($variants as $option)
-                    <option value="{{ $option->id }}" @selected($variant?->id === $option->id)>{{ $option->displayName() }}</option>
-                @endforeach
+                @if ($variant)
+                    <option value="{{ $variant->id }}" selected>{{ $variant->displayName() }}</option>
+                @endif
             </select>
         </div>
         <div class="md:col-span-3">

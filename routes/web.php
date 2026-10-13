@@ -7,6 +7,7 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\Inventory\StockCardController;
 use App\Http\Controllers\Inventory\StockController;
 use App\Http\Controllers\Inventory\StockMovementController;
+use App\Http\Controllers\Inventory\VariantLookupController;
 use App\Http\Controllers\Master\CourierController;
 use App\Http\Controllers\Master\LocationController;
 use App\Http\Controllers\Master\ProductController;
@@ -60,6 +61,7 @@ Route::middleware(['auth', 'active'])->group(function () {
     Route::prefix('inventory')->name('inventory.')->group(function () {
         Route::get('stocks', [StockController::class, 'index'])->middleware('can:inventory.view')->name('stocks.index');
         Route::get('stock-card', [StockCardController::class, 'index'])->middleware('can:inventory.view')->name('stock-card.index');
+        Route::get('lookup/variants', VariantLookupController::class)->middleware('can:inventory.view')->name('lookup.variants');
 
         // Hak buat mutasi dicek di controller: penyesuaian butuh inventory.adjust,
         // jenis lain inventory.create. Mutasi tidak bisa diubah/dihapus.
