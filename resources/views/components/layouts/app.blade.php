@@ -22,6 +22,8 @@
             'heading' => 'Penjualan',
             'items' => [
                 ['label' => 'Pesanan', 'route' => 'sales.orders.index', 'active' => 'sales.orders.*', 'icon' => 'heroicon-o-shopping-cart', 'can' => 'sales.view'],
+                ['label' => 'QC Kemas', 'route' => 'sales.qc.index', 'active' => 'sales.qc.*', 'icon' => 'heroicon-o-viewfinder-circle', 'can' => 'sales.fulfill'],
+                ['label' => 'Serah Terima', 'route' => 'sales.handovers.index', 'active' => 'sales.handovers.*', 'icon' => 'heroicon-o-paper-airplane', 'can' => 'sales.fulfill'],
                 ['label' => 'Retur Penjualan', 'route' => 'sales.returns.index', 'active' => 'sales.returns.*', 'icon' => 'heroicon-o-arrow-uturn-left', 'can' => 'returns.view'],
             ],
         ],

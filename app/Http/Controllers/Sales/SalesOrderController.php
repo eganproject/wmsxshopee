@@ -34,6 +34,11 @@ class SalesOrderController extends Controller
             ->when($request->filled('channel'), fn ($query) => $query->where('channel_name', $request->input('channel')))
             ->when($request->filled('from'), fn ($query) => $query->whereDate('order_date', '>=', $request->date('from')))
             ->when($request->filled('to'), fn ($query) => $query->whereDate('order_date', '<=', $request->date('to')))
+            ->when($request->input('shipment') === 'unarranged', fn ($query) => $query
+                ->whereIn('status', SalesOrder::RESERVING)
+                ->whereNull('shipment_arranged_at')
+                ->where(fn ($q) => $q->whereNull('shopee_shop_id')->orWhere('shopee_order_status', 'READY_TO_SHIP')))
+            ->when(in_array($request->input('shipment'), array_keys(SalesOrder::SHIPPING_METHODS), true), fn ($query) => $query->where('shipping_method', $request->input('shipment')))
             ->when($request->filled('search'), function ($query) use ($request) {
                 $search = $request->string('search');
                 $query->where(fn ($q) => $q
@@ -96,7 +101,7 @@ class SalesOrderController extends Controller
 
     public function show(SalesOrder $order, SalesOrderService $service): View
     {
-        $order->load(['warehouse', 'courier', 'creator', 'movement', 'items.variant.product.unit', 'items.picks.location', 'bundles.bundle.items', 'returns.items']);
+        $order->load(['warehouse', 'courier', 'creator', 'movement', 'arranger', 'qcChecker', 'handover', 'items.variant.product.unit', 'items.picks.location', 'bundles.bundle.items', 'returns.items']);
 
         $draft = $order->hasStatus('draft');
 

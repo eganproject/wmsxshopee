@@ -9,10 +9,10 @@ use App\Services\Shopee\ShopeeException;
 use App\Services\Shopee\ShopeeLogistics;
 use App\Support\Activity;
 use App\Support\Barcode;
+use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
-use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Date;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
@@ -154,7 +154,7 @@ class ShipmentController extends Controller
 
     public function label(SalesOrder $order, ShopeeLogistics $logistics): Response|View|RedirectResponse
     {
-        return $this->labels(collect([$order]), $logistics);
+        return $this->labels(new EloquentCollection([$order]), $logistics);
     }
 
     public function bulkLabel(Request $request, ShopeeLogistics $logistics): Response|View|RedirectResponse
@@ -167,8 +167,8 @@ class ShipmentController extends Controller
         return $this->labels(SalesOrder::whereKey($data['orders'])->orderBy('id')->get(), $logistics);
     }
 
-    /** @param Collection<int, SalesOrder> $orders */
-    private function labels(Collection $orders, ShopeeLogistics $logistics): Response|View|RedirectResponse
+    /** @param EloquentCollection<int, SalesOrder> $orders */
+    private function labels(EloquentCollection $orders, ShopeeLogistics $logistics): Response|View|RedirectResponse
     {
         $orders->load(['warehouse', 'courier', 'shopeeShop', 'items.variant']);
         $printable = $orders->filter->hasShippingLabel();

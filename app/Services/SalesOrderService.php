@@ -252,6 +252,7 @@ class SalesOrderService
                 'status' => 'shipped',
                 'stock_movement_id' => $movement->id,
                 'shipped_at' => now(),
+                'shipped_by' => $userId,
             ]);
         });
     }

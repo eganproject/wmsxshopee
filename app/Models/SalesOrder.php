@@ -61,6 +61,9 @@ class SalesOrder extends Model
         'shipment_arranged_at',
         'shipment_arranged_by',
         'shipping_label_printed_at',
+        'qc_checked_by',
+        'shipment_handover_id',
+        'shipped_by',
         'notes',
         'cancel_reason',
         'stock_movement_id',
@@ -113,6 +116,42 @@ class SalesOrder extends Model
     public function arranger(): BelongsTo
     {
         return $this->belongsTo(User::class, 'shipment_arranged_by');
+    }
+
+    public function qcChecker(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'qc_checked_by');
+    }
+
+    public function shipper(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'shipped_by');
+    }
+
+    public function handover(): BelongsTo
+    {
+        return $this->belongsTo(ShipmentHandover::class, 'shipment_handover_id');
+    }
+
+    /**
+     * Cari pesanan dari hasil scan: nomor resi, nomor SO atau no. pesanan marketplace.
+     *
+     * @param  list<string>  $statuses
+     */
+    public static function findByScan(string $code, array $statuses = []): ?self
+    {
+        $code = trim($code);
+
+        if ($code === '') {
+            return null;
+        }
+
+        return self::query()
+            ->when($statuses, fn ($q) => $q->whereIn('status', $statuses))
+            ->where(fn ($q) => $q->where('tracking_number', $code)->orWhere('number', $code)->orWhere('external_number', $code))
+            ->orderByRaw('CASE WHEN tracking_number = ? THEN 0 WHEN number = ? THEN 1 ELSE 2 END', [$code, $code])
+            ->latest('id')
+            ->first();
     }
 
     public function creator(): BelongsTo
