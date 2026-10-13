@@ -57,6 +57,28 @@ return [
             ],
         ],
 
+        'receipts' => [
+            'label' => 'Penerimaan Barang',
+            'icon' => 'heroicon-o-inbox-arrow-down',
+            'actions' => [
+                'view' => 'Lihat penerimaan barang',
+                'create' => 'Buat & ubah draft penerimaan',
+                'receive' => 'Konfirmasi diterima (stok masuk)',
+                'delete' => 'Hapus draft penerimaan',
+            ],
+        ],
+
+        'suppliers' => [
+            'label' => 'Master Supplier',
+            'icon' => 'heroicon-o-building-storefront',
+            'actions' => [
+                'view' => 'Lihat daftar supplier',
+                'create' => 'Tambah supplier',
+                'edit' => 'Ubah data supplier',
+                'delete' => 'Hapus supplier',
+            ],
+        ],
+
         'couriers' => [
             'label' => 'Master Kurir',
             'icon' => 'heroicon-o-truck',

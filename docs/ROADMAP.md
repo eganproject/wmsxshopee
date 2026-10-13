@@ -7,8 +7,8 @@ Urutan pengerjaan WMS sebelum dan sesudah integrasi Shopee Open Platform.
 | 1 | Master data gudang: gudang, zona, rak, lokasi bin | Selesai |
 | 2 | Master produk: SKU internal, varian, barcode, satuan, berat, dimensi, gambar | Selesai |
 | 3 | Data toko (manual, tanpa token) | **Ditunda** sampai API Shopee siap (lihat catatan di bawah) |
-| 4 | Stok dan kartu stok: barang masuk, keluar, transfer antar lokasi, penyesuaian | Sedang dikerjakan |
-| 5 | Penerimaan barang (inbound): PO / surat jalan, cek jumlah, simpan ke rak | Belum |
+| 4 | Stok dan kartu stok: barang masuk, keluar, transfer antar lokasi, penyesuaian | Selesai |
+| 5 | Penerimaan barang (inbound): master supplier, surat jalan, cek jumlah & rusak, simpan ke bin | Sedang dikerjakan |
 | 6 | Pesanan manual: input / impor Excel, picking, packing, pengiriman | Belum |
 | 7 | Stock opname dan laporan: stok per lokasi, stok minimum, pergerakan barang | Belum |
 | — | Integrasi Shopee API: hubungkan toko, pemetaan produk, tarik pesanan | Belum |
