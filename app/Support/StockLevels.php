@@ -5,6 +5,7 @@ namespace App\Support;
 use App\Models\ProductVariant;
 use App\Models\SalesOrder;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Query\Builder as QueryBuilder;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -23,21 +24,8 @@ class StockLevels
     public static function minStockQuery(?int $warehouseId = null): Builder
     {
         $available = self::AVAILABLE;
-        $accessible = WarehouseAccess::ids();
-
-        $onHand = DB::table('stocks')
-            ->when($warehouseId, fn ($q) => $q->where('warehouse_id', $warehouseId))
-            ->when($accessible !== null, fn ($q) => $q->whereIn('warehouse_id', $accessible))
-            ->groupBy('product_variant_id')
-            ->selectRaw('product_variant_id, SUM(qty) as qty');
-
-        $reserved = DB::table('sales_order_items')
-            ->join('sales_orders', 'sales_orders.id', '=', 'sales_order_items.sales_order_id')
-            ->whereIn('sales_orders.status', SalesOrder::RESERVING)
-            ->when($warehouseId, fn ($q) => $q->where('sales_orders.warehouse_id', $warehouseId))
-            ->when($accessible !== null, fn ($q) => $q->whereIn('sales_orders.warehouse_id', $accessible))
-            ->groupBy('sales_order_items.product_variant_id')
-            ->selectRaw('sales_order_items.product_variant_id, SUM(sales_order_items.qty) as qty');
+        $onHand = self::onHandQuery($warehouseId);
+        $reserved = self::reservedQuery($warehouseId);
 
         return ProductVariant::query()
             ->join('products', 'products.id', '=', 'product_variants.product_id')
@@ -53,6 +41,35 @@ class StockLevels
             ->selectRaw("product_variants.id, product_variants.sku, product_variants.name as variant_name, product_variants.min_stock,
                 products.name as product_name, units.code as unit_code,
                 COALESCE(on_hand.qty, 0) as on_hand, COALESCE(reserved.qty, 0) as reserved, {$available} as available");
+    }
+
+    /**
+     * Stok fisik per varian (product_variant_id, qty), dibatasi gudang yang
+     * boleh diakses user; dipakai sebagai subquery.
+     */
+    public static function onHandQuery(?int $warehouseId = null): QueryBuilder
+    {
+        $accessible = WarehouseAccess::ids();
+
+        return DB::table('stocks')
+            ->when($warehouseId, fn ($q) => $q->where('warehouse_id', $warehouseId))
+            ->when($accessible !== null, fn ($q) => $q->whereIn('warehouse_id', $accessible))
+            ->groupBy('product_variant_id')
+            ->selectRaw('product_variant_id, SUM(qty) as qty');
+    }
+
+    /** Qty yang dicadangkan pesanan terbuka per varian (product_variant_id, qty). */
+    public static function reservedQuery(?int $warehouseId = null): QueryBuilder
+    {
+        $accessible = WarehouseAccess::ids();
+
+        return DB::table('sales_order_items')
+            ->join('sales_orders', 'sales_orders.id', '=', 'sales_order_items.sales_order_id')
+            ->whereIn('sales_orders.status', SalesOrder::RESERVING)
+            ->when($warehouseId, fn ($q) => $q->where('sales_orders.warehouse_id', $warehouseId))
+            ->when($accessible !== null, fn ($q) => $q->whereIn('sales_orders.warehouse_id', $accessible))
+            ->groupBy('sales_order_items.product_variant_id')
+            ->selectRaw('sales_order_items.product_variant_id, SUM(sales_order_items.qty) as qty');
     }
 
     /** Hanya varian yang stok tersedianya sudah di bawah atau sama dengan minimum. */

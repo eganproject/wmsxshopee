@@ -7,10 +7,12 @@ use App\Models\Stock;
 use App\Models\StockLedger;
 use App\Models\Warehouse;
 use App\Models\WarehouseZone;
+use App\Support\ReorderSuggestions;
 use App\Support\StockLevels;
 use App\Support\XlsxExport;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
+use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\DB;
 use Illuminate\View\View;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
@@ -111,6 +113,52 @@ class ReportController extends Controller
             'rows' => $query->paginate(50)->withQueryString(),
             'belowCount' => $belowCount,
             'withMinCount' => ProductVariant::whereNotNull('min_stock')->where('is_active', true)->count(),
+            'warehouses' => Warehouse::orderBy('code')->get(),
+        ]);
+    }
+
+    /**
+     * Saran jumlah pembelian ulang per varian dari stok minimum, rata-rata
+     * penjualan harian dan qty yang sudah ada di draft penerimaan.
+     */
+    public function reorder(Request $request): View|BinaryFileResponse
+    {
+        $warehouseId = $request->filled('warehouse') ? $request->integer('warehouse') : null;
+        $suggestions = ReorderSuggestions::fromConfig(
+            $request->filled('lookback') ? $request->integer('lookback') : null,
+            $request->filled('cover') ? $request->integer('cover') : null,
+        );
+
+        $all = $suggestions->rows($warehouseId, $request->input('search'));
+        $rows = $request->input('show') === 'all' ? $all : $all->where('suggested', '>', 0)->values();
+
+        if ($request->input('export') === 'xlsx') {
+            $suppliers = ReorderSuggestions::lastSuppliers($rows->pluck('id')->all());
+
+            return XlsxExport::download('saran-pembelian-'.now()->format('Ymd-His').'.xlsx',
+                ['SKU', 'Produk', 'Varian', 'Satuan', 'Stok Minimum', 'Tersedia', 'Dalam Draft Penerimaan',
+                    "Terjual {$suggestions->lookbackDays} Hari", 'Rata-rata/Hari', 'Perkiraan Habis (hari)', 'Stok Target', 'Saran Beli', 'Supplier Terakhir'],
+                $rows->map(fn ($row) => [
+                    $row->sku, $row->product_name, $row->variant_name ?? '', $row->unit_code ?? '',
+                    $row->min_stock ?? '', $row->available, $row->incoming, $row->sold, round($row->daily, 2),
+                    $row->days_left ?? '', $row->target, $row->suggested, $suppliers[$row->id] ?? '',
+                ]));
+        }
+
+        $page = new LengthAwarePaginator(
+            $rows->forPage(LengthAwarePaginator::resolveCurrentPage(), 50)->values(),
+            $rows->count(), 50, null, ['path' => $request->url(), 'query' => $request->query()],
+        );
+
+        return view('reports.reorder', [
+            'rows' => $page,
+            'suppliers' => ReorderSuggestions::lastSuppliers($page->getCollection()->pluck('id')->all()),
+            'suggestions' => $suggestions,
+            'summary' => [
+                'skus' => $all->where('suggested', '>', 0)->count(),
+                'qty' => $all->sum('suggested'),
+                'below' => $all->where('below_min', true)->count(),
+            ],
             'warehouses' => Warehouse::orderBy('code')->get(),
         ]);
     }

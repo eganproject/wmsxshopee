@@ -21,6 +21,7 @@ use App\Http\Controllers\Master\SupplierController;
 use App\Http\Controllers\Master\UnitController;
 use App\Http\Controllers\Master\WarehouseController;
 use App\Http\Controllers\Master\ZoneController;
+use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\Sales\SalesOrderController;
@@ -40,6 +41,7 @@ Route::middleware(['auth', 'active'])->group(function () {
     Route::post('logout', [LoginController::class, 'destroy'])->name('logout');
 
     Route::get('dashboard', DashboardController::class)->name('dashboard');
+    Route::get('notifications', NotificationController::class)->name('notifications.index');
 
     Route::get('profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::put('profile', [ProfileController::class, 'update'])->name('profile.update');
@@ -124,6 +126,7 @@ Route::middleware(['auth', 'active'])->group(function () {
     Route::prefix('reports')->name('reports.')->middleware('can:reports.view')->group(function () {
         Route::get('stock-locations', [ReportController::class, 'stockLocations'])->name('stock-locations');
         Route::get('min-stock', [ReportController::class, 'minStock'])->name('min-stock');
+        Route::get('reorder', [ReportController::class, 'reorder'])->name('reorder');
         Route::get('movements', [ReportController::class, 'movements'])->name('movements');
     });
 

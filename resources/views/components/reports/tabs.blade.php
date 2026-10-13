@@ -1,8 +1,9 @@
-{{-- Navigasi antar laporan: Stok per Lokasi → Stok Minimum → Pergerakan Barang --}}
+{{-- Navigasi antar laporan: Stok per Lokasi → Stok Minimum → Saran Pembelian → Pergerakan Barang --}}
 @php
     $tabs = [
         ['label' => 'Stok per Lokasi', 'route' => 'reports.stock-locations', 'icon' => 'heroicon-o-map-pin'],
         ['label' => 'Stok Minimum', 'route' => 'reports.min-stock', 'icon' => 'heroicon-o-bell-alert'],
+        ['label' => 'Saran Pembelian', 'route' => 'reports.reorder', 'icon' => 'heroicon-o-shopping-bag'],
         ['label' => 'Pergerakan Barang', 'route' => 'reports.movements', 'icon' => 'heroicon-o-presentation-chart-line'],
     ];
 @endphp

@@ -6,6 +6,7 @@
             'heading' => null,
             'items' => [
                 ['label' => 'Dashboard', 'route' => 'dashboard', 'active' => 'dashboard', 'icon' => 'heroicon-o-squares-2x2', 'can' => null],
+                ['label' => 'Notifikasi', 'route' => 'notifications.index', 'active' => 'notifications.*', 'icon' => 'heroicon-o-bell', 'can' => null],
             ],
         ],
         [
@@ -40,6 +41,7 @@
             'items' => [
                 ['label' => 'Stok per Lokasi', 'route' => 'reports.stock-locations', 'active' => 'reports.stock-locations', 'icon' => 'heroicon-o-map-pin', 'can' => 'reports.view'],
                 ['label' => 'Stok Minimum', 'route' => 'reports.min-stock', 'active' => 'reports.min-stock', 'icon' => 'heroicon-o-bell-alert', 'can' => 'reports.view'],
+                ['label' => 'Saran Pembelian', 'route' => 'reports.reorder', 'active' => 'reports.reorder', 'icon' => 'heroicon-o-shopping-bag', 'can' => 'reports.view'],
                 ['label' => 'Pergerakan Barang', 'route' => 'reports.movements', 'active' => 'reports.movements', 'icon' => 'heroicon-o-presentation-chart-line', 'can' => 'reports.view'],
             ],
         ],
@@ -151,6 +153,8 @@
                     <nav class="flex items-center gap-1.5 text-sm text-slate-500 [&_svg]:size-3.5 [&_svg]:shrink-0">{{ $breadcrumb }}</nav>
                 @endisset
             </div>
+
+            <x-notification-bell />
 
             <button type="button" class="btn-icon" x-data="themeToggle" @click="cycle()" :title="labels[theme]" :aria-label="labels[theme]">
                 <x-heroicon-o-sun x-show="theme === 'light'" x-cloak />
