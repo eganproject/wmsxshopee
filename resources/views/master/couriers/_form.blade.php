@@ -4,13 +4,13 @@
 
 <div class="space-y-6">
     <div class="card">
-        <div class="border-b border-slate-100 px-6 py-4">
-            <h2 class="flex items-center gap-2 font-semibold text-slate-900">
-                <x-heroicon-o-truck class="size-5 text-slate-400" /> Informasi Kurir
+        <div class="border-b border-slate-100 px-5 py-3">
+            <h2 class="flex items-center gap-2 text-base font-semibold text-slate-900">
+                Informasi Kurir
             </h2>
         </div>
-        <div class="grid gap-5 p-6 sm:grid-cols-2">
-            <x-input name="code" label="Kode Kurir" icon="heroicon-o-hashtag" :value="$courier->code" placeholder="cth. JNE" class="uppercase" required />
+        <div class="grid gap-x-6 gap-y-4 p-5 sm:grid-cols-2">
+            <x-input name="code" label="Kode Kurir" icon="heroicon-o-hashtag" :value="$courier->code" placeholder="cth. JNE" class="[&_input]:uppercase" required />
             <x-input name="name" label="Nama Kurir" :value="$courier->name" placeholder="cth. JNE Express" required />
             <x-input name="tracking_url" label="URL Lacak Resi" icon="heroicon-o-link" :value="$courier->tracking_url" class="sm:col-span-2"
                      placeholder="https://contoh.com/lacak?resi={resi}" hint="Gunakan {resi} sebagai tempat nomor resi." />
@@ -23,10 +23,10 @@
 
     {{-- Layanan --}}
     <div class="card" x-data="{ services: @js(array_values($services)) }">
-        <div class="flex items-center justify-between gap-4 border-b border-slate-100 px-6 py-4">
+        <div class="flex items-center justify-between gap-4 border-b border-slate-100 px-5 py-3">
             <div>
-                <h2 class="flex items-center gap-2 font-semibold text-slate-900">
-                    <x-heroicon-o-rectangle-stack class="size-5 text-slate-400" /> Jenis Layanan
+                <h2 class="flex items-center gap-2 text-base font-semibold text-slate-900">
+                    Jenis Layanan
                 </h2>
                 <p class="mt-0.5 text-sm text-slate-500">cth. REG (Reguler), YES (Yakin Esok Sampai), CARGO.</p>
             </div>
@@ -34,7 +34,7 @@
                 <x-heroicon-o-plus class="size-5" /> Tambah
             </button>
         </div>
-        <div class="space-y-3 p-6">
+        <div class="space-y-3 p-5">
             @error('services')
                 <p class="flex items-center gap-1 text-sm text-rose-600"><x-heroicon-o-exclamation-triangle class="size-4" /> {{ $message }}</p>
             @enderror
@@ -56,12 +56,12 @@
     </div>
 
     <div class="card">
-        <div class="border-b border-slate-100 px-6 py-4">
-            <h2 class="flex items-center gap-2 font-semibold text-slate-900">
-                <x-heroicon-o-phone class="size-5 text-slate-400" /> Kontak Pickup
+        <div class="border-b border-slate-100 px-5 py-3">
+            <h2 class="flex items-center gap-2 text-base font-semibold text-slate-900">
+                Kontak Pickup
             </h2>
         </div>
-        <div class="grid gap-5 p-6 sm:grid-cols-2">
+        <div class="grid gap-x-6 gap-y-4 p-5 sm:grid-cols-2">
             <x-input name="contact_name" label="Nama Kontak" icon="heroicon-o-user" :value="$courier->contact_name" />
             <x-input name="contact_phone" label="No. Telepon" icon="heroicon-o-phone" :value="$courier->contact_phone" placeholder="08xxxxxxxxxx" />
             <x-textarea name="notes" label="Catatan" :value="$courier->notes" class="sm:col-span-2" />

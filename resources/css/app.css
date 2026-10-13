@@ -1,4 +1,4 @@
-﻿@import 'tailwindcss';
+@import 'tailwindcss';
 
 @source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
 @source '../../storage/framework/views/*.php';
@@ -9,7 +9,7 @@
     --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
         'Segoe UI Symbol', 'Noto Color Emoji';
 
-    /* Warna utama (oranye ala Shopee) */
+    /* Warna utama (oranye ala Shopee) — dipakai hemat: logo, link, fokus */
     --color-brand-50: #fff4f1;
     --color-brand-100: #ffe5dd;
     --color-brand-200: #ffcbbb;
@@ -20,6 +20,28 @@
     --color-brand-700: #b42e15;
     --color-brand-800: #942917;
     --color-brand-900: #7a2719;
+
+    /*
+     * Abu-abu netral ala ERPNext / Frappe UI (tanpa rona biru).
+     * Menimpa palet slate agar seluruh halaman ikut tanpa mengganti kelasnya.
+     */
+    --color-slate-50: oklch(0.979 0 0);
+    --color-slate-100: oklch(0.955 0 0);
+    --color-slate-200: oklch(0.913 0 0);
+    --color-slate-300: oklch(0.83 0 0);
+    --color-slate-400: oklch(0.683 0 0);
+    --color-slate-500: oklch(0.586 0 0);
+    --color-slate-600: oklch(0.5 0 0);
+    --color-slate-700: oklch(0.439 0 0);
+    --color-slate-800: oklch(0.341 0 0);
+    --color-slate-900: oklch(0.205 0 0);
+    --color-slate-950: oklch(0.168 0 0);
+}
+
+@layer base {
+    body {
+        letter-spacing: 0.02em;
+    }
 }
 
 [x-cloak] {
@@ -27,39 +49,40 @@
 }
 
 @utility btn {
-    @apply inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium whitespace-nowrap transition
-        focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60;
+    @apply inline-flex h-8 items-center justify-center gap-1.5 rounded-lg px-3 text-sm whitespace-nowrap transition
+        focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-300 focus-visible:ring-offset-1 disabled:cursor-not-allowed disabled:opacity-60
+        [&>svg]:size-4;
 }
 @utility btn-primary {
-    @apply btn bg-brand-500 text-white shadow-sm hover:bg-brand-600 focus-visible:ring-brand-500;
+    @apply btn bg-slate-900 text-white hover:bg-slate-800 active:bg-slate-700;
 }
 @utility btn-secondary {
-    @apply btn border border-slate-200 bg-white text-slate-700 shadow-sm hover:bg-slate-50 focus-visible:ring-slate-400;
+    @apply btn bg-slate-100 text-slate-900 hover:bg-slate-200 active:bg-slate-300;
 }
 @utility btn-danger {
-    @apply btn bg-rose-600 text-white shadow-sm hover:bg-rose-700 focus-visible:ring-rose-500;
+    @apply btn bg-rose-600 text-white hover:bg-rose-700;
 }
 @utility btn-icon {
-    @apply inline-flex size-9 items-center justify-center rounded-lg text-slate-500 transition hover:bg-slate-100 hover:text-slate-700
-        focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500;
+    @apply inline-flex size-8 items-center justify-center rounded-lg text-slate-600 transition hover:bg-slate-100 hover:text-slate-900
+        focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-300 [&>svg]:size-4;
 }
 
 @utility form-label {
-    @apply mb-1.5 block text-sm font-medium text-slate-700;
+    @apply mb-1.5 block text-xs text-slate-500;
 }
 @utility form-input {
-    @apply block w-full rounded-lg border border-slate-300 bg-white px-3.5 py-2.5 text-sm text-slate-900 shadow-sm
-        placeholder:text-slate-400 focus:border-brand-500 focus:ring-4 focus:ring-brand-500/10 focus:outline-none
+    @apply block min-h-8 w-full rounded-lg border border-transparent bg-slate-100 px-2.5 py-1.5 text-sm leading-5 text-slate-900
+        placeholder:text-slate-400 hover:bg-slate-200/70 focus:border-slate-300 focus:bg-white focus:shadow-sm focus:outline-none
         disabled:bg-slate-50 disabled:text-slate-500;
 }
 @utility form-input-error {
-    @apply border-rose-400 focus:border-rose-500 focus:ring-rose-500/10;
+    @apply border-rose-300 bg-rose-50 focus:border-rose-400;
 }
 @utility form-checkbox {
-    @apply size-4 shrink-0 cursor-pointer rounded border-slate-300 accent-brand-500;
+    @apply size-3.5 shrink-0 cursor-pointer rounded border-slate-300 accent-slate-900;
 }
 
 @utility card {
-    @apply rounded-xl border border-slate-200 bg-white shadow-sm;
+    @apply rounded-xl border border-slate-200 bg-white;
 }
 

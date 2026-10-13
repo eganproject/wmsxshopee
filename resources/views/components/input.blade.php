@@ -24,8 +24,8 @@
 
     <div class="relative" @if ($isPassword) x-data="{ visible: false }" @endif>
         @if ($icon)
-            <span class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3.5 text-slate-400">
-                <x-dynamic-component :component="$icon" class="size-5" />
+            <span class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-2.5 text-slate-400">
+                <x-dynamic-component :component="$icon" class="size-4" />
             </span>
         @endif
 
@@ -35,26 +35,26 @@
                @required($required)
                {{ $attributes->except(['class', 'id'])->class([
                    'form-input',
-                   'pl-11' => $icon,
-                   'pr-11' => $isPassword,
+                   'pl-8' => $icon,
+                   'pr-9' => $isPassword,
                    'form-input-error' => $error,
                ]) }}>
 
         @if ($isPassword)
             <button type="button" @click="visible = !visible" tabindex="-1"
-                    class="absolute inset-y-0 right-0 flex items-center pr-3.5 text-slate-400 hover:text-slate-600"
+                    class="absolute inset-y-0 right-0 flex items-center pr-2.5 text-slate-400 hover:text-slate-600"
                     :aria-label="visible ? 'Sembunyikan password' : 'Tampilkan password'">
-                <x-heroicon-o-eye class="size-5" x-show="!visible" />
-                <x-heroicon-o-eye-slash class="size-5" x-show="visible" x-cloak />
+                <x-heroicon-o-eye class="size-4" x-show="!visible" />
+                <x-heroicon-o-eye-slash class="size-4" x-show="visible" x-cloak />
             </button>
         @endif
     </div>
 
     @if ($error)
-        <p class="mt-1.5 flex items-center gap-1 text-sm text-rose-600">
+        <p class="mt-1 flex items-center gap-1 text-xs text-rose-600">
             <x-heroicon-o-exclamation-triangle class="size-4 shrink-0" /> {{ $error }}
         </p>
     @elseif ($hint)
-        <p class="mt-1.5 text-xs text-slate-500">{{ $hint }}</p>
+        <p class="mt-1 text-xs text-slate-400">{{ $hint }}</p>
     @endif
 </div>

@@ -20,8 +20,8 @@
     <div class="card">
         <form method="GET" class="flex flex-col gap-3 border-b border-slate-100 p-4 md:flex-row md:items-center">
             <div class="relative flex-1">
-                <x-heroicon-o-magnifying-glass class="pointer-events-none absolute top-1/2 left-3.5 size-5 -translate-y-1/2 text-slate-400" />
-                <input type="search" name="search" value="{{ request('search') }}" placeholder="Cari kode atau nama rak..." class="form-input pl-11">
+                <x-heroicon-o-magnifying-glass class="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-slate-400" />
+                <input type="search" name="search" value="{{ request('search') }}" placeholder="Cari kode atau nama rak..." class="form-input pl-8">
             </div>
             <select name="warehouse" class="form-input md:w-56" onchange="this.form.submit()">
                 <option value="">Semua gudang</option>
@@ -45,35 +45,35 @@
 
         <div class="overflow-x-auto">
             <table class="min-w-full text-sm">
-                <thead class="bg-slate-50 text-left text-xs font-semibold tracking-wider text-slate-500 uppercase">
+                <thead class="bg-slate-50 text-left text-[13px] text-slate-500">
                     <tr>
-                        <th class="px-5 py-3">Rak</th>
-                        <th class="px-5 py-3">Gudang / Zona</th>
-                        <th class="px-5 py-3 text-center">Level</th>
-                        <th class="px-5 py-3 text-center">Lokasi Bin</th>
-                        <th class="px-5 py-3">Status</th>
-                        <th class="px-5 py-3 text-right">Aksi</th>
+                        <th class="h-8 px-4 py-0 font-normal">Rak</th>
+                        <th class="h-8 px-4 py-0 font-normal">Gudang / Zona</th>
+                        <th class="h-8 px-4 py-0 font-normal text-center">Level</th>
+                        <th class="h-8 px-4 py-0 font-normal text-center">Lokasi Bin</th>
+                        <th class="h-8 px-4 py-0 font-normal">Status</th>
+                        <th class="h-8 px-4 py-0 font-normal text-right">Aksi</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-slate-100">
                     @forelse ($racks as $rack)
                         <tr class="hover:bg-slate-50/60">
-                            <td class="px-5 py-3.5">
+                            <td class="px-4 py-2.5">
                                 <p class="font-mono font-medium text-slate-900">{{ $rack->code }}</p>
                                 @if ($rack->name)
                                     <p class="text-xs text-slate-500">{{ $rack->name }}</p>
                                 @endif
                             </td>
-                            <td class="px-5 py-3.5 text-slate-600">
+                            <td class="px-4 py-2.5 text-slate-600">
                                 {{ $rack->zone->warehouse->code }}
                                 <p class="text-xs text-slate-500">Zona {{ $rack->zone->code }} · {{ $rack->zone->name }}</p>
                             </td>
-                            <td class="px-5 py-3.5 text-center text-slate-700">{{ $rack->levels }}</td>
-                            <td class="px-5 py-3.5 text-center">
-                                <a href="{{ route('master.locations.index', ['rack' => $rack->id]) }}" class="font-medium text-brand-600 hover:underline">{{ $rack->locations_count }}</a>
+                            <td class="px-4 py-2.5 text-center text-slate-700">{{ $rack->levels }}</td>
+                            <td class="px-4 py-2.5 text-center">
+                                <a href="{{ route('master.locations.index', ['rack' => $rack->id]) }}" class="font-medium text-slate-900 underline decoration-slate-300 underline-offset-2 hover:decoration-slate-900">{{ $rack->locations_count }}</a>
                             </td>
-                            <td class="px-5 py-3.5"><x-status-badge :active="$rack->is_active" /></td>
-                            <td class="px-5 py-3.5">
+                            <td class="px-4 py-2.5"><x-status-badge :active="$rack->is_active" /></td>
+                            <td class="px-4 py-2.5">
                                 <div class="flex items-center justify-end gap-1">
                                     @can('warehouses.create')
                                         <a href="{{ route('master.locations.create', ['rack' => $rack->id]) }}" class="btn-icon" title="Tambah lokasi di rak ini">

@@ -19,9 +19,9 @@
         {{-- Filter --}}
         <form method="GET" class="flex flex-col gap-3 border-b border-slate-100 p-4 md:flex-row md:items-center">
             <div class="relative flex-1">
-                <x-heroicon-o-magnifying-glass class="pointer-events-none absolute top-1/2 left-3.5 size-5 -translate-y-1/2 text-slate-400" />
+                <x-heroicon-o-magnifying-glass class="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-slate-400" />
                 <input type="search" name="search" value="{{ request('search') }}" placeholder="Cari nama, username, atau email..."
-                       class="form-input pl-11">
+                       class="form-input pl-8">
             </div>
             <select name="role" class="form-input md:w-48" onchange="this.form.submit()">
                 <option value="">Semua role</option>
@@ -45,13 +45,13 @@
         {{-- Tabel --}}
         <div class="overflow-x-auto">
             <table class="min-w-full text-sm">
-                <thead class="bg-slate-50 text-left text-xs font-semibold tracking-wider text-slate-500 uppercase">
+                <thead class="bg-slate-50 text-left text-[13px] text-slate-500">
                     <tr>
-                        <th class="px-5 py-3">User</th>
-                        <th class="px-5 py-3">Role</th>
-                        <th class="px-5 py-3">Status</th>
-                        <th class="px-5 py-3">Login Terakhir</th>
-                        <th class="px-5 py-3 text-right">Aksi</th>
+                        <th class="h-8 px-4 py-0 font-normal">User</th>
+                        <th class="h-8 px-4 py-0 font-normal">Role</th>
+                        <th class="h-8 px-4 py-0 font-normal">Status</th>
+                        <th class="h-8 px-4 py-0 font-normal">Login Terakhir</th>
+                        <th class="h-8 px-4 py-0 font-normal text-right">Aksi</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-slate-100">
@@ -59,7 +59,7 @@
                         @php($manageable = auth()->user()->canManage($user))
                         @php($isSelf = auth()->user()->is($user))
                         <tr class="hover:bg-slate-50/60">
-                            <td class="px-5 py-3.5">
+                            <td class="px-4 py-2.5">
                                 <div class="flex items-center gap-3">
                                     <x-avatar :user="$user" class="size-10 text-sm" />
                                     <div class="min-w-0">
@@ -73,10 +73,10 @@
                                     </div>
                                 </div>
                             </td>
-                            <td class="px-5 py-3.5">
+                            <td class="px-4 py-2.5">
                                 <div class="flex flex-wrap gap-1.5">
                                     @forelse ($user->roles as $role)
-                                        <span class="inline-flex items-center gap-1 rounded-full bg-brand-50 px-2.5 py-0.5 text-xs font-medium text-brand-700 ring-1 ring-brand-100">
+                                        <span class="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-700">
                                             <x-heroicon-o-shield-check class="size-3.5" /> {{ $role->name }}
                                         </span>
                                     @empty
@@ -84,7 +84,7 @@
                                     @endforelse
                                 </div>
                             </td>
-                            <td class="px-5 py-3.5">
+                            <td class="px-4 py-2.5">
                                 @if ($user->is_active)
                                     <span class="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-medium text-emerald-700">
                                         <span class="size-1.5 rounded-full bg-emerald-500"></span> Aktif
@@ -95,10 +95,10 @@
                                     </span>
                                 @endif
                             </td>
-                            <td class="px-5 py-3.5 whitespace-nowrap text-slate-500">
+                            <td class="px-4 py-2.5 whitespace-nowrap text-slate-500">
                                 {{ $user->last_login_at?->diffForHumans() ?? 'Belum pernah' }}
                             </td>
-                            <td class="px-5 py-3.5">
+                            <td class="px-4 py-2.5">
                                 <div class="flex items-center justify-end gap-1">
                                     @if ($manageable)
                                         @can('users.edit')

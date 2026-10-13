@@ -18,8 +18,8 @@
     <div class="card">
         <form method="GET" class="flex flex-col gap-3 border-b border-slate-100 p-4 md:flex-row md:items-center">
             <div class="relative flex-1">
-                <x-heroicon-o-magnifying-glass class="pointer-events-none absolute top-1/2 left-3.5 size-5 -translate-y-1/2 text-slate-400" />
-                <input type="search" name="search" value="{{ request('search') }}" placeholder="Cari kode atau nama kurir..." class="form-input pl-11">
+                <x-heroicon-o-magnifying-glass class="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-slate-400" />
+                <input type="search" name="search" value="{{ request('search') }}" placeholder="Cari kode atau nama kurir..." class="form-input pl-8">
             </div>
             <select name="status" class="form-input md:w-40" onchange="this.form.submit()">
                 <option value="">Semua status</option>
@@ -36,27 +36,27 @@
 
         <div class="overflow-x-auto">
             <table class="min-w-full text-sm">
-                <thead class="bg-slate-50 text-left text-xs font-semibold tracking-wider text-slate-500 uppercase">
+                <thead class="bg-slate-50 text-left text-[13px] text-slate-500">
                     <tr>
-                        <th class="px-5 py-3">Kurir</th>
-                        <th class="px-5 py-3">Layanan</th>
-                        <th class="px-5 py-3">Batas Pickup</th>
-                        <th class="px-5 py-3">Kontak</th>
-                        <th class="px-5 py-3">Status</th>
-                        <th class="px-5 py-3 text-right">Aksi</th>
+                        <th class="h-8 px-4 py-0 font-normal">Kurir</th>
+                        <th class="h-8 px-4 py-0 font-normal">Layanan</th>
+                        <th class="h-8 px-4 py-0 font-normal">Batas Pickup</th>
+                        <th class="h-8 px-4 py-0 font-normal">Kontak</th>
+                        <th class="h-8 px-4 py-0 font-normal">Status</th>
+                        <th class="h-8 px-4 py-0 font-normal text-right">Aksi</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-slate-100">
                     @forelse ($couriers as $courier)
                         <tr class="hover:bg-slate-50/60">
-                            <td class="px-5 py-3.5">
+                            <td class="px-4 py-2.5">
                                 <p class="font-medium text-slate-900">{{ $courier->name }}</p>
                                 <p class="font-mono text-xs text-slate-500">{{ $courier->code }}</p>
                             </td>
-                            <td class="px-5 py-3.5">
+                            <td class="px-4 py-2.5">
                                 <div class="flex flex-wrap gap-1.5">
                                     @forelse ($courier->services ?? [] as $service)
-                                        <span class="rounded-full bg-brand-50 px-2.5 py-0.5 text-xs font-medium text-brand-700 ring-1 ring-brand-100" title="{{ $service['name'] }}">
+                                        <span class="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-700" title="{{ $service['name'] }}">
                                             {{ $service['code'] }}
                                         </span>
                                     @empty
@@ -64,15 +64,15 @@
                                     @endforelse
                                 </div>
                             </td>
-                            <td class="px-5 py-3.5 text-slate-600">{{ $courier->pickup_cutoff ? substr($courier->pickup_cutoff, 0, 5) : '—' }}</td>
-                            <td class="px-5 py-3.5 text-slate-600">
+                            <td class="px-4 py-2.5 text-slate-600">{{ $courier->pickup_cutoff ? substr($courier->pickup_cutoff, 0, 5) : '—' }}</td>
+                            <td class="px-4 py-2.5 text-slate-600">
                                 {{ $courier->contact_name ?? '—' }}
                                 @if ($courier->contact_phone)
                                     <p class="text-xs text-slate-400">{{ $courier->contact_phone }}</p>
                                 @endif
                             </td>
-                            <td class="px-5 py-3.5"><x-status-badge :active="$courier->is_active" /></td>
-                            <td class="px-5 py-3.5">
+                            <td class="px-4 py-2.5"><x-status-badge :active="$courier->is_active" /></td>
+                            <td class="px-4 py-2.5">
                                 <div class="flex items-center justify-end gap-1">
                                     @can('couriers.edit')
                                         <a href="{{ route('master.couriers.edit', $courier) }}" class="btn-icon" title="Edit">

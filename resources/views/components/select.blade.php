@@ -23,10 +23,10 @@
     </select>
 
     @if ($error)
-        <p class="mt-1.5 flex items-center gap-1 text-sm text-rose-600">
+        <p class="mt-1 flex items-center gap-1 text-xs text-rose-600">
             <x-heroicon-o-exclamation-triangle class="size-4 shrink-0" /> {{ $error }}
         </p>
     @elseif ($hint)
-        <p class="mt-1.5 text-xs text-slate-500">{{ $hint }}</p>
+        <p class="mt-1 text-xs text-slate-400">{{ $hint }}</p>
     @endif
 </div>

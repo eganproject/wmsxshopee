@@ -11,7 +11,7 @@
 
     <meta name="application-name" content="{{ config('app.name') }}">
     <meta name="description" content="{{ config('app.name') }} · {{ config('app.tagline') }}">
-    <meta name="theme-color" content="#ee4d2d">
+    <meta name="theme-color" content="#ffffff">
     <link rel="icon" href="{{ asset('favicon.svg') }}" type="image/svg+xml">
 
     <link rel="preconnect" href="https://fonts.bunny.net">
@@ -19,7 +19,7 @@
 
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 </head>
-<body class="h-full font-sans text-slate-800 antialiased">
+<body class="h-full font-sans text-sm text-slate-900 antialiased">
     {{ $slot }}
 </body>
 </html>
