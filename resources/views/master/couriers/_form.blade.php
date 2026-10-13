@@ -1,0 +1,72 @@
+@php
+    $services = old('services', $courier->services ?? []);
+@endphp
+
+<div class="space-y-6">
+    <div class="card">
+        <div class="border-b border-slate-100 px-6 py-4">
+            <h2 class="flex items-center gap-2 font-semibold text-slate-900">
+                <x-heroicon-o-truck class="size-5 text-slate-400" /> Informasi Kurir
+            </h2>
+        </div>
+        <div class="grid gap-5 p-6 sm:grid-cols-2">
+            <x-input name="code" label="Kode Kurir" icon="heroicon-o-hashtag" :value="$courier->code" placeholder="cth. JNE" class="uppercase" required />
+            <x-input name="name" label="Nama Kurir" :value="$courier->name" placeholder="cth. JNE Express" required />
+            <x-input name="tracking_url" label="URL Lacak Resi" icon="heroicon-o-link" :value="$courier->tracking_url" class="sm:col-span-2"
+                     placeholder="https://contoh.com/lacak?resi={resi}" hint="Gunakan {resi} sebagai tempat nomor resi." />
+            <x-input name="pickup_cutoff" type="time" label="Batas Jam Pickup" icon="heroicon-o-clock" :value="$courier->pickup_cutoff ? substr($courier->pickup_cutoff, 0, 5) : null"
+                     hint="Pesanan setelah jam ini dikirim besok." />
+            <x-input name="shopee_logistics_channel_id" label="ID Channel Logistik Shopee" :value="$courier->shopee_logistics_channel_id"
+                     placeholder="opsional" hint="Untuk pemetaan saat integrasi API Shopee." />
+        </div>
+    </div>
+
+    {{-- Layanan --}}
+    <div class="card" x-data="{ services: @js(array_values($services)) }">
+        <div class="flex items-center justify-between gap-4 border-b border-slate-100 px-6 py-4">
+            <div>
+                <h2 class="flex items-center gap-2 font-semibold text-slate-900">
+                    <x-heroicon-o-rectangle-stack class="size-5 text-slate-400" /> Jenis Layanan
+                </h2>
+                <p class="mt-0.5 text-sm text-slate-500">cth. REG (Reguler), YES (Yakin Esok Sampai), CARGO.</p>
+            </div>
+            <button type="button" class="btn-secondary" @click="services.push({ code: '', name: '' })">
+                <x-heroicon-o-plus class="size-5" /> Tambah
+            </button>
+        </div>
+        <div class="space-y-3 p-6">
+            @error('services')
+                <p class="flex items-center gap-1 text-sm text-rose-600"><x-heroicon-o-exclamation-triangle class="size-4" /> {{ $message }}</p>
+            @enderror
+            @foreach ($errors->get('services.*') as $messages)
+                <p class="flex items-center gap-1 text-sm text-rose-600"><x-heroicon-o-exclamation-triangle class="size-4" /> {{ $messages[0] }}</p>
+            @endforeach
+
+            <template x-for="(service, index) in services" :key="index">
+                <div class="flex items-center gap-3">
+                    <input type="text" class="form-input w-32 uppercase" placeholder="Kode" :name="`services[${index}][code]`" x-model="service.code">
+                    <input type="text" class="form-input flex-1" placeholder="Nama layanan" :name="`services[${index}][name]`" x-model="service.name">
+                    <button type="button" class="btn-icon hover:bg-rose-50 hover:text-rose-600" title="Hapus layanan" @click="services.splice(index, 1)">
+                        <x-heroicon-o-trash class="size-5" />
+                    </button>
+                </div>
+            </template>
+            <p x-show="services.length === 0" class="text-sm text-slate-500">Belum ada layanan.</p>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="border-b border-slate-100 px-6 py-4">
+            <h2 class="flex items-center gap-2 font-semibold text-slate-900">
+                <x-heroicon-o-phone class="size-5 text-slate-400" /> Kontak Pickup
+            </h2>
+        </div>
+        <div class="grid gap-5 p-6 sm:grid-cols-2">
+            <x-input name="contact_name" label="Nama Kontak" icon="heroicon-o-user" :value="$courier->contact_name" />
+            <x-input name="contact_phone" label="No. Telepon" icon="heroicon-o-phone" :value="$courier->contact_phone" placeholder="08xxxxxxxxxx" />
+            <x-textarea name="notes" label="Catatan" :value="$courier->notes" class="sm:col-span-2" />
+        </div>
+    </div>
+
+    <x-active-toggle :checked="$courier->is_active" title="Status Kurir" description="Kurir nonaktif tidak muncul sebagai pilihan pengiriman." />
+</div>

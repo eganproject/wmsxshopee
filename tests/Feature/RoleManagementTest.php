@@ -54,12 +54,12 @@ class RoleManagementTest extends TestCase
         $editor = User::factory()->create();
         $editor->givePermissionTo(['roles.view', 'roles.edit']);
         $role = Role::findByName('Staff Gudang');
-        $editor->givePermissionTo('dashboard.view');
+        $editor->givePermissionTo($role->permissions);
 
         $this->actingAs($editor)->put("/admin/roles/{$role->id}", [
             'name' => 'Staff Gudang',
-            'permissions' => ['dashboard.view', 'users.delete'],
-        ])->assertSessionHasErrors('permissions.1');
+            'permissions' => ['users.delete', ...$role->permissions->pluck('name')],
+        ])->assertSessionHasErrors('permissions.0');
 
         $this->assertFalse($role->fresh()->hasPermissionTo('users.delete'));
     }
