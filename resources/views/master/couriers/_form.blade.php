@@ -14,7 +14,7 @@
             <x-input name="name" label="Nama Kurir" :value="$courier->name" placeholder="cth. JNE Express" required />
             <x-input name="tracking_url" label="URL Lacak Resi" icon="heroicon-o-link" :value="$courier->tracking_url" class="sm:col-span-2"
                      placeholder="https://contoh.com/lacak?resi={resi}" hint="Gunakan {resi} sebagai tempat nomor resi." />
-            <x-input name="pickup_cutoff" type="time" label="Batas Jam Pickup" icon="heroicon-o-clock" :value="$courier->pickup_cutoff ? substr($courier->pickup_cutoff, 0, 5) : null"
+            <x-input name="pickup_cutoff" type="time" label="Batas Jam Pickup" :value="$courier->pickup_cutoff ? substr($courier->pickup_cutoff, 0, 5) : null"
                      hint="Pesanan setelah jam ini dikirim besok." />
             <x-input name="shopee_logistics_channel_id" label="ID Channel Logistik Shopee" :value="$courier->shopee_logistics_channel_id"
                      placeholder="opsional" hint="Untuk pemetaan saat integrasi API Shopee." />

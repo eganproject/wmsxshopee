@@ -1,8 +1,10 @@
 import './bootstrap';
 import Alpine from 'alpinejs';
 import collapse from '@alpinejs/collapse';
+import { enhance, enhanceDate, enhanceSelect, registerAlpine } from './form-controls';
 
 Alpine.plugin(collapse);
+registerAlpine(Alpine);
 
 // Modal konfirmasi global: <button @click="$dispatch('confirm', { ... })">
 Alpine.data('confirmDialog', () => ({
@@ -38,4 +40,9 @@ Alpine.data('themeToggle', () => ({
 }));
 
 window.Alpine = Alpine;
+window.Optima = { ...window.Optima, enhance, enhanceSelect, enhanceDate };
+
+// Select & tanggal diperkaya setelah Alpine selesai mengisi nilai awal (x-model).
+document.addEventListener('alpine:initialized', () => enhance());
+
 Alpine.start();
