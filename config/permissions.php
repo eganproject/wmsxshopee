@@ -48,12 +48,12 @@ return [
         ],
 
         'inventory' => [
-            'label' => 'Stok & Kartu Stok',
+            'label' => 'Stok',
             'icon' => 'heroicon-o-archive-box',
             'actions' => [
-                'view' => 'Lihat stok, kartu stok & mutasi',
-                'create' => 'Catat barang masuk, keluar & transfer lokasi',
-                'adjust' => 'Catat penyesuaian stok',
+                'view' => 'Lihat stok serta tab Kartu Stok & Mutasi Stok',
+                'create' => 'Catat mutasi barang masuk, keluar & transfer lokasi',
+                'adjust' => 'Catat mutasi penyesuaian stok',
             ],
         ],
 

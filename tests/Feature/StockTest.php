@@ -87,6 +87,18 @@ class StockTest extends TestCase
         $this->get('/inventory/movements/create?type=unknown')->assertNotFound();
     }
 
+    public function test_stock_card_and_movements_are_tabs_not_sidebar_menus(): void
+    {
+        $this->actingAs($this->superAdmin());
+
+        $this->get('/dashboard')->assertOk()
+            ->assertSee(route('inventory.stocks.index'), false)
+            ->assertDontSee(route('inventory.stock-card.index'), false)
+            ->assertDontSee(route('inventory.movements.index'), false);
+
+        $this->get('/inventory/stock-card')->assertOk()->assertSee(route('inventory.movements.index'), false);
+    }
+
     public function test_stock_in_adds_stock_and_writes_ledger(): void
     {
         $this->actingAs($this->superAdmin());
