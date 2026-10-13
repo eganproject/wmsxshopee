@@ -43,6 +43,11 @@ class ProductVariant extends Model
         return $this->hasMany(Stock::class);
     }
 
+    public function bundleItems(): HasMany
+    {
+        return $this->hasMany(BundleItem::class);
+    }
+
     public function ledgers(): HasMany
     {
         return $this->hasMany(StockLedger::class);

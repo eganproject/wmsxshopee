@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Sales;
 
 use App\Http\Controllers\Controller;
+use App\Models\Bundle;
 use App\Models\Courier;
 use App\Models\ProductVariant;
 use App\Models\SalesOrder;
@@ -64,14 +65,14 @@ class SalesOrderController extends Controller
     {
         $data = $this->validated($request);
 
-        $order = DB::transaction(function () use ($request, $data) {
+        $order = DB::transaction(function () use ($request, $data, $service) {
             $order = SalesOrder::create([
                 ...$data['header'],
                 'number' => SalesOrder::nextNumber(),
                 'status' => 'draft',
                 'created_by' => $request->user()->id,
             ]);
-            $order->items()->createMany($data['items']);
+            $service->fillLines($order, $data['items'], $data['bundles']);
 
             return $order;
         });
@@ -81,15 +82,14 @@ class SalesOrderController extends Controller
 
     public function show(SalesOrder $order, SalesOrderService $service): View
     {
-        $order->load(['warehouse', 'courier', 'creator', 'movement', 'items.variant.product.unit', 'items.picks.location']);
+        $order->load(['warehouse', 'courier', 'creator', 'movement', 'items.variant.product.unit', 'items.picks.location', 'bundles.bundle.items']);
 
-        $availability = $order->hasStatus('draft')
-            ? $service->availability($order->warehouse_id, $order->items->pluck('product_variant_id')->all(), $order->id)
-            : collect();
+        $draft = $order->hasStatus('draft');
 
         return view('sales.orders.show', [
             'order' => $order,
-            'availability' => $availability,
+            'availability' => $draft ? $service->availability($order->warehouse_id, $order->items->pluck('product_variant_id')->all(), $order->id) : collect(),
+            'bundleAvailability' => $draft ? $service->bundleAvailability($order->warehouse_id, $order->bundles->pluck('bundle')->unique('id'), $order->id) : collect(),
             'couriers' => Courier::query()
                 ->where(fn ($q) => $q->where('is_active', true)->when($order->courier_id, fn ($q) => $q->orWhere('id', $order->courier_id)))
                 ->orderBy('name')
@@ -103,7 +103,7 @@ class SalesOrderController extends Controller
             return redirect()->route('sales.orders.show', $order)->with('error', "{$order->number} sudah {$order->statusLabel()} dan tidak bisa diubah.");
         }
 
-        $order->load('items');
+        $order->load(['looseItems', 'bundles']);
 
         return view('sales.orders.edit', ['order' => $order, ...$this->formData($order)]);
     }
@@ -114,10 +114,9 @@ class SalesOrderController extends Controller
 
         $data = $this->validated($request, $order);
 
-        DB::transaction(function () use ($order, $data) {
+        DB::transaction(function () use ($order, $data, $service) {
             $order->update($data['header']);
-            $order->items()->delete();
-            $order->items()->createMany($data['items']);
+            $service->fillLines($order, $data['items'], $data['bundles']);
         });
 
         return $this->afterSave($request, $order, $service, 'diperbarui');
@@ -147,7 +146,7 @@ class SalesOrderController extends Controller
             return redirect()->route('sales.orders.show', $order)->with('error', "{$order->number} tidak dalam status Dikonfirmasi.");
         }
 
-        $order->load(['warehouse', 'items.variant.product.unit']);
+        $order->load(['warehouse', 'items.variant.product.unit', 'items.bundleLine.bundle']);
         $variantIds = $order->items->pluck('product_variant_id')->all();
 
         return view('sales.orders.picking', [
@@ -181,7 +180,7 @@ class SalesOrderController extends Controller
     {
         abort_unless($order->hasStatus(...SalesOrder::RESERVING), 404);
 
-        $order->load(['warehouse', 'courier', 'items.variant.product.unit', 'items.picks.location']);
+        $order->load(['warehouse', 'courier', 'items.variant.product.unit', 'items.picks.location', 'items.bundleLine.bundle']);
         $suggestion = $order->hasStatus('confirmed') ? $service->suggestPicks($order) : null;
         $codes = $suggestion
             ? WarehouseLocation::whereIn('id', collect($suggestion)->flatten(1)->pluck('warehouse_location_id')->filter())->pluck('code', 'id')
@@ -293,13 +292,21 @@ class SalesOrderController extends Controller
                 ->whereHas('product', fn ($q) => $q->where('is_active', true))
                 ->orderBy('sku')
                 ->get()
-                ->map(fn ($variant) => ['id' => $variant->id, 'sku' => $variant->sku, 'barcode' => $variant->barcode, 'label' => $variant->displayName()])
+                ->map(fn ($variant) => ['ref' => "v:{$variant->id}", 'sku' => $variant->sku, 'barcode' => $variant->barcode, 'label' => $variant->displayName(), 'price' => null])
+                ->concat(Bundle::query()
+                    ->where(fn ($q) => $q->where('is_active', true)->when($order, fn ($q) => $q->orWhereIn('id', $order->bundles()->select('bundle_id'))))
+                    ->whereHas('items')
+                    ->orderBy('sku')
+                    ->get()
+                    ->map(fn ($bundle) => ['ref' => "b:{$bundle->id}", 'sku' => $bundle->sku, 'barcode' => $bundle->barcode, 'label' => '[Paket] '.$bundle->displayName(), 'price' => (float) $bundle->price]))
                 ->values(),
         ];
     }
 
     /**
-     * @return array{header: array<string, mixed>, items: array<int, array<string, mixed>>}
+     * Baris berisi product_variant_id (barang biasa) atau bundle_id (produk paket).
+     *
+     * @return array{header: array<string, mixed>, items: array<int, array<string, mixed>>, bundles: array<int, array<string, mixed>>}
      */
     private function validated(Request $request, ?SalesOrder $order = null): array
     {
@@ -319,12 +326,16 @@ class SalesOrderController extends Controller
             'shipping_fee' => ['nullable', 'numeric', 'min:0', 'max:999999999'],
             'notes' => ['nullable', 'string', 'max:1000'],
             'items' => ['required', 'array', 'min:1', 'max:200'],
-            'items.*.product_variant_id' => ['required', 'integer', Rule::exists('product_variants', 'id')],
+            'items.*.product_variant_id' => ['nullable', 'required_without:items.*.bundle_id', 'integer', Rule::exists('product_variants', 'id')],
+            'items.*.bundle_id' => ['nullable', 'integer', Rule::exists('bundles', 'id')->where(fn ($q) => $q
+                ->where('is_active', true)
+                ->when($order, fn ($q) => $q->orWhereIn('id', $order->bundles()->select('bundle_id'))))],
             'items.*.qty' => ['required', 'integer', 'min:1', 'max:1000000'],
             'items.*.price' => ['nullable', 'numeric', 'min:0', 'max:999999999'],
             'items.*.notes' => ['nullable', 'string', 'max:255'],
         ], [
             'items.required' => 'Tambahkan minimal satu barang.',
+            'items.*.product_variant_id.required_without' => 'Pilih barang atau paket.',
             'order_date.before_or_equal' => 'Tanggal pesanan tidak boleh di masa depan.',
         ], [
             'warehouse_id' => 'gudang',
@@ -339,6 +350,7 @@ class SalesOrderController extends Controller
             'shipping_fee' => 'ongkir',
             'notes' => 'catatan',
             'items.*.product_variant_id' => 'barang',
+            'items.*.bundle_id' => 'paket',
             'items.*.qty' => 'jumlah',
             'items.*.price' => 'harga',
             'items.*.notes' => 'keterangan',
@@ -360,8 +372,14 @@ class SalesOrderController extends Controller
                 'shipping_fee' => $data['shipping_fee'] ?? 0,
                 'notes' => $data['notes'] ?? null,
             ],
-            'items' => collect($data['items'])->map(fn ($row) => [
+            'items' => collect($data['items'])->filter(fn ($row) => blank($row['bundle_id'] ?? null))->map(fn ($row) => [
                 'product_variant_id' => (int) $row['product_variant_id'],
+                'qty' => (int) $row['qty'],
+                'price' => $row['price'] ?? 0,
+                'notes' => $row['notes'] ?? null,
+            ])->values()->all(),
+            'bundles' => collect($data['items'])->filter(fn ($row) => filled($row['bundle_id'] ?? null))->map(fn ($row) => [
+                'bundle_id' => (int) $row['bundle_id'],
                 'qty' => (int) $row['qty'],
                 'price' => $row['price'] ?? 0,
                 'notes' => $row['notes'] ?? null,

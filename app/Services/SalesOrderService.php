@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\Bundle;
 use App\Models\ProductVariant;
 use App\Models\SalesOrder;
 use App\Models\SalesOrderPick;
@@ -55,6 +56,54 @@ class SalesOrderService
     }
 
     /**
+     * Berapa paket yang bisa dipenuhi per paket di satu gudang: komponen dengan
+     * stok tersedia paling sedikit (dibanding jumlahnya per paket) yang menentukan.
+     *
+     * @param  iterable<int, Bundle>  $bundles  dengan relasi items
+     * @return Collection<int, int> per bundle id
+     */
+    public function bundleAvailability(int $warehouseId, iterable $bundles, ?int $exceptOrderId = null): Collection
+    {
+        $bundles = collect($bundles);
+        $availability = $this->availability($warehouseId, $bundles->flatMap(fn (Bundle $bundle) => $bundle->items->pluck('product_variant_id'))->unique()->values()->all(), $exceptOrderId);
+
+        return $bundles->mapWithKeys(fn (Bundle $bundle) => [$bundle->id => $bundle->items->isEmpty() ? 0 : (int) max(0, $bundle->items->min(
+            fn ($component) => intdiv(max(0, $availability[$component->product_variant_id]['available'] ?? 0), max(1, $component->qty))
+        ))]);
+    }
+
+    /**
+     * Ganti semua baris pesanan (draft). Paket dipecah jadi baris barang per komponen
+     * dengan isi paket saat ini, jadi cadangan, picking & pengiriman tetap per varian.
+     *
+     * @param  array<int, array{product_variant_id: int, qty: int, price: mixed, notes: ?string}>  $items
+     * @param  array<int, array{bundle_id: int, qty: int, price: mixed, notes: ?string}>  $bundles
+     */
+    public function fillLines(SalesOrder $order, array $items, array $bundles): void
+    {
+        $order->items()->delete();
+        $order->bundles()->delete();
+        $order->items()->createMany($items);
+
+        $masters = Bundle::with('items')->whereIn('id', collect($bundles)->pluck('bundle_id'))->get()->keyBy('id');
+
+        foreach ($bundles as $row) {
+            $bundle = $masters[$row['bundle_id']];
+            $line = $order->bundles()->create($row);
+
+            $order->items()->createMany($bundle->items->map(fn ($component) => [
+                'sales_order_bundle_id' => $line->id,
+                'product_variant_id' => $component->product_variant_id,
+                'qty' => $row['qty'] * $component->qty,
+                'bundle_component_qty' => $component->qty,
+                'price' => 0,
+            ])->all());
+        }
+
+        $order->unsetRelation('items')->unsetRelation('bundles');
+    }
+
+    /**
      * Draft -> Dikonfirmasi. Gagal bila stok tersedia di gudang tidak cukup.
      *
      * @throws ValidationException
@@ -63,7 +112,7 @@ class SalesOrderService
     {
         DB::transaction(function () use ($order) {
             $order = $this->lock($order, ['draft']);
-            $order->load('items.variant');
+            $order->load(['items.variant', 'items.bundleLine.bundle']);
 
             $this->lockVariants($order);
             $this->ensureAvailable($order);
@@ -266,8 +315,11 @@ class SalesOrderService
         foreach ($needed as $variantId => $qty) {
             $available = $availability[$variantId]['available'];
             if ($qty > $available) {
-                $sku = $order->items->firstWhere('product_variant_id', $variantId)->variant->sku;
-                $messages["stock.{$variantId}"] = "Stok {$sku} tidak cukup: dipesan {$qty}, tersedia {$available}.";
+                $rows = $order->items->where('product_variant_id', $variantId);
+                $sku = $rows->first()->variant->sku;
+                $bundles = $rows->map(fn ($item) => $item->bundleLine?->bundle?->sku)->filter()->unique();
+                $source = $bundles->isNotEmpty() ? ' (termasuk isi paket '.$bundles->join(', ').')' : '';
+                $messages["stock.{$variantId}"] = "Stok {$sku} tidak cukup{$source}: dipesan {$qty}, tersedia {$available}.";
             }
         }
 
