@@ -70,10 +70,10 @@
                                 @endif
                             </td>
                             @if (in_array($movement->type, ['out', 'transfer']))
-                                <td class="px-5 py-3.5 font-mono text-slate-700">{{ $item->fromLocation->code }}</td>
+                                <td class="px-5 py-3.5 font-mono text-slate-700">{{ $item->fromLocation?->code ?? 'Tanpa bin' }}</td>
                             @endif
                             @if ($movement->type !== 'out')
-                                <td class="px-5 py-3.5 font-mono text-slate-700">{{ $item->toLocation->code }}</td>
+                                <td class="px-5 py-3.5 font-mono text-slate-700">{{ $item->toLocation?->code ?? 'Tanpa bin' }}</td>
                             @endif
                             <td @class([
                                 'px-5 py-3.5 text-right font-semibold tabular-nums',

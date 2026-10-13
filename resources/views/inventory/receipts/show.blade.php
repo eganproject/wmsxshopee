@@ -155,7 +155,7 @@
                                     {{ $variance === null ? '—' : ($variance > 0 ? '+' : '').$variance }}
                                 </td>
                             @endif
-                            <td class="px-4 py-2.5 font-mono text-slate-700">{{ $item->location->code }}</td>
+                            <td @class(['px-4 py-2.5', 'font-mono text-slate-700' => $item->location, 'text-slate-400' => ! $item->location])>{{ $item->location?->code ?? 'Tanpa bin' }}</td>
                             <td class="px-4 py-2.5 text-slate-600">{{ $item->notes ?? '—' }}</td>
                         </tr>
                     @endforeach

@@ -270,4 +270,36 @@ class StockTest extends TestCase
         ])->assertSessionHasErrors('variants');
         $this->assertModelExists($this->variant);
     }
+
+    public function test_bin_location_is_optional(): void
+    {
+        $this->actingAs($this->superAdmin());
+
+        $this->record('in', [['product_variant_id' => $this->variant->id, 'to_location_id' => '', 'qty' => 10]])->assertSessionHasNoErrors();
+        $this->record('in', [['product_variant_id' => $this->variant->id, 'qty' => 5]])->assertSessionHasNoErrors();
+
+        $unassigned = fn () => Stock::where('product_variant_id', $this->variant->id)->whereNull('warehouse_location_id');
+        $this->assertSame(1, $unassigned()->count());
+        $this->assertSame(15, (int) $unassigned()->value('qty'));
+        $this->assertSame($this->warehouse->id, $unassigned()->value('warehouse_id'));
+
+        // Put-away: pindahkan dari "Tanpa bin" ke bin.
+        $this->record('transfer', [['product_variant_id' => $this->variant->id, 'from_location_id' => '', 'to_location_id' => $this->binA->id, 'qty' => 6]])
+            ->assertSessionHasNoErrors();
+        $this->record('transfer', [['product_variant_id' => $this->variant->id, 'from_location_id' => '', 'to_location_id' => '', 'qty' => 1]])
+            ->assertSessionHasErrors('items.0.to_location_id');
+
+        $this->record('out', [['product_variant_id' => $this->variant->id, 'from_location_id' => '', 'qty' => 10]])
+            ->assertSessionHasErrors('items.0.qty');
+        $this->record('out', [['product_variant_id' => $this->variant->id, 'from_location_id' => '', 'qty' => 9]])->assertSessionHasNoErrors();
+        $this->record('adjustment', [['product_variant_id' => $this->variant->id, 'to_location_id' => '', 'qty' => 2]])->assertSessionHasNoErrors();
+
+        $this->assertSame(2, (int) $unassigned()->value('qty'));
+        $this->assertSame(6, $this->qty($this->binA));
+        $this->assertSame(5, StockLedger::whereNull('warehouse_location_id')->count());
+
+        $this->get('/inventory/stocks')->assertOk()->assertSee('Tanpa bin');
+        $this->get("/inventory/stock-card?variant={$this->variant->id}&location=none")->assertOk()->assertSee('Tanpa bin');
+        $this->get('/inventory/movements/'.StockMovement::where('type', 'out')->value('id'))->assertOk()->assertSee('Tanpa bin');
+    }
 }

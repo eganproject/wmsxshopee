@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\ProductVariant;
 use App\Models\Stock;
 use App\Models\StockLedger;
 use App\Models\StockMovement;
@@ -18,6 +19,7 @@ class StockService
 {
     /**
      * Penyesuaian memakai to_location_id dengan qty bertanda (+ tambah, - kurang).
+     * Lokasi bin boleh null: stok disimpan di level gudang ("Tanpa bin").
      *
      * @param  array{type: string, warehouse_id: int, movement_date: string, reference?: ?string, notes?: ?string, created_by?: ?int}  $header
      * @param  array<int, array{product_variant_id: int, from_location_id?: ?int, to_location_id?: ?int, qty: int, notes?: ?string}>  $items
@@ -47,7 +49,7 @@ class StockService
     /**
      * Perubahan saldo yang ditimbulkan satu baris mutasi.
      *
-     * @return array<int, array{0: int, 1: int}> [lokasi, delta]
+     * @return array<int, array{0: ?int, 1: int}> [lokasi, delta]
      */
     private function deltas(string $type, StockMovementItem $item): array
     {
@@ -59,11 +61,23 @@ class StockService
         };
     }
 
-    private function apply(StockMovement $movement, StockMovementItem $item, int $locationId, int $delta, int $index): void
+    private function apply(StockMovement $movement, StockMovementItem $item, ?int $locationId, int $delta, int $index): void
     {
+        $warehouseId = $movement->warehouse_id;
+
+        if ($locationId === null) {
+            // Unique index tidak berlaku untuk NULL, jadi baris "Tanpa bin" diserialkan
+            // dengan mengunci varian supaya tidak tercipta dua saldo ganda.
+            ProductVariant::whereKey($item->product_variant_id)->lockForUpdate()->first();
+        }
+
         $stock = Stock::query()
             ->where('product_variant_id', $item->product_variant_id)
-            ->where('warehouse_location_id', $locationId)
+            ->when(
+                $locationId === null,
+                fn ($query) => $query->where('warehouse_id', $warehouseId)->whereNull('warehouse_location_id'),
+                fn ($query) => $query->where('warehouse_location_id', $locationId),
+            )
             ->lockForUpdate()
             ->first();
 
@@ -71,14 +85,12 @@ class StockService
 
         if ($current + $delta < 0) {
             $item->loadMissing('variant');
-            $location = WarehouseLocation::find($locationId);
+            $place = $locationId === null ? 'tanpa bin' : 'di lokasi '.WarehouseLocation::whereKey($locationId)->value('code');
 
             throw ValidationException::withMessages([
-                "items.{$index}.qty" => "Stok {$item->variant->sku} di lokasi {$location->code} tidak cukup (tersedia {$current}).",
+                "items.{$index}.qty" => "Stok {$item->variant->sku} {$place} tidak cukup (tersedia {$current}).",
             ]);
         }
-
-        $warehouseId = WarehouseLocation::whereKey($locationId)->value('warehouse_id');
 
         if ($stock) {
             $stock->update(['qty' => $current + $delta]);

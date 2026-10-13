@@ -36,7 +36,8 @@ class StockCardController extends Controller
             $scope = fn () => StockLedger::query()
                 ->where('product_variant_id', $variant->id)
                 ->when($request->filled('warehouse'), fn ($query) => $query->where('warehouse_id', $request->integer('warehouse')))
-                ->when($request->filled('location'), fn ($query) => $query->where('warehouse_location_id', $request->integer('location')));
+                ->when($request->input('location') === 'none', fn ($query) => $query->whereNull('warehouse_location_id'))
+                ->when($request->filled('location') && $request->input('location') !== 'none', fn ($query) => $query->where('warehouse_location_id', $request->integer('location')));
 
             $opening = (int) $scope()->whereDate('movement_date', '<', $from)->sum(DB::raw('qty_in - qty_out'));
 

@@ -216,4 +216,20 @@ class GoodsReceiptTest extends TestCase
         $this->delete("/inventory/receipts/{$receipt->id}")->assertForbidden();
         $this->assertTrue($receipt->fresh()->isDraft());
     }
+
+    public function test_bin_location_is_optional(): void
+    {
+        $this->actingAs($this->superAdmin());
+
+        $this->post('/inventory/receipts', $this->payload([
+            'action' => 'receive',
+            'items' => [['product_variant_id' => $this->variant->id, 'warehouse_location_id' => '', 'qty_received' => 8]],
+        ]))->assertSessionHasNoErrors();
+
+        $receipt = GoodsReceipt::first();
+        $this->assertSame('received', $receipt->status);
+        $this->assertNull($receipt->items->first()->warehouse_location_id);
+        $this->assertSame(8, (int) Stock::where('product_variant_id', $this->variant->id)->whereNull('warehouse_location_id')->value('qty'));
+        $this->get("/inventory/receipts/{$receipt->id}")->assertOk()->assertSee('Tanpa bin');
+    }
 }

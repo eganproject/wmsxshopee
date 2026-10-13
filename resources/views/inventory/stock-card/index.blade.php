@@ -48,6 +48,7 @@
             <label for="location" class="form-label">Lokasi</label>
             <select id="location" name="location" class="form-input" onchange="this.form.submit()">
                 <option value="">Semua lokasi</option>
+                <option value="none" @selected(request('location') === 'none')>Tanpa bin</option>
                 @foreach ($locations as $location)
                     <option value="{{ $location->id }}" @selected(request('location') == $location->id)>{{ $location->code }}</option>
                 @endforeach
@@ -126,7 +127,7 @@
                                     <a href="{{ route('inventory.movements.show', $row->stock_movement_id) }}" class="font-medium text-brand-600 hover:underline">{{ $row->movement->number }}</a>
                                 </td>
                                 <td class="px-5 py-3.5"><x-inventory.type-badge :type="$row->type" /></td>
-                                <td class="px-5 py-3.5 font-mono text-slate-700">{{ $row->warehouse->code }} · {{ $row->location->code }}</td>
+                                <td class="px-5 py-3.5 font-mono text-slate-700">{{ $row->warehouse->code }} · {{ $row->location?->code ?? 'Tanpa bin' }}</td>
                                 <td class="px-5 py-3.5 text-slate-600">{{ $row->movement->reference ?? '—' }}</td>
                                 <td class="px-5 py-3.5 text-right tabular-nums text-emerald-600">{{ $row->qty_in ? $fmt($row->qty_in) : '' }}</td>
                                 <td class="px-5 py-3.5 text-right tabular-nums text-rose-600">{{ $row->qty_out ? $fmt($row->qty_out) : '' }}</td>
