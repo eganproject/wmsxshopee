@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Product;
 use App\Models\ProductImage;
 use App\Models\ProductVariant;
+use App\Models\StockLedger;
 use App\Models\Unit;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -83,6 +84,10 @@ class ProductController extends Controller
 
     public function destroy(Product $product): RedirectResponse
     {
+        if (StockLedger::whereIn('product_variant_id', $product->variants()->select('id'))->exists()) {
+            return back()->with('error', "Produk {$product->name} sudah punya riwayat stok sehingga tidak bisa dihapus. Nonaktifkan produk ini sebagai gantinya.");
+        }
+
         $paths = $product->images()->pluck('path')->all();
 
         $product->delete();
@@ -272,6 +277,18 @@ class ProductController extends Controller
             'variants.*.height_cm' => 'tinggi',
             'images.*' => 'gambar',
         ]);
+
+        // Varian yang sudah punya riwayat stok tidak boleh dibuang dari produk.
+        if ($product->exists) {
+            $keepIds = collect($data['variants'])->pluck('id')->filter()->map(fn ($id) => (int) $id);
+            $locked = $product->variants()->whereNotIn('id', $keepIds)->whereHas('ledgers')->pluck('sku');
+
+            if ($locked->isNotEmpty()) {
+                throw ValidationException::withMessages([
+                    'variants' => 'Varian '.$locked->join(', ').' sudah punya riwayat stok sehingga tidak bisa dihapus. Nonaktifkan saja.',
+                ]);
+            }
+        }
 
         $removeIds = collect($data['remove_images'] ?? [])->map(fn ($id) => (int) $id)->all();
         $remaining = $product->exists ? $product->images()->whereNotIn('id', $removeIds)->count() : 0;

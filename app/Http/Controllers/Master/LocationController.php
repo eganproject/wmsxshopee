@@ -65,7 +65,10 @@ class LocationController extends Controller
 
     public function destroy(WarehouseLocation $location): RedirectResponse
     {
-        // Nanti: tolak hapus jika lokasi masih berisi stok.
+        if ($location->ledgers()->exists()) {
+            return back()->with('error', "Lokasi {$location->code} sudah punya riwayat stok sehingga tidak bisa dihapus. Nonaktifkan lokasi ini sebagai gantinya.");
+        }
+
         $location->delete();
 
         return back()->with('success', "Lokasi {$location->code} berhasil dihapus.");
