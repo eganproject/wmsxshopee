@@ -143,6 +143,14 @@ return [
                 'delete' => 'Hapus role',
             ],
         ],
+
+        'activity' => [
+            'label' => 'Log Aktivitas',
+            'icon' => 'heroicon-o-clock',
+            'actions' => [
+                'view' => 'Lihat log aktivitas semua user',
+            ],
+        ],
     ],
 
 ];

@@ -7,6 +7,7 @@ use App\Models\Warehouse;
 use App\Models\WarehouseLocation;
 use App\Models\WarehouseRack;
 use App\Models\WarehouseZone;
+use App\Support\Activity;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -104,7 +105,7 @@ class RackController extends Controller
     {
         $warehouseId = $rack->zone->warehouse_id;
         $existing = WarehouseLocation::where('warehouse_id', $warehouseId)->pluck('code')->flip();
-        $created = 0;
+        $created = [];
 
         for ($level = 1; $level <= $rack->levels; $level++) {
             for ($position = 1; $position <= $positions; $position++) {
@@ -114,19 +115,25 @@ class RackController extends Controller
                     continue;
                 }
 
-                $rack->locations()->create([
+                // Lokasi massal dicatat sebagai satu ringkasan di bawah, bukan satu log per bin.
+                Activity::withoutLogging(fn () => $rack->locations()->create([
                     'warehouse_id' => $warehouseId,
                     'code' => $code,
                     'level' => $level,
                     'position' => $position,
                     'type' => 'bin',
                     'is_active' => true,
-                ]);
-                $created++;
+                ]));
+                $created[] = $code;
             }
         }
 
-        return $created;
+        if ($created) {
+            DB::afterCommit(fn () => Activity::record('created', 'warehouses', count($created)." lokasi bin dibuat untuk rak {$rack->code}",
+                $rack, [], ['Lokasi Bin' => $created]));
+        }
+
+        return count($created);
     }
 
     /**

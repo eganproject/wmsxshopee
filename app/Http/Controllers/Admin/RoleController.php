@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use App\Support\Activity;
 use App\Support\PermissionGroups;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -33,6 +34,8 @@ class RoleController extends Controller
         $role = Role::create(['name' => $data['name'], 'guard_name' => 'web']);
         $role->syncPermissions($data['permissions'] ?? []);
 
+        Activity::record('created', 'roles', "Role {$role->name} dibuat", $role, [], $this->snapshot($role));
+
         return redirect()->route('admin.roles.index')
             ->with('success', "Role {$role->name} berhasil dibuat.");
     }
@@ -56,8 +59,16 @@ class RoleController extends Controller
 
         $data = $this->validated($request, $role);
 
+        $before = $this->snapshot($role);
+
         $role->update(['name' => $data['name']]);
         $role->syncPermissions($data['permissions'] ?? []);
+
+        [$old, $new] = Activity::diff($before, $this->snapshot($role));
+
+        if ($old || $new) {
+            Activity::record('updated', 'roles', "Role {$role->name} diubah", $role, $old, $new);
+        }
 
         return redirect()->route('admin.roles.index')
             ->with('success', "Role {$role->name} berhasil diperbarui.");
@@ -72,10 +83,26 @@ class RoleController extends Controller
             return back()->with('error', "Role {$role->name} masih digunakan oleh user. Pindahkan user terlebih dahulu.");
         }
 
+        $snapshot = $this->snapshot($role);
         $role->delete();
+
+        Activity::record('deleted', 'roles', "Role {$role->name} dihapus", $role, $snapshot, []);
 
         return redirect()->route('admin.roles.index')
             ->with('success', "Role {$role->name} berhasil dihapus.");
+    }
+
+    /**
+     * Isi role untuk log aktivitas; role milik Spatie sehingga dicatat manual.
+     *
+     * @return array{Nama: string, Permission: array<int, string>}
+     */
+    private function snapshot(Role $role): array
+    {
+        return [
+            'Nama' => $role->name,
+            'Permission' => $role->permissions()->orderBy('name')->pluck('name')->all(),
+        ];
     }
 
     private function isSuperAdminRole(Role $role): bool

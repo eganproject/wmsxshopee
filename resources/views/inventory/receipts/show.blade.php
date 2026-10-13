@@ -182,4 +182,6 @@
             <x-heroicon-o-lock-closed class="size-4" /> Penerimaan yang sudah diterima tidak bisa diubah. Untuk koreksi, catat penyesuaian stok.
         @endif
     </p>
+
+    <x-activity.history :subject="$receipt" />
 </x-layouts.app>

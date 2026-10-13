@@ -9,6 +9,7 @@ use App\Models\ProductImage;
 use App\Models\ProductVariant;
 use App\Models\StockLedger;
 use App\Models\Unit;
+use App\Support\Activity;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -77,7 +78,7 @@ class ProductController extends Controller
 
     public function update(Request $request, Product $product): RedirectResponse
     {
-        $this->save($request, $product);
+        Activity::track($product, fn () => $this->save($request, $product));
 
         return redirect()->route('master.products.index')
             ->with('success', "Produk {$product->name} berhasil diperbarui.");
