@@ -35,6 +35,9 @@ class ShopeeShop extends Model
         'last_synced_at',
         'last_error',
         'is_active',
+        'orders_synced_until',
+        'returns_synced_until',
+        'stock_pushed_at',
     ];
 
     protected $hidden = ['access_token', 'refresh_token'];
@@ -52,6 +55,9 @@ class ShopeeShop extends Model
             'last_refreshed_at' => 'datetime',
             'last_synced_at' => 'datetime',
             'is_active' => 'boolean',
+            'orders_synced_until' => 'datetime',
+            'returns_synced_until' => 'datetime',
+            'stock_pushed_at' => 'datetime',
         ];
     }
 
@@ -63,6 +69,23 @@ class ShopeeShop extends Model
     public function mappings(): HasMany
     {
         return $this->hasMany(ShopeeSkuMapping::class);
+    }
+
+    public function orders(): HasMany
+    {
+        return $this->hasMany(SalesOrder::class);
+    }
+
+    /** Nama saluran di pesanan & retur, cth. "Shopee · Optima Official". */
+    public function channelName(): string
+    {
+        return 'Shopee · '.$this->displayName();
+    }
+
+    /** Siap disinkron: terhubung, aktif dan sudah punya gudang pengirim. */
+    public function isSyncable(): bool
+    {
+        return $this->is_active && $this->isConnected() && $this->warehouse_id !== null;
     }
 
     public function displayName(): string
@@ -99,6 +122,6 @@ class ShopeeShop extends Model
     /** Token & jejak waktu teknis tidak perlu masuk log aktivitas. */
     public function activityIgnored(): array
     {
-        return ['access_token', 'refresh_token', 'access_token_expires_at', 'refresh_token_expires_at', 'last_refreshed_at', 'last_synced_at', 'last_error'];
+        return ['access_token', 'refresh_token', 'access_token_expires_at', 'refresh_token_expires_at', 'last_refreshed_at', 'last_synced_at', 'last_error', 'orders_synced_until', 'returns_synced_until', 'stock_pushed_at'];
     }
 }

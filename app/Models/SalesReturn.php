@@ -49,6 +49,8 @@ class SalesReturn extends Model
         'channel_name',
         'external_number',
         'external_return_number',
+        'shopee_shop_id',
+        'shopee_return_status',
         'notes',
         'stock_movement_id',
         'created_by',

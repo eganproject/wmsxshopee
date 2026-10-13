@@ -33,9 +33,13 @@ use App\Http\Controllers\Sales\SalesReturnController;
 use App\Http\Controllers\Shopee\ShopeeSettingController;
 use App\Http\Controllers\Shopee\ShopeeShopController;
 use App\Http\Controllers\Shopee\ShopeeSkuMappingController;
+use App\Http\Controllers\Shopee\ShopeeWebhookController;
 use Illuminate\Support\Facades\Route;
 
 Route::redirect('/', '/dashboard');
+
+// Push Mechanism Shopee (tanpa login; diverifikasi lewat tanda tangan partner key).
+Route::post('shopee/webhook', ShopeeWebhookController::class)->name('shopee.webhook');
 
 // Tidak ada route register: akun hanya dibuat lewat admin panel.
 Route::middleware('guest')->group(function () {
@@ -191,6 +195,7 @@ Route::middleware(['auth', 'active'])->group(function () {
         Route::get('callback', [ShopeeShopController::class, 'callback'])->middleware('can:shopee.connect')->name('callback');
         Route::put('shops/{shop}', [ShopeeShopController::class, 'update'])->middleware('can:shopee.connect')->name('shops.update');
         Route::post('shops/{shop}/refresh', [ShopeeShopController::class, 'refresh'])->middleware('can:shopee.connect')->name('shops.refresh');
+        Route::post('shops/{shop}/sync', [ShopeeShopController::class, 'sync'])->middleware('can:shopee.sync')->name('shops.sync');
         Route::delete('shops/{shop}', [ShopeeShopController::class, 'destroy'])->middleware('can:shopee.connect')->name('shops.destroy');
 
         Route::get('mapping-targets', [ShopeeSkuMappingController::class, 'lookup'])->middleware('can:shopee.mapping')->name('mappings.lookup');

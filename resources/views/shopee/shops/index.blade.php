@@ -49,7 +49,7 @@
                         <th class="h-8 px-4 py-0 font-normal">Toko</th>
                         <th class="h-8 px-4 py-0 font-normal">Gudang Pengirim</th>
                         <th class="h-8 px-4 py-0 font-normal">Status</th>
-                        <th class="h-8 px-4 py-0 font-normal">Token</th>
+                        <th class="h-8 px-4 py-0 font-normal">Token & Sinkron</th>
                         <th class="h-8 px-4 py-0 font-normal">Pemetaan SKU</th>
                         <th class="h-8 px-4 py-0 text-right font-normal">Aksi</th>
                     </tr>
@@ -110,6 +110,9 @@
                                 @if ($shop->refresh_token_expires_at)
                                     <p>Refresh s.d. {{ $shop->refresh_token_expires_at->format('d/m/Y') }}</p>
                                 @endif
+                                @if ($shop->last_synced_at)
+                                    <p class="mt-1">Sinkron {{ $shop->last_synced_at->diffForHumans() }}</p>
+                                @endif
                             </td>
                             <td class="px-4 py-2.5">
                                 <a href="{{ route('shopee.mappings.index', $shop) }}" class="font-medium text-slate-900 hover:underline">{{ $shop->mappings_count }} SKU</a>
@@ -120,6 +123,14 @@
                             <td class="px-4 py-2.5">
                                 <div class="flex items-center justify-end gap-1">
                                     <a href="{{ route('shopee.mappings.index', $shop) }}" class="btn-icon" title="Pemetaan SKU"><x-heroicon-o-arrows-right-left class="size-5" /></a>
+                                    @can('shopee.sync')
+                                        <form method="POST" action="{{ route('shopee.shops.sync', $shop) }}" x-data="{ busy: false }" @submit="busy = true">
+                                            @csrf
+                                            <button type="submit" class="btn-icon" title="Sinkron pesanan, resi, retur & stok sekarang" :disabled="busy" @disabled(! $shop->isSyncable())>
+                                                <x-heroicon-o-arrows-up-down class="size-5" />
+                                            </button>
+                                        </form>
+                                    @endcan
                                     @can('shopee.connect')
                                         <form method="POST" action="{{ route('shopee.shops.refresh', $shop) }}">
                                             @csrf

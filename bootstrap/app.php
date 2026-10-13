@@ -21,6 +21,9 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->redirectGuestsTo(fn () => route('login'));
         $middleware->redirectUsersTo(fn () => route('dashboard'));
 
+        // Shopee mengirim push tanpa token CSRF; keasliannya dicek lewat tanda tangan.
+        $middleware->validateCsrfTokens(except: ['shopee/webhook']);
+
         $middleware->alias([
             'active' => EnsureUserIsActive::class,
             'role' => RoleMiddleware::class,

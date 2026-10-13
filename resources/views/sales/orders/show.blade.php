@@ -77,6 +77,28 @@
         @endif
     </x-page-header>
 
+    @if ($order->shopee_shop_id)
+        <div @class([
+            'mb-5 flex items-start gap-3 rounded-lg border px-4 py-3 text-sm',
+            'border-amber-200 bg-amber-50 text-amber-800' => $order->shopee_sync_error,
+            'border-slate-200 bg-slate-50 text-slate-600' => ! $order->shopee_sync_error,
+        ])>
+            <x-heroicon-o-building-storefront class="mt-0.5 size-5 shrink-0" />
+            <div>
+                <p>
+                    Pesanan Shopee <span class="font-mono">{{ $order->external_number }}</span>
+                    · status di Shopee <span class="font-medium">{{ $order->shopee_order_status ?? '—' }}</span>
+                    @if ($order->shopee_synced_at)
+                        · disinkron {{ $order->shopee_synced_at->diffForHumans() }}
+                    @endif
+                </p>
+                @if ($order->shopee_sync_error)
+                    <p class="mt-0.5 font-medium">{{ $order->shopee_sync_error }}</p>
+                @endif
+            </div>
+        </div>
+    @endif
+
 
     @if ($order->hasStatus('cancelled'))
         <div class="mb-6 rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">

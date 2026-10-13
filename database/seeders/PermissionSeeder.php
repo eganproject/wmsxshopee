@@ -39,7 +39,7 @@ class PermissionSeeder extends Seeder
                     'sales.view', 'sales.create', 'sales.confirm', 'sales.fulfill', 'sales.cancel', 'sales.delete',
                     'returns.view', 'returns.create', 'returns.receive', 'returns.delete',
                     'opname.view', 'opname.create', 'opname.post', 'opname.delete', 'reports.view',
-                    'activity.view', 'shopee.view', 'shopee.mapping',
+                    'activity.view', 'shopee.view', 'shopee.mapping', 'shopee.sync',
                 ]);
         }
 

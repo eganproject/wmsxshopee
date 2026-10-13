@@ -34,6 +34,11 @@ class SalesOrder extends Model
         'order_date',
         'channel_name',
         'external_number',
+        'shopee_shop_id',
+        'shopee_order_status',
+        'shopee_package_number',
+        'shopee_sync_error',
+        'shopee_synced_at',
         'customer_name',
         'customer_phone',
         'shipping_address',
@@ -62,6 +67,7 @@ class SalesOrder extends Model
             'packed_at' => 'datetime',
             'shipped_at' => 'datetime',
             'cancelled_at' => 'datetime',
+            'shopee_synced_at' => 'datetime',
         ];
     }
 
@@ -78,6 +84,11 @@ class SalesOrder extends Model
     public function movement(): BelongsTo
     {
         return $this->belongsTo(StockMovement::class, 'stock_movement_id');
+    }
+
+    public function shopeeShop(): BelongsTo
+    {
+        return $this->belongsTo(ShopeeShop::class);
     }
 
     public function creator(): BelongsTo
@@ -175,6 +186,12 @@ class SalesOrder extends Model
     public function activityName(): string
     {
         return 'Pesanan';
+    }
+
+    /** Jejak waktu sinkron Shopee berubah tiap tarikan; tidak perlu masuk log. */
+    public function activityIgnored(): array
+    {
+        return ['shopee_synced_at'];
     }
 
     /**

@@ -9,6 +9,7 @@ use App\Models\Warehouse;
 use App\Services\Shopee\ShopeeAuth;
 use App\Services\Shopee\ShopeeClient;
 use App\Services\Shopee\ShopeeException;
+use App\Services\Shopee\ShopeeSync;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
@@ -109,6 +110,20 @@ class ShopeeShopController extends Controller
         }
 
         return back()->with('success', "Token toko {$shop->displayName()} diperbarui.");
+    }
+
+    /** Tarik pesanan, resi & retur lalu kirim stok sekarang (biasanya berjalan terjadwal). */
+    public function sync(Request $request, ShopeeShop $shop, ShopeeSync $sync): RedirectResponse
+    {
+        abort_unless($request->user()->canAccessWarehouse($shop->warehouse_id), 403, 'Anda tidak punya akses ke gudang toko ini.');
+
+        try {
+            $result = $sync->run($shop);
+        } catch (ShopeeException $e) {
+            return back()->with('error', $e->getMessage());
+        }
+
+        return back()->with('success', "{$shop->displayName()}: ".ShopeeSync::summary($result));
     }
 
     /**

@@ -181,6 +181,7 @@ return [
                 'settings' => 'Ubah Partner ID & Partner Key Shopee',
                 'connect' => 'Hubungkan, perbarui token & hapus koneksi toko',
                 'mapping' => 'Tarik produk & atur pemetaan SKU',
+                'sync' => 'Sinkron pesanan, resi, stok & retur sekarang',
             ],
         ],
     ],

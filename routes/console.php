@@ -14,3 +14,7 @@ Schedule::command('db:backup --prune')->dailyAt(config('backup.time'))->withoutO
 Schedule::command('stock:check')->dailyAt('01:30');
 // Access token Shopee berumur ± 4 jam; diperbarui sebelum kedaluwarsa.
 Schedule::command('shopee:refresh-tokens')->everyThirtyMinutes()->withoutOverlapping();
+// Sinkron Shopee: pesanan & resi tiap 5 menit, stok tiap 15 menit, retur tiap jam.
+Schedule::command('shopee:sync --only=orders')->everyFiveMinutes()->withoutOverlapping();
+Schedule::command('shopee:sync --only=stock')->everyFifteenMinutes()->withoutOverlapping();
+Schedule::command('shopee:sync --only=returns')->hourly()->withoutOverlapping();
