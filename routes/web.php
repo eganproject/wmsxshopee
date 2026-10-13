@@ -11,6 +11,7 @@ use App\Http\Controllers\Inventory\StockController;
 use App\Http\Controllers\Inventory\StockCountController;
 use App\Http\Controllers\Inventory\StockMovementController;
 use App\Http\Controllers\Inventory\VariantLookupController;
+use App\Http\Controllers\LabelController;
 use App\Http\Controllers\Master\BundleController;
 use App\Http\Controllers\Master\CourierController;
 use App\Http\Controllers\Master\LocationController;
@@ -101,6 +102,22 @@ Route::middleware(['auth', 'active'])->group(function () {
         Route::get('counts/{count}/sheet', [StockCountController::class, 'sheet'])->middleware('can:opname.view')->name('counts.sheet');
         Route::put('counts/{count}', [StockCountController::class, 'update'])->middleware('can:opname.create')->name('counts.update');
         Route::delete('counts/{count}', [StockCountController::class, 'destroy'])->middleware('can:opname.delete')->name('counts.destroy');
+    });
+
+    // Cetak label barcode: label SKU produk & paket (hak lihat produk) dan label
+    // lokasi bin (hak lihat gudang). Halaman cetak dikirim lewat POST supaya
+    // daftar label yang panjang tidak terpotong batas panjang URL.
+    Route::prefix('labels')->name('labels.')->group(function () {
+        Route::middleware('can:products.view')->group(function () {
+            Route::get('products', [LabelController::class, 'products'])->name('products');
+            Route::get('products/lookup', [LabelController::class, 'productLookup'])->name('products.lookup');
+            Route::match(['get', 'post'], 'products/print', [LabelController::class, 'printProducts'])->name('products.print');
+        });
+        Route::middleware('can:warehouses.view')->group(function () {
+            Route::get('locations', [LabelController::class, 'locations'])->name('locations');
+            Route::get('locations/lookup', [LabelController::class, 'locationLookup'])->name('locations.lookup');
+            Route::match(['get', 'post'], 'locations/print', [LabelController::class, 'printLocations'])->name('locations.print');
+        });
     });
 
     // Laporan stok; tiap laporan bisa diekspor ke Excel lewat ?export=xlsx.

@@ -17,7 +17,7 @@
 
     <x-master.product-tabs />
 
-    <div class="card">
+    <div class="card" x-data="{ selected: [] }">
         <form method="GET" class="flex flex-col gap-3 border-b border-slate-100 p-4 md:flex-row md:items-center">
             <div class="relative flex-1">
                 <x-heroicon-o-magnifying-glass class="pointer-events-none absolute top-1/2 left-3.5 size-5 -translate-y-1/2 text-slate-400" />
@@ -43,10 +43,13 @@
             </div>
         </form>
 
+        <x-labels.selection-bar route="labels.products" param="bundles" />
+
         <div class="overflow-x-auto">
             <table class="min-w-full text-sm">
                 <thead class="bg-slate-50 text-left text-xs font-semibold tracking-wider text-slate-500 uppercase">
                     <tr>
+                        <x-labels.select-all :ids="$bundles->pluck('id')" />
                         <th class="px-5 py-3">Paket</th>
                         <th class="px-5 py-3">Isi per Paket</th>
                         <th class="px-5 py-3 text-right">Harga Jual</th>
@@ -60,6 +63,7 @@
                 <tbody class="divide-y divide-slate-100">
                     @forelse ($bundles as $bundle)
                         <tr class="align-top hover:bg-slate-50/60">
+                            <td class="w-10 py-3.5 pr-0 pl-4"><input type="checkbox" class="form-checkbox block" value="{{ $bundle->id }}" x-model="selected" aria-label="Pilih"></td>
                             <td class="px-5 py-3.5">
                                 <p class="font-mono font-medium text-slate-900">{{ $bundle->sku }}</p>
                                 <p class="text-slate-600">{{ $bundle->name }}</p>
@@ -85,6 +89,9 @@
                             <td class="px-5 py-3.5"><x-status-badge :active="$bundle->is_active" /></td>
                             <td class="px-5 py-3.5">
                                 <div class="flex items-center justify-end gap-1">
+                                    <a href="{{ route('labels.products', ['bundles' => [$bundle->id]]) }}" class="btn-icon" title="Cetak label">
+                                        <x-heroicon-o-qr-code class="size-5" />
+                                    </a>
                                     @can('products.edit')
                                         <a href="{{ route('master.bundles.edit', $bundle) }}" class="btn-icon" title="Edit">
                                             <x-heroicon-o-pencil-square class="size-5" />
@@ -109,7 +116,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="6" class="px-5 py-16 text-center">
+                            <td colspan="7" class="px-5 py-16 text-center">
                                 <x-heroicon-o-gift class="mx-auto size-12 text-slate-300" />
                                 <p class="mt-3 font-medium text-slate-700">Belum ada produk paket</p>
                                 <p class="text-sm text-slate-500">Buat paket seperti "Beli 3 Kaos" yang isinya beberapa varian gudang.</p>

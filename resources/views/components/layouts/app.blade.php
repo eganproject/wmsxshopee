@@ -31,6 +31,8 @@
                 // Kartu Stok & Mutasi Stok adalah tab di halaman Stok, jadi menu Stok tetap aktif di sana.
                 ['label' => 'Stok', 'route' => 'inventory.stocks.index', 'active' => ['inventory.stocks.*', 'inventory.stock-card.*', 'inventory.movements.*'], 'icon' => 'heroicon-o-archive-box', 'can' => 'inventory.view'],
                 ['label' => 'Stock Opname', 'route' => 'inventory.counts.index', 'active' => 'inventory.counts.*', 'icon' => 'heroicon-o-clipboard-document-check', 'can' => 'opname.view'],
+                // Label produk butuh hak lihat produk, label lokasi butuh hak lihat gudang.
+                ['label' => 'Cetak Label', 'route' => auth()->user()?->can('products.view') ? 'labels.products' : 'labels.locations', 'active' => 'labels.*', 'icon' => 'heroicon-o-qr-code', 'can' => ['products.view', 'warehouses.view']],
             ],
         ],
         [
@@ -101,7 +103,7 @@
 
         <nav class="flex-1 overflow-y-auto">
             @foreach ($navigation as $section)
-                @php($items = collect($section['items'])->filter(fn ($item) => ! $item['can'] || $user->can($item['can'])))
+                @php($items = collect($section['items'])->filter(fn ($item) => ! $item['can'] || $user->canAny((array) $item['can'])))
                 @if ($items->isNotEmpty())
                     <div class="mt-1">
                         @if ($section['heading'])

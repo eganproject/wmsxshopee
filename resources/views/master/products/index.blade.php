@@ -17,7 +17,7 @@
 
     <x-master.product-tabs />
 
-    <div class="card">
+    <div class="card" x-data="{ selected: [] }">
         <form method="GET" class="flex flex-col gap-3 border-b border-slate-100 p-4 md:flex-row md:items-center">
             <div class="relative flex-1">
                 <x-heroicon-o-magnifying-glass class="pointer-events-none absolute top-1/2 left-3.5 size-5 -translate-y-1/2 text-slate-400" />
@@ -42,10 +42,13 @@
             </div>
         </form>
 
+        <x-labels.selection-bar route="labels.products" param="products" />
+
         <div class="overflow-x-auto">
             <table class="min-w-full text-sm">
                 <thead class="bg-slate-50 text-left text-xs font-semibold tracking-wider text-slate-500 uppercase">
                     <tr>
+                        <x-labels.select-all :ids="$products->pluck('id')" />
                         <th class="px-5 py-3">Produk</th>
                         <th class="px-5 py-3">Kategori / Merek</th>
                         <th class="px-5 py-3 text-center">Varian</th>
@@ -57,6 +60,7 @@
                 <tbody class="divide-y divide-slate-100">
                     @forelse ($products as $product)
                         <tr class="hover:bg-slate-50/60">
+                            <td class="w-10 py-3.5 pr-0 pl-4"><input type="checkbox" class="form-checkbox block" value="{{ $product->id }}" x-model="selected" aria-label="Pilih"></td>
                             <td class="px-5 py-3.5">
                                 <div class="flex items-center gap-3">
                                     @if ($product->primaryImage)
@@ -90,6 +94,9 @@
                             <td class="px-5 py-3.5"><x-status-badge :active="$product->is_active" /></td>
                             <td class="px-5 py-3.5">
                                 <div class="flex items-center justify-end gap-1">
+                                    <a href="{{ route('labels.products', ['products' => [$product->id]]) }}" class="btn-icon" title="Cetak label">
+                                        <x-heroicon-o-qr-code class="size-5" />
+                                    </a>
                                     @can('products.edit')
                                         <a href="{{ route('master.products.edit', $product) }}" class="btn-icon" title="Edit">
                                             <x-heroicon-o-pencil-square class="size-5" />
@@ -114,7 +121,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="6" class="px-5 py-16 text-center">
+                            <td colspan="7" class="px-5 py-16 text-center">
                                 <x-heroicon-o-cube class="mx-auto size-12 text-slate-300" />
                                 <p class="mt-3 font-medium text-slate-700">Belum ada produk</p>
                                 <p class="text-sm text-slate-500">Tambahkan produk beserta SKU dan variannya.</p>
