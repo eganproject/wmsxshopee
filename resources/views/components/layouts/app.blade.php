@@ -49,7 +49,9 @@
     <meta name="description" content="{{ config('app.name') }} · {{ config('app.tagline') }}">
     <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
     <meta name="theme-color" content="#1c1c1c" media="(prefers-color-scheme: dark)">
+    <link rel="icon" href="{{ asset('favicon.ico') }}" sizes="any">
     <link rel="icon" href="{{ asset('favicon.svg') }}" type="image/svg+xml">
+    <link rel="apple-touch-icon" href="{{ asset('apple-touch-icon.png') }}">
 
     <link rel="preconnect" href="https://fonts.bunny.net">
     <link href="https://fonts.bunny.net/css?family=inter:400,500,600,700&display=swap" rel="stylesheet" />
@@ -68,7 +70,7 @@
            :class="sidebarOpen && 'translate-x-0'">
         <div class="flex items-center justify-between gap-2 px-1.5 pt-1 pb-2">
             <a href="{{ route('dashboard') }}" class="flex min-w-0 items-center gap-2 rounded-lg p-1 hover:bg-slate-100">
-                <x-app-logo class="size-7 rounded-md" />
+                <x-app-logo class="size-7" />
                 <span class="min-w-0 leading-tight">
                     <span class="block truncate text-sm font-medium text-slate-900">{{ config('app.name') }}</span>
                     <span class="block truncate text-xs text-slate-500">{{ config('app.tagline') }}</span>

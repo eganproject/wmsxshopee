@@ -2,8 +2,8 @@
     <div class="flex min-h-full items-center justify-center bg-slate-50 px-4 py-12">
         <div class="w-full max-w-sm">
             <div class="mb-6 flex flex-col items-center text-center">
-                <x-app-logo class="size-10 rounded-lg" />
-                <h1 class="mt-4 text-xl font-semibold tracking-normal text-slate-900">Masuk ke {{ config('app.name') }}</h1>
+                <x-app-logo variant="horizontal" class="h-10 w-auto" />
+                <h1 class="mt-6 text-xl font-semibold tracking-normal text-slate-900">Masuk ke akun Anda</h1>
                 <p class="mt-1 text-sm text-slate-500">{{ config('app.tagline') }}</p>
             </div>
 
