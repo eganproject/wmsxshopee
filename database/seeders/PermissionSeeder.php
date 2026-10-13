@@ -37,6 +37,7 @@ class PermissionSeeder extends Seeder
                     'suppliers.view', 'suppliers.create', 'suppliers.edit', 'suppliers.delete',
                     'receipts.view', 'receipts.create', 'receipts.receive', 'receipts.delete',
                     'sales.view', 'sales.create', 'sales.confirm', 'sales.fulfill', 'sales.cancel', 'sales.delete',
+                    'opname.view', 'opname.create', 'opname.post', 'opname.delete', 'reports.view',
                 ]);
         }
 
@@ -44,7 +45,7 @@ class PermissionSeeder extends Seeder
             Role::create(['name' => 'Staff Gudang', 'guard_name' => 'web'])
                 ->syncPermissions(['dashboard.view', 'warehouses.view', 'products.view', 'couriers.view', 'inventory.view', 'inventory.create',
                     'suppliers.view', 'receipts.view', 'receipts.create', 'receipts.receive',
-                    'sales.view', 'sales.fulfill']);
+                    'sales.view', 'sales.fulfill', 'opname.view', 'opname.create']);
         }
 
         app(PermissionRegistrar::class)->forgetCachedPermissions();

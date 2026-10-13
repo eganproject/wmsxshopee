@@ -48,7 +48,7 @@ class ProductMasterTest extends TestCase
             'has_variants' => '1',
             'is_active' => '1',
             'variants' => [
-                ['sku' => 'kaos-mrh-m', 'name' => 'Merah / M', 'barcode' => '8991001', 'weight_gram' => '200', 'length_cm' => '30', 'width_cm' => '20', 'height_cm' => '2', 'is_active' => '1'],
+                ['sku' => 'kaos-mrh-m', 'name' => 'Merah / M', 'barcode' => '8991001', 'weight_gram' => '200', 'length_cm' => '30', 'width_cm' => '20', 'height_cm' => '2', 'min_stock' => '5', 'is_active' => '1'],
                 ['sku' => 'kaos-mrh-l', 'name' => 'Merah / L', 'barcode' => '', 'weight_gram' => '220', 'is_active' => '0'],
             ],
             ...$overrides,
@@ -86,6 +86,8 @@ class ProductMasterTest extends TestCase
         $this->assertSame('8991001', $first->barcode);
         $this->assertSame(200, $first->weight_gram);
         $this->assertSame('30 × 20 × 2 cm', $first->dimensionsLabel());
+        $this->assertSame(5, $first->min_stock);
+        $this->assertNull($product->variants->last()->min_stock);
         $this->assertNull($product->variants->last()->barcode);
         $this->assertFalse($product->variants->last()->is_active);
 

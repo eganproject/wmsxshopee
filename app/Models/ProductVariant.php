@@ -17,6 +17,7 @@ class ProductVariant extends Model
         'length_cm',
         'width_cm',
         'height_cm',
+        'min_stock',
         'sort_order',
         'is_active',
     ];
@@ -28,6 +29,7 @@ class ProductVariant extends Model
             'length_cm' => 'decimal:2',
             'width_cm' => 'decimal:2',
             'height_cm' => 'decimal:2',
+            'min_stock' => 'integer',
             'sort_order' => 'integer',
             'is_active' => 'boolean',
         ];

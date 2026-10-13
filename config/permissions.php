@@ -68,6 +68,25 @@ return [
             ],
         ],
 
+        'opname' => [
+            'label' => 'Stock Opname',
+            'icon' => 'heroicon-o-clipboard-document-check',
+            'actions' => [
+                'view' => 'Lihat & cetak lembar opname',
+                'create' => 'Buat lembar & isi hasil hitung',
+                'post' => 'Posting selisih opname ke stok',
+                'delete' => 'Hapus lembar opname draft',
+            ],
+        ],
+
+        'reports' => [
+            'label' => 'Laporan',
+            'icon' => 'heroicon-o-chart-bar',
+            'actions' => [
+                'view' => 'Lihat & ekspor laporan stok',
+            ],
+        ],
+
         'sales' => [
             'label' => 'Pesanan Penjualan',
             'icon' => 'heroicon-o-shopping-cart',
