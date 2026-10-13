@@ -9,7 +9,10 @@ use App\Models\ProductVariant;
 use App\Models\SalesOrder;
 use App\Models\Warehouse;
 use App\Models\WarehouseLocation;
+use App\Rules\AccessibleRecord;
 use App\Services\SalesOrderService;
+use App\Support\Activity;
+use App\Support\XlsxExport;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -17,12 +20,13 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class SalesOrderController extends Controller
 {
-    public function index(Request $request): View
+    public function index(Request $request): View|BinaryFileResponse
     {
-        $orders = SalesOrder::query()
+        $query = SalesOrder::query()
             ->with(['warehouse', 'courier'])
             ->withSum('items', 'qty')
             ->when($request->filled('status'), fn ($query) => $query->where('status', $request->input('status')))
@@ -30,6 +34,11 @@ class SalesOrderController extends Controller
             ->when($request->filled('channel'), fn ($query) => $query->where('channel_name', $request->input('channel')))
             ->when($request->filled('from'), fn ($query) => $query->whereDate('order_date', '>=', $request->date('from')))
             ->when($request->filled('to'), fn ($query) => $query->whereDate('order_date', '<=', $request->date('to')))
+            ->when($request->input('shipment') === 'unarranged', fn ($query) => $query
+                ->whereIn('status', SalesOrder::RESERVING)
+                ->whereNull('shipment_arranged_at')
+                ->where(fn ($q) => $q->whereNull('shopee_shop_id')->orWhere('shopee_order_status', 'READY_TO_SHIP')))
+            ->when(in_array($request->input('shipment'), array_keys(SalesOrder::SHIPPING_METHODS), true), fn ($query) => $query->where('shipping_method', $request->input('shipment')))
             ->when($request->filled('search'), function ($query) use ($request) {
                 $search = $request->string('search');
                 $query->where(fn ($q) => $q
@@ -39,9 +48,19 @@ class SalesOrderController extends Controller
                     ->orWhere('tracking_number', 'like', "%{$search}%"));
             })
             ->latest('order_date')
-            ->latest('id')
-            ->paginate(20)
-            ->withQueryString();
+            ->latest('id');
+
+        if ($request->input('export') === 'xlsx') {
+            return XlsxExport::download('pesanan-'.now()->format('Ymd-His').'.xlsx',
+                ['No. SO', 'Tanggal', 'Status', 'Saluran / Toko', 'No. Pesanan Marketplace', 'Pembeli', 'Telepon', 'Alamat', 'Gudang', 'Kurir', 'Layanan', 'No. Resi', 'Total Qty', 'Ongkir', 'Catatan'],
+                $query->lazy(500)->map(fn ($o) => [
+                    $o->number, $o->order_date->format('d/m/Y'), $o->statusLabel(), $o->channel_name, $o->external_number, $o->customer_name, $o->customer_phone,
+                    $o->shipping_address, $o->warehouse?->code, $o->courier?->name, $o->courier_service, $o->tracking_number,
+                    (int) $o->items_sum_qty, (float) $o->shipping_fee, $o->notes,
+                ]));
+        }
+
+        $orders = $query->paginate(20)->withQueryString();
 
         $counts = SalesOrder::query()->groupBy('status')->selectRaw('status, COUNT(*) as total')->pluck('total', 'status');
 
@@ -82,7 +101,7 @@ class SalesOrderController extends Controller
 
     public function show(SalesOrder $order, SalesOrderService $service): View
     {
-        $order->load(['warehouse', 'courier', 'creator', 'movement', 'items.variant.product.unit', 'items.picks.location', 'bundles.bundle.items']);
+        $order->load(['warehouse', 'courier', 'creator', 'movement', 'arranger', 'qcChecker', 'handover', 'items.variant.product.unit', 'items.picks.location', 'bundles.bundle.items', 'returns.items']);
 
         $draft = $order->hasStatus('draft');
 
@@ -114,10 +133,10 @@ class SalesOrderController extends Controller
 
         $data = $this->validated($request, $order);
 
-        DB::transaction(function () use ($order, $data, $service) {
+        Activity::track($order, fn () => DB::transaction(function () use ($order, $data, $service) {
             $order->update($data['header']);
             $service->fillLines($order, $data['items'], $data['bundles']);
-        });
+        }));
 
         return $this->afterSave($request, $order, $service, 'diperbarui');
     }
@@ -314,7 +333,7 @@ class SalesOrderController extends Controller
             ->where(fn ($q) => $q->where('is_active', true)->when($current, fn ($q) => $q->orWhere('id', $current)));
 
         $data = $request->validate([
-            'warehouse_id' => ['required', 'integer', $active('warehouses', $order?->warehouse_id)],
+            'warehouse_id' => ['required', 'integer', $active('warehouses', $order?->warehouse_id), new AccessibleRecord(Warehouse::class)],
             'order_date' => ['required', 'date', 'before_or_equal:today'],
             'channel_name' => ['nullable', 'string', 'max:100'],
             'external_number' => ['nullable', 'string', 'max:100'],

@@ -2,12 +2,16 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\LogsActivity;
+use App\Models\Concerns\ScopedToWarehouse;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class WarehouseLocation extends Model
 {
+    use LogsActivity, ScopedToWarehouse;
+
     /** Jenis lokasi penyimpanan beserta labelnya. */
     public const TYPES = [
         'bin' => 'Bin',
@@ -68,5 +72,15 @@ class WarehouseLocation extends Model
     public static function makeCode(string $rackCode, int $level, int $position): string
     {
         return sprintf('%s-%02d-%02d', $rackCode, $level, $position);
+    }
+
+    public function activityModule(): string
+    {
+        return 'warehouses';
+    }
+
+    public function activityName(): string
+    {
+        return 'Lokasi Bin';
     }
 }

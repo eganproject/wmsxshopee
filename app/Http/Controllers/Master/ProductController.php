@@ -9,6 +9,9 @@ use App\Models\ProductImage;
 use App\Models\ProductVariant;
 use App\Models\StockLedger;
 use App\Models\Unit;
+use App\Services\ProductImporter;
+use App\Support\Activity;
+use App\Support\XlsxExport;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -17,15 +20,16 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class ProductController extends Controller
 {
     /** Batas gambar per produk, mengikuti batas foto produk di Shopee. */
     public const MAX_IMAGES = 9;
 
-    public function index(Request $request): View
+    public function index(Request $request): View|BinaryFileResponse
     {
-        $products = Product::query()
+        $query = Product::query()
             ->with(['unit', 'primaryImage'])
             ->withCount('variants')
             ->when($request->filled('search'), function ($query) use ($request) {
@@ -41,9 +45,20 @@ class ProductController extends Controller
             })
             ->when($request->filled('category'), fn ($query) => $query->where('category', $request->input('category')))
             ->when($request->filled('status'), fn ($query) => $query->where('is_active', $request->input('status') === 'active'))
-            ->orderBy('name')
-            ->paginate(15)
-            ->withQueryString();
+            ->orderBy('name');
+
+        if ($request->input('export') === 'xlsx') {
+            // Kolom sama dengan template impor, jadi file ini bisa diedit lalu diimpor ulang.
+            return XlsxExport::download('produk-'.now()->format('Ymd-His').'.xlsx', array_keys(ProductImporter::COLUMNS),
+                $query->with('variants')->lazy(200)->flatMap(fn (Product $product) => $product->variants->map(fn ($variant) => [
+                    $product->sku, $product->name, $product->category, $product->brand, $product->unit?->code,
+                    $product->has_variants ? $variant->name : null, $product->has_variants ? $variant->sku : null, $variant->barcode,
+                    $variant->weight_gram, ...array_map(fn ($cm) => $cm === null ? null : (float) $cm, [$variant->length_cm, $variant->width_cm, $variant->height_cm]), $variant->min_stock,
+                    ($product->has_variants ? $variant->is_active : $product->is_active) ? 'Ya' : 'Tidak', $product->description,
+                ])));
+        }
+
+        $products = $query->paginate(15)->withQueryString();
 
         return view('master.products.index', [
             'products' => $products,
@@ -77,7 +92,7 @@ class ProductController extends Controller
 
     public function update(Request $request, Product $product): RedirectResponse
     {
-        $this->save($request, $product);
+        Activity::track($product, fn () => $this->save($request, $product));
 
         return redirect()->route('master.products.index')
             ->with('success', "Produk {$product->name} berhasil diperbarui.");

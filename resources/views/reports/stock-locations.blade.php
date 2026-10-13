@@ -103,13 +103,7 @@
                             </td>
                         </tr>
                     @empty
-                        <tr>
-                            <td colspan="7" class="px-5 py-16 text-center">
-                                <x-heroicon-o-map-pin class="mx-auto size-12 text-slate-300" />
-                                <p class="mt-3 font-medium text-slate-700">Tidak ada stok</p>
-                                <p class="text-sm text-slate-500">Ubah filter, atau catat barang masuk dulu.</p>
-                            </td>
-                        </tr>
+                        <x-empty-state colspan="7" icon="heroicon-o-map-pin" title="Tidak ada stok" description="Ubah filter, atau catat barang masuk dulu." />
                     @endforelse
                 </tbody>
             </table>

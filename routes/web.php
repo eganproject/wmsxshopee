@@ -1,31 +1,49 @@
 <?php
 
+use App\Http\Controllers\Admin\ActivityLogController;
+use App\Http\Controllers\Admin\BackupController;
 use App\Http\Controllers\Admin\RoleController;
 use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\Inventory\GoodsReceiptController;
+use App\Http\Controllers\Inventory\OpeningStockImportController;
 use App\Http\Controllers\Inventory\StockCardController;
 use App\Http\Controllers\Inventory\StockController;
 use App\Http\Controllers\Inventory\StockCountController;
 use App\Http\Controllers\Inventory\StockMovementController;
 use App\Http\Controllers\Inventory\VariantLookupController;
+use App\Http\Controllers\LabelController;
 use App\Http\Controllers\Master\BundleController;
 use App\Http\Controllers\Master\CourierController;
 use App\Http\Controllers\Master\LocationController;
 use App\Http\Controllers\Master\ProductController;
+use App\Http\Controllers\Master\ProductImportController;
 use App\Http\Controllers\Master\RackController;
 use App\Http\Controllers\Master\SupplierController;
 use App\Http\Controllers\Master\UnitController;
 use App\Http\Controllers\Master\WarehouseController;
 use App\Http\Controllers\Master\ZoneController;
+use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\ReportController;
+use App\Http\Controllers\Sales\HandoverController;
+use App\Http\Controllers\Sales\QcController;
 use App\Http\Controllers\Sales\SalesOrderController;
 use App\Http\Controllers\Sales\SalesOrderImportController;
+use App\Http\Controllers\Sales\SalesReturnController;
+use App\Http\Controllers\Sales\ShipmentController;
+use App\Http\Controllers\SearchController;
+use App\Http\Controllers\Shopee\ShopeeSettingController;
+use App\Http\Controllers\Shopee\ShopeeShopController;
+use App\Http\Controllers\Shopee\ShopeeSkuMappingController;
+use App\Http\Controllers\Shopee\ShopeeWebhookController;
 use Illuminate\Support\Facades\Route;
 
 Route::redirect('/', '/dashboard');
+
+// Push Mechanism Shopee (tanpa login; diverifikasi lewat tanda tangan partner key).
+Route::post('shopee/webhook', ShopeeWebhookController::class)->name('shopee.webhook');
 
 // Tidak ada route register: akun hanya dibuat lewat admin panel.
 Route::middleware('guest')->group(function () {
@@ -37,12 +55,21 @@ Route::middleware(['auth', 'active'])->group(function () {
     Route::post('logout', [LoginController::class, 'destroy'])->name('logout');
 
     Route::get('dashboard', DashboardController::class)->name('dashboard');
+    Route::get('notifications', NotificationController::class)->name('notifications.index');
+
+    // Pencarian global (Ctrl+K). Tiap grup dicek hak lihatnya di App\Support\GlobalSearch.
+    Route::get('search', SearchController::class)->middleware('throttle:120,1')->name('search');
 
     Route::get('profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::put('profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::put('profile/password', [ProfileController::class, 'updatePassword'])->name('profile.password');
 
     Route::prefix('master')->name('master.')->group(function () {
+        // Impor massal produk dari Excel/CSV.
+        Route::get('products/import', [ProductImportController::class, 'create'])->middleware('can:products.create')->name('products.import');
+        Route::post('products/import', [ProductImportController::class, 'store'])->middleware('can:products.create')->name('products.import.store');
+        Route::get('products/import/template.{format}', [ProductImportController::class, 'template'])->middleware('can:products.create')->name('products.import.template');
+
         // Zona, rak & lokasi bin memakai permission yang sama dengan gudang;
         // satuan & produk paket memakai permission produk.
         $resources = [
@@ -69,6 +96,9 @@ Route::middleware(['auth', 'active'])->group(function () {
 
     Route::prefix('inventory')->name('inventory.')->group(function () {
         Route::get('stocks', [StockController::class, 'index'])->middleware('can:inventory.view')->name('stocks.index');
+        Route::get('opening-stock', [OpeningStockImportController::class, 'create'])->middleware('can:inventory.create')->name('opening-stock.create');
+        Route::post('opening-stock', [OpeningStockImportController::class, 'store'])->middleware('can:inventory.create')->name('opening-stock.store');
+        Route::get('opening-stock/template.{format}', [OpeningStockImportController::class, 'template'])->middleware('can:inventory.create')->name('opening-stock.template');
         Route::get('stock-card', [StockCardController::class, 'index'])->middleware('can:inventory.view')->name('stock-card.index');
         Route::get('lookup/variants', VariantLookupController::class)->middleware('can:inventory.view')->name('lookup.variants');
 
@@ -101,10 +131,27 @@ Route::middleware(['auth', 'active'])->group(function () {
         Route::delete('counts/{count}', [StockCountController::class, 'destroy'])->middleware('can:opname.delete')->name('counts.destroy');
     });
 
+    // Cetak label barcode: label SKU produk & paket (hak lihat produk) dan label
+    // lokasi bin (hak lihat gudang). Halaman cetak dikirim lewat POST supaya
+    // daftar label yang panjang tidak terpotong batas panjang URL.
+    Route::prefix('labels')->name('labels.')->group(function () {
+        Route::middleware('can:products.view')->group(function () {
+            Route::get('products', [LabelController::class, 'products'])->name('products');
+            Route::get('products/lookup', [LabelController::class, 'productLookup'])->name('products.lookup');
+            Route::match(['get', 'post'], 'products/print', [LabelController::class, 'printProducts'])->name('products.print');
+        });
+        Route::middleware('can:warehouses.view')->group(function () {
+            Route::get('locations', [LabelController::class, 'locations'])->name('locations');
+            Route::get('locations/lookup', [LabelController::class, 'locationLookup'])->name('locations.lookup');
+            Route::match(['get', 'post'], 'locations/print', [LabelController::class, 'printLocations'])->name('locations.print');
+        });
+    });
+
     // Laporan stok; tiap laporan bisa diekspor ke Excel lewat ?export=xlsx.
     Route::prefix('reports')->name('reports.')->middleware('can:reports.view')->group(function () {
         Route::get('stock-locations', [ReportController::class, 'stockLocations'])->name('stock-locations');
         Route::get('min-stock', [ReportController::class, 'minStock'])->name('min-stock');
+        Route::get('reorder', [ReportController::class, 'reorder'])->name('reorder');
         Route::get('movements', [ReportController::class, 'movements'])->name('movements');
     });
 
@@ -117,6 +164,18 @@ Route::middleware(['auth', 'active'])->group(function () {
         Route::get('orders/import', [SalesOrderImportController::class, 'create'])->middleware('can:sales.create')->name('orders.import');
         Route::post('orders/import', [SalesOrderImportController::class, 'store'])->middleware('can:sales.create')->name('orders.import.store');
         Route::get('orders/import/template.{format}', [SalesOrderImportController::class, 'template'])->middleware('can:sales.create')->name('orders.import.template');
+        Route::get('qc', [QcController::class, 'index'])->middleware('can:sales.fulfill')->name('qc.index');
+        Route::post('qc', [QcController::class, 'lookup'])->middleware('can:sales.fulfill')->name('qc.lookup');
+        Route::get('qc/{order}', [QcController::class, 'show'])->middleware('can:sales.fulfill')->name('qc.show');
+        Route::post('qc/{order}', [QcController::class, 'store'])->middleware('can:sales.fulfill')->name('qc.store');
+        Route::get('handovers', [HandoverController::class, 'index'])->middleware('can:sales.fulfill')->name('handovers.index');
+        Route::post('handovers', [HandoverController::class, 'store'])->middleware('can:sales.fulfill')->name('handovers.store');
+        Route::get('handovers/{handover}', [HandoverController::class, 'show'])->middleware('can:sales.fulfill')->name('handovers.show');
+        Route::post('handovers/{handover}/scan', [HandoverController::class, 'scan'])->middleware('can:sales.fulfill')->name('handovers.scan');
+        Route::post('handovers/{handover}/close', [HandoverController::class, 'close'])->middleware('can:sales.fulfill')->name('handovers.close');
+        Route::get('handovers/{handover}/manifest', [HandoverController::class, 'manifest'])->middleware('can:sales.fulfill')->name('handovers.manifest');
+        Route::post('orders/shipment', [ShipmentController::class, 'bulk'])->middleware('can:sales.fulfill')->name('orders.shipment.bulk');
+        Route::get('orders/shipping-labels', [ShipmentController::class, 'bulkLabel'])->middleware('can:sales.fulfill')->name('orders.shipping-labels');
         Route::get('orders/{order}', [SalesOrderController::class, 'show'])->middleware('can:sales.view')->name('orders.show');
         Route::get('orders/{order}/edit', [SalesOrderController::class, 'edit'])->middleware('can:sales.create')->name('orders.edit');
         Route::put('orders/{order}', [SalesOrderController::class, 'update'])->middleware('can:sales.create')->name('orders.update');
@@ -127,8 +186,47 @@ Route::middleware(['auth', 'active'])->group(function () {
         Route::get('orders/{order}/picking', [SalesOrderController::class, 'picking'])->middleware('can:sales.fulfill')->name('orders.picking');
         Route::post('orders/{order}/pick', [SalesOrderController::class, 'pick'])->middleware('can:sales.fulfill')->name('orders.pick');
         Route::get('orders/{order}/pick-list', [SalesOrderController::class, 'pickList'])->middleware('can:sales.view')->name('orders.pick-list');
-        Route::post('orders/{order}/pack', [SalesOrderController::class, 'pack'])->middleware('can:sales.fulfill')->name('orders.pack');
-        Route::post('orders/{order}/ship', [SalesOrderController::class, 'ship'])->middleware('can:sales.fulfill')->name('orders.ship');
+        Route::post('orders/{order}/pack', [SalesOrderController::class, 'pack'])->middleware('can:sales.skip_scan')->name('orders.pack');
+        Route::post('orders/{order}/ship', [SalesOrderController::class, 'ship'])->middleware('can:sales.skip_scan')->name('orders.ship');
+        Route::get('orders/{order}/shipment', [ShipmentController::class, 'create'])->middleware('can:sales.fulfill')->name('orders.shipment');
+        Route::post('orders/{order}/shipment', [ShipmentController::class, 'store'])->middleware('can:sales.fulfill')->name('orders.shipment.store');
+        Route::get('orders/{order}/shipping-label', [ShipmentController::class, 'label'])->middleware('can:sales.fulfill')->name('orders.shipping-label');
+
+        // Retur penjualan: cari pesanan lewat resi / no. SO / no. pesanan, atau tanpa
+        // pesanan. Draft bisa diubah/dihapus; saat diterima, barang layak jual masuk
+        // stok lewat mutasi Barang Masuk dan dokumen terkunci. Barang rusak dicatat saja.
+        Route::get('returns', [SalesReturnController::class, 'index'])->middleware('can:returns.view')->name('returns.index');
+        Route::get('returns/create', [SalesReturnController::class, 'create'])->middleware('can:returns.create')->name('returns.create');
+        Route::get('returns/lookup', [SalesReturnController::class, 'lookup'])->middleware('can:returns.create')->name('returns.lookup');
+        Route::post('returns', [SalesReturnController::class, 'store'])->middleware('can:returns.create')->name('returns.store');
+        Route::get('returns/{return}', [SalesReturnController::class, 'show'])->middleware('can:returns.view')->name('returns.show');
+        Route::get('returns/{return}/edit', [SalesReturnController::class, 'edit'])->middleware('can:returns.create')->name('returns.edit');
+        Route::put('returns/{return}', [SalesReturnController::class, 'update'])->middleware('can:returns.create')->name('returns.update');
+        Route::post('returns/{return}/receive', [SalesReturnController::class, 'receive'])->middleware('can:returns.receive')->name('returns.receive');
+        Route::delete('returns/{return}', [SalesReturnController::class, 'destroy'])->middleware('can:returns.delete')->name('returns.destroy');
+    });
+
+    // Integrasi Shopee Open Platform (app Seller In House System). Shopee
+    // mengarahkan pemilik toko kembali ke shopee/callback setelah otorisasi.
+    Route::prefix('shopee')->name('shopee.')->group(function () {
+        Route::get('settings', [ShopeeSettingController::class, 'edit'])->middleware('can:shopee.settings')->name('settings.edit');
+        Route::put('settings', [ShopeeSettingController::class, 'update'])->middleware('can:shopee.settings')->name('settings.update');
+
+        Route::get('shops', [ShopeeShopController::class, 'index'])->middleware('can:shopee.view')->name('shops.index');
+        Route::post('shops/connect', [ShopeeShopController::class, 'connect'])->middleware('can:shopee.connect')->name('shops.connect');
+        Route::get('callback', [ShopeeShopController::class, 'callback'])->middleware('can:shopee.connect')->name('callback');
+        Route::put('shops/{shop}', [ShopeeShopController::class, 'update'])->middleware('can:shopee.connect')->name('shops.update');
+        Route::post('shops/{shop}/refresh', [ShopeeShopController::class, 'refresh'])->middleware('can:shopee.connect')->name('shops.refresh');
+        Route::post('shops/{shop}/sync', [ShopeeShopController::class, 'sync'])->middleware('can:shopee.sync')->name('shops.sync');
+        Route::delete('shops/{shop}', [ShopeeShopController::class, 'destroy'])->middleware('can:shopee.connect')->name('shops.destroy');
+
+        Route::get('mapping-targets', [ShopeeSkuMappingController::class, 'lookup'])->middleware('can:shopee.mapping')->name('mappings.lookup');
+        Route::get('shops/{shop}/mappings', [ShopeeSkuMappingController::class, 'index'])->middleware('can:shopee.view')->name('mappings.index');
+        Route::post('shops/{shop}/mappings', [ShopeeSkuMappingController::class, 'store'])->middleware('can:shopee.mapping')->name('mappings.store');
+        Route::post('shops/{shop}/mappings/auto-match', [ShopeeSkuMappingController::class, 'autoMatch'])->middleware('can:shopee.mapping')->name('mappings.auto-match');
+        Route::post('shops/{shop}/mappings/pull', [ShopeeSkuMappingController::class, 'pull'])->middleware('can:shopee.mapping')->name('mappings.pull');
+        Route::put('shops/{shop}/mappings/{mapping}', [ShopeeSkuMappingController::class, 'update'])->middleware('can:shopee.mapping')->name('mappings.update');
+        Route::delete('shops/{shop}/mappings/{mapping}', [ShopeeSkuMappingController::class, 'destroy'])->middleware('can:shopee.mapping')->name('mappings.destroy');
     });
 
     Route::prefix('admin')->name('admin.')->group(function () {
@@ -146,5 +244,13 @@ Route::middleware(['auth', 'active'])->group(function () {
         Route::get('roles/{role}/edit', [RoleController::class, 'edit'])->middleware('can:roles.edit')->name('roles.edit');
         Route::put('roles/{role}', [RoleController::class, 'update'])->middleware('can:roles.edit')->name('roles.update');
         Route::delete('roles/{role}', [RoleController::class, 'destroy'])->middleware('can:roles.delete')->name('roles.destroy');
+
+        Route::get('activity', [ActivityLogController::class, 'index'])->middleware('can:activity.view')->name('activity.index');
+
+        // Backup database: otomatis tiap hari lewat scheduler, atau manual dari sini.
+        Route::get('backups', [BackupController::class, 'index'])->middleware('can:backups.view')->name('backups.index');
+        Route::post('backups', [BackupController::class, 'store'])->middleware('can:backups.create')->name('backups.store');
+        Route::get('backups/{name}', [BackupController::class, 'download'])->middleware('can:backups.view')->name('backups.download');
+        Route::delete('backups/{name}', [BackupController::class, 'destroy'])->middleware('can:backups.delete')->name('backups.destroy');
     });
 });

@@ -11,7 +11,7 @@
         <a href="{{ route('master.products.index') }}" class="btn-secondary"><x-heroicon-o-arrow-left class="size-5" /> Kembali</a>
     </x-page-header>
 
-    <form method="POST" enctype="multipart/form-data" action="{{ route('master.products.store') }}" class="mx-auto max-w-5xl">
+    <form method="POST" enctype="multipart/form-data" action="{{ route('master.products.store') }}" data-dirty-guard class="mx-auto max-w-5xl">
         @csrf
         @include('master.products._form')
 

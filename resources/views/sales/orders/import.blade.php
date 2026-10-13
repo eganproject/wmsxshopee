@@ -91,8 +91,8 @@
             <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 px-5 py-3">
                 <h2 class="flex items-center gap-2 text-base font-semibold text-slate-900"><x-heroicon-o-table-cells class="size-5 text-slate-400" /> Format Kolom</h2>
                 <div class="flex gap-2">
-                    <a href="{{ route('sales.orders.import.template', 'xlsx') }}" class="btn-secondary"><x-heroicon-o-arrow-down-tray class="size-5" /> Template Excel</a>
-                    <a href="{{ route('sales.orders.import.template', 'csv') }}" class="btn-secondary"><x-heroicon-o-arrow-down-tray class="size-5" /> CSV</a>
+                    <a href="{{ route('sales.orders.import.template', 'xlsx') }}" class="btn-secondary" data-no-loading><x-heroicon-o-arrow-down-tray class="size-5" /> Template Excel</a>
+                    <a href="{{ route('sales.orders.import.template', 'csv') }}" class="btn-secondary" data-no-loading><x-heroicon-o-arrow-down-tray class="size-5" /> CSV</a>
                 </div>
             </div>
             <table class="min-w-full text-sm">

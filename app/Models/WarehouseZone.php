@@ -2,12 +2,16 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\LogsActivity;
+use App\Models\Concerns\ScopedToWarehouse;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class WarehouseZone extends Model
 {
+    use LogsActivity, ScopedToWarehouse;
+
     /** Jenis zona beserta labelnya. */
     public const TYPES = [
         'receiving' => 'Penerimaan (Inbound)',
@@ -48,5 +52,15 @@ class WarehouseZone extends Model
     public function typeLabel(): string
     {
         return self::TYPES[$this->type] ?? $this->type;
+    }
+
+    public function activityModule(): string
+    {
+        return 'warehouses';
+    }
+
+    public function activityName(): string
+    {
+        return 'Zona';
     }
 }

@@ -96,13 +96,7 @@
                             </td>
                         </tr>
                     @empty
-                        <tr>
-                            <td colspan="8" class="px-5 py-16 text-center">
-                                <x-heroicon-o-presentation-chart-line class="mx-auto size-12 text-slate-300" />
-                                <p class="mt-3 font-medium text-slate-700">Tidak ada pergerakan</p>
-                                <p class="text-sm text-slate-500">Tidak ada mutasi stok pada rentang tanggal ini.</p>
-                            </td>
-                        </tr>
+                        <x-empty-state colspan="8" icon="heroicon-o-presentation-chart-line" title="Tidak ada pergerakan" description="Tidak ada mutasi stok pada rentang tanggal ini." />
                     @endforelse
                 </tbody>
             </table>

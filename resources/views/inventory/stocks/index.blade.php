@@ -8,6 +8,7 @@
     </x-slot:breadcrumb>
 
     <x-page-header title="Stok" description="Saldo stok saat ini per varian di setiap lokasi bin." icon="heroicon-o-archive-box">
+        <x-reports.export-button />
         <x-inventory.create-menu />
     </x-page-header>
 
@@ -55,7 +56,7 @@
 
         <div class="overflow-x-auto">
             <table class="min-w-full text-sm">
-                <thead class="bg-slate-50 text-left text-xs font-semibold tracking-wider text-slate-500 uppercase">
+                <thead class="bg-slate-50 text-left text-[13px] text-slate-500">
                     <tr>
                         <th class="px-5 py-3">SKU</th>
                         <th class="px-5 py-3">Produk / Varian</th>
@@ -107,13 +108,7 @@
                             </td>
                         </tr>
                     @empty
-                        <tr>
-                            <td colspan="6" class="px-5 py-16 text-center">
-                                <x-heroicon-o-archive-box class="mx-auto size-12 text-slate-300" />
-                                <p class="mt-3 font-medium text-slate-700">Belum ada stok</p>
-                                <p class="text-sm text-slate-500">Stok bertambah saat barang masuk dicatat di menu Mutasi Stok.</p>
-                            </td>
-                        </tr>
+                        <x-empty-state colspan="6" icon="heroicon-o-archive-box" title="Belum ada stok" description="Stok bertambah saat barang masuk dicatat di menu Mutasi Stok." />
                     @endforelse
                 </tbody>
             </table>

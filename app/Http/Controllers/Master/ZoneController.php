@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Master;
 use App\Http\Controllers\Controller;
 use App\Models\Warehouse;
 use App\Models\WarehouseZone;
+use App\Rules\AccessibleRecord;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -89,7 +90,7 @@ class ZoneController extends Controller
         $request->merge(['code' => strtoupper(trim((string) $request->input('code')))]);
 
         $data = $request->validate([
-            'warehouse_id' => ['required', 'integer', Rule::exists('warehouses', 'id')],
+            'warehouse_id' => ['required', 'integer', Rule::exists('warehouses', 'id'), new AccessibleRecord(Warehouse::class)],
             'code' => ['required', 'string', 'alpha_dash', 'max:20',
                 Rule::unique('warehouse_zones')->where('warehouse_id', $request->integer('warehouse_id'))->ignore($zone)],
             'name' => ['required', 'string', 'max:255'],

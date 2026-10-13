@@ -6,25 +6,37 @@ use App\Http\Controllers\Controller;
 use App\Models\Warehouse;
 use App\Models\WarehouseLocation;
 use App\Models\WarehouseRack;
+use App\Rules\AccessibleRecord;
+use App\Support\XlsxExport;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class LocationController extends Controller
 {
-    public function index(Request $request): View
+    public function index(Request $request): View|BinaryFileResponse
     {
-        $locations = WarehouseLocation::query()
+        $query = WarehouseLocation::query()
             ->with(['warehouse', 'rack.zone'])
             ->when($request->filled('warehouse'), fn ($query) => $query->where('warehouse_id', $request->integer('warehouse')))
             ->when($request->filled('rack'), fn ($query) => $query->where('warehouse_rack_id', $request->integer('rack')))
             ->when($request->filled('status'), fn ($query) => $query->where('is_active', $request->input('status') === 'active'))
             ->when($request->filled('search'), fn ($query) => $query->where('code', 'like', '%'.$request->string('search').'%'))
             ->orderBy('warehouse_id')
-            ->orderBy('code')
-            ->paginate(25)
-            ->withQueryString();
+            ->orderBy('code');
+
+        if ($request->input('export') === 'xlsx') {
+            return XlsxExport::download('lokasi-bin-'.now()->format('Ymd-His').'.xlsx',
+                ['Gudang', 'Zona', 'Rak', 'Kode Lokasi', 'Level', 'Posisi', 'Tipe', 'Maks. Qty', 'Maks. Berat (kg)', 'Status'],
+                $query->lazy(500)->map(fn ($l) => [
+                    $l->warehouse?->code, $l->rack?->zone?->code, $l->rack?->code, $l->code, $l->level, $l->position, $l->typeLabel(),
+                    $l->max_qty, $l->max_weight_kg !== null ? (float) $l->max_weight_kg : null, $l->is_active ? 'Aktif' : 'Nonaktif',
+                ]));
+        }
+
+        $locations = $query->paginate(25)->withQueryString();
 
         return view('master.locations.index', [
             'locations' => $locations,
@@ -85,7 +97,7 @@ class LocationController extends Controller
         $warehouseId = $rack?->zone->warehouse_id;
 
         $data = $request->validate([
-            'warehouse_rack_id' => ['required', 'integer', Rule::exists('warehouse_racks', 'id')],
+            'warehouse_rack_id' => ['required', 'integer', Rule::exists('warehouse_racks', 'id'), new AccessibleRecord(WarehouseRack::class)],
             'code' => ['required', 'string', 'alpha_dash', 'max:50',
                 Rule::unique('warehouse_locations')->where('warehouse_id', $warehouseId)->ignore($location)],
             'level' => ['nullable', 'integer', 'min:1', 'max:'.($rack->levels ?? 50)],

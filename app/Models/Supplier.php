@@ -2,11 +2,14 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\LogsActivity;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Supplier extends Model
 {
+    use LogsActivity;
+
     protected $fillable = [
         'code',
         'name',
@@ -41,5 +44,15 @@ class Supplier extends Model
             $this->payment_term_days === 0 => 'Tunai',
             default => "{$this->payment_term_days} hari",
         };
+    }
+
+    public function activityModule(): string
+    {
+        return 'suppliers';
+    }
+
+    public function activityName(): string
+    {
+        return 'Supplier';
     }
 }

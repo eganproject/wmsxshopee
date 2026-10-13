@@ -3,14 +3,16 @@
 namespace App\Http\Controllers;
 
 use App\Models\ProductVariant;
-use App\Models\SalesOrder;
 use App\Models\Stock;
 use App\Models\StockLedger;
 use App\Models\Warehouse;
 use App\Models\WarehouseZone;
+use App\Support\ReorderSuggestions;
+use App\Support\StockLevels;
 use App\Support\XlsxExport;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
+use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\DB;
 use Illuminate\View\View;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
@@ -88,41 +90,14 @@ class ReportController extends Controller
         $warehouseId = $request->filled('warehouse') ? $request->integer('warehouse') : null;
         $all = $request->input('show') === 'all';
 
-        $onHand = DB::table('stocks')
-            ->when($warehouseId, fn ($q) => $q->where('warehouse_id', $warehouseId))
-            ->groupBy('product_variant_id')
-            ->selectRaw('product_variant_id, SUM(qty) as qty');
-
-        $reserved = DB::table('sales_order_items')
-            ->join('sales_orders', 'sales_orders.id', '=', 'sales_order_items.sales_order_id')
-            ->whereIn('sales_orders.status', SalesOrder::RESERVING)
-            ->when($warehouseId, fn ($q) => $q->where('sales_orders.warehouse_id', $warehouseId))
-            ->groupBy('sales_order_items.product_variant_id')
-            ->selectRaw('sales_order_items.product_variant_id, SUM(sales_order_items.qty) as qty');
-
-        $available = 'COALESCE(on_hand.qty, 0) - COALESCE(reserved.qty, 0)';
-
-        $query = ProductVariant::query()
-            ->join('products', 'products.id', '=', 'product_variants.product_id')
-            ->leftJoin('units', 'units.id', '=', 'products.unit_id')
-            ->leftJoinSub($onHand, 'on_hand', 'on_hand.product_variant_id', '=', 'product_variants.id')
-            ->leftJoinSub($reserved, 'reserved', 'reserved.product_variant_id', '=', 'product_variants.id')
-            ->whereNotNull('product_variants.min_stock')
-            ->where('product_variants.is_active', true)
-            ->where('products.is_active', true)
-            ->when(! $all, fn ($q) => $q->whereRaw("{$available} <= product_variants.min_stock"))
+        $query = StockLevels::minStockQuery($warehouseId)
+            ->when(! $all, fn ($q) => StockLevels::belowMinimum($q))
             ->when($request->filled('search'), function (Builder $q) use ($request) {
                 $like = '%'.$request->string('search')->trim().'%';
                 $q->where(fn ($q) => $q->where('product_variants.sku', 'like', $like)->orWhere('products.name', 'like', $like));
-            })
-            // Paling kritis dulu: kekurangan terbesar terhadap stok minimum.
-            ->orderByRaw("product_variants.min_stock - ({$available}) desc")
-            ->orderBy('product_variants.sku')
-            ->selectRaw("product_variants.id, product_variants.sku, product_variants.name as variant_name, product_variants.min_stock,
-                products.name as product_name, units.code as unit_code,
-                COALESCE(on_hand.qty, 0) as on_hand, COALESCE(reserved.qty, 0) as reserved, {$available} as available");
+            });
 
-        $belowCount = (clone $query)->reorder()->whereRaw("{$available} <= product_variants.min_stock")->count();
+        $belowCount = StockLevels::belowMinimum((clone $query)->reorder())->count();
 
         if ($request->input('export') === 'xlsx') {
             return XlsxExport::download('stok-minimum-'.now()->format('Ymd-His').'.xlsx',
@@ -138,6 +113,52 @@ class ReportController extends Controller
             'rows' => $query->paginate(50)->withQueryString(),
             'belowCount' => $belowCount,
             'withMinCount' => ProductVariant::whereNotNull('min_stock')->where('is_active', true)->count(),
+            'warehouses' => Warehouse::orderBy('code')->get(),
+        ]);
+    }
+
+    /**
+     * Saran jumlah pembelian ulang per varian dari stok minimum, rata-rata
+     * penjualan harian dan qty yang sudah ada di draft penerimaan.
+     */
+    public function reorder(Request $request): View|BinaryFileResponse
+    {
+        $warehouseId = $request->filled('warehouse') ? $request->integer('warehouse') : null;
+        $suggestions = ReorderSuggestions::fromConfig(
+            $request->filled('lookback') ? $request->integer('lookback') : null,
+            $request->filled('cover') ? $request->integer('cover') : null,
+        );
+
+        $all = $suggestions->rows($warehouseId, $request->input('search'));
+        $rows = $request->input('show') === 'all' ? $all : $all->where('suggested', '>', 0)->values();
+
+        if ($request->input('export') === 'xlsx') {
+            $suppliers = ReorderSuggestions::lastSuppliers($rows->pluck('id')->all());
+
+            return XlsxExport::download('saran-pembelian-'.now()->format('Ymd-His').'.xlsx',
+                ['SKU', 'Produk', 'Varian', 'Satuan', 'Stok Minimum', 'Tersedia', 'Dalam Draft Penerimaan',
+                    "Terjual {$suggestions->lookbackDays} Hari", 'Rata-rata/Hari', 'Perkiraan Habis (hari)', 'Stok Target', 'Saran Beli', 'Supplier Terakhir'],
+                $rows->map(fn ($row) => [
+                    $row->sku, $row->product_name, $row->variant_name ?? '', $row->unit_code ?? '',
+                    $row->min_stock ?? '', $row->available, $row->incoming, $row->sold, round($row->daily, 2),
+                    $row->days_left ?? '', $row->target, $row->suggested, $suppliers[$row->id] ?? '',
+                ]));
+        }
+
+        $page = new LengthAwarePaginator(
+            $rows->forPage(LengthAwarePaginator::resolveCurrentPage(), 50)->values(),
+            $rows->count(), 50, null, ['path' => $request->url(), 'query' => $request->query()],
+        );
+
+        return view('reports.reorder', [
+            'rows' => $page,
+            'suppliers' => ReorderSuggestions::lastSuppliers($page->getCollection()->pluck('id')->all()),
+            'suggestions' => $suggestions,
+            'summary' => [
+                'skus' => $all->where('suggested', '>', 0)->count(),
+                'qty' => $all->sum('suggested'),
+                'below' => $all->where('below_min', true)->count(),
+            ],
             'warehouses' => Warehouse::orderBy('code')->get(),
         ]);
     }
@@ -173,13 +194,16 @@ class ReportController extends Controller
             ->groupBy('stock_ledgers.product_variant_id', 'product_variants.sku', 'product_variants.name', 'products.name', 'units.code')
             ->when(! $request->boolean('all'), fn ($q) => $q->havingRaw("SUM(CASE WHEN {$inRange} THEN 1 ELSE 0 END) > 0"))
             ->orderBy('product_variants.sku')
+            // qty_in/qty_out unsigned: di MySQL "qty_in - qty_out" per baris ditolak bila
+            // hasilnya minus, jadi masuk dan keluar dijumlahkan dulu baru dikurangkan.
             ->selectRaw("stock_ledgers.product_variant_id, product_variants.sku, product_variants.name as variant_name,
                 products.name as product_name, units.code as unit_code,
-                SUM(CASE WHEN {$inRange} THEN 0 ELSE stock_ledgers.qty_in - stock_ledgers.qty_out END) as opening,
+                SUM(CASE WHEN {$inRange} THEN 0 ELSE stock_ledgers.qty_in END) - SUM(CASE WHEN {$inRange} THEN 0 ELSE stock_ledgers.qty_out END) as opening,
                 SUM(CASE WHEN {$inRange} AND stock_ledgers.type = 'in' THEN stock_ledgers.qty_in ELSE 0 END) as qty_in,
                 SUM(CASE WHEN {$inRange} AND stock_ledgers.type = 'out' THEN stock_ledgers.qty_out ELSE 0 END) as qty_out,
-                SUM(CASE WHEN {$inRange} AND stock_ledgers.type = 'adjustment' THEN stock_ledgers.qty_in - stock_ledgers.qty_out ELSE 0 END) as adjusted,
-                SUM(stock_ledgers.qty_in - stock_ledgers.qty_out) as closing");
+                SUM(CASE WHEN {$inRange} AND stock_ledgers.type = 'adjustment' THEN stock_ledgers.qty_in ELSE 0 END)
+                    - SUM(CASE WHEN {$inRange} AND stock_ledgers.type = 'adjustment' THEN stock_ledgers.qty_out ELSE 0 END) as adjusted,
+                SUM(stock_ledgers.qty_in) - SUM(stock_ledgers.qty_out) as closing");
 
         if ($request->input('export') === 'xlsx') {
             return XlsxExport::download("pergerakan-barang-{$from->format('Ymd')}-{$to->format('Ymd')}.xlsx",

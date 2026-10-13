@@ -2,12 +2,16 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\LogsActivity;
+use App\Models\Concerns\ScopedToWarehouse;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class SalesOrder extends Model
 {
+    use LogsActivity, ScopedToWarehouse;
+
     public const PREFIX = 'SO';
 
     /** Urutan alur pesanan; label, ikon & warna badge. */
@@ -23,6 +27,12 @@ class SalesOrder extends Model
     /** Status yang menahan (mencadangkan) stok di gudang. */
     public const RESERVING = ['confirmed', 'picked', 'packed'];
 
+    /** Cara paket diserahkan ke kurir. */
+    public const SHIPPING_METHODS = [
+        'pickup' => ['label' => 'Pickup', 'description' => 'Kurir menjemput paket di gudang', 'icon' => 'heroicon-o-truck'],
+        'dropoff' => ['label' => 'Drop Off', 'description' => 'Paket diantar ke cabang / agen kurir', 'icon' => 'heroicon-o-building-storefront'],
+    ];
+
     protected $fillable = [
         'number',
         'status',
@@ -30,6 +40,12 @@ class SalesOrder extends Model
         'order_date',
         'channel_name',
         'external_number',
+        'shopee_shop_id',
+        'shopee_order_status',
+        'shopee_package_number',
+        'shopee_sync_error',
+        'shopee_synced_at',
+        'shopee_ship_by',
         'customer_name',
         'customer_phone',
         'shipping_address',
@@ -37,6 +53,17 @@ class SalesOrder extends Model
         'courier_service',
         'tracking_number',
         'shipping_fee',
+        'shipping_method',
+        'pickup_at',
+        'pickup_slot',
+        'pickup_address',
+        'dropoff_point',
+        'shipment_arranged_at',
+        'shipment_arranged_by',
+        'shipping_label_printed_at',
+        'qc_checked_by',
+        'shipment_handover_id',
+        'shipped_by',
         'notes',
         'cancel_reason',
         'stock_movement_id',
@@ -58,6 +85,11 @@ class SalesOrder extends Model
             'packed_at' => 'datetime',
             'shipped_at' => 'datetime',
             'cancelled_at' => 'datetime',
+            'shopee_synced_at' => 'datetime',
+            'shopee_ship_by' => 'datetime',
+            'pickup_at' => 'datetime',
+            'shipment_arranged_at' => 'datetime',
+            'shipping_label_printed_at' => 'datetime',
         ];
     }
 
@@ -74,6 +106,52 @@ class SalesOrder extends Model
     public function movement(): BelongsTo
     {
         return $this->belongsTo(StockMovement::class, 'stock_movement_id');
+    }
+
+    public function shopeeShop(): BelongsTo
+    {
+        return $this->belongsTo(ShopeeShop::class);
+    }
+
+    public function arranger(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'shipment_arranged_by');
+    }
+
+    public function qcChecker(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'qc_checked_by');
+    }
+
+    public function shipper(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'shipped_by');
+    }
+
+    public function handover(): BelongsTo
+    {
+        return $this->belongsTo(ShipmentHandover::class, 'shipment_handover_id');
+    }
+
+    /**
+     * Cari pesanan dari hasil scan: nomor resi, nomor SO atau no. pesanan marketplace.
+     *
+     * @param  list<string>  $statuses
+     */
+    public static function findByScan(string $code, array $statuses = []): ?self
+    {
+        $code = trim($code);
+
+        if ($code === '') {
+            return null;
+        }
+
+        return self::query()
+            ->when($statuses, fn ($q) => $q->whereIn('status', $statuses))
+            ->where(fn ($q) => $q->where('tracking_number', $code)->orWhere('number', $code)->orWhere('external_number', $code))
+            ->orderByRaw('CASE WHEN tracking_number = ? THEN 0 WHEN number = ? THEN 1 ELSE 2 END', [$code, $code])
+            ->latest('id')
+            ->first();
     }
 
     public function creator(): BelongsTo
@@ -97,6 +175,11 @@ class SalesOrder extends Model
         return $this->hasMany(SalesOrderBundle::class)->orderBy('id');
     }
 
+    public function returns(): HasMany
+    {
+        return $this->hasMany(SalesReturn::class)->orderBy('id');
+    }
+
     public function hasStatus(string ...$statuses): bool
     {
         return in_array($this->status, $statuses, true);
@@ -110,6 +193,52 @@ class SalesOrder extends Model
     public function isCancellable(): bool
     {
         return in_array($this->status, ['draft', ...self::RESERVING], true);
+    }
+
+    public function isShopee(): bool
+    {
+        return $this->shopee_shop_id !== null;
+    }
+
+    public function isShipmentArranged(): bool
+    {
+        return $this->shipment_arranged_at !== null;
+    }
+
+    /**
+     * Pengiriman bisa diatur selama stok sudah dicadangkan dan belum dikirim.
+     * Pesanan Shopee hanya selama statusnya di Shopee masih READY_TO_SHIP;
+     * setelah diatur (PROCESSED) Shopee tidak menerima pengaturan ulang.
+     * Pesanan manual boleh diubah kapan saja sebelum dikirim.
+     */
+    public function canArrangeShipment(): bool
+    {
+        if (! $this->hasStatus(...self::RESERVING)) {
+            return false;
+        }
+
+        return ! $this->isShopee() || $this->shopee_order_status === 'READY_TO_SHIP';
+    }
+
+    /** Pesanan Shopee yang pengirimannya sudah diatur (di Optima atau Seller Centre). */
+    public function shopeeShipmentArranged(): bool
+    {
+        return $this->isShopee() && filled($this->shopee_order_status) && ! in_array($this->shopee_order_status, ['UNPAID', 'READY_TO_SHIP', 'IN_CANCEL', 'CANCELLED'], true);
+    }
+
+    /** Label resi: Shopee setelah pengiriman diatur, manual setelah ada metode / resi. */
+    public function hasShippingLabel(): bool
+    {
+        if ($this->hasStatus('draft', 'cancelled')) {
+            return false;
+        }
+
+        return $this->isShopee() ? $this->shopeeShipmentArranged() : ($this->isShipmentArranged() || filled($this->tracking_number));
+    }
+
+    public function shippingMethodLabel(): ?string
+    {
+        return self::SHIPPING_METHODS[$this->shipping_method]['label'] ?? null;
     }
 
     public function statusLabel(): string
@@ -156,5 +285,33 @@ class SalesOrder extends Model
             ->max();
 
         return $prefix.str_pad((string) (($last ?? 0) + 1), 3, '0', STR_PAD_LEFT);
+    }
+
+    public function activityModule(): string
+    {
+        return 'sales';
+    }
+
+    public function activityName(): string
+    {
+        return 'Pesanan';
+    }
+
+    /** Jejak waktu sinkron Shopee berubah tiap tarikan; tidak perlu masuk log. */
+    public function activityIgnored(): array
+    {
+        return ['shopee_synced_at', 'shipping_label_printed_at'];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function activityRelations(): array
+    {
+        return [
+            'Item' => $this->items()->with('variant')->get()->map(fn ($item) => $item->variant?->sku.' × '.$item->qty
+                .' @ '.number_format((float) $item->price, 0, ',', '.')
+                .($item->notes ? ' · '.$item->notes : ''))->all(),
+        ];
     }
 }

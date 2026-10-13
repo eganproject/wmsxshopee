@@ -11,7 +11,7 @@
         <a href="{{ route('master.zones.index') }}" class="btn-secondary"><x-heroicon-o-arrow-left class="size-5" /> Kembali</a>
     </x-page-header>
 
-    <form method="POST" action="{{ route('master.zones.store') }}" class="max-w-3xl">
+    <form method="POST" action="{{ route('master.zones.store') }}" data-dirty-guard class="max-w-3xl">
         @csrf
         @include('master.zones._form')
 

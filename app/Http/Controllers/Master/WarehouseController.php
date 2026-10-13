@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Warehouse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
@@ -37,7 +38,18 @@ class WarehouseController extends Controller
 
     public function store(Request $request): RedirectResponse
     {
-        $warehouse = Warehouse::create($this->validated($request));
+        $warehouse = DB::transaction(function () use ($request) {
+            $warehouse = Warehouse::create($this->validated($request));
+
+            // User dengan akses gudang terbatas otomatis mendapat akses ke gudang
+            // yang baru dibuatnya, supaya gudang itu tidak langsung hilang dari daftar.
+            $user = $request->user();
+            if (! $user->hasAllWarehouses()) {
+                $user->syncWarehouseAccess(false, [...$user->accessibleWarehouseIds(), $warehouse->id]);
+            }
+
+            return $warehouse;
+        });
 
         return redirect()->route('master.warehouses.index')
             ->with('success', "Gudang {$warehouse->name} berhasil ditambahkan.");

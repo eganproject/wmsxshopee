@@ -11,7 +11,7 @@
         <a href="{{ route('master.locations.index') }}" class="btn-secondary"><x-heroicon-o-arrow-left class="size-5" /> Kembali</a>
     </x-page-header>
 
-    <form method="POST" action="{{ route('master.locations.update', $location) }}" class="max-w-3xl">
+    <form method="POST" action="{{ route('master.locations.update', $location) }}" data-dirty-guard class="max-w-3xl">
         @csrf
         @method('PUT')
         @include('master.locations._form')
@@ -21,4 +21,6 @@
             <button type="submit" class="btn-primary"><x-heroicon-o-check class="size-5" /> Simpan Perubahan</button>
         </div>
     </form>
+
+    <x-activity.history :subject="$location" class="max-w-3xl" />
 </x-layouts.app>

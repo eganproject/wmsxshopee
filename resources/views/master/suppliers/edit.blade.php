@@ -11,7 +11,7 @@
         <a href="{{ route('master.suppliers.index') }}" class="btn-secondary"><x-heroicon-o-arrow-left class="size-5" /> Kembali</a>
     </x-page-header>
 
-    <form method="POST" action="{{ route('master.suppliers.update', $supplier) }}" class="max-w-4xl">
+    <form method="POST" action="{{ route('master.suppliers.update', $supplier) }}" data-dirty-guard class="max-w-4xl">
         @csrf
         @method('PUT')
         @include('master.suppliers._form')
@@ -21,4 +21,6 @@
             <button type="submit" class="btn-primary"><x-heroicon-o-check class="size-5" /> Simpan Perubahan</button>
         </div>
     </form>
+
+    <x-activity.history :subject="$supplier" class="max-w-4xl" />
 </x-layouts.app>

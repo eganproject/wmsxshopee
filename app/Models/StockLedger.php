@@ -2,12 +2,15 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\ScopedToWarehouse;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 /** Satu baris kartu stok: perubahan saldo satu varian di satu lokasi. */
 class StockLedger extends Model
 {
+    use ScopedToWarehouse;
+
     protected $fillable = [
         'product_variant_id',
         'warehouse_id',

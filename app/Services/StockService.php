@@ -17,6 +17,9 @@ use Illuminate\Validation\ValidationException;
  */
 class StockService
 {
+    /** Transaksi diulang otomatis bila kena deadlock dengan pengguna lain. */
+    private const ATTEMPTS = 3;
+
     /**
      * Penyesuaian memakai to_location_id dengan qty bertanda (+ tambah, - kurang).
      * Lokasi bin boleh null: stok disimpan di level gudang ("Tanpa bin").
@@ -29,6 +32,8 @@ class StockService
     public function record(array $header, array $items): StockMovement
     {
         return DB::transaction(function () use ($header, $items) {
+            $this->lockVariants($items);
+
             $movement = StockMovement::create([
                 ...$header,
                 'number' => $this->nextNumber($header['type']),
@@ -43,7 +48,22 @@ class StockService
             }
 
             return $movement;
-        });
+        }, self::ATTEMPTS);
+    }
+
+    /**
+     * Kunci semua varian yang disentuh mutasi ini, urut id, sebelum membaca saldo.
+     * Dua mutasi (atau pesanan/opname) bersamaan untuk varian yang sama jadi antre,
+     * jadi pengecekan "stok cukup" di bawah selalu membaca saldo terbaru. Urutan id
+     * yang sama di semua tempat mencegah deadlock antar dokumen multi-baris.
+     *
+     * @param  array<int, array{product_variant_id: int}>  $items
+     */
+    private function lockVariants(array $items): void
+    {
+        $ids = collect($items)->pluck('product_variant_id')->map(fn ($id) => (int) $id)->unique()->sort()->values();
+
+        ProductVariant::whereIn('id', $ids)->orderBy('id')->lockForUpdate()->get(['id']);
     }
 
     /**
@@ -65,12 +85,8 @@ class StockService
     {
         $warehouseId = $movement->warehouse_id;
 
-        if ($locationId === null) {
-            // Unique index tidak berlaku untuk NULL, jadi baris "Tanpa bin" diserialkan
-            // dengan mengunci varian supaya tidak tercipta dua saldo ganda.
-            ProductVariant::whereKey($item->product_variant_id)->lockForUpdate()->first();
-        }
-
+        // Varian sudah dikunci di record(), jadi baris saldo (termasuk "Tanpa bin" yang
+        // tidak dijaga unique index) tidak bisa tercipta ganda oleh transaksi lain.
         $stock = Stock::query()
             ->where('product_variant_id', $item->product_variant_id)
             ->when(

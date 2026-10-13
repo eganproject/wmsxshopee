@@ -11,7 +11,7 @@
         <a href="{{ route('master.zones.index') }}" class="btn-secondary"><x-heroicon-o-arrow-left class="size-5" /> Kembali</a>
     </x-page-header>
 
-    <form method="POST" action="{{ route('master.zones.update', $zone) }}" class="max-w-3xl">
+    <form method="POST" action="{{ route('master.zones.update', $zone) }}" data-dirty-guard class="max-w-3xl">
         @csrf
         @method('PUT')
         @include('master.zones._form')
@@ -21,4 +21,6 @@
             <button type="submit" class="btn-primary"><x-heroicon-o-check class="size-5" /> Simpan Perubahan</button>
         </div>
     </form>
+
+    <x-activity.history :subject="$zone" class="max-w-3xl" />
 </x-layouts.app>

@@ -69,13 +69,13 @@
     </form>
 
     @if (! $variant)
-        <div class="card px-5 py-16 text-center">
-            <x-heroicon-o-document-chart-bar class="mx-auto size-12 text-slate-300" />
+        <div class="card">
             @if (request()->filled('code'))
-                <p class="mt-3 font-medium text-slate-700">SKU atau barcode "{{ request('code') }}" tidak ditemukan</p>
+                <x-empty-state icon="heroicon-o-magnifying-glass" :filtered="false" :title="'SKU atau barcode “'.request('code').'” tidak ditemukan'"
+                               description="Periksa lagi kodenya, atau cari lewat nama varian." />
             @else
-                <p class="mt-3 font-medium text-slate-700">Pilih varian</p>
-                <p class="text-sm text-slate-500">Pilih atau scan varian untuk melihat kartu stoknya.</p>
+                <x-empty-state icon="heroicon-o-document-chart-bar" :filtered="false" title="Pilih varian"
+                               description="Pilih atau scan varian untuk melihat kartu stoknya." />
             @endif
         </div>
     @else
@@ -103,7 +103,7 @@
             </div>
             <div class="overflow-x-auto">
                 <table class="min-w-full text-sm">
-                    <thead class="bg-slate-50 text-left text-xs font-semibold tracking-wider text-slate-500 uppercase">
+                    <thead class="bg-slate-50 text-left text-[13px] text-slate-500">
                         <tr>
                             <th class="px-5 py-3">Tanggal</th>
                             <th class="px-5 py-3">No. Dokumen</th>

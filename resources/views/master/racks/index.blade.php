@@ -103,13 +103,11 @@
                             </td>
                         </tr>
                     @empty
-                        <tr>
-                            <td colspan="6" class="px-5 py-16 text-center">
-                                <x-heroicon-o-view-columns class="mx-auto size-12 text-slate-300" />
-                                <p class="mt-3 font-medium text-slate-700">Belum ada rak</p>
-                                <p class="text-sm text-slate-500">Tambahkan rak dan buat lokasi bin-nya sekaligus.</p>
-                            </td>
-                        </tr>
+                        <x-empty-state colspan="6" icon="heroicon-o-view-columns" title="Belum ada rak" description="Tambahkan rak dan buat lokasi bin-nya sekaligus." :ignore="['zone']" :reset-url="route('master.racks.index', ['zone' => request('zone')])">
+                            @can('warehouses.create')
+                                <a href="{{ route('master.racks.create', ['zone' => request('zone')]) }}" class="btn-primary"><x-heroicon-o-plus class="size-5" /> Tambah Rak</a>
+                            @endcan
+                        </x-empty-state>
                     @endforelse
                 </tbody>
             </table>

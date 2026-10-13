@@ -202,7 +202,7 @@
                 <div class="space-y-3">
                     <div class="overflow-x-auto">
                         <table class="min-w-full text-sm">
-                            <thead class="text-left text-xs font-semibold tracking-wider text-slate-500 uppercase">
+                            <thead class="text-left text-[13px] text-slate-500">
                                 <tr>
                                     <th class="py-2 pr-2">Nama Varian *</th>
                                     <th class="px-2 py-2">SKU Varian *</th>

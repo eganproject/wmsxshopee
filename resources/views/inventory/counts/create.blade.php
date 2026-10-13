@@ -13,7 +13,7 @@
         <a href="{{ route('inventory.counts.index') }}" class="btn-secondary"><x-heroicon-o-arrow-left class="size-5" /> Kembali</a>
     </x-page-header>
 
-    <form method="POST" action="{{ route('inventory.counts.store') }}"
+    <form method="POST" action="{{ route('inventory.counts.store') }}" data-dirty-guard
           x-data="{
               warehouse: @js((string) old('warehouse_id', $defaultWarehouse)),
               scope: @js(old('scope', 'all')),

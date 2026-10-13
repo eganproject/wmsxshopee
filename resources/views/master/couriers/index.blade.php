@@ -8,6 +8,7 @@
     </x-slot:breadcrumb>
 
     <x-page-header title="Master Kurir" description="Ekspedisi pengiriman beserta jenis layanannya." icon="heroicon-o-truck">
+        <x-reports.export-button />
         @can('couriers.create')
             <a href="{{ route('master.couriers.create') }}" class="btn-primary">
                 <x-heroicon-o-plus class="size-5" /> Tambah Kurir
@@ -97,13 +98,11 @@
                             </td>
                         </tr>
                     @empty
-                        <tr>
-                            <td colspan="6" class="px-5 py-16 text-center">
-                                <x-heroicon-o-truck class="mx-auto size-12 text-slate-300" />
-                                <p class="mt-3 font-medium text-slate-700">Belum ada kurir</p>
-                                <p class="text-sm text-slate-500">Tambahkan ekspedisi yang dipakai untuk pengiriman.</p>
-                            </td>
-                        </tr>
+                        <x-empty-state colspan="6" icon="heroicon-o-truck" title="Belum ada kurir" description="Tambahkan ekspedisi yang dipakai untuk pengiriman.">
+                            @can('couriers.create')
+                                <a href="{{ route('master.couriers.create') }}" class="btn-primary"><x-heroicon-o-plus class="size-5" /> Tambah Kurir</a>
+                            @endcan
+                        </x-empty-state>
                     @endforelse
                 </tbody>
             </table>
