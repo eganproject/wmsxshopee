@@ -11,6 +11,7 @@ use App\Models\WarehouseLocation;
 use App\Rules\AccessibleRecord;
 use App\Services\StockService;
 use App\Support\Activity;
+use App\Support\XlsxExport;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -18,12 +19,13 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class GoodsReceiptController extends Controller
 {
-    public function index(Request $request): View
+    public function index(Request $request): View|BinaryFileResponse
     {
-        $receipts = GoodsReceipt::query()
+        $query = GoodsReceipt::query()
             ->with(['supplier', 'warehouse'])
             ->withCount('items')
             ->withSum('items', 'qty_received')
@@ -38,9 +40,18 @@ class GoodsReceiptController extends Controller
                 $query->where(fn ($q) => $q->where('number', 'like', "%{$search}%")->orWhere('supplier_reference', 'like', "%{$search}%"));
             })
             ->latest('receipt_date')
-            ->latest('id')
-            ->paginate(20)
-            ->withQueryString();
+            ->latest('id');
+
+        if ($request->input('export') === 'xlsx') {
+            return XlsxExport::download('penerimaan-'.now()->format('Ymd-His').'.xlsx',
+                ['No. Dokumen', 'Tanggal', 'Status', 'Supplier', 'No. Ref Supplier', 'Gudang', 'Jumlah Item', 'Qty Diterima', 'Qty Rusak', 'Catatan'],
+                $query->lazy(500)->map(fn ($r) => [
+                    $r->number, $r->receipt_date->format('d/m/Y'), $r->statusLabel(), $r->supplier?->name, $r->supplier_reference, $r->warehouse?->code,
+                    $r->items_count, (int) $r->items_sum_qty_received, (int) $r->items_sum_qty_damaged, $r->notes,
+                ]));
+        }
+
+        $receipts = $query->paginate(20)->withQueryString();
 
         return view('inventory.receipts.index', [
             'receipts' => $receipts,

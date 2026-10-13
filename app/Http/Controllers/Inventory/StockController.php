@@ -5,14 +5,16 @@ namespace App\Http\Controllers\Inventory;
 use App\Http\Controllers\Controller;
 use App\Models\Stock;
 use App\Models\Warehouse;
+use App\Support\XlsxExport;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class StockController extends Controller
 {
     /** Stok saat ini, per lokasi atau dijumlahkan per varian. */
-    public function index(Request $request): View
+    public function index(Request $request): View|BinaryFileResponse
     {
         $mode = $request->input('view') === 'variant' ? 'variant' : 'location';
 
@@ -29,27 +31,44 @@ class StockController extends Controller
                     ->when($mode === 'location', fn ($q) => $q->orWhereHas('location', fn ($l) => $l->where('code', 'like', "%{$search}%"))));
             });
 
-        $totalQty = (int) (clone $query)->sum('stocks.qty');
+        $export = $request->input('export') === 'xlsx';
+        $totalQty = $export ? 0 : (int) (clone $query)->sum('stocks.qty');
 
         if ($mode === 'variant') {
-            $stocks = $query
+            $query
                 ->join('product_variants', 'product_variants.id', '=', 'stocks.product_variant_id')
                 ->selectRaw('stocks.product_variant_id, SUM(stocks.qty) as qty, COUNT(*) as location_count')
                 ->groupBy('stocks.product_variant_id', 'product_variants.sku')
                 ->with('variant.product.unit')
-                ->orderBy('product_variants.sku')
-                ->paginate(25)
-                ->withQueryString();
+                ->orderBy('product_variants.sku');
+
+            if ($export) {
+                return XlsxExport::download('stok-per-varian-'.now()->format('Ymd-His').'.xlsx',
+                    ['SKU', 'Produk', 'Varian', 'Satuan', 'Total Qty', 'Jumlah Lokasi'],
+                    $query->get()->map(fn ($s) => [
+                        $s->variant?->sku, $s->variant?->product?->name, $s->variant?->name, $s->variant?->product?->unit?->code, (int) $s->qty, (int) $s->location_count,
+                    ]));
+            }
         } else {
-            $stocks = $query
+            $query
                 ->with(['variant.product.unit', 'warehouse', 'location'])
                 ->leftJoin('warehouse_locations', 'warehouse_locations.id', '=', 'stocks.warehouse_location_id')
                 ->orderBy('stocks.warehouse_id')
                 ->orderBy('warehouse_locations.code')
-                ->select('stocks.*')
-                ->paginate(25)
-                ->withQueryString();
+                ->orderBy('stocks.id')
+                ->select('stocks.*');
+
+            if ($export) {
+                return XlsxExport::download('stok-per-lokasi-'.now()->format('Ymd-His').'.xlsx',
+                    ['Gudang', 'Lokasi', 'SKU', 'Barcode', 'Produk', 'Varian', 'Satuan', 'Qty'],
+                    $query->lazy(500)->map(fn ($s) => [
+                        $s->warehouse?->code, $s->location?->code ?? 'Tanpa bin', $s->variant?->sku, $s->variant?->barcode, $s->variant?->product?->name,
+                        $s->variant?->name, $s->variant?->product?->unit?->code, (int) $s->qty,
+                    ]));
+            }
         }
+
+        $stocks = $query->paginate(25)->withQueryString();
 
         return view('inventory.stocks.index', [
             'stocks' => $stocks,

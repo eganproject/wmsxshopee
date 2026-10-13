@@ -6,13 +6,11 @@ use App\Http\Controllers\Controller;
 use App\Models\Warehouse;
 use App\Rules\AccessibleRecord;
 use App\Services\SalesOrderImporter;
+use App\Support\SpreadsheetImport;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
-use OpenSpout\Common\Entity\Row;
-use OpenSpout\Common\Entity\Style\Style;
-use OpenSpout\Writer\XLSX\Writer as XlsxWriter;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
@@ -40,7 +38,7 @@ class SalesOrderImportController extends Controller
         ]);
 
         $file = $request->file('file');
-        $extension = strtolower($file->getClientOriginalExtension()) === 'xlsx' ? 'xlsx' : 'csv';
+        $extension = SpreadsheetImport::extension($file);
 
         $result = $importer->import($file->getRealPath(), $extension, (int) $data['warehouse_id'], $request->boolean('confirm') && $request->user()->can('sales.confirm'), $request->user()->id);
 
@@ -52,8 +50,6 @@ class SalesOrderImportController extends Controller
 
     public function template(string $format): BinaryFileResponse|StreamedResponse
     {
-        abort_unless(in_array($format, ['xlsx', 'csv'], true), 404);
-
         $header = array_keys(SalesOrderImporter::COLUMNS);
         $samples = [
             ['250101ABCD', now()->toDateString(), 'Shopee Toko A', 'Budi Santoso', '081234567890', 'Jl. Merdeka 1, Bandung', 'JNE', 'REG', 12000, 'KAOS-M', 2, 75000, 'Bungkus rapi'],
@@ -61,26 +57,6 @@ class SalesOrderImportController extends Controller
             ['', now()->toDateString(), 'WhatsApp', 'Siti', '', 'Jl. Mawar 5, Depok', '', '', '', 'KAOS-M', 3, 70000, ''],
         ];
 
-        if ($format === 'csv') {
-            return response()->streamDownload(function () use ($header, $samples) {
-                $out = fopen('php://output', 'w');
-                fputcsv($out, $header, ';', '"', '');
-                foreach ($samples as $row) {
-                    fputcsv($out, $row, ';', '"', '');
-                }
-                fclose($out);
-            }, 'template-impor-pesanan.csv', ['Content-Type' => 'text/csv']);
-        }
-
-        $path = tempnam(sys_get_temp_dir(), 'so').'.xlsx';
-        $writer = new XlsxWriter;
-        $writer->openToFile($path);
-        $writer->addRow(Row::fromValuesWithStyle($header, (new Style)->withFontBold(true)));
-        foreach ($samples as $row) {
-            $writer->addRow(Row::fromValues($row));
-        }
-        $writer->close();
-
-        return response()->download($path, 'template-impor-pesanan.xlsx')->deleteFileAfterSend();
+        return SpreadsheetImport::template($format, 'template-impor-pesanan', $header, $samples);
     }
 }

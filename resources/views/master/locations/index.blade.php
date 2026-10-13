@@ -8,6 +8,7 @@
     </x-slot:breadcrumb>
 
     <x-page-header title="Lokasi Bin" description="Titik penyimpanan barang di setiap rak." icon="heroicon-o-map-pin">
+        <x-reports.export-button />
         @if ($locations->total())
             <a href="{{ route('labels.locations', request()->only(['search', 'warehouse', 'rack', 'status']) + ['all' => 1]) }}" class="btn-secondary"
                title="Cetak label semua lokasi sesuai filter">

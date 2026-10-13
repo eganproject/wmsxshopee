@@ -8,6 +8,7 @@
     </x-slot:breadcrumb>
 
     <x-page-header title="Master Supplier" description="Pemasok barang yang dipakai di penerimaan barang." icon="heroicon-o-building-storefront">
+        <x-reports.export-button />
         @can('suppliers.create')
             <a href="{{ route('master.suppliers.create') }}" class="btn-primary">
                 <x-heroicon-o-plus class="size-5" /> Tambah Supplier

@@ -10,27 +10,37 @@ use App\Models\WarehouseLocation;
 use App\Models\WarehouseZone;
 use App\Rules\AccessibleRecord;
 use App\Services\StockCountService;
+use App\Support\XlsxExport;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class StockCountController extends Controller
 {
-    public function index(Request $request): View
+    public function index(Request $request): View|BinaryFileResponse
     {
-        $counts = StockCount::query()
+        $query = StockCount::query()
             ->with(['warehouse', 'zone', 'creator'])
             ->withCount(['items', 'items as counted_count' => fn ($q) => $q->whereNotNull('counted_qty')])
             ->when($request->filled('status'), fn ($query) => $query->where('status', $request->input('status')))
             ->when($request->filled('warehouse'), fn ($query) => $query->where('warehouse_id', $request->integer('warehouse')))
             ->when($request->filled('search'), fn ($query) => $query->where('number', 'like', '%'.$request->string('search').'%'))
             ->latest('count_date')
-            ->latest('id')
-            ->paginate(20)
-            ->withQueryString();
+            ->latest('id');
+
+        if ($request->input('export') === 'xlsx') {
+            return XlsxExport::download('stock-opname-'.now()->format('Ymd-His').'.xlsx',
+                ['No. Dokumen', 'Tanggal', 'Status', 'Gudang', 'Cakupan', 'Jumlah Item', 'Sudah Dihitung', 'Dibuat Oleh', 'Catatan'],
+                $query->lazy(500)->map(fn ($c) => [
+                    $c->number, $c->count_date->format('d/m/Y'), $c->statusLabel(), $c->warehouse?->code, $c->scopeLabel(), $c->items_count, $c->counted_count, $c->creator?->name, $c->notes,
+                ]));
+        }
+
+        $counts = $query->paginate(20)->withQueryString();
 
         return view('inventory.counts.index', [
             'counts' => $counts,

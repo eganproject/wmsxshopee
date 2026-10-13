@@ -8,6 +8,7 @@
     </x-slot:breadcrumb>
 
     <x-page-header title="Retur Penjualan" description="Paket kembali dari pembeli: scan resi, cek kondisi barang, lalu barang layak jual masuk lagi ke stok." icon="heroicon-o-arrow-uturn-left">
+        <x-reports.export-button />
         @can('returns.create')
             <a href="{{ route('sales.returns.create', ['source' => 'manual']) }}" class="btn-secondary">
                 <x-heroicon-o-user class="size-5" /> Retur Tanpa Pesanan
