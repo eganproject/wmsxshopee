@@ -14,11 +14,13 @@
                 ['label' => 'Gudang & Lokasi', 'route' => 'master.warehouses.index', 'active' => ['master.warehouses.*', 'master.zones.*', 'master.racks.*', 'master.locations.*'], 'icon' => 'heroicon-o-building-office-2', 'can' => 'warehouses.view'],
                 ['label' => 'Produk', 'route' => 'master.products.index', 'active' => ['master.products.*', 'master.units.*'], 'icon' => 'heroicon-o-cube', 'can' => 'products.view'],
                 ['label' => 'Kurir', 'route' => 'master.couriers.index', 'active' => 'master.couriers.*', 'icon' => 'heroicon-o-truck', 'can' => 'couriers.view'],
+                ['label' => 'Supplier', 'route' => 'master.suppliers.index', 'active' => 'master.suppliers.*', 'icon' => 'heroicon-o-building-storefront', 'can' => 'suppliers.view'],
             ],
         ],
         [
             'heading' => 'Inventori',
             'items' => [
+                ['label' => 'Penerimaan Barang', 'route' => 'inventory.receipts.index', 'active' => 'inventory.receipts.*', 'icon' => 'heroicon-o-inbox-arrow-down', 'can' => 'receipts.view'],
                 ['label' => 'Stok', 'route' => 'inventory.stocks.index', 'active' => 'inventory.stocks.*', 'icon' => 'heroicon-o-archive-box', 'can' => 'inventory.view'],
                 ['label' => 'Kartu Stok', 'route' => 'inventory.stock-card.index', 'active' => 'inventory.stock-card.*', 'icon' => 'heroicon-o-document-chart-bar', 'can' => 'inventory.view'],
                 ['label' => 'Mutasi Stok', 'route' => 'inventory.movements.index', 'active' => 'inventory.movements.*', 'icon' => 'heroicon-o-arrows-right-left', 'can' => 'inventory.view'],

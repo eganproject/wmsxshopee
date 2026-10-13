@@ -4,6 +4,7 @@ use App\Http\Controllers\Admin\RoleController;
 use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\Inventory\GoodsReceiptController;
 use App\Http\Controllers\Inventory\StockCardController;
 use App\Http\Controllers\Inventory\StockController;
 use App\Http\Controllers\Inventory\StockMovementController;
@@ -12,6 +13,7 @@ use App\Http\Controllers\Master\CourierController;
 use App\Http\Controllers\Master\LocationController;
 use App\Http\Controllers\Master\ProductController;
 use App\Http\Controllers\Master\RackController;
+use App\Http\Controllers\Master\SupplierController;
 use App\Http\Controllers\Master\UnitController;
 use App\Http\Controllers\Master\WarehouseController;
 use App\Http\Controllers\Master\ZoneController;
@@ -44,6 +46,7 @@ Route::middleware(['auth', 'active'])->group(function () {
             'racks' => [RackController::class, 'warehouses', 'rack'],
             'locations' => [LocationController::class, 'warehouses', 'location'],
             'couriers' => [CourierController::class, 'couriers', 'courier'],
+            'suppliers' => [SupplierController::class, 'suppliers', 'supplier'],
             'products' => [ProductController::class, 'products', 'product'],
             'units' => [UnitController::class, 'products', 'unit'],
         ];
@@ -69,6 +72,17 @@ Route::middleware(['auth', 'active'])->group(function () {
         Route::get('movements/create', [StockMovementController::class, 'create'])->name('movements.create');
         Route::post('movements', [StockMovementController::class, 'store'])->name('movements.store');
         Route::get('movements/{movement}', [StockMovementController::class, 'show'])->middleware('can:inventory.view')->name('movements.show');
+
+        // Penerimaan barang: draft bisa diubah/dihapus; setelah dikonfirmasi diterima,
+        // stok masuk lewat mutasi Barang Masuk dan dokumen terkunci.
+        Route::get('receipts', [GoodsReceiptController::class, 'index'])->middleware('can:receipts.view')->name('receipts.index');
+        Route::get('receipts/create', [GoodsReceiptController::class, 'create'])->middleware('can:receipts.create')->name('receipts.create');
+        Route::post('receipts', [GoodsReceiptController::class, 'store'])->middleware('can:receipts.create')->name('receipts.store');
+        Route::get('receipts/{receipt}', [GoodsReceiptController::class, 'show'])->middleware('can:receipts.view')->name('receipts.show');
+        Route::get('receipts/{receipt}/edit', [GoodsReceiptController::class, 'edit'])->middleware('can:receipts.create')->name('receipts.edit');
+        Route::put('receipts/{receipt}', [GoodsReceiptController::class, 'update'])->middleware('can:receipts.create')->name('receipts.update');
+        Route::post('receipts/{receipt}/receive', [GoodsReceiptController::class, 'receive'])->middleware('can:receipts.receive')->name('receipts.receive');
+        Route::delete('receipts/{receipt}', [GoodsReceiptController::class, 'destroy'])->middleware('can:receipts.delete')->name('receipts.destroy');
     });
 
     Route::prefix('admin')->name('admin.')->group(function () {
