@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use App\Support\Activity;
 use App\Support\PermissionGroups;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -78,7 +79,7 @@ class UserController extends Controller
         $data = $this->validated($request, $actor, $user);
         $isSelf = $actor->is($user);
 
-        DB::transaction(function () use ($data, $user, $isSelf) {
+        Activity::track($user, fn () => DB::transaction(function () use ($data, $user, $isSelf) {
             $user->fill(collect($data)->only(['name', 'username', 'email', 'phone'])->all());
 
             if (! empty($data['password'])) {
@@ -93,7 +94,7 @@ class UserController extends Controller
             }
 
             $user->save();
-        });
+        }));
 
         return redirect()->route('admin.users.index')
             ->with('success', "Akun {$user->name} berhasil diperbarui.");

@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\LogsActivity;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -9,6 +10,8 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class Product extends Model
 {
+    use LogsActivity;
+
     protected $fillable = [
         'sku',
         'name',
@@ -47,5 +50,35 @@ class Product extends Model
     public function primaryImage(): HasOne
     {
         return $this->hasOne(ProductImage::class)->where('is_primary', true);
+    }
+
+    public function activityModule(): string
+    {
+        return 'products';
+    }
+
+    public function activityName(): string
+    {
+        return 'Produk';
+    }
+
+    public function activityLabel(): string
+    {
+        return "{$this->sku} · {$this->name}";
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function activityRelations(): array
+    {
+        return [
+            'Varian' => $this->variants()->get()->map(fn ($variant) => $variant->sku
+                .($variant->name ? ' · '.$variant->name : '')
+                .($variant->barcode ? ' · barcode '.$variant->barcode : '')
+                .($variant->weight_gram ? ' · '.$variant->weight_gram.' g' : '')
+                .($variant->is_active ? '' : ' · nonaktif'))->all(),
+            'Jumlah Gambar' => $this->images()->count(),
+        ];
     }
 }

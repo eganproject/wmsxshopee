@@ -2,12 +2,15 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\LogsActivity;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class GoodsReceipt extends Model
 {
+    use LogsActivity;
+
     public const PREFIX = 'GR';
 
     public const STATUSES = [
@@ -97,5 +100,31 @@ class GoodsReceipt extends Model
             ->max();
 
         return $prefix.str_pad((string) (($last ?? 0) + 1), 3, '0', STR_PAD_LEFT);
+    }
+
+    public function activityModule(): string
+    {
+        return 'receipts';
+    }
+
+    public function activityName(): string
+    {
+        return 'Penerimaan Barang';
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function activityRelations(): array
+    {
+        return [
+            'Item' => $this->items()->with(['variant', 'location'])->get()->map(fn ($item) => trim(
+                $item->variant?->sku.' · terima '.$item->qty_received
+                .($item->qty_damaged ? ', rusak '.$item->qty_damaged : '')
+                .($item->qty_ordered !== null ? ', pesan '.$item->qty_ordered : '')
+                .' · '.($item->location?->code ?? 'tanpa bin')
+                .($item->notes ? ' · '.$item->notes : '')
+            ))->all(),
+        ];
     }
 }

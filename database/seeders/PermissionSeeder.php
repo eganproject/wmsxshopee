@@ -37,6 +37,7 @@ class PermissionSeeder extends Seeder
                     'suppliers.view', 'suppliers.create', 'suppliers.edit', 'suppliers.delete',
                     'receipts.view', 'receipts.create', 'receipts.receive', 'receipts.delete',
                     'sales.view', 'sales.create', 'sales.confirm', 'sales.fulfill', 'sales.cancel', 'sales.delete',
+                    'activity.view',
                 ]);
         }
 

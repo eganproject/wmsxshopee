@@ -9,6 +9,7 @@ use App\Models\Supplier;
 use App\Models\Warehouse;
 use App\Models\WarehouseLocation;
 use App\Services\StockService;
+use App\Support\Activity;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -100,7 +101,7 @@ class GoodsReceiptController extends Controller
 
         $data = $this->validated($request, $receipt);
 
-        DB::transaction(function () use ($request, $receipt, $data) {
+        Activity::track($receipt, fn () => DB::transaction(function () use ($request, $receipt, $data) {
             $receipt->update($data['header']);
             $receipt->items()->delete();
             $receipt->items()->createMany($data['items']);
@@ -112,7 +113,7 @@ class GoodsReceiptController extends Controller
             }
 
             $this->storeAttachment($request, $receipt);
-        });
+        }));
 
         return $this->afterSave($request, $receipt, $stock, 'diperbarui');
     }

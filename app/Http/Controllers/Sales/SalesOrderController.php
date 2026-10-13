@@ -9,6 +9,7 @@ use App\Models\SalesOrder;
 use App\Models\Warehouse;
 use App\Models\WarehouseLocation;
 use App\Services\SalesOrderService;
+use App\Support\Activity;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -114,11 +115,11 @@ class SalesOrderController extends Controller
 
         $data = $this->validated($request, $order);
 
-        DB::transaction(function () use ($order, $data) {
+        Activity::track($order, fn () => DB::transaction(function () use ($order, $data) {
             $order->update($data['header']);
             $order->items()->delete();
             $order->items()->createMany($data['items']);
-        });
+        }));
 
         return $this->afterSave($request, $order, $service, 'diperbarui');
     }

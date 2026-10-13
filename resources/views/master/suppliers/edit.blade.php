@@ -21,4 +21,6 @@
             <button type="submit" class="btn-primary"><x-heroicon-o-check class="size-5" /> Simpan Perubahan</button>
         </div>
     </form>
+
+    <x-activity.history :subject="$supplier" class="max-w-4xl" />
 </x-layouts.app>

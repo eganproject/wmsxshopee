@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\LogsActivity;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -17,7 +18,7 @@ use Spatie\Permission\Traits\HasRoles;
 class User extends Authenticatable
 {
     /** @use HasFactory<UserFactory> */
-    use HasFactory, HasRoles, Notifiable;
+    use HasFactory, HasRoles, LogsActivity, Notifiable;
 
     /**
      * The attributes that are mass assignable.
@@ -136,5 +137,31 @@ class User extends Authenticatable
             ->reject(fn (Role $role) => $role->name === config('permissions.super_admin_role'))
             ->filter(fn (Role $role) => $role->permissions->pluck('name')->diff($own)->isEmpty())
             ->values();
+    }
+
+    public function activityModule(): string
+    {
+        return 'users';
+    }
+
+    public function activityName(): string
+    {
+        return 'User';
+    }
+
+    public function activityLabel(): string
+    {
+        return $this->username ? "{$this->name} ({$this->username})" : $this->name;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function activityRelations(): array
+    {
+        return [
+            'Role' => $this->roles()->orderBy('name')->pluck('name')->all(),
+            'Permission Langsung' => $this->permissions()->orderBy('name')->pluck('name')->all(),
+        ];
     }
 }

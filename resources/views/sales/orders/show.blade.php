@@ -328,4 +328,6 @@
             </div>
         @endcan
     @endif
+
+    <x-activity.history :subject="$order" />
 </x-layouts.app>

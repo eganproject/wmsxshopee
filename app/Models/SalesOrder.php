@@ -2,12 +2,15 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\LogsActivity;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class SalesOrder extends Model
 {
+    use LogsActivity;
+
     public const PREFIX = 'SO';
 
     /** Urutan alur pesanan; label, ikon & warna badge. */
@@ -143,5 +146,27 @@ class SalesOrder extends Model
             ->max();
 
         return $prefix.str_pad((string) (($last ?? 0) + 1), 3, '0', STR_PAD_LEFT);
+    }
+
+    public function activityModule(): string
+    {
+        return 'sales';
+    }
+
+    public function activityName(): string
+    {
+        return 'Pesanan';
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function activityRelations(): array
+    {
+        return [
+            'Item' => $this->items()->with('variant')->get()->map(fn ($item) => $item->variant?->sku.' × '.$item->qty
+                .' @ '.number_format((float) $item->price, 0, ',', '.')
+                .($item->notes ? ' · '.$item->notes : ''))->all(),
+        ];
     }
 }

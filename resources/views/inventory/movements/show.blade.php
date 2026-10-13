@@ -95,4 +95,6 @@
     <p class="mt-4 flex items-center gap-1.5 text-xs text-slate-500">
         <x-heroicon-o-lock-closed class="size-4" /> Mutasi yang sudah disimpan tidak bisa diubah. Untuk koreksi, catat penyesuaian stok.
     </p>
+
+    <x-activity.history :subject="$movement" />
 </x-layouts.app>
