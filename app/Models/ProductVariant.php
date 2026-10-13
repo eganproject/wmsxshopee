@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class ProductVariant extends Model
 {
@@ -35,6 +36,24 @@ class ProductVariant extends Model
     public function product(): BelongsTo
     {
         return $this->belongsTo(Product::class);
+    }
+
+    public function stocks(): HasMany
+    {
+        return $this->hasMany(Stock::class);
+    }
+
+    public function ledgers(): HasMany
+    {
+        return $this->hasMany(StockLedger::class);
+    }
+
+    /** "SKU · Nama Produk / Varian" untuk pilihan & label. */
+    public function displayName(): string
+    {
+        $name = $this->product?->name.($this->name ? ' / '.$this->name : '');
+
+        return "{$this->sku} · {$name}";
     }
 
     /** Dimensi "P × L × T cm", atau null bila belum lengkap. */

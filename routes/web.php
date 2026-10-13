@@ -4,6 +4,9 @@ use App\Http\Controllers\Admin\RoleController;
 use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\Inventory\StockCardController;
+use App\Http\Controllers\Inventory\StockController;
+use App\Http\Controllers\Inventory\StockMovementController;
 use App\Http\Controllers\Master\CourierController;
 use App\Http\Controllers\Master\LocationController;
 use App\Http\Controllers\Master\ProductController;
@@ -52,6 +55,18 @@ Route::middleware(['auth', 'active'])->group(function () {
             Route::put("{$uri}/{{$param}}", [$controller, 'update'])->middleware("can:{$permission}.edit")->name("{$uri}.update");
             Route::delete("{$uri}/{{$param}}", [$controller, 'destroy'])->middleware("can:{$permission}.delete")->name("{$uri}.destroy");
         }
+    });
+
+    Route::prefix('inventory')->name('inventory.')->group(function () {
+        Route::get('stocks', [StockController::class, 'index'])->middleware('can:inventory.view')->name('stocks.index');
+        Route::get('stock-card', [StockCardController::class, 'index'])->middleware('can:inventory.view')->name('stock-card.index');
+
+        // Hak buat mutasi dicek di controller: penyesuaian butuh inventory.adjust,
+        // jenis lain inventory.create. Mutasi tidak bisa diubah/dihapus.
+        Route::get('movements', [StockMovementController::class, 'index'])->middleware('can:inventory.view')->name('movements.index');
+        Route::get('movements/create', [StockMovementController::class, 'create'])->name('movements.create');
+        Route::post('movements', [StockMovementController::class, 'store'])->name('movements.store');
+        Route::get('movements/{movement}', [StockMovementController::class, 'show'])->middleware('can:inventory.view')->name('movements.show');
     });
 
     Route::prefix('admin')->name('admin.')->group(function () {

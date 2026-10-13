@@ -47,6 +47,16 @@ return [
             ],
         ],
 
+        'inventory' => [
+            'label' => 'Stok & Kartu Stok',
+            'icon' => 'heroicon-o-archive-box',
+            'actions' => [
+                'view' => 'Lihat stok, kartu stok & mutasi',
+                'create' => 'Catat barang masuk, keluar & transfer lokasi',
+                'adjust' => 'Catat penyesuaian stok',
+            ],
+        ],
+
         'couriers' => [
             'label' => 'Master Kurir',
             'icon' => 'heroicon-o-truck',

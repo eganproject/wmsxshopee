@@ -11,6 +11,9 @@ Dibangun dengan Laravel 12, Blade, Tailwind CSS dan Alpine.js.
 - Role & permission (spatie/laravel-permission)
 - Profil pengguna
 - Master produk: SKU internal, varian, barcode, satuan, berat, dimensi dan gambar produk
+- Stok per varian per lokasi bin, mutasi stok (masuk, keluar, transfer lokasi, penyesuaian) dan kartu stok dengan saldo berjalan
+
+Rencana tahap berikutnya ada di [docs/ROADMAP.md](docs/ROADMAP.md).
 
 ## Instalasi
 

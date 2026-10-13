@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class WarehouseLocation extends Model
 {
@@ -46,6 +47,16 @@ class WarehouseLocation extends Model
     public function rack(): BelongsTo
     {
         return $this->belongsTo(WarehouseRack::class, 'warehouse_rack_id');
+    }
+
+    public function stocks(): HasMany
+    {
+        return $this->hasMany(Stock::class);
+    }
+
+    public function ledgers(): HasMany
+    {
+        return $this->hasMany(StockLedger::class);
     }
 
     public function typeLabel(): string
