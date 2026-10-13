@@ -20,14 +20,14 @@
                 <div class="flex items-start justify-between gap-3">
                     <div class="flex items-center gap-3">
                         <span @class([
-                            'flex size-11 items-center justify-center rounded-xl',
-                            'bg-brand-500 text-white' => $isSuper,
-                            'bg-violet-50 text-violet-600' => ! $isSuper,
+                            'flex size-9 items-center justify-center rounded-lg',
+                            'bg-slate-900 text-white' => $isSuper,
+                            'bg-slate-100 text-slate-600' => ! $isSuper,
                         ])>
                             @if ($isSuper)
-                                <x-heroicon-o-shield-exclamation class="size-6" />
+                                <x-heroicon-o-shield-exclamation class="size-5" />
                             @else
-                                <x-heroicon-o-shield-check class="size-6" />
+                                <x-heroicon-o-shield-check class="size-5" />
                             @endif
                         </span>
                         <div>
@@ -74,7 +74,7 @@
                     <x-heroicon-o-user-group class="size-5 text-slate-400" />
                     {{ $role->users_count }} user
                     @can('users.view')
-                        <a href="{{ route('admin.users.index', ['role' => $role->name]) }}" class="ml-auto text-sm font-medium text-brand-600 hover:text-brand-700">Lihat user</a>
+                        <a href="{{ route('admin.users.index', ['role' => $role->name]) }}" class="ml-auto text-sm text-slate-600 hover:text-slate-900">Lihat user</a>
                     @endcan
                 </div>
             </div>

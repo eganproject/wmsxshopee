@@ -13,12 +13,12 @@
 
     {{-- Informasi akun --}}
     <div class="card">
-        <div class="border-b border-slate-100 px-6 py-4">
-            <h2 class="flex items-center gap-2 font-semibold text-slate-900">
-                <x-heroicon-o-identification class="size-5 text-slate-400" /> Informasi Akun
+        <div class="border-b border-slate-100 px-5 py-3">
+            <h2 class="flex items-center gap-2 text-base font-semibold text-slate-900">
+                Informasi Akun
             </h2>
         </div>
-        <div class="grid gap-5 p-6 sm:grid-cols-2">
+        <div class="grid gap-x-6 gap-y-4 p-5 sm:grid-cols-2">
             <x-input name="name" label="Nama Lengkap" icon="heroicon-o-user" :value="$user->name" placeholder="cth. Budi Santoso" required />
             <x-input name="username" label="Username" icon="heroicon-o-at-symbol" :value="$user->username" placeholder="cth. budi_santoso"
                      hint="Hanya huruf, angka, tanda - dan _ (tanpa spasi)." required />
@@ -29,15 +29,15 @@
 
     {{-- Password --}}
     <div class="card">
-        <div class="border-b border-slate-100 px-6 py-4">
-            <h2 class="flex items-center gap-2 font-semibold text-slate-900">
-                <x-heroicon-o-lock-closed class="size-5 text-slate-400" /> Password
+        <div class="border-b border-slate-100 px-5 py-3">
+            <h2 class="flex items-center gap-2 text-base font-semibold text-slate-900">
+                Password
             </h2>
             @if ($user->exists)
                 <p class="mt-0.5 text-sm text-slate-500">Kosongkan jika tidak ingin mengubah password.</p>
             @endif
         </div>
-        <div class="grid gap-5 p-6 sm:grid-cols-2">
+        <div class="grid gap-x-6 gap-y-4 p-5 sm:grid-cols-2">
             <x-input name="password" type="password" label="Password" autocomplete="new-password"
                      hint="Minimal 8 karakter, kombinasi huruf & angka." :required="! $user->exists" />
             <x-input name="password_confirmation" type="password" label="Konfirmasi Password" autocomplete="new-password" :required="! $user->exists" />
@@ -62,27 +62,27 @@
             <label class="relative inline-flex cursor-pointer items-center">
                 <input type="hidden" name="is_active" value="0">
                 <input type="checkbox" name="is_active" value="1" class="peer sr-only" @checked(old('is_active', $user->is_active))>
-                <span class="h-6 w-11 rounded-full bg-slate-200 transition peer-checked:bg-emerald-500 peer-focus-visible:ring-2 peer-focus-visible:ring-brand-500 peer-focus-visible:ring-offset-2"></span>
-                <span class="absolute left-0.5 size-5 rounded-full bg-white shadow transition peer-checked:translate-x-5"></span>
+                <span class="h-5 w-9 rounded-full bg-slate-300 transition peer-checked:bg-slate-900 peer-focus-visible:ring-2 peer-focus-visible:ring-slate-300 peer-focus-visible:ring-offset-2"></span>
+                <span class="absolute left-0.5 size-4 rounded-full bg-white shadow-sm transition peer-checked:translate-x-4"></span>
             </label>
         </div>
 
         {{-- Role --}}
         <div class="card">
-            <div class="border-b border-slate-100 px-6 py-4">
-                <h2 class="flex items-center gap-2 font-semibold text-slate-900">
-                    <x-heroicon-o-shield-check class="size-5 text-slate-400" /> Role
+            <div class="border-b border-slate-100 px-5 py-3">
+                <h2 class="flex items-center gap-2 text-base font-semibold text-slate-900">
+                    Role
                 </h2>
                 <p class="mt-0.5 text-sm text-slate-500">User otomatis mendapatkan semua permission dari role yang dipilih.</p>
             </div>
-            <div class="p-6">
+            <div class="p-5">
                 @error('roles.*')
                     <p class="mb-3 flex items-center gap-1 text-sm text-rose-600"><x-heroicon-o-exclamation-triangle class="size-4" /> {{ $message }}</p>
                 @enderror
                 <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                     @forelse ($roles as $role)
-                        <label class="flex cursor-pointer items-start gap-3 rounded-xl border border-slate-200 p-4 transition hover:border-brand-300"
-                               :class="selectedRoles.includes({{ $role->id }}) && 'border-brand-500 bg-brand-50/50 ring-1 ring-brand-500'">
+                        <label class="flex cursor-pointer items-start gap-3 rounded-lg border border-slate-200 p-3 transition hover:border-slate-300"
+                               :class="selectedRoles.includes({{ $role->id }}) && 'border-slate-900 ring-1 ring-slate-900'">
                             <input type="checkbox" name="roles[]" value="{{ $role->id }}" class="form-checkbox mt-0.5" x-model.number="selectedRoles">
                             <span>
                                 <span class="block text-sm font-medium text-slate-900">{{ $role->name }}</span>
@@ -104,7 +104,7 @@
 
         {{-- Permission tambahan --}}
         <div class="card" x-data="{ open: @js(count($selectedPermissions) > 0) }">
-            <button type="button" class="flex w-full items-center justify-between gap-4 px-6 py-4 text-left" @click="open = !open">
+            <button type="button" class="flex w-full items-center justify-between gap-4 px-5 py-3 text-left" @click="open = !open">
                 <span>
                     <span class="flex items-center gap-2 font-semibold text-slate-900">
                         <x-heroicon-o-key class="size-5 text-slate-400" /> Permission Tambahan
@@ -115,7 +115,7 @@
                 <x-heroicon-o-chevron-down class="size-5 shrink-0 text-slate-400 transition" ::class="open && 'rotate-180'" />
             </button>
             <div x-show="open" x-collapse x-cloak>
-                <div class="border-t border-slate-100 p-6">
+                <div class="border-t border-slate-100 p-5">
                     @error('permissions.*')
                         <p class="mb-3 flex items-center gap-1 text-sm text-rose-600"><x-heroicon-o-exclamation-triangle class="size-4" /> {{ $message }}</p>
                     @enderror

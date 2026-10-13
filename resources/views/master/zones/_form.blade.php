@@ -1,12 +1,12 @@
 <div class="space-y-6">
     <div class="card">
-        <div class="border-b border-slate-100 px-6 py-4">
-            <h2 class="flex items-center gap-2 font-semibold text-slate-900">
-                <x-heroicon-o-squares-2x2 class="size-5 text-slate-400" /> Informasi Zona
+        <div class="border-b border-slate-100 px-5 py-3">
+            <h2 class="flex items-center gap-2 text-base font-semibold text-slate-900">
+                Informasi Zona
             </h2>
             <p class="mt-0.5 text-sm text-slate-500">Zona membagi area gudang sesuai fungsinya, misalnya penerimaan, penyimpanan, atau packing.</p>
         </div>
-        <div class="grid gap-5 p-6 sm:grid-cols-2">
+        <div class="grid gap-x-6 gap-y-4 p-5 sm:grid-cols-2">
             <x-select name="warehouse_id" label="Gudang" class="sm:col-span-2" required>
                 <option value="">Pilih gudang</option>
                 @foreach ($warehouses as $warehouse)
@@ -15,7 +15,7 @@
                     </option>
                 @endforeach
             </x-select>
-            <x-input name="code" label="Kode Zona" icon="heroicon-o-hashtag" :value="$zone->code" placeholder="cth. A" class="uppercase"
+            <x-input name="code" label="Kode Zona" icon="heroicon-o-hashtag" :value="$zone->code" placeholder="cth. A" class="[&_input]:uppercase"
                      hint="Unik di dalam satu gudang." required />
             <x-input name="name" label="Nama Zona" :value="$zone->name" placeholder="cth. Zona Penyimpanan A" required />
             <x-select name="type" label="Jenis Zona" class="sm:col-span-2" required>

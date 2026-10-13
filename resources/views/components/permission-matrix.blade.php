@@ -9,12 +9,12 @@
         @php($names = $group['permissions']->pluck('name'))
         <div class="rounded-xl border border-slate-200"
              x-data="{ names: @js($names) }">
-            <div class="flex items-center justify-between gap-3 border-b border-slate-100 bg-slate-50/70 px-4 py-3">
-                <span class="flex items-center gap-2 text-sm font-semibold text-slate-800">
-                    <x-dynamic-component :component="$group['icon']" class="size-5 text-slate-400" />
+            <div class="flex items-center justify-between gap-3 border-b border-slate-100 bg-slate-50 px-4 py-2.5">
+                <span class="flex items-center gap-2 text-sm font-medium text-slate-900">
+                    <x-dynamic-component :component="$group['icon']" class="size-4 text-slate-500" />
                     {{ $group['label'] }}
                 </span>
-                <button type="button" class="text-xs font-medium text-brand-600 hover:text-brand-700"
+                <button type="button" class="text-xs text-slate-600 hover:text-slate-900"
                         @click="
                             const boxes = names.map(n => $root.querySelector(`[data-permission='${n}']`)).filter(b => b && !b.disabled);
                             const all = boxes.every(b => b.checked);
@@ -25,7 +25,7 @@
             </div>
             <div class="divide-y divide-slate-100">
                 @foreach ($group['permissions'] as $permission)
-                    <label class="flex cursor-pointer items-center gap-3 px-4 py-2.5 hover:bg-slate-50"
+                    <label class="flex cursor-pointer items-center gap-3 px-4 py-2 hover:bg-slate-50"
                            @if ($inherited) :class="{{ $inherited }}('{{ $permission['name'] }}') && 'cursor-default opacity-70'" @endif>
                         <input type="checkbox" name="permissions[]" value="{{ $permission['name'] }}"
                                data-permission="{{ $permission['name'] }}" class="form-checkbox"

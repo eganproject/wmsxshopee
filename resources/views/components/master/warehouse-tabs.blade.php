@@ -1,23 +1,23 @@
 {{-- Navigasi antar master struktur gudang: Gudang → Zona → Rak → Lokasi Bin --}}
 @php
     $tabs = [
-        ['label' => 'Gudang', 'route' => 'master.warehouses.index', 'active' => 'master.warehouses.*', 'icon' => 'heroicon-o-building-office-2'],
-        ['label' => 'Zona', 'route' => 'master.zones.index', 'active' => 'master.zones.*', 'icon' => 'heroicon-o-squares-2x2'],
-        ['label' => 'Rak', 'route' => 'master.racks.index', 'active' => 'master.racks.*', 'icon' => 'heroicon-o-view-columns'],
-        ['label' => 'Lokasi Bin', 'route' => 'master.locations.index', 'active' => 'master.locations.*', 'icon' => 'heroicon-o-map-pin'],
+        ['label' => 'Gudang', 'route' => 'master.warehouses.index', 'active' => 'master.warehouses.*'],
+        ['label' => 'Zona', 'route' => 'master.zones.index', 'active' => 'master.zones.*'],
+        ['label' => 'Rak', 'route' => 'master.racks.index', 'active' => 'master.racks.*'],
+        ['label' => 'Lokasi Bin', 'route' => 'master.locations.index', 'active' => 'master.locations.*'],
     ];
 @endphp
 
-<nav class="mb-6 flex gap-1 overflow-x-auto rounded-xl border border-slate-200 bg-white p-1 shadow-sm">
+<nav class="mb-5 flex gap-5 overflow-x-auto border-b border-slate-200">
     @foreach ($tabs as $tab)
         @php($active = request()->routeIs($tab['active']))
         <a href="{{ route($tab['route']) }}"
            @class([
-               'flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium whitespace-nowrap transition',
-               'bg-brand-50 text-brand-700' => $active,
-               'text-slate-600 hover:bg-slate-50 hover:text-slate-900' => ! $active,
+               '-mb-px border-b-[1.5px] pt-1 pb-2.5 text-sm whitespace-nowrap transition',
+               'border-slate-900 text-slate-900' => $active,
+               'border-transparent text-slate-500 hover:text-slate-900' => ! $active,
            ])>
-            <x-dynamic-component :component="$tab['icon']" class="size-5" /> {{ $tab['label'] }}
+            {{ $tab['label'] }}
         </a>
     @endforeach
 </nav>

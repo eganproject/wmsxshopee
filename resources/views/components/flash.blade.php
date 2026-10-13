@@ -12,11 +12,11 @@
             <div x-data="{ show: true }" x-init="setTimeout(() => show = false, 5000)" x-show="show"
                  x-transition:enter="transition ease-out duration-300" x-transition:enter-start="opacity-0 translate-y-2"
                  x-transition:leave="transition ease-in duration-200" x-transition:leave-end="opacity-0"
-                 class="pointer-events-auto flex w-full max-w-sm items-start gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-lg">
-                <x-dynamic-component :component="$style['icon']" class="size-6 shrink-0 {{ $style['class'] }}" />
+                 class="pointer-events-auto flex w-full max-w-sm items-start gap-2.5 rounded-xl border border-slate-200 bg-white p-3 shadow-lg">
+                <x-dynamic-component :component="$style['icon']" class="size-5 shrink-0 {{ $style['class'] }}" />
                 <p class="flex-1 pt-0.5 text-sm text-slate-700">{{ session($type) }}</p>
                 <button type="button" @click="show = false" class="text-slate-400 hover:text-slate-600">
-                    <x-heroicon-o-x-mark class="size-5" />
+                    <x-heroicon-o-x-mark class="size-4" />
                 </button>
             </div>
         @endif

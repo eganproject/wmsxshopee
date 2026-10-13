@@ -20,8 +20,8 @@
     <div class="card">
         <form method="GET" class="flex flex-col gap-3 border-b border-slate-100 p-4 md:flex-row md:items-center">
             <div class="relative flex-1">
-                <x-heroicon-o-magnifying-glass class="pointer-events-none absolute top-1/2 left-3.5 size-5 -translate-y-1/2 text-slate-400" />
-                <input type="search" name="search" value="{{ request('search') }}" placeholder="Cari kode lokasi..." class="form-input pl-11">
+                <x-heroicon-o-magnifying-glass class="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-slate-400" />
+                <input type="search" name="search" value="{{ request('search') }}" placeholder="Cari kode lokasi..." class="form-input pl-8">
             </div>
             <select name="warehouse" class="form-input md:w-52" onchange="this.form.submit()">
                 <option value="">Semua gudang</option>
@@ -50,29 +50,29 @@
 
         <div class="overflow-x-auto">
             <table class="min-w-full text-sm">
-                <thead class="bg-slate-50 text-left text-xs font-semibold tracking-wider text-slate-500 uppercase">
+                <thead class="bg-slate-50 text-left text-[13px] text-slate-500">
                     <tr>
-                        <th class="px-5 py-3">Kode Lokasi</th>
-                        <th class="px-5 py-3">Gudang / Zona / Rak</th>
-                        <th class="px-5 py-3 text-center">Level</th>
-                        <th class="px-5 py-3 text-center">Posisi</th>
-                        <th class="px-5 py-3">Jenis</th>
-                        <th class="px-5 py-3">Kapasitas</th>
-                        <th class="px-5 py-3">Status</th>
-                        <th class="px-5 py-3 text-right">Aksi</th>
+                        <th class="h-8 px-4 py-0 font-normal">Kode Lokasi</th>
+                        <th class="h-8 px-4 py-0 font-normal">Gudang / Zona / Rak</th>
+                        <th class="h-8 px-4 py-0 font-normal text-center">Level</th>
+                        <th class="h-8 px-4 py-0 font-normal text-center">Posisi</th>
+                        <th class="h-8 px-4 py-0 font-normal">Jenis</th>
+                        <th class="h-8 px-4 py-0 font-normal">Kapasitas</th>
+                        <th class="h-8 px-4 py-0 font-normal">Status</th>
+                        <th class="h-8 px-4 py-0 font-normal text-right">Aksi</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-slate-100">
                     @forelse ($locations as $location)
                         <tr class="hover:bg-slate-50/60">
-                            <td class="px-5 py-3.5 font-mono font-medium text-slate-900">{{ $location->code }}</td>
-                            <td class="px-5 py-3.5 text-slate-600">
+                            <td class="px-4 py-2.5 font-mono font-medium text-slate-900">{{ $location->code }}</td>
+                            <td class="px-4 py-2.5 text-slate-600">
                                 {{ $location->warehouse->code }} · Zona {{ $location->rack->zone->code }} · Rak {{ $location->rack->code }}
                             </td>
-                            <td class="px-5 py-3.5 text-center text-slate-700">{{ $location->level ?? '—' }}</td>
-                            <td class="px-5 py-3.5 text-center text-slate-700">{{ $location->position ?? '—' }}</td>
-                            <td class="px-5 py-3.5 text-slate-600">{{ $location->typeLabel() }}</td>
-                            <td class="px-5 py-3.5 text-slate-600">
+                            <td class="px-4 py-2.5 text-center text-slate-700">{{ $location->level ?? '—' }}</td>
+                            <td class="px-4 py-2.5 text-center text-slate-700">{{ $location->position ?? '—' }}</td>
+                            <td class="px-4 py-2.5 text-slate-600">{{ $location->typeLabel() }}</td>
+                            <td class="px-4 py-2.5 text-slate-600">
                                 @if ($location->max_qty || $location->max_weight_kg)
                                     {{ collect([
                                         $location->max_qty ? number_format($location->max_qty, 0, ',', '.').' pcs' : null,
@@ -82,8 +82,8 @@
                                     <span class="text-slate-400">—</span>
                                 @endif
                             </td>
-                            <td class="px-5 py-3.5"><x-status-badge :active="$location->is_active" /></td>
-                            <td class="px-5 py-3.5">
+                            <td class="px-4 py-2.5"><x-status-badge :active="$location->is_active" /></td>
+                            <td class="px-4 py-2.5">
                                 <div class="flex items-center justify-end gap-1">
                                     @can('warehouses.edit')
                                         <a href="{{ route('master.locations.edit', $location) }}" class="btn-icon" title="Edit">

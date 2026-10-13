@@ -14,7 +14,7 @@
             <p class="text-sm text-slate-500">{{ '@'.$user->username }}</p>
             <div class="mt-4 flex flex-wrap justify-center gap-2">
                 @forelse ($user->roles as $role)
-                    <span class="rounded-full bg-brand-50 px-3 py-1 text-xs font-medium text-brand-700 ring-1 ring-brand-100">{{ $role->name }}</span>
+                    <span class="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs text-slate-700">{{ $role->name }}</span>
                 @empty
                     <span class="text-xs text-slate-400">Tanpa role</span>
                 @endforelse
@@ -33,19 +33,19 @@
         <form method="POST" action="{{ route('profile.update') }}" class="card lg:col-span-2">
             @csrf
             @method('PUT')
-            <div class="border-b border-slate-100 px-6 py-4">
-                <h2 class="flex items-center gap-2 font-semibold text-slate-900">
-                    <x-heroicon-o-identification class="size-5 text-slate-400" /> Informasi Akun
+            <div class="border-b border-slate-100 px-5 py-3">
+                <h2 class="flex items-center gap-2 text-base font-semibold text-slate-900">
+                    Informasi Akun
                 </h2>
             </div>
-            <div class="grid gap-5 p-6 sm:grid-cols-2">
+            <div class="grid gap-x-6 gap-y-4 p-5 sm:grid-cols-2">
                 <x-input name="name" label="Nama Lengkap" icon="heroicon-o-user" :value="$user->name" required class="sm:col-span-2" />
                 <x-input name="email" type="email" label="Email" icon="heroicon-o-envelope" :value="$user->email" required />
                 <x-input name="phone" label="No. Telepon" icon="heroicon-o-phone" :value="$user->phone" />
                 <x-input name="username_display" label="Username" icon="heroicon-o-at-symbol" :value="$user->username" disabled
                          hint="Username hanya bisa diubah oleh administrator." class="sm:col-span-2" />
             </div>
-            <div class="flex justify-end border-t border-slate-100 px-6 py-4">
+            <div class="flex justify-end border-t border-slate-100 px-5 py-3">
                 <button type="submit" class="btn-primary"><x-heroicon-o-check class="size-5" /> Simpan Perubahan</button>
             </div>
         </form>
@@ -53,18 +53,18 @@
         <form method="POST" action="{{ route('profile.password') }}" class="card lg:col-span-2">
             @csrf
             @method('PUT')
-            <div class="border-b border-slate-100 px-6 py-4">
-                <h2 class="flex items-center gap-2 font-semibold text-slate-900">
-                    <x-heroicon-o-lock-closed class="size-5 text-slate-400" /> Ubah Password
+            <div class="border-b border-slate-100 px-5 py-3">
+                <h2 class="flex items-center gap-2 text-base font-semibold text-slate-900">
+                    Ubah Password
                 </h2>
             </div>
-            <div class="grid gap-5 p-6 sm:grid-cols-2">
+            <div class="grid gap-x-6 gap-y-4 p-5 sm:grid-cols-2">
                 <x-input name="current_password" type="password" bag="password" label="Password Saat Ini" autocomplete="current-password" required class="sm:col-span-2" />
                 <x-input name="password" type="password" bag="password" label="Password Baru" autocomplete="new-password"
                          hint="Minimal 8 karakter, kombinasi huruf & angka." required />
                 <x-input name="password_confirmation" type="password" bag="password" label="Konfirmasi Password Baru" autocomplete="new-password" required />
             </div>
-            <div class="flex justify-end border-t border-slate-100 px-6 py-4">
+            <div class="flex justify-end border-t border-slate-100 px-5 py-3">
                 <button type="submit" class="btn-primary"><x-heroicon-o-key class="size-5" /> Ubah Password</button>
             </div>
         </form>

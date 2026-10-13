@@ -1,57 +1,20 @@
 <x-layouts.guest title="Masuk">
-    <div class="flex min-h-full">
-        {{-- Panel brand --}}
-        <div class="relative hidden w-1/2 overflow-hidden bg-slate-900 lg:flex lg:flex-col lg:justify-between lg:p-12">
-            <div class="absolute -top-32 -right-32 size-96 rounded-full bg-brand-500/20 blur-3xl"></div>
-            <div class="absolute -bottom-40 -left-20 size-96 rounded-full bg-brand-500/10 blur-3xl"></div>
-
-            <div class="relative flex items-center gap-3">
-                <x-app-logo class="size-11 rounded-xl shadow-lg" />
-                <span class="leading-tight">
-                    <span class="block text-lg font-semibold text-white">{{ config('app.name') }}</span>
-                    <span class="block text-xs text-slate-400">{{ config('app.tagline') }}</span>
-                </span>
+    <div class="flex min-h-full items-center justify-center bg-slate-50 px-4 py-12">
+        <div class="w-full max-w-sm">
+            <div class="mb-6 flex flex-col items-center text-center">
+                <x-app-logo class="size-10 rounded-lg" />
+                <h1 class="mt-4 text-xl font-semibold tracking-normal text-slate-900">Masuk ke {{ config('app.name') }}</h1>
+                <p class="mt-1 text-sm text-slate-500">{{ config('app.tagline') }}</p>
             </div>
 
-            <div class="relative max-w-md">
-                <h2 class="text-3xl leading-tight font-semibold text-white">Optimalkan gudang & pesanan Shopee dalam satu tempat.</h2>
-                <ul class="mt-8 space-y-4 text-slate-300">
-                    <li class="flex items-center gap-3">
-                        <span class="flex size-9 items-center justify-center rounded-lg bg-white/10"><x-heroicon-o-archive-box class="size-5 text-brand-300" /></span>
-                        Stok & inventori gudang real-time
-                    </li>
-                    <li class="flex items-center gap-3">
-                        <span class="flex size-9 items-center justify-center rounded-lg bg-white/10"><x-heroicon-o-building-storefront class="size-5 text-brand-300" /></span>
-                        Terintegrasi dengan Shopee Seller
-                    </li>
-                    <li class="flex items-center gap-3">
-                        <span class="flex size-9 items-center justify-center rounded-lg bg-white/10"><x-heroicon-o-shield-check class="size-5 text-brand-300" /></span>
-                        Hak akses tiap user dapat diatur
-                    </li>
-                </ul>
-            </div>
-
-            <p class="relative text-sm text-slate-500">&copy; {{ date('Y') }} {{ config('app.name') }} &middot; {{ config('app.tagline') }}</p>
-        </div>
-
-        {{-- Form --}}
-        <div class="flex flex-1 items-center justify-center px-6 py-12 sm:px-12">
-            <div class="w-full max-w-sm">
-                <div class="mb-8 flex items-center gap-3 lg:hidden">
-                    <x-app-logo class="size-10 rounded-xl" />
-                    <span class="text-lg font-semibold text-slate-900">{{ config('app.name') }}</span>
-                </div>
-
-                <h1 class="text-2xl font-semibold text-slate-900">Selamat datang kembali</h1>
-                <p class="mt-1.5 text-sm text-slate-500">Masuk ke {{ config('app.name') }} menggunakan akun yang diberikan administrator.</p>
-
+            <div class="card p-6">
                 @if (session('status'))
-                    <div class="mt-6 flex items-center gap-2 rounded-lg bg-emerald-50 px-4 py-3 text-sm text-emerald-700 ring-1 ring-emerald-200">
-                        <x-heroicon-o-check-circle class="size-5 shrink-0" /> {{ session('status') }}
+                    <div class="mb-4 flex items-center gap-2 rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-700 ring-1 ring-emerald-200">
+                        <x-heroicon-o-check-circle class="size-4 shrink-0" /> {{ session('status') }}
                     </div>
                 @endif
 
-                <form method="POST" action="{{ route('login.store') }}" class="mt-8 space-y-5" x-data="{ loading: false }" @submit="loading = true">
+                <form method="POST" action="{{ route('login.store') }}" class="space-y-4" x-data="{ loading: false }" @submit="loading = true">
                     @csrf
 
                     <x-input name="login" label="Email atau Username" icon="heroicon-o-user"
@@ -65,18 +28,17 @@
                         Ingat saya
                     </label>
 
-                    <button type="submit" class="btn-primary w-full py-3" :disabled="loading">
+                    <button type="submit" class="btn-primary w-full" :disabled="loading">
                         <x-heroicon-o-arrow-path class="size-5 animate-spin" x-show="loading" x-cloak />
                         <x-heroicon-o-arrow-right-start-on-rectangle class="size-5 rotate-180" x-show="!loading" />
                         <span x-text="loading ? 'Memproses...' : 'Masuk'">Masuk</span>
                     </button>
                 </form>
-
-                <p class="mt-8 flex items-start gap-2 rounded-lg bg-slate-50 p-3 text-xs text-slate-500">
-                    <x-heroicon-o-information-circle class="size-4 shrink-0 text-slate-400" />
-                    Belum punya akun atau lupa password? Hubungi administrator untuk dibuatkan / direset.
-                </p>
             </div>
+
+            <p class="mt-4 text-center text-xs text-slate-500">
+                Belum punya akun atau lupa password? Hubungi administrator untuk dibuatkan / direset.
+            </p>
         </div>
     </div>
 </x-layouts.guest>

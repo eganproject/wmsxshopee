@@ -11,12 +11,12 @@
         <a href="{{ route('master.locations.index') }}" class="btn-secondary"><x-heroicon-o-arrow-left class="size-5" /> Kembali</a>
     </x-page-header>
 
-    <form method="POST" action="{{ route('master.locations.update', $location) }}" class="mx-auto max-w-3xl">
+    <form method="POST" action="{{ route('master.locations.update', $location) }}" class="max-w-3xl">
         @csrf
         @method('PUT')
         @include('master.locations._form')
 
-        <div class="sticky bottom-0 mt-6 flex justify-end gap-3 border-t border-slate-200 bg-slate-50/90 py-4 backdrop-blur">
+        <div class="sticky bottom-0 mt-6 flex justify-end gap-2 border-t border-slate-200 bg-white/90 py-3 backdrop-blur">
             <a href="{{ route('master.locations.index') }}" class="btn-secondary">Batal</a>
             <button type="submit" class="btn-primary"><x-heroicon-o-check class="size-5" /> Simpan Perubahan</button>
         </div>
