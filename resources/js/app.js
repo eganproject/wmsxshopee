@@ -72,6 +72,44 @@ Alpine.data('themeToggle', () => ({
     },
 }));
 
+// Sidebar diciutkan (ikon saja) di layar lebar, tersimpan per browser.
+Alpine.data('sidebarToggle', () => ({
+    collapsed: document.documentElement.classList.contains('sidebar-collapsed'),
+    toggle() {
+        this.collapsed = ! this.collapsed;
+        document.documentElement.classList.toggle('sidebar-collapsed', this.collapsed);
+        try { localStorage.setItem('sidebar', this.collapsed ? 'collapsed' : 'expanded'); } catch (e) {}
+        document.getElementById('sidebar-tip')?.classList.add('hidden');
+    },
+}));
+
+// Nama menu muncul di samping ikon saat sidebar diciutkan (tooltip fixed agar tidak terpotong scroll menu).
+Alpine.data('sidebarTips', () => ({
+    init() {
+        const tip = document.getElementById('sidebar-tip');
+        const active = () => document.documentElement.classList.contains('sidebar-collapsed') && window.matchMedia('(min-width: 64rem)').matches;
+        const show = (event) => {
+            const target = event.target.closest?.('[data-tip]');
+            if (! tip) return;
+            if (! target || ! active()) {
+                tip.classList.add('hidden');
+                return;
+            }
+            const rect = target.getBoundingClientRect();
+            tip.textContent = target.dataset.tip;
+            tip.style.left = `${rect.right + 8}px`;
+            tip.style.top = `${rect.top + rect.height / 2}px`;
+            tip.classList.remove('hidden');
+        };
+        const hide = () => tip?.classList.add('hidden');
+        this.$el.addEventListener('mouseover', show);
+        this.$el.addEventListener('focusin', show);
+        this.$el.addEventListener('mouseleave', hide);
+        this.$el.addEventListener('focusout', hide);
+        this.$el.querySelector('nav')?.addEventListener('scroll', hide);
+    },
+}));
+
 window.Alpine = Alpine;
 window.Optima = { ...window.Optima, enhance, enhanceSelect, enhanceDate, toast };
 initUi(toast);

@@ -51,6 +51,9 @@
  */
 @custom-variant dark (&:where(.dark, .dark *));
 
+/* Sidebar diciutkan jadi ikon saja: kelas `.sidebar-collapsed` di <html>, dipakai bersama lg:. */
+@custom-variant collapsed (&:where(.sidebar-collapsed *));
+
 @layer base {
     .dark {
         color-scheme: dark;

@@ -80,6 +80,10 @@
     <link href="https://fonts.bunny.net/css?family=inter:400,500,600,700&display=swap" rel="stylesheet" />
 
     <x-theme-script />
+    {{-- Sidebar diciutkan (khusus layar lebar) dipasang sebelum tampil agar tidak bergeser. --}}
+    <script>
+        try { if (localStorage.getItem('sidebar') === 'collapsed') document.documentElement.classList.add('sidebar-collapsed'); } catch (e) {}
+    </script>
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 </head>
 <body class="h-full font-sans text-sm text-slate-900 antialiased" x-data="{ sidebarOpen: false }" @keydown.escape.window="sidebarOpen = false">
@@ -90,12 +94,12 @@
          class="fixed inset-0 z-40 bg-black/40 lg:hidden"></div>
 
     {{-- Sidebar --}}
-    <aside class="fixed inset-y-0 left-0 z-50 flex w-60 -translate-x-full flex-col border-r border-slate-200 bg-slate-50 p-2 transition-transform duration-200 lg:translate-x-0"
-           :class="sidebarOpen && 'translate-x-0'">
-        <div class="flex items-center justify-between gap-2 px-1.5 pt-1 pb-2">
-            <a href="{{ route('dashboard') }}" class="flex min-w-0 items-center gap-2 rounded-lg p-1 hover:bg-slate-100">
-                <x-app-logo class="size-7" />
-                <span class="min-w-0 leading-tight">
+    <aside class="fixed inset-y-0 left-0 z-50 flex w-60 -translate-x-full flex-col border-r border-slate-200 bg-slate-50 p-2 transition-[transform,width] duration-200 lg:translate-x-0 lg:collapsed:w-14"
+           :class="sidebarOpen && 'translate-x-0'" x-data="sidebarTips">
+        <div class="flex items-center justify-between gap-2 px-1.5 pt-1 pb-2 lg:collapsed:justify-center lg:collapsed:px-0">
+            <a href="{{ route('dashboard') }}" class="flex min-w-0 items-center gap-2 rounded-lg p-1 hover:bg-slate-100" data-tip="Dashboard">
+                <x-app-logo class="size-7 shrink-0" />
+                <span class="min-w-0 leading-tight lg:collapsed:hidden">
                     <span class="block truncate text-sm font-medium text-slate-900">{{ config('app.name') }}</span>
                     <span class="block truncate text-xs text-slate-500">{{ config('app.tagline') }}</span>
                 </span>
@@ -105,26 +109,27 @@
             </button>
         </div>
 
-        <nav class="flex-1 overflow-y-auto">
+        <nav class="flex-1 overflow-x-hidden overflow-y-auto">
             @foreach ($navigation as $section)
                 @php($items = collect($section['items'])->filter(fn ($item) => ! $item['can'] || $user->canAny((array) $item['can'])))
                 @if ($items->isNotEmpty())
                     <div class="mt-1">
                         @if ($section['heading'])
-                            <p class="px-2 pt-3 pb-1 text-xs text-slate-500">{{ $section['heading'] }}</p>
+                            <p class="px-2 pt-3 pb-1 text-xs whitespace-nowrap text-slate-500 lg:collapsed:hidden">{{ $section['heading'] }}</p>
+                            <hr class="mx-2 my-2 hidden border-slate-200 lg:collapsed:block">
                         @endif
                         <ul class="space-y-px">
                             @foreach ($items as $item)
                                 @php($active = request()->routeIs($item['active']))
                                 <li>
-                                    <a href="{{ route($item['route']) }}"
+                                    <a href="{{ route($item['route']) }}" data-tip="{{ $item['label'] }}" @if ($active) aria-current="page" @endif
                                        @class([
-                                           'flex h-7 items-center gap-2 rounded-lg px-2 text-[13px] transition',
+                                           'flex h-7 items-center gap-2 rounded-lg px-2 text-[13px] whitespace-nowrap transition lg:collapsed:justify-center lg:collapsed:px-0',
                                            'bg-white font-medium text-slate-900 shadow-sm ring-1 ring-slate-200' => $active,
                                            'text-slate-700 hover:bg-slate-100' => ! $active,
                                        ])>
                                         <x-dynamic-component :component="$item['icon']" @class(['size-4 shrink-0', 'text-slate-900' => $active, 'text-slate-500' => ! $active]) />
-                                        {{ $item['label'] }}
+                                        <span class="truncate lg:collapsed:sr-only">{{ $item['label'] }}</span>
                                     </a>
                                 </li>
                             @endforeach
@@ -134,20 +139,28 @@
             @endforeach
         </nav>
 
-        <a href="{{ route('profile.edit') }}" class="flex items-center gap-2 rounded-lg p-1.5 hover:bg-slate-100">
-            <x-avatar :user="$user" class="size-7 text-xs" />
-            <span class="min-w-0 flex-1 leading-tight">
+        <a href="{{ route('profile.edit') }}" class="flex items-center gap-2 rounded-lg p-1.5 hover:bg-slate-100 lg:collapsed:justify-center lg:collapsed:px-0" data-tip="{{ $user->name }}">
+            <x-avatar :user="$user" class="size-7 shrink-0 text-xs" />
+            <span class="min-w-0 flex-1 leading-tight lg:collapsed:hidden">
                 <span class="block truncate text-[13px] font-medium text-slate-900">{{ $user->name }}</span>
                 <span class="block truncate text-xs text-slate-500">{{ $user->roles->pluck('name')->join(', ') ?: 'Tanpa role' }}</span>
             </span>
         </a>
     </aside>
 
-    <div class="lg:pl-60">
+    {{-- Tooltip nama menu saat sidebar diciutkan --}}
+    <div id="sidebar-tip" role="tooltip" class="pointer-events-none fixed z-[90] hidden -translate-y-1/2 rounded-md bg-slate-900 px-2 py-1 text-xs whitespace-nowrap text-white shadow-lg"></div>
+
+    <div class="transition-[padding] duration-200 lg:pl-60 lg:collapsed:pl-14">
         {{-- Topbar --}}
         <header class="sticky top-0 z-30 flex h-12 items-center gap-3 border-b border-slate-200 bg-white px-4 sm:px-5">
             <button type="button" class="btn-icon -ml-1.5 lg:hidden" @click="sidebarOpen = true" aria-label="Buka menu">
                 <x-heroicon-o-bars-3 />
+            </button>
+            <button type="button" class="btn-icon -ml-1.5 hidden lg:inline-flex" x-data="sidebarToggle" @click="toggle()"
+                    @keydown.ctrl.b.window.prevent="toggle()" :title="(collapsed ? 'Lebarkan' : 'Ciutkan') + ' sidebar (Ctrl+B)'" :aria-label="collapsed ? 'Lebarkan sidebar' : 'Ciutkan sidebar'" :aria-pressed="collapsed">
+                <x-heroicon-o-chevron-double-left x-show="! collapsed" />
+                <x-heroicon-o-chevron-double-right x-show="collapsed" x-cloak />
             </button>
 
             <div class="min-w-0 flex-1">
