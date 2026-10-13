@@ -316,6 +316,10 @@
         </div>
     </div>
 
+    @if ($order->shopee_income)
+        @include('sales.orders._shopee-income')
+    @endif
+
     <p class="mt-4 flex items-center gap-1.5 text-xs text-slate-500">
         <x-heroicon-o-information-circle class="size-4" />
         @switch($order->status)

@@ -67,6 +67,7 @@ class ShopeeOrderSync
                 foreach ($this->details($api, $chunk) as $detail) {
                     $result = $this->apply($shop, $detail);
                     $stats[$result] = ($stats[$result] ?? 0) + 1;
+                    $this->refreshIncome($shop, (string) $detail['order_sn'], $api);
                 }
             }
 
@@ -86,6 +87,7 @@ class ShopeeOrderSync
 
         foreach ($this->details($api, [$orderSn]) as $detail) {
             $this->apply($shop, $detail);
+            $this->refreshIncome($shop, $orderSn, $api);
         }
 
         $order = $this->find($shop, $orderSn);
@@ -156,6 +158,43 @@ class ShopeeOrderSync
         }
 
         return 'updated';
+    }
+
+    /**
+     * Rincian pendapatan pesanan dari /payment/get_escrow_detail: harga, diskon,
+     * voucher, biaya admin/layanan/transaksi, ongkir dan dana yang diterima penjual.
+     * Diambil sekali saat pesanan masuk (perkiraan) dan sekali lagi saat Selesai (final).
+     */
+    public function refreshIncome(ShopeeShop $shop, string $orderSn, ShopeeShopApi $api): void
+    {
+        $order = $this->find($shop, $orderSn);
+
+        if (! $order || $order->shopee_income_final || in_array($order->shopee_order_status, ['UNPAID', 'CANCELLED', 'IN_CANCEL'], true)) {
+            return;
+        }
+
+        $final = $order->shopee_order_status === 'COMPLETED';
+
+        if ($order->shopee_income !== null && ! $final) {
+            return;
+        }
+
+        try {
+            $income = $api->get('/api/v2/payment/get_escrow_detail', ['order_sn' => $orderSn])['response']['order_income'] ?? null;
+        } catch (ShopeeException) {
+            return; // Belum tersedia; dicoba lagi saat pesanan berubah.
+        }
+
+        if (! is_array($income)) {
+            return;
+        }
+
+        $order->update([
+            'shopee_income' => $income,
+            'shopee_escrow_amount' => $income['escrow_amount'] ?? null,
+            'shopee_income_final' => $final,
+            'shopee_income_synced_at' => now(),
+        ]);
     }
 
     public function find(ShopeeShop $shop, string $orderSn): ?SalesOrder

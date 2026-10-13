@@ -39,6 +39,10 @@ class SalesOrder extends Model
         'shopee_package_number',
         'shopee_sync_error',
         'shopee_synced_at',
+        'shopee_income',
+        'shopee_escrow_amount',
+        'shopee_income_final',
+        'shopee_income_synced_at',
         'customer_name',
         'customer_phone',
         'shipping_address',
@@ -68,6 +72,10 @@ class SalesOrder extends Model
             'shipped_at' => 'datetime',
             'cancelled_at' => 'datetime',
             'shopee_synced_at' => 'datetime',
+            'shopee_income' => 'array',
+            'shopee_escrow_amount' => 'decimal:2',
+            'shopee_income_final' => 'boolean',
+            'shopee_income_synced_at' => 'datetime',
         ];
     }
 
@@ -191,7 +199,7 @@ class SalesOrder extends Model
     /** Jejak waktu sinkron Shopee berubah tiap tarikan; tidak perlu masuk log. */
     public function activityIgnored(): array
     {
-        return ['shopee_synced_at'];
+        return ['shopee_synced_at', 'shopee_income', 'shopee_income_synced_at'];
     }
 
     /**
