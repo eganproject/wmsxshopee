@@ -174,7 +174,7 @@ class ActivityLogTest extends TestCase
             ->assertDontSee('superadmin login');
 
         $this->get('/admin/activity?module=auth')->assertOk()->assertDontSee('Supplier SUP01 dibuat');
-        $this->get('/admin/activity?from='.now()->addDay()->toDateString())->assertOk()->assertSee('Belum ada aktivitas');
+        $this->get('/admin/activity?from='.now()->addDay()->toDateString())->assertOk()->assertSee('Tidak ada hasil yang cocok');
 
         $staff = User::factory()->create(['is_active' => true]);
         $staff->assignRole('Staff Gudang');

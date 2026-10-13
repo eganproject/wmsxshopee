@@ -117,13 +117,7 @@
                             <td class="max-w-40 truncate px-4 py-2.5 text-slate-600">{{ $suppliers[$row->id] ?? '—' }}</td>
                         </tr>
                     @empty
-                        <tr>
-                            <td colspan="10" class="px-5 py-16 text-center">
-                                <x-heroicon-o-shopping-bag class="mx-auto size-12 text-slate-300" />
-                                <p class="mt-3 font-medium text-slate-700">Belum ada yang perlu dibeli</p>
-                                <p class="text-sm text-slate-500">Saran muncul untuk varian yang punya stok minimum atau terjual dalam {{ $suggestions->lookbackDays }} hari terakhir.</p>
-                            </td>
-                        </tr>
+                        <x-empty-state colspan="10" icon="heroicon-o-shopping-bag" title="Belum ada yang perlu dibeli" :description="'Saran muncul untuk varian yang punya stok minimum atau terjual dalam '.$suggestions->lookbackDays.' hari terakhir.'" />
                     @endforelse
                 </tbody>
             </table>

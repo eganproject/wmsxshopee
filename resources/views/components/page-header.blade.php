@@ -11,3 +11,5 @@
         <div class="flex shrink-0 items-center gap-2">{{ $slot }}</div>
     @endif
 </div>
+
+<x-form-errors />

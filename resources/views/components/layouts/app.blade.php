@@ -83,6 +83,7 @@
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 </head>
 <body class="h-full font-sans text-sm text-slate-900 antialiased" x-data="{ sidebarOpen: false }" @keydown.escape.window="sidebarOpen = false">
+    <div id="page-progress" aria-hidden="true"></div>
 
     {{-- Backdrop mobile --}}
     <div x-cloak x-show="sidebarOpen" x-transition.opacity @click="sidebarOpen = false"

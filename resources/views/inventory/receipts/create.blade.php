@@ -11,7 +11,7 @@
         <a href="{{ route('inventory.receipts.index') }}" class="btn-secondary"><x-heroicon-o-arrow-left class="size-5" /> Kembali</a>
     </x-page-header>
 
-    <form method="POST" action="{{ route('inventory.receipts.store') }}" enctype="multipart/form-data">
+    <form method="POST" action="{{ route('inventory.receipts.store') }}" data-dirty-guard enctype="multipart/form-data">
         @csrf
         @include('inventory.receipts._form')
         @include('inventory.receipts._actions')

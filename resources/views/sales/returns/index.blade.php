@@ -120,13 +120,11 @@
                             </td>
                         </tr>
                     @empty
-                        <tr>
-                            <td colspan="11" class="px-5 py-16 text-center">
-                                <x-heroicon-o-arrow-uturn-left class="mx-auto size-12 text-slate-300" />
-                                <p class="mt-3 font-medium text-slate-700">Belum ada retur penjualan</p>
-                                <p class="text-sm text-slate-500">Scan resi paket yang kembali untuk mencatat retur.</p>
-                            </td>
-                        </tr>
+                        <x-empty-state colspan="11" icon="heroicon-o-arrow-uturn-left" title="Belum ada retur penjualan" description="Scan resi paket yang kembali untuk mencatat retur.">
+                            @can('returns.create')
+                                <a href="{{ route('sales.returns.create') }}" class="btn-primary"><x-heroicon-o-plus class="size-5" /> Buat Retur</a>
+                            @endcan
+                        </x-empty-state>
                     @endforelse
                 </tbody>
             </table>

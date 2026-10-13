@@ -37,13 +37,6 @@
         @endif
     </x-page-header>
 
-    @if ($errors->any())
-        <div class="mb-6 rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
-            @foreach ($errors->all() as $message)
-                <p class="flex items-center gap-1.5"><x-heroicon-o-exclamation-triangle class="size-4 shrink-0" /> {{ $message }}</p>
-            @endforeach
-        </div>
-    @endif
 
     <div class="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <div class="card p-4">

@@ -167,13 +167,7 @@
                             </td>
                         </tr>
                     @empty
-                        <tr>
-                            <td colspan="6" class="px-5 py-16 text-center">
-                                <x-heroicon-o-users class="mx-auto size-12 text-slate-300" />
-                                <p class="mt-3 font-medium text-slate-700">Tidak ada user ditemukan</p>
-                                <p class="text-sm text-slate-500">Coba ubah kata kunci atau filter pencarian.</p>
-                            </td>
-                        </tr>
+                        <x-empty-state colspan="6" icon="heroicon-o-users" title="Belum ada user" description="Tambahkan user untuk tim gudang Anda." />
                     @endforelse
                 </tbody>
             </table>

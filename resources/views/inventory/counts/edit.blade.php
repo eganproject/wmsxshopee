@@ -340,8 +340,8 @@
                             </template>
                             <tr x-show="lines.length === 0" x-cloak>
                                 <td colspan="9" class="px-5 py-12 text-center">
-                                    <x-heroicon-o-clipboard-document-list class="mx-auto size-10 text-slate-300" />
-                                    <p class="mt-2 font-medium text-slate-700">Tidak ada stok di cakupan ini</p>
+                                    <span class="mx-auto flex size-12 items-center justify-center rounded-full bg-slate-100 text-slate-400"><x-heroicon-o-clipboard-document-list class="size-6" /></span>
+                                    <p class="mt-4 font-medium text-slate-800">Tidak ada stok di cakupan ini</p>
                                     <p class="text-sm text-slate-500">Scan atau tambah baris untuk barang yang ditemukan saat dihitung.</p>
                                 </td>
                             </tr>

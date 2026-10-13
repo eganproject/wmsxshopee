@@ -24,6 +24,8 @@
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 </head>
 <body class="h-full font-sans text-sm text-slate-900 antialiased">
+    <div id="page-progress" aria-hidden="true"></div>
     {{ $slot }}
+    <x-flash />
 </body>
 </html>

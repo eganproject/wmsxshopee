@@ -122,13 +122,11 @@
                             </td>
                         </tr>
                     @empty
-                        <tr>
-                            <td colspan="9" class="px-5 py-16 text-center">
-                                <x-heroicon-o-map-pin class="mx-auto size-12 text-slate-300" />
-                                <p class="mt-3 font-medium text-slate-700">Belum ada lokasi bin</p>
-                                <p class="text-sm text-slate-500">Buat lokasi otomatis dari halaman rak, atau tambahkan satu per satu.</p>
-                            </td>
-                        </tr>
+                        <x-empty-state colspan="9" icon="heroicon-o-map-pin" title="Belum ada lokasi bin" description="Buat lokasi otomatis dari halaman rak, atau tambahkan satu per satu." :ignore="['rack']" :reset-url="route('master.locations.index', ['rack' => request('rack')])">
+                            @can('warehouses.create')
+                                <a href="{{ route('master.locations.create', ['rack' => request('rack')]) }}" class="btn-primary"><x-heroicon-o-plus class="size-5" /> Tambah Lokasi</a>
+                            @endcan
+                        </x-empty-state>
                     @endforelse
                 </tbody>
             </table>

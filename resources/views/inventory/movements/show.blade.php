@@ -43,7 +43,7 @@
     <div class="card">
         <div class="overflow-x-auto">
             <table class="min-w-full text-sm">
-                <thead class="bg-slate-50 text-left text-xs font-semibold tracking-wider text-slate-500 uppercase">
+                <thead class="bg-slate-50 text-left text-[13px] text-slate-500">
                     <tr>
                         <th class="px-5 py-3">#</th>
                         <th class="px-5 py-3">SKU</th>

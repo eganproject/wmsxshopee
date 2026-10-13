@@ -48,7 +48,7 @@
 
         <div class="overflow-x-auto">
             <table class="min-w-full text-sm">
-                <thead class="bg-slate-50 text-left text-xs font-semibold tracking-wider text-slate-500 uppercase">
+                <thead class="bg-slate-50 text-left text-[13px] text-slate-500">
                     <tr>
                         <x-labels.select-all :ids="$bundles->pluck('id')" />
                         <th class="px-5 py-3">Paket</th>
@@ -116,13 +116,11 @@
                             </td>
                         </tr>
                     @empty
-                        <tr>
-                            <td colspan="7" class="px-5 py-16 text-center">
-                                <x-heroicon-o-gift class="mx-auto size-12 text-slate-300" />
-                                <p class="mt-3 font-medium text-slate-700">Belum ada produk paket</p>
-                                <p class="text-sm text-slate-500">Buat paket seperti "Beli 3 Kaos" yang isinya beberapa varian gudang.</p>
-                            </td>
-                        </tr>
+                        <x-empty-state colspan="7" icon="heroicon-o-gift" title="Belum ada produk paket" :description="'Buat paket seperti “Beli 3 Kaos” yang isinya beberapa varian gudang.'">
+                            @can('products.create')
+                                <a href="{{ route('master.bundles.create') }}" class="btn-primary"><x-heroicon-o-plus class="size-5" /> Tambah Paket</a>
+                            @endcan
+                        </x-empty-state>
                     @endforelse
                 </tbody>
             </table>

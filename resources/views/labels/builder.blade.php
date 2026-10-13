@@ -159,8 +159,8 @@
                             </template>
                             <tr x-show="! items.length">
                                 <td colspan="5" class="px-5 py-14 text-center">
-                                    <x-heroicon-o-qr-code class="mx-auto size-12 text-slate-300" />
-                                    <p class="mt-3 font-medium text-slate-700">Belum ada label</p>
+                                    <span class="mx-auto flex size-12 items-center justify-center rounded-full bg-slate-100 text-slate-400"><x-heroicon-o-qr-code class="size-6" /></span>
+                                    <p class="mt-4 font-medium text-slate-800">Belum ada label</p>
                                     <p class="text-sm text-slate-500">
                                         @if ($isProduct)
                                             Centang produk di halaman <a href="{{ route('master.products.index') }}" class="text-brand-600 hover:underline">Produk</a>

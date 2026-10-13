@@ -11,7 +11,7 @@
         <a href="{{ route('master.warehouses.index') }}" class="btn-secondary"><x-heroicon-o-arrow-left class="size-5" /> Kembali</a>
     </x-page-header>
 
-    <form method="POST" action="{{ route('master.warehouses.store') }}" class="max-w-4xl">
+    <form method="POST" action="{{ route('master.warehouses.store') }}" data-dirty-guard class="max-w-4xl">
         @csrf
         @include('master.warehouses._form')
 

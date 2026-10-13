@@ -44,7 +44,7 @@
 
         <div class="overflow-x-auto">
             <table class="min-w-full text-sm">
-                <thead class="bg-slate-50 text-left text-xs font-semibold tracking-wider text-slate-500 uppercase">
+                <thead class="bg-slate-50 text-left text-[13px] text-slate-500">
                     <tr>
                         <th class="px-5 py-3">No. Dokumen</th>
                         <th class="px-5 py-3">Tanggal</th>
@@ -77,13 +77,7 @@
                             </td>
                         </tr>
                     @empty
-                        <tr>
-                            <td colspan="8" class="px-5 py-16 text-center">
-                                <x-heroicon-o-arrows-right-left class="mx-auto size-12 text-slate-300" />
-                                <p class="mt-3 font-medium text-slate-700">Belum ada mutasi stok</p>
-                                <p class="text-sm text-slate-500">Mulai dengan mencatat barang masuk ke lokasi bin.</p>
-                            </td>
-                        </tr>
+                        <x-empty-state colspan="8" icon="heroicon-o-arrows-right-left" title="Belum ada mutasi stok" description="Mulai dengan mencatat barang masuk ke lokasi bin." />
                     @endforelse
                 </tbody>
             </table>

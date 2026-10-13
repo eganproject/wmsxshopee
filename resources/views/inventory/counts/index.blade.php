@@ -78,13 +78,11 @@
                             </td>
                         </tr>
                     @empty
-                        <tr>
-                            <td colspan="8" class="px-5 py-16 text-center">
-                                <x-heroicon-o-clipboard-document-check class="mx-auto size-12 text-slate-300" />
-                                <p class="mt-3 font-medium text-slate-700">Belum ada stock opname</p>
-                                <p class="text-sm text-slate-500">Buat lembar opname untuk satu gudang, satu zona, atau stok tanpa bin.</p>
-                            </td>
-                        </tr>
+                        <x-empty-state colspan="8" icon="heroicon-o-clipboard-document-check" title="Belum ada stock opname" description="Buat lembar opname untuk satu gudang, satu zona, atau stok tanpa bin.">
+                            @can('opname.create')
+                                <a href="{{ route('inventory.counts.create') }}" class="btn-primary"><x-heroicon-o-plus class="size-5" /> Opname Baru</a>
+                            @endcan
+                        </x-empty-state>
                     @endforelse
                 </tbody>
             </table>

@@ -13,7 +13,7 @@
         <a href="{{ route('sales.returns.show', $return) }}" class="btn-secondary"><x-heroicon-o-arrow-left class="size-5" /> Kembali</a>
     </x-page-header>
 
-    <form method="POST" action="{{ route('sales.returns.update', $return) }}" enctype="multipart/form-data">
+    <form method="POST" action="{{ route('sales.returns.update', $return) }}" data-dirty-guard enctype="multipart/form-data">
         @csrf
         @method('PUT')
         @include('sales.returns._form')

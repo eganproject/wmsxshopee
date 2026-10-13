@@ -50,7 +50,7 @@
 
         <div class="overflow-x-auto">
             <table class="min-w-full text-sm">
-                <thead class="bg-slate-50 text-left text-xs font-semibold tracking-wider text-slate-500 uppercase">
+                <thead class="bg-slate-50 text-left text-[13px] text-slate-500">
                     <tr>
                         <x-labels.select-all :ids="$products->pluck('id')" />
                         <th class="px-5 py-3">Produk</th>
@@ -124,13 +124,11 @@
                             </td>
                         </tr>
                     @empty
-                        <tr>
-                            <td colspan="7" class="px-5 py-16 text-center">
-                                <x-heroicon-o-cube class="mx-auto size-12 text-slate-300" />
-                                <p class="mt-3 font-medium text-slate-700">Belum ada produk</p>
-                                <p class="text-sm text-slate-500">Tambahkan produk beserta SKU dan variannya.</p>
-                            </td>
-                        </tr>
+                        <x-empty-state colspan="7" icon="heroicon-o-cube" title="Belum ada produk" description="Tambahkan produk beserta SKU dan variannya.">
+                            @can('products.create')
+                                <a href="{{ route('master.products.create') }}" class="btn-primary"><x-heroicon-o-plus class="size-5" /> Tambah Produk</a>
+                            @endcan
+                        </x-empty-state>
                     @endforelse
                 </tbody>
             </table>

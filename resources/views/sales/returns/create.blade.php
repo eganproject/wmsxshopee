@@ -11,7 +11,7 @@
         <a href="{{ route('sales.returns.index') }}" class="btn-secondary"><x-heroicon-o-arrow-left class="size-5" /> Kembali</a>
     </x-page-header>
 
-    <form method="POST" action="{{ route('sales.returns.store') }}" enctype="multipart/form-data">
+    <form method="POST" action="{{ route('sales.returns.store') }}" data-dirty-guard enctype="multipart/form-data">
         @csrf
         @include('sales.returns._form')
         @include('sales.returns._actions')

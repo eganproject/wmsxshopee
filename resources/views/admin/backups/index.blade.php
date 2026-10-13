@@ -42,7 +42,7 @@
                             <td class="px-4 py-2.5 text-right whitespace-nowrap text-slate-600 tabular-nums">{{ \Illuminate\Support\Number::fileSize($backup['size'], 1) }}</td>
                             <td class="px-4 py-2.5">
                                 <div class="flex justify-end gap-1">
-                                    <a href="{{ route('admin.backups.download', $backup['name']) }}" class="btn-icon" title="Unduh">
+                                    <a href="{{ route('admin.backups.download', $backup['name']) }}" class="btn-icon" title="Unduh" data-no-loading>
                                         <x-heroicon-o-arrow-down-tray class="size-5" />
                                     </a>
                                     @can('backups.delete')
@@ -63,13 +63,7 @@
                             </td>
                         </tr>
                     @empty
-                        <tr>
-                            <td colspan="4" class="px-5 py-16 text-center">
-                                <x-heroicon-o-circle-stack class="mx-auto size-12 text-slate-300" />
-                                <p class="mt-3 font-medium text-slate-700">Belum ada backup</p>
-                                <p class="text-sm text-slate-500">Backup pertama akan dibuat otomatis malam ini, atau klik "Backup sekarang".</p>
-                            </td>
-                        </tr>
+                        <x-empty-state colspan="4" icon="heroicon-o-circle-stack" title="Belum ada backup" description="Backup pertama akan dibuat otomatis malam ini, atau klik Backup sekarang." />
                     @endforelse
                 </tbody>
             </table>

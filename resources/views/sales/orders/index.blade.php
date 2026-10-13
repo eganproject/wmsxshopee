@@ -123,13 +123,11 @@
                             </td>
                         </tr>
                     @empty
-                        <tr>
-                            <td colspan="9" class="px-5 py-16 text-center">
-                                <x-heroicon-o-shopping-cart class="mx-auto size-12 text-slate-300" />
-                                <p class="mt-3 font-medium text-slate-700">Belum ada pesanan</p>
-                                <p class="text-sm text-slate-500">Input pesanan manual atau impor dari file Excel / CSV.</p>
-                            </td>
-                        </tr>
+                        <x-empty-state colspan="9" icon="heroicon-o-shopping-cart" title="Belum ada pesanan" description="Input pesanan manual atau impor dari file Excel / CSV.">
+                            @can('sales.create')
+                                <a href="{{ route('sales.orders.create') }}" class="btn-primary"><x-heroicon-o-plus class="size-5" /> Buat Pesanan</a>
+                            @endcan
+                        </x-empty-state>
                     @endforelse
                 </tbody>
             </table>

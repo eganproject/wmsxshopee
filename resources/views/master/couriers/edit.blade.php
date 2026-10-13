@@ -11,7 +11,7 @@
         <a href="{{ route('master.couriers.index') }}" class="btn-secondary"><x-heroicon-o-arrow-left class="size-5" /> Kembali</a>
     </x-page-header>
 
-    <form method="POST" action="{{ route('master.couriers.update', $courier) }}" class="max-w-4xl">
+    <form method="POST" action="{{ route('master.couriers.update', $courier) }}" data-dirty-guard class="max-w-4xl">
         @csrf
         @method('PUT')
         @include('master.couriers._form')

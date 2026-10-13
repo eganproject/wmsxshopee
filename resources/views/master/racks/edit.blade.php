@@ -11,7 +11,7 @@
         <a href="{{ route('master.racks.index') }}" class="btn-secondary"><x-heroicon-o-arrow-left class="size-5" /> Kembali</a>
     </x-page-header>
 
-    <form method="POST" action="{{ route('master.racks.update', $rack) }}" class="max-w-3xl">
+    <form method="POST" action="{{ route('master.racks.update', $rack) }}" data-dirty-guard class="max-w-3xl">
         @csrf
         @method('PUT')
         @include('master.racks._form')

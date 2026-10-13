@@ -77,13 +77,6 @@
         @endif
     </x-page-header>
 
-    @if ($errors->any())
-        <div class="mb-6 rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
-            @foreach ($errors->all() as $message)
-                <p class="flex items-center gap-1.5"><x-heroicon-o-exclamation-triangle class="size-4 shrink-0" /> {{ $message }}</p>
-            @endforeach
-        </div>
-    @endif
 
     @if ($order->hasStatus('cancelled'))
         <div class="mb-6 rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
@@ -195,7 +188,8 @@
 
     @if ($order->hasStatus('packed'))
         @can('sales.fulfill')
-            <form method="POST" action="{{ route('sales.orders.ship', $order) }}" class="card mb-6">
+            <form method="POST" action="{{ route('sales.orders.ship', $order) }}" class="card mb-6"
+                  data-confirm-title="Kirim pesanan {{ $order->number }}?" data-confirm="Stok keluar dari bin hasil picking dan status pesanan menjadi Dikirim. Pastikan kurir dan nomor resi sudah benar." data-confirm-text="Kirim">
                 @csrf
                 <div class="border-b border-slate-100 px-5 py-3">
                     <h2 class="flex items-center gap-2 text-base font-semibold text-slate-900"><x-heroicon-o-truck class="size-5 text-slate-400" /> Kirim Pesanan</h2>

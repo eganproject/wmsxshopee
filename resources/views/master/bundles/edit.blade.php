@@ -11,7 +11,7 @@
         <a href="{{ route('master.bundles.index') }}" class="btn-secondary"><x-heroicon-o-arrow-left class="size-5" /> Kembali</a>
     </x-page-header>
 
-    <form method="POST" action="{{ route('master.bundles.update', $bundle) }}" class="mx-auto max-w-4xl">
+    <form method="POST" action="{{ route('master.bundles.update', $bundle) }}" data-dirty-guard class="mx-auto max-w-4xl">
         @csrf
         @method('PUT')
         @include('master.bundles._form')

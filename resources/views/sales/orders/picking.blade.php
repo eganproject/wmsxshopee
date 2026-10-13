@@ -25,13 +25,6 @@
         <a href="{{ route('sales.orders.show', $order) }}" class="btn-secondary"><x-heroicon-o-arrow-left class="size-5" /> Kembali</a>
     </x-page-header>
 
-    @if ($errors->any())
-        <div class="mb-6 rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
-            @foreach ($errors->all() as $message)
-                <p class="flex items-center gap-1.5"><x-heroicon-o-exclamation-triangle class="size-4 shrink-0" /> {{ $message }}</p>
-            @endforeach
-        </div>
-    @endif
 
     <form method="POST" action="{{ route('sales.orders.pick', $order) }}"
           x-data="{

@@ -90,13 +90,11 @@
                             </td>
                         </tr>
                     @empty
-                        <tr>
-                            <td colspan="7" class="px-5 py-16 text-center">
-                                <x-heroicon-o-building-storefront class="mx-auto size-12 text-slate-300" />
-                                <p class="mt-3 font-medium text-slate-700">Belum ada supplier</p>
-                                <p class="text-sm text-slate-500">Tambahkan pemasok sebelum mencatat penerimaan barang.</p>
-                            </td>
-                        </tr>
+                        <x-empty-state colspan="7" icon="heroicon-o-building-storefront" title="Belum ada supplier" description="Tambahkan pemasok sebelum mencatat penerimaan barang.">
+                            @can('suppliers.create')
+                                <a href="{{ route('master.suppliers.create') }}" class="btn-primary"><x-heroicon-o-plus class="size-5" /> Tambah Supplier</a>
+                            @endcan
+                        </x-empty-state>
                     @endforelse
                 </tbody>
             </table>

@@ -52,7 +52,8 @@
     @endif
 
     <div class="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)]">
-        <form method="POST" action="{{ $action }}" enctype="multipart/form-data" class="card" x-data="{ busy: false }" @submit="busy = true">
+        <form method="POST" action="{{ $action }}" enctype="multipart/form-data" class="card"
+              data-confirm-title="Impor file ini?" data-confirm="Semua baris dicek dulu. Jika ada yang salah, tidak ada data yang disimpan dan baris yang perlu diperbaiki ditampilkan." data-confirm-text="Impor">
             @csrf
             <div class="border-b border-slate-100 px-5 py-3">
                 <h2 class="flex items-center gap-2 text-base font-semibold text-slate-900"><x-heroicon-o-document-arrow-up class="size-5 text-slate-400" /> Unggah File</h2>
@@ -71,8 +72,8 @@
                         <p class="mt-1 text-xs text-slate-400">.xlsx atau .csv (pemisah koma atau titik koma), maks. 10 MB / 2.000 baris.</p>
                     @enderror
                 </div>
-                <button type="submit" class="btn-primary" :disabled="busy">
-                    <x-heroicon-o-arrow-up-tray class="size-5" /> <span x-text="busy ? 'Memproses...' : 'Impor'">Impor</span>
+                <button type="submit" class="btn-primary">
+                    <x-heroicon-o-arrow-up-tray class="size-5" /> Impor
                 </button>
             </div>
         </form>
@@ -81,8 +82,8 @@
             <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 px-5 py-3">
                 <h2 class="flex items-center gap-2 text-base font-semibold text-slate-900"><x-heroicon-o-table-cells class="size-5 text-slate-400" /> Format Kolom</h2>
                 <div class="flex gap-2">
-                    <a href="{{ $template('xlsx') }}" class="btn-secondary"><x-heroicon-o-arrow-down-tray class="size-5" /> Template Excel</a>
-                    <a href="{{ $template('csv') }}" class="btn-secondary"><x-heroicon-o-arrow-down-tray class="size-5" /> CSV</a>
+                    <a href="{{ $template('xlsx') }}" class="btn-secondary" data-no-loading><x-heroicon-o-arrow-down-tray class="size-5" /> Template Excel</a>
+                    <a href="{{ $template('csv') }}" class="btn-secondary" data-no-loading><x-heroicon-o-arrow-down-tray class="size-5" /> CSV</a>
                 </div>
             </div>
             <table class="min-w-full text-sm">
