@@ -12,7 +12,7 @@
             'heading' => 'Master Data',
             'items' => [
                 ['label' => 'Gudang & Lokasi', 'route' => 'master.warehouses.index', 'active' => ['master.warehouses.*', 'master.zones.*', 'master.racks.*', 'master.locations.*'], 'icon' => 'heroicon-o-building-office-2', 'can' => 'warehouses.view'],
-                ['label' => 'Produk', 'route' => 'master.products.index', 'active' => ['master.products.*', 'master.units.*'], 'icon' => 'heroicon-o-cube', 'can' => 'products.view'],
+                ['label' => 'Produk', 'route' => 'master.products.index', 'active' => ['master.products.*', 'master.bundles.*', 'master.units.*'], 'icon' => 'heroicon-o-cube', 'can' => 'products.view'],
                 ['label' => 'Kurir', 'route' => 'master.couriers.index', 'active' => 'master.couriers.*', 'icon' => 'heroicon-o-truck', 'can' => 'couriers.view'],
                 ['label' => 'Supplier', 'route' => 'master.suppliers.index', 'active' => 'master.suppliers.*', 'icon' => 'heroicon-o-building-storefront', 'can' => 'suppliers.view'],
             ],

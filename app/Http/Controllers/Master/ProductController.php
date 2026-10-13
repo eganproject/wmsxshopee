@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Master;
 
 use App\Http\Controllers\Controller;
+use App\Models\BundleItem;
 use App\Models\Product;
 use App\Models\ProductImage;
 use App\Models\ProductVariant;
@@ -86,6 +87,10 @@ class ProductController extends Controller
     {
         if (StockLedger::whereIn('product_variant_id', $product->variants()->select('id'))->exists()) {
             return back()->with('error', "Produk {$product->name} sudah punya riwayat stok sehingga tidak bisa dihapus. Nonaktifkan produk ini sebagai gantinya.");
+        }
+
+        if (BundleItem::whereIn('product_variant_id', $product->variants()->select('id'))->exists()) {
+            return back()->with('error', "Produk {$product->name} masih menjadi isi produk paket. Keluarkan dari paket dulu atau nonaktifkan produk ini.");
         }
 
         $paths = $product->images()->pluck('path')->all();
@@ -238,9 +243,9 @@ class ProductController extends Controller
 
             'variants' => ['required', 'array', 'min:1', 'max:100'],
             'variants.*.id' => ['nullable', 'integer', Rule::exists('product_variants', 'id')->where('product_id', $product->id ?? 0)],
-            'variants.*.sku' => ['required', 'string', 'alpha_dash', 'max:50', 'distinct', $notThisProduct('sku')],
+            'variants.*.sku' => ['required', 'string', 'alpha_dash', 'max:50', 'distinct', $notThisProduct('sku'), Rule::unique('bundles', 'sku')],
             'variants.*.name' => [$hasVariants ? 'required' : 'nullable', 'string', 'max:100', 'distinct'],
-            'variants.*.barcode' => ['nullable', 'string', 'alpha_dash', 'max:50', 'distinct', $notThisProduct('barcode')],
+            'variants.*.barcode' => ['nullable', 'string', 'alpha_dash', 'max:50', 'distinct', $notThisProduct('barcode'), Rule::unique('bundles', 'barcode')],
             'variants.*.weight_gram' => ['nullable', 'integer', 'min:0', 'max:1000000'],
             'variants.*.length_cm' => ['nullable', 'numeric', 'min:0', 'max:10000'],
             'variants.*.width_cm' => ['nullable', 'numeric', 'min:0', 'max:10000'],
@@ -256,10 +261,10 @@ class ProductController extends Controller
         ], [
             'variants.required' => 'Isi minimal satu varian.',
             'variants.*.sku.distinct' => 'SKU varian tidak boleh duplikat.',
-            'variants.*.sku.unique' => 'SKU varian :input sudah dipakai produk lain.',
+            'variants.*.sku.unique' => 'SKU varian :input sudah dipakai produk atau paket lain.',
             'variants.*.name.distinct' => 'Nama varian tidak boleh duplikat.',
             'variants.*.barcode.distinct' => 'Barcode tidak boleh duplikat.',
-            'variants.*.barcode.unique' => 'Barcode :input sudah dipakai produk lain.',
+            'variants.*.barcode.unique' => 'Barcode :input sudah dipakai produk atau paket lain.',
             'images.*.max' => 'Ukuran gambar maksimal 2 MB.',
         ], [
             'sku' => 'SKU induk',
@@ -288,6 +293,14 @@ class ProductController extends Controller
             if ($locked->isNotEmpty()) {
                 throw ValidationException::withMessages([
                     'variants' => 'Varian '.$locked->join(', ').' sudah punya riwayat stok sehingga tidak bisa dihapus. Nonaktifkan saja.',
+                ]);
+            }
+
+            $bundled = $product->variants()->whereNotIn('id', $keepIds)->whereHas('bundleItems')->pluck('sku');
+
+            if ($bundled->isNotEmpty()) {
+                throw ValidationException::withMessages([
+                    'variants' => 'Varian '.$bundled->join(', ').' masih menjadi isi produk paket. Keluarkan dari paket dulu atau nonaktifkan saja.',
                 ]);
             }
         }

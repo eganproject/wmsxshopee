@@ -91,6 +91,9 @@
                             @if ($line['item']->variant->barcode)
                                 <div class="muted mono">{{ $line['item']->variant->barcode }}</div>
                             @endif
+                            @if ($line['item']->bundleLine)
+                                <div class="muted">Isi paket {{ $line['item']->bundleLine->bundle->sku }}</div>
+                            @endif
                         </td>
                         <td class="right"><strong>{{ $line['qty'] }}</strong> {{ $line['item']->variant->product->unit->code }}</td>
                         <td class="right"><span class="check"></span></td>

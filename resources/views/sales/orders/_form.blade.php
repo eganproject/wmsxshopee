@@ -1,14 +1,25 @@
 @php
-    $blank = ['product_variant_id' => '', 'qty' => '', 'price' => '', 'notes' => ''];
-    $existing = $order->relationLoaded('items')
-        ? $order->items->map(fn ($item) => [
+    // Satu baris = barang biasa (product_variant_id) atau produk paket (bundle_id);
+    // pilihan di form memakai "ref" gabungan: v:<id varian> atau b:<id paket>.
+    $blank = ['product_variant_id' => '', 'bundle_id' => '', 'qty' => '', 'price' => '', 'notes' => ''];
+    $existing = $order->relationLoaded('looseItems')
+        ? $order->looseItems->map(fn ($item) => [
             'product_variant_id' => (string) $item->product_variant_id,
             'qty' => $item->qty,
             'price' => (float) $item->price ?: '',
             'notes' => $item->notes ?? '',
-        ])
+        ])->concat($order->bundles->map(fn ($line) => [
+            'bundle_id' => (string) $line->bundle_id,
+            'qty' => $line->qty,
+            'price' => (float) $line->price ?: '',
+            'notes' => $line->notes ?? '',
+        ]))
         : collect();
-    $items = collect(old('items', $existing->all()))->map(fn ($row) => [...$blank, ...$row])->values();
+    $items = collect(old('items', $existing->all()))
+        ->map(fn ($row) => [...$blank, ...$row])
+        ->map(fn ($row) => [...$row, 'ref' => filled($row['bundle_id']) ? "b:{$row['bundle_id']}" : (filled($row['product_variant_id']) ? "v:{$row['product_variant_id']}" : '')])
+        ->values();
+    $blank['ref'] = '';
     $rowErrors = collect($errors->getMessages())->filter(fn ($messages, $key) => str_starts_with($key, 'items.'))->map(fn ($messages) => $messages[0]);
     $defaultWarehouse = $order->warehouse_id ?? ($warehouses->count() === 1 ? $warehouses->first()->id : '');
 @endphp
@@ -22,7 +33,14 @@
          scan: '',
          scanError: '',
          get variantOptions() {
-             return this.variants.map(v => ({ value: v.id, text: v.label }));
+             return this.variants.map(v => ({ value: v.ref, text: v.label }));
+         },
+         choose(item) {
+             const option = this.variants.find(v => v.ref === item.ref);
+             if (option && option.price && ! item.price) item.price = option.price;
+         },
+         idOf(item, kind) {
+             return item.ref && item.ref.startsWith(kind + ':') ? item.ref.slice(2) : '';
          },
          lineTotal(item) {
              return (parseInt(item.qty) || 0) * (parseFloat(item.price) || 0);
@@ -42,11 +60,13 @@
              if (! variant) { this.scanError = `SKU / barcode ${code} tidak ditemukan.`; return; }
              this.scanError = '';
              this.scan = '';
-             const existing = this.items.find(i => String(i.product_variant_id) === String(variant.id));
+             const existing = this.items.find(i => i.ref === variant.ref);
              if (existing) { existing.qty = (parseInt(existing.qty) || 0) + 1; return; }
-             const empty = this.items.find(i => ! i.product_variant_id);
-             if (empty) { empty.product_variant_id = String(variant.id); empty.qty = empty.qty || 1; return; }
-             this.items.push({ ...@js($blank), product_variant_id: String(variant.id), qty: 1 });
+             const empty = this.items.find(i => ! i.ref);
+             if (empty) { empty.ref = variant.ref; empty.qty = empty.qty || 1; this.choose(empty); return; }
+             const row = { ...@js($blank), ref: variant.ref, qty: 1 };
+             this.choose(row);
+             this.items.push(row);
          },
      }">
     <div class="card">
@@ -108,7 +128,7 @@
                 <h2 class="flex items-center gap-2 text-base font-semibold text-slate-900">
                     <x-heroicon-o-cube class="size-5 text-slate-400" /> Barang Dipesan
                 </h2>
-                <p class="mt-0.5 text-sm text-slate-500">Scan SKU / barcode: barang baru menambah baris, barang yang sama menambah jumlah.</p>
+                <p class="mt-0.5 text-sm text-slate-500">Scan SKU / barcode: barang baru menambah baris, barang yang sama menambah jumlah. Produk paket otomatis dipecah jadi isinya saat disimpan.</p>
             </div>
             <div class="sm:w-72">
                 <div class="relative">
@@ -139,10 +159,13 @@
                     <template x-for="(item, index) in items" :key="index">
                         <tr class="align-top">
                             <td class="py-1.5 pr-2">
-                                <select class="form-input min-w-72" :name="`items[${index}][product_variant_id]`" x-model="item.product_variant_id"
-                                        x-tom-select="{ options: variantOptions, value: item.product_variant_id }" data-placeholder="Cari SKU / nama barang"
-                                        :class="errors[`items.${index}.product_variant_id`] && 'form-input-error'"></select>
-                                <p class="mt-1 text-xs text-rose-600" x-show="errors[`items.${index}.product_variant_id`]" x-text="errors[`items.${index}.product_variant_id`]"></p>
+                                <select class="form-input min-w-72" x-model="item.ref" @change="choose(item)"
+                                        x-tom-select="{ options: variantOptions, value: item.ref }" data-placeholder="Cari SKU / nama barang / paket"
+                                        :class="(errors[`items.${index}.product_variant_id`] || errors[`items.${index}.bundle_id`]) && 'form-input-error'"></select>
+                                <input type="hidden" :name="`items[${index}][product_variant_id]`" :value="idOf(item, 'v')">
+                                <input type="hidden" :name="`items[${index}][bundle_id]`" :value="idOf(item, 'b')">
+                                <p class="mt-1 text-xs text-rose-600" x-show="errors[`items.${index}.product_variant_id`] || errors[`items.${index}.bundle_id`]"
+                                   x-text="errors[`items.${index}.product_variant_id`] || errors[`items.${index}.bundle_id`]"></p>
                             </td>
                             <td class="px-2 py-1.5">
                                 <input type="number" min="1" step="1" class="form-input w-24 text-right" :name="`items[${index}][qty]`" x-model="item.qty"
@@ -170,7 +193,7 @@
                 </tbody>
                 <tfoot class="border-t border-slate-100 text-[13px] text-slate-500">
                     <tr>
-                        <td class="py-2 pr-2 text-right">Total barang</td>
+                        <td class="py-2 pr-2 text-right">Total qty</td>
                         <td class="px-2 py-2 text-right font-medium tabular-nums text-slate-700" x-text="totals().qty"></td>
                         <td class="px-2 py-2 text-right">Subtotal</td>
                         <td class="px-2 py-2 text-right font-medium tabular-nums text-slate-700" x-text="money(totals().subtotal)"></td>

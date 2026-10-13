@@ -10,6 +10,7 @@ use App\Http\Controllers\Inventory\StockController;
 use App\Http\Controllers\Inventory\StockCountController;
 use App\Http\Controllers\Inventory\StockMovementController;
 use App\Http\Controllers\Inventory\VariantLookupController;
+use App\Http\Controllers\Master\BundleController;
 use App\Http\Controllers\Master\CourierController;
 use App\Http\Controllers\Master\LocationController;
 use App\Http\Controllers\Master\ProductController;
@@ -43,7 +44,7 @@ Route::middleware(['auth', 'active'])->group(function () {
 
     Route::prefix('master')->name('master.')->group(function () {
         // Zona, rak & lokasi bin memakai permission yang sama dengan gudang;
-        // satuan memakai permission produk.
+        // satuan & produk paket memakai permission produk.
         $resources = [
             'warehouses' => [WarehouseController::class, 'warehouses', 'warehouse'],
             'zones' => [ZoneController::class, 'warehouses', 'zone'],
@@ -53,6 +54,7 @@ Route::middleware(['auth', 'active'])->group(function () {
             'suppliers' => [SupplierController::class, 'suppliers', 'supplier'],
             'products' => [ProductController::class, 'products', 'product'],
             'units' => [UnitController::class, 'products', 'unit'],
+            'bundles' => [BundleController::class, 'products', 'bundle'],
         ];
 
         foreach ($resources as $uri => [$controller, $permission, $param]) {

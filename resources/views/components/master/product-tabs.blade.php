@@ -1,7 +1,8 @@
-{{-- Navigasi antar master produk: Produk → Satuan --}}
+{{-- Navigasi antar master produk: Produk → Produk Paket → Satuan --}}
 @php
     $tabs = [
         ['label' => 'Produk', 'route' => 'master.products.index', 'active' => 'master.products.*', 'icon' => 'heroicon-o-cube'],
+        ['label' => 'Produk Paket', 'route' => 'master.bundles.index', 'active' => 'master.bundles.*', 'icon' => 'heroicon-o-gift'],
         ['label' => 'Satuan', 'route' => 'master.units.index', 'active' => 'master.units.*', 'icon' => 'heroicon-o-scale'],
     ];
 @endphp

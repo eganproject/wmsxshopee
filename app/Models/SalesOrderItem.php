@@ -10,8 +10,10 @@ class SalesOrderItem extends Model
 {
     protected $fillable = [
         'sales_order_id',
+        'sales_order_bundle_id',
         'product_variant_id',
         'qty',
+        'bundle_component_qty',
         'price',
         'notes',
     ];
@@ -20,6 +22,7 @@ class SalesOrderItem extends Model
     {
         return [
             'qty' => 'integer',
+            'bundle_component_qty' => 'integer',
             'price' => 'decimal:2',
         ];
     }
@@ -32,6 +35,12 @@ class SalesOrderItem extends Model
     public function variant(): BelongsTo
     {
         return $this->belongsTo(ProductVariant::class, 'product_variant_id');
+    }
+
+    /** Baris paket asal, bila barang ini isi dari paket. */
+    public function bundleLine(): BelongsTo
+    {
+        return $this->belongsTo(SalesOrderBundle::class, 'sales_order_bundle_id');
     }
 
     public function picks(): HasMany
