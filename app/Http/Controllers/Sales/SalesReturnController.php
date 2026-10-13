@@ -27,10 +27,12 @@ class SalesReturnController extends Controller
             ->with(['order', 'warehouse'])
             ->withSum('items', 'qty_good')
             ->withSum('items', 'qty_damaged')
+            ->withSum('items', 'qty_missing')
             ->when($request->filled('status'), fn ($query) => $query->where('status', $request->input('status')))
             ->when($request->filled('source'), fn ($query) => $query->where('source', $request->input('source')))
             ->when($request->filled('warehouse'), fn ($query) => $query->where('warehouse_id', $request->integer('warehouse')))
             ->when($request->boolean('damaged'), fn ($query) => $query->whereHas('items', fn ($q) => $q->where('qty_damaged', '>', 0)))
+            ->when($request->boolean('missing'), fn ($query) => $query->whereHas('items', fn ($q) => $q->where('qty_missing', '>', 0)))
             ->when($request->filled('from'), fn ($query) => $query->whereDate('return_date', '>=', $request->date('from')))
             ->when($request->filled('to'), fn ($query) => $query->whereDate('return_date', '<=', $request->date('to')))
             ->when($request->filled('search'), function ($query) use ($request) {
@@ -210,7 +212,7 @@ class SalesReturnController extends Controller
     {
         return $return->movement
             ? "Retur {$return->number} diterima. Barang layak jual masuk stok lewat {$return->movement->number}."
-            : "Retur {$return->number} diterima. Semua barang rusak, jadi stok jual tidak bertambah.";
+            : "Retur {$return->number} diterima. Tidak ada barang layak jual, jadi stok tidak bertambah.";
     }
 
     /**
@@ -392,6 +394,7 @@ class SalesReturnController extends Controller
             'items.*.product_variant_id' => [Rule::requiredIf(! $fromOrder), 'nullable', 'integer', Rule::exists('product_variants', 'id')],
             'items.*.qty_good' => ['nullable', 'integer', 'min:0', 'max:1000000'],
             'items.*.qty_damaged' => ['nullable', 'integer', 'min:0', 'max:1000000'],
+            'items.*.qty_missing' => ['nullable', 'integer', 'min:0', 'max:1000000'],
             'items.*.warehouse_location_id' => ['nullable', 'integer', Rule::exists('warehouse_locations', 'id')->where('warehouse_id', $warehouseId)->where('is_active', true)],
             'items.*.reason' => ['nullable', Rule::in(array_keys(SalesReturn::REASONS))],
             'items.*.photo' => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp', 'max:5120'],
@@ -418,6 +421,7 @@ class SalesReturnController extends Controller
             'items.*.product_variant_id' => 'barang',
             'items.*.qty_good' => 'jumlah layak jual',
             'items.*.qty_damaged' => 'jumlah rusak',
+            'items.*.qty_missing' => 'jumlah hilang',
             'items.*.warehouse_location_id' => 'lokasi bin',
             'items.*.reason' => 'alasan',
             'items.*.photo' => 'foto',
@@ -429,6 +433,7 @@ class SalesReturnController extends Controller
             'product_variant_id' => filled($row['product_variant_id'] ?? null) ? (int) $row['product_variant_id'] : null,
             'qty_good' => (int) ($row['qty_good'] ?? 0),
             'qty_damaged' => (int) ($row['qty_damaged'] ?? 0),
+            'qty_missing' => (int) ($row['qty_missing'] ?? 0),
             'warehouse_location_id' => filled($row['warehouse_location_id'] ?? null) ? (int) $row['warehouse_location_id'] : null,
             'reason' => $row['reason'] ?? null,
             'photo_path' => $row['photo_path'] ?? null,
@@ -439,10 +444,10 @@ class SalesReturnController extends Controller
 
         if ($order) {
             // Baris pesanan yang tidak diisi jumlahnya berarti barang itu tidak ikut kembali.
-            $rows = $rows->filter(fn ($row) => $row['qty_good'] + $row['qty_damaged'] > 0);
+            $rows = $rows->filter(fn ($row) => $row['qty_good'] + $row['qty_damaged'] + $row['qty_missing'] > 0);
 
             if ($rows->isEmpty()) {
-                throw ValidationException::withMessages(['items' => 'Isi jumlah kembali (layak jual atau rusak) minimal untuk satu barang.']);
+                throw ValidationException::withMessages(['items' => 'Isi jumlah layak jual, rusak atau hilang minimal untuk satu barang.']);
             }
 
             $orderItems = $order->items->keyBy('id');
@@ -456,7 +461,7 @@ class SalesReturnController extends Controller
                     throw ValidationException::withMessages(["items.{$index}.qty_good" => 'Barang ini bukan bagian dari pesanan '.$order->number.'.']);
                 }
 
-                $taken[$orderItem->id] = ($taken[$orderItem->id] ?? 0) + $row['qty_good'] + $row['qty_damaged'];
+                $taken[$orderItem->id] = ($taken[$orderItem->id] ?? 0) + $row['qty_good'] + $row['qty_damaged'] + $row['qty_missing'];
                 $remaining = $orderItem->qty - ($returned[$orderItem->id] ?? 0);
 
                 if ($taken[$orderItem->id] > $remaining) {
@@ -466,13 +471,16 @@ class SalesReturnController extends Controller
                 $rows[$index] = [...$row, 'product_variant_id' => $orderItem->product_variant_id];
             }
         } else {
-            $empty = $rows->search(fn ($row) => $row['qty_good'] + $row['qty_damaged'] === 0);
+            $empty = $rows->search(fn ($row) => $row['qty_good'] + $row['qty_damaged'] + $row['qty_missing'] === 0);
             if ($empty !== false) {
-                throw ValidationException::withMessages(["items.{$empty}.qty_good" => 'Isi jumlah layak jual atau rusak.']);
+                throw ValidationException::withMessages(["items.{$empty}.qty_good" => 'Isi jumlah layak jual, rusak atau hilang.']);
             }
 
             $rows = $rows->map(fn ($row) => [...$row, 'sales_order_item_id' => null]);
         }
+
+        // Baris yang isinya hanya barang hilang otomatis beralasan "Tidak ada di paket".
+        $rows = $rows->map(fn ($row) => blank($row['reason']) && $row['qty_good'] + $row['qty_damaged'] === 0 ? [...$row, 'reason' => 'missing'] : $row);
 
         $noReason = $rows->search(fn ($row) => blank($row['reason']));
         if ($noReason !== false) {

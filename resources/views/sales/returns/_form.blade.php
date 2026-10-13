@@ -1,11 +1,12 @@
 @php
-    $blank = ['sales_order_item_id' => '', 'product_variant_id' => '', 'qty_good' => '', 'qty_damaged' => '', 'warehouse_location_id' => '', 'reason' => '', 'photo_path' => '', 'photo_url' => '', 'notes' => ''];
+    $blank = ['sales_order_item_id' => '', 'product_variant_id' => '', 'qty_good' => '', 'qty_damaged' => '', 'qty_missing' => '', 'warehouse_location_id' => '', 'reason' => '', 'photo_path' => '', 'photo_url' => '', 'notes' => ''];
     $existing = $return->relationLoaded('items')
         ? $return->items->map(fn ($item) => [
             'sales_order_item_id' => (string) ($item->sales_order_item_id ?? ''),
             'product_variant_id' => (string) $item->product_variant_id,
             'qty_good' => $item->qty_good ?: '',
             'qty_damaged' => $item->qty_damaged ?: '',
+            'qty_missing' => $item->qty_missing ?: '',
             'warehouse_location_id' => (string) ($item->warehouse_location_id ?? ''),
             'reason' => $item->reason,
             'photo_path' => $item->photo_path ?? '',
@@ -73,11 +74,11 @@
              return this.locations.filter(l => String(l.warehouse_id) === String(this.warehouse)).map(l => ({ value: l.id, text: l.code }));
          },
          qty(item) {
-             return (parseInt(item.qty_good) || 0) + (parseInt(item.qty_damaged) || 0);
+             return (parseInt(item.qty_good) || 0) + (parseInt(item.qty_damaged) || 0) + (parseInt(item.qty_missing) || 0);
          },
          totals() {
              const sum = key => this.rows.reduce((total, item) => total + (parseInt(item[key]) || 0), 0);
-             return { good: sum('qty_good'), damaged: sum('qty_damaged') };
+             return { good: sum('qty_good'), damaged: sum('qty_damaged'), missing: sum('qty_missing') };
          },
          setWarehouse(id) {
              this.warehouse = String(id);
@@ -305,8 +306,9 @@
                         <th class="py-2 pr-2 font-normal">Barang *</th>
                         <th class="px-2 py-2 text-right font-normal" x-show="source === 'order'">Dikirim</th>
                         <th class="px-2 py-2 text-right font-normal" x-show="source === 'order'">Sisa</th>
-                        <th class="px-2 py-2 text-right font-normal">Layak Jual</th>
+                        <th class="px-2 py-2 text-right font-normal whitespace-nowrap">Layak Jual</th>
                         <th class="px-2 py-2 text-right font-normal">Rusak</th>
+                        <th class="px-2 py-2 text-right font-normal" title="Seharusnya ikut kembali tapi tidak ada di paket">Hilang</th>
                         <th class="px-2 py-2 font-normal">Lokasi Bin</th>
                         <th class="px-2 py-2 font-normal">Alasan *</th>
                         <th class="px-2 py-2 font-normal">Foto</th>
@@ -343,17 +345,21 @@
                                       x-text="item.line ? item.line.remaining - qty(item) : ''"></span>
                             </td>
                             <td class="px-2 py-1.5">
-                                <input type="number" min="0" step="1" class="form-input w-20 text-right" :name="`items[${index}][qty_good]`" x-model="item.qty_good" placeholder="0"
+                                <input type="number" min="0" step="1" class="form-input w-16 text-right" :name="`items[${index}][qty_good]`" x-model="item.qty_good" placeholder="0"
                                        :class="errors[`items.${index}.qty_good`] && 'form-input-error'">
                                 <p class="mt-1 max-w-40 text-xs text-rose-600" x-show="errors[`items.${index}.qty_good`]" x-text="errors[`items.${index}.qty_good`]"></p>
                             </td>
                             <td class="px-2 py-1.5">
-                                <input type="number" min="0" step="1" class="form-input w-20 text-right" :name="`items[${index}][qty_damaged]`" x-model="item.qty_damaged" placeholder="0"
+                                <input type="number" min="0" step="1" class="form-input w-16 text-right" :name="`items[${index}][qty_damaged]`" x-model="item.qty_damaged" placeholder="0"
                                        :class="errors[`items.${index}.qty_damaged`] && 'form-input-error'">
                             </td>
                             <td class="px-2 py-1.5">
+                                <input type="number" min="0" step="1" class="form-input w-16 text-right" :name="`items[${index}][qty_missing]`" x-model="item.qty_missing" placeholder="0"
+                                       :class="errors[`items.${index}.qty_missing`] && 'form-input-error'">
+                            </td>
+                            <td class="px-2 py-1.5">
                                 <div x-show="parseInt(item.qty_good) > 0 || source === 'manual'">
-                                    <select class="form-input min-w-36" :name="`items[${index}][warehouse_location_id]`" x-model="item.warehouse_location_id"
+                                    <select class="form-input min-w-32" :name="`items[${index}][warehouse_location_id]`" x-model="item.warehouse_location_id"
                                             x-tom-select="{ options: locationOptions, value: item.warehouse_location_id }" data-placeholder="Tanpa bin"
                                             :class="errors[`items.${index}.warehouse_location_id`] && 'form-input-error'">
                                         <option value="">Tanpa bin</option>
@@ -363,7 +369,8 @@
                                 <p class="mt-1 max-w-48 text-xs text-rose-600" x-show="errors[`items.${index}.warehouse_location_id`]" x-text="errors[`items.${index}.warehouse_location_id`]"></p>
                             </td>
                             <td class="px-2 py-1.5">
-                                <select data-native class="form-input w-48" :name="`items[${index}][reason]`" x-model="item.reason"
+                                <div class="w-44">
+                                <select data-native class="form-input w-full" :name="`items[${index}][reason]`" x-model="item.reason"
                                         :class="errors[`items.${index}.reason`] && 'form-input-error'">
                                     <option value="">Pilih alasan</option>
                                     <template x-for="reason in reasons" :key="reason.value">
@@ -371,6 +378,7 @@
                                     </template>
                                 </select>
                                 <p class="mt-1 text-xs text-rose-600" x-show="errors[`items.${index}.reason`]" x-text="errors[`items.${index}.reason`]"></p>
+                                </div>
                             </td>
                             <td class="px-2 py-1.5">
                                 <input type="hidden" :name="`items[${index}][photo_path]`" :value="item.photo_path">
@@ -392,7 +400,7 @@
                                 <p class="mt-1 max-w-40 text-xs text-rose-600" x-show="errors[`items.${index}.photo`]" x-text="errors[`items.${index}.photo`]"></p>
                             </td>
                             <td class="px-2 py-1.5">
-                                <input type="text" class="form-input min-w-40" maxlength="255" :name="`items[${index}][notes]`" x-model="item.notes" placeholder="cth. segel terbuka">
+                                <input type="text" class="form-input min-w-32" maxlength="255" :name="`items[${index}][notes]`" x-model="item.notes" placeholder="cth. segel terbuka">
                             </td>
                             <td class="py-1.5 pl-2" x-show="source === 'manual'">
                                 <button type="button" class="btn-icon hover:bg-rose-50 hover:text-rose-600" title="Hapus baris"
@@ -408,6 +416,7 @@
                         <td class="py-2 pr-2 text-right" :colspan="source === 'order' ? 3 : 1">Total</td>
                         <td class="px-2 py-2 text-right font-medium tabular-nums text-emerald-700" x-text="totals().good"></td>
                         <td class="px-2 py-2 text-right font-medium tabular-nums text-rose-600" x-text="totals().damaged"></td>
+                        <td class="px-2 py-2 text-right font-medium tabular-nums text-amber-600" x-text="totals().missing"></td>
                         <td colspan="5"></td>
                     </tr>
                 </tfoot>
@@ -415,7 +424,7 @@
             <button type="button" class="btn-secondary mt-3" x-show="source === 'manual'" @click="manualRows.push(blankRow())">
                 <x-heroicon-o-plus class="size-5" /> Tambah Baris
             </button>
-            <p class="mt-3 text-xs text-slate-500">Hanya jumlah <span class="font-medium">Layak Jual</span> yang masuk lagi ke stok. Barang <span class="font-medium">Rusak</span> dicatat terpisah di retur ini dan tidak menambah stok jual. Tanpa lokasi bin, barang masuk sebagai stok "Tanpa bin".</p>
+            <p class="mt-3 text-xs text-slate-500">Hanya jumlah <span class="font-medium">Layak Jual</span> yang masuk lagi ke stok. Barang <span class="font-medium">Rusak</span> dicatat terpisah di retur ini dan tidak menambah stok jual. <span class="font-medium">Hilang</span> untuk barang yang seharusnya ikut kembali tapi tidak ada di paket (bahan klaim ke Shopee / kurir); alasannya otomatis "Tidak ada di paket". Tanpa lokasi bin, barang masuk sebagai stok "Tanpa bin".</p>
         </div>
     </div>
 </div>
