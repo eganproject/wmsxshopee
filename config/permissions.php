@@ -94,7 +94,7 @@ return [
                 'view' => 'Lihat pesanan & cetak picking list',
                 'create' => 'Buat, ubah & impor draft pesanan',
                 'confirm' => 'Konfirmasi pesanan (cadangkan stok)',
-                'fulfill' => 'Picking, packing & kirim (stok keluar)',
+                'fulfill' => 'Picking, packing, atur pickup / drop off, cetak resi & kirim (stok keluar)',
                 'cancel' => 'Batalkan pesanan',
                 'delete' => 'Hapus draft pesanan',
             ],

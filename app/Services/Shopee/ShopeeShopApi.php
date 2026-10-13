@@ -35,4 +35,12 @@ class ShopeeShopApi
     {
         return $this->client->shopRequest('POST', $path, $this->shop->shop_id, $this->auth->freshAccessToken($this->shop, $this->client), body: $body);
     }
+
+    /**
+     * @param  array<string, mixed>  $body
+     */
+    public function download(string $path, array $body = []): string
+    {
+        return $this->client->shopDownload($path, $this->shop->shop_id, $this->auth->freshAccessToken($this->shop, $this->client), $body);
+    }
 }

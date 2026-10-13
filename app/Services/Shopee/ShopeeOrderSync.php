@@ -133,6 +133,7 @@ class ShopeeOrderSync
             'shopee_order_status' => $status,
             'shopee_synced_at' => now(),
             'shopee_package_number' => $detail['package_list'][0]['package_number'] ?? $order->shopee_package_number,
+            'shopee_ship_by' => $this->shipBy($detail) ?? $order->shopee_ship_by,
         ]);
 
         if ($status === 'CANCELLED') {
@@ -179,13 +180,14 @@ class ShopeeOrderSync
             'number' => SalesOrder::nextNumber(),
             'status' => 'draft',
             'warehouse_id' => $shop->warehouse_id,
-            'order_date' => Carbon::createFromTimestamp($detail['create_time'] ?? now()->getTimestamp())->toDateString(),
+            'order_date' => Carbon::createFromTimestamp($detail['create_time'] ?? now()->getTimestamp(), config('app.timezone'))->toDateString(),
             'channel_name' => $shop->channelName(),
             'external_number' => (string) $detail['order_sn'],
             'shopee_shop_id' => $shop->id,
             'shopee_order_status' => $detail['order_status'],
             'shopee_package_number' => $package['package_number'] ?? null,
             'shopee_synced_at' => now(),
+            'shopee_ship_by' => $this->shipBy($detail),
             'customer_name' => mb_substr($address['name'] ?? $detail['buyer_username'] ?? 'Pembeli Shopee', 0, 150),
             'customer_phone' => isset($address['phone']) ? mb_substr($address['phone'], 0, 30) : null,
             'shipping_address' => $address['full_address'] ?? null,
@@ -304,6 +306,16 @@ class ShopeeOrderSync
         $order->save();
 
         return 'updated';
+    }
+
+    /**
+     * Batas kirim dari Shopee (ship_by_date); lewat dari ini pesanan bisa dibatalkan otomatis.
+     *
+     * @param  array<string, mixed>  $detail
+     */
+    private function shipBy(array $detail): ?Carbon
+    {
+        return filled($detail['ship_by_date'] ?? null) ? Carbon::createFromTimestamp((int) $detail['ship_by_date'], config('app.timezone')) : null;
     }
 
     /**

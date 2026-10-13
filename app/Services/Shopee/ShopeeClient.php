@@ -111,6 +111,46 @@ class ShopeeClient
     }
 
     /**
+     * POST API toko yang membalas berkas (cth. PDF label resi), bukan JSON.
+     * Bila Shopee membalas JSON berarti ada error.
+     *
+     * @param  array<string, mixed>  $body
+     */
+    public function shopDownload(string $path, int $shopId, string $accessToken, array $body = []): string
+    {
+        $timestamp = now()->getTimestamp();
+        $url = $this->host().$path.'?'.http_build_query([
+            'partner_id' => $this->partnerId(),
+            'timestamp' => $timestamp,
+            'access_token' => $accessToken,
+            'shop_id' => $shopId,
+            'sign' => $this->sign($path, $timestamp, $accessToken, $shopId),
+        ]);
+
+        try {
+            $response = Http::timeout(config('shopee.timeout'))->asJson()->post($url, $body);
+        } catch (ConnectionException $e) {
+            throw new ShopeeException('Tidak bisa terhubung ke Shopee: '.$e->getMessage());
+        }
+
+        if (str_contains((string) $response->header('Content-Type'), 'json')) {
+            $json = $response->json() ?? [];
+
+            throw new ShopeeException(
+                'Shopee: '.($json['message'] ?? $json['error'] ?? 'berkas tidak tersedia').(filled($json['error'] ?? null) ? ' ('.$json['error'].')' : ''),
+                $json['error'] ?? null,
+                $json['request_id'] ?? null,
+            );
+        }
+
+        if ($response->failed()) {
+            throw new ShopeeException("Shopee membalas HTTP {$response->status()}.");
+        }
+
+        return $response->body();
+    }
+
+    /**
      * @param  array<string, mixed>  $query
      * @param  array<string, mixed>  $body
      * @return array<string, mixed>

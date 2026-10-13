@@ -30,6 +30,7 @@ use App\Http\Controllers\ReportController;
 use App\Http\Controllers\Sales\SalesOrderController;
 use App\Http\Controllers\Sales\SalesOrderImportController;
 use App\Http\Controllers\Sales\SalesReturnController;
+use App\Http\Controllers\Sales\ShipmentController;
 use App\Http\Controllers\Shopee\ShopeeSettingController;
 use App\Http\Controllers\Shopee\ShopeeShopController;
 use App\Http\Controllers\Shopee\ShopeeSkuMappingController;
@@ -157,6 +158,8 @@ Route::middleware(['auth', 'active'])->group(function () {
         Route::get('orders/import', [SalesOrderImportController::class, 'create'])->middleware('can:sales.create')->name('orders.import');
         Route::post('orders/import', [SalesOrderImportController::class, 'store'])->middleware('can:sales.create')->name('orders.import.store');
         Route::get('orders/import/template.{format}', [SalesOrderImportController::class, 'template'])->middleware('can:sales.create')->name('orders.import.template');
+        Route::post('orders/shipment', [ShipmentController::class, 'bulk'])->middleware('can:sales.fulfill')->name('orders.shipment.bulk');
+        Route::get('orders/shipping-labels', [ShipmentController::class, 'bulkLabel'])->middleware('can:sales.fulfill')->name('orders.shipping-labels');
         Route::get('orders/{order}', [SalesOrderController::class, 'show'])->middleware('can:sales.view')->name('orders.show');
         Route::get('orders/{order}/edit', [SalesOrderController::class, 'edit'])->middleware('can:sales.create')->name('orders.edit');
         Route::put('orders/{order}', [SalesOrderController::class, 'update'])->middleware('can:sales.create')->name('orders.update');
@@ -169,6 +172,9 @@ Route::middleware(['auth', 'active'])->group(function () {
         Route::get('orders/{order}/pick-list', [SalesOrderController::class, 'pickList'])->middleware('can:sales.view')->name('orders.pick-list');
         Route::post('orders/{order}/pack', [SalesOrderController::class, 'pack'])->middleware('can:sales.fulfill')->name('orders.pack');
         Route::post('orders/{order}/ship', [SalesOrderController::class, 'ship'])->middleware('can:sales.fulfill')->name('orders.ship');
+        Route::get('orders/{order}/shipment', [ShipmentController::class, 'create'])->middleware('can:sales.fulfill')->name('orders.shipment');
+        Route::post('orders/{order}/shipment', [ShipmentController::class, 'store'])->middleware('can:sales.fulfill')->name('orders.shipment.store');
+        Route::get('orders/{order}/shipping-label', [ShipmentController::class, 'label'])->middleware('can:sales.fulfill')->name('orders.shipping-label');
 
         // Retur penjualan: cari pesanan lewat resi / no. SO / no. pesanan, atau tanpa
         // pesanan. Draft bisa diubah/dihapus; saat diterima, barang layak jual masuk
