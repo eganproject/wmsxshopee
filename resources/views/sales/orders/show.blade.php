@@ -317,7 +317,9 @@
     </div>
 
     @if ($order->shopee_income)
-        @include('sales.orders._shopee-income')
+        @can('sales.income')
+            @include('sales.orders._shopee-income')
+        @endcan
     @endif
 
     <p class="mt-4 flex items-center gap-1.5 text-xs text-slate-500">

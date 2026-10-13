@@ -97,6 +97,7 @@ return [
                 'fulfill' => 'Picking, packing & kirim (stok keluar)',
                 'cancel' => 'Batalkan pesanan',
                 'delete' => 'Hapus draft pesanan',
+                'income' => 'Lihat rincian pendapatan Shopee (harga, potongan & dana diterima)',
             ],
         ],
 

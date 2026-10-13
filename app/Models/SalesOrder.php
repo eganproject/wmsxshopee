@@ -27,6 +27,9 @@ class SalesOrder extends Model
     /** Status yang menahan (mencadangkan) stok di gudang. */
     public const RESERVING = ['confirmed', 'picked', 'packed'];
 
+    /** Rincian pendapatan Shopee tidak ikut ke JSON/array (hanya untuk hak sales.income). */
+    protected $hidden = ['shopee_income', 'shopee_escrow_amount'];
+
     protected $fillable = [
         'number',
         'status',
@@ -199,7 +202,7 @@ class SalesOrder extends Model
     /** Jejak waktu sinkron Shopee berubah tiap tarikan; tidak perlu masuk log. */
     public function activityIgnored(): array
     {
-        return ['shopee_synced_at', 'shopee_income', 'shopee_income_synced_at'];
+        return ['shopee_synced_at', 'shopee_income', 'shopee_escrow_amount', 'shopee_income_final', 'shopee_income_synced_at'];
     }
 
     /**

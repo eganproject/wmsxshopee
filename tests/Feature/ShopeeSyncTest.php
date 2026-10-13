@@ -19,6 +19,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Factory;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
+use OpenSpout\Reader\XLSX\Reader;
 use Tests\TestCase;
 
 class ShopeeSyncTest extends TestCase
@@ -172,6 +173,43 @@ class ShopeeSyncTest extends TestCase
         $this->assertTrue($order->shopee_income_final);
         $this->assertSame('127500.00', $order->shopee_escrow_amount);
         $this->get("/sales/orders/{$order->id}")->assertSee('Final')->assertDontSee('Perkiraan');
+    }
+
+    public function test_income_is_only_visible_with_permission(): void
+    {
+        $this->fakeOrders([$this->order('J1', 'READY_TO_SHIP', [$this->line(11, 101, 1)])]);
+        $this->artisan('shopee:sync --only=orders')->assertSuccessful();
+        $order = SalesOrder::where('external_number', 'J1')->firstOrFail();
+
+        $staff = User::factory()->create(['username' => 'admin2', 'is_active' => true]);
+        $staff->assignRole('Admin');
+        $this->actingAs($staff);
+
+        $this->get("/sales/orders/{$order->id}")->assertOk()->assertDontSee('Rincian Pendapatan Shopee')->assertDontSee('Rp 129.000');
+        $header = $this->xlsxHeader('/sales/orders?export=xlsx');
+        $this->assertNotContains('Dana Diterima Shopee', $header);
+        $this->assertArrayNotHasKey('shopee_escrow_amount', $order->toArray());
+
+        $staff->givePermissionTo('sales.income');
+        $this->actingAs($staff->fresh());
+        $this->get("/sales/orders/{$order->id}")->assertSee('Rincian Pendapatan Shopee')->assertSee('Rp 129.000');
+        $this->assertContains('Dana Diterima Shopee', $this->xlsxHeader('/sales/orders?export=xlsx'));
+    }
+
+    /** @return list<mixed> */
+    private function xlsxHeader(string $url): array
+    {
+        $reader = new Reader;
+        $reader->open($this->get($url)->assertOk()->getFile()->getPathname());
+        foreach ($reader->getSheetIterator() as $sheet) {
+            foreach ($sheet->getRowIterator() as $row) {
+                $header = $row->toArray();
+                break 2;
+            }
+        }
+        $reader->close();
+
+        return $header ?? [];
     }
 
     public function test_unmapped_sku_keeps_order_as_draft_until_mapped(): void
