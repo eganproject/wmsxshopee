@@ -6,7 +6,9 @@ use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\Master\CourierController;
 use App\Http\Controllers\Master\LocationController;
+use App\Http\Controllers\Master\ProductController;
 use App\Http\Controllers\Master\RackController;
+use App\Http\Controllers\Master\UnitController;
 use App\Http\Controllers\Master\WarehouseController;
 use App\Http\Controllers\Master\ZoneController;
 use App\Http\Controllers\ProfileController;
@@ -30,13 +32,16 @@ Route::middleware(['auth', 'active'])->group(function () {
     Route::put('profile/password', [ProfileController::class, 'updatePassword'])->name('profile.password');
 
     Route::prefix('master')->name('master.')->group(function () {
-        // Zona, rak & lokasi bin memakai permission yang sama dengan gudang.
+        // Zona, rak & lokasi bin memakai permission yang sama dengan gudang;
+        // satuan memakai permission produk.
         $resources = [
             'warehouses' => [WarehouseController::class, 'warehouses', 'warehouse'],
             'zones' => [ZoneController::class, 'warehouses', 'zone'],
             'racks' => [RackController::class, 'warehouses', 'rack'],
             'locations' => [LocationController::class, 'warehouses', 'location'],
             'couriers' => [CourierController::class, 'couriers', 'courier'],
+            'products' => [ProductController::class, 'products', 'product'],
+            'units' => [UnitController::class, 'products', 'unit'],
         ];
 
         foreach ($resources as $uri => [$controller, $permission, $param]) {

@@ -31,13 +31,14 @@ class PermissionSeeder extends Seeder
                 ->syncPermissions([
                     'dashboard.view', 'users.view', 'users.create', 'users.edit', 'roles.view',
                     'warehouses.view', 'warehouses.create', 'warehouses.edit', 'warehouses.delete',
+                    'products.view', 'products.create', 'products.edit', 'products.delete',
                     'couriers.view', 'couriers.create', 'couriers.edit', 'couriers.delete',
                 ]);
         }
 
         if (! Role::where('name', 'Staff Gudang')->exists()) {
             Role::create(['name' => 'Staff Gudang', 'guard_name' => 'web'])
-                ->syncPermissions(['dashboard.view', 'warehouses.view', 'couriers.view']);
+                ->syncPermissions(['dashboard.view', 'warehouses.view', 'products.view', 'couriers.view']);
         }
 
         app(PermissionRegistrar::class)->forgetCachedPermissions();
