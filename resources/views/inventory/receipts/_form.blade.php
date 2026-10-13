@@ -3,7 +3,7 @@
     $existing = $receipt->relationLoaded('items')
         ? $receipt->items->map(fn ($item) => [
             'product_variant_id' => (string) $item->product_variant_id,
-            'warehouse_location_id' => (string) $item->warehouse_location_id,
+            'warehouse_location_id' => (string) ($item->warehouse_location_id ?? ''),
             'qty_ordered' => $item->qty_ordered ?? '',
             'qty_received' => $item->qty_received,
             'qty_damaged' => $item->qty_damaged ?: '',
@@ -31,6 +31,12 @@
          },
          locationsFor() {
              return this.locations.filter(l => String(l.warehouse_id) === String(this.warehouse));
+         },
+         get variantOptions() {
+             return this.variants.map(v => ({ value: v.id, text: v.label }));
+         },
+         get locationOptions() {
+             return this.locationsFor().map(l => ({ value: l.id, text: l.code }));
          },
          totals() {
              const sum = key => this.items.reduce((total, item) => total + (parseInt(item[key]) || 0), 0);
@@ -128,7 +134,7 @@
         @enderror
 
         <p class="mx-5 mt-4 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-700" x-show="! warehouse" x-cloak>
-            Pilih gudang tujuan dulu agar daftar lokasi bin muncul.
+            Pilih gudang tujuan dulu agar daftar lokasi bin muncul. Lokasi bin boleh dikosongkan.
         </p>
 
         <div class="overflow-x-auto p-5 pt-4">
@@ -140,7 +146,7 @@
                         <th class="px-2 py-2 text-right font-normal">Diterima Baik *</th>
                         <th class="px-2 py-2 text-right font-normal">Rusak</th>
                         <th class="px-2 py-2 text-right font-normal">Selisih</th>
-                        <th class="px-2 py-2 font-normal">Lokasi Bin *</th>
+                        <th class="px-2 py-2 font-normal">Lokasi Bin</th>
                         <th class="px-2 py-2 font-normal">Keterangan</th>
                         <th class="py-2 pl-2"></th>
                     </tr>
@@ -150,12 +156,8 @@
                         <tr class="align-top">
                             <td class="py-1.5 pr-2">
                                 <select class="form-input min-w-64" :name="`items[${index}][product_variant_id]`" x-model="item.product_variant_id"
-                                        :class="errors[`items.${index}.product_variant_id`] && 'form-input-error'">
-                                    <option value="">Pilih barang</option>
-                                    <template x-for="variant in variants" :key="variant.id">
-                                        <option :value="variant.id" x-text="variant.label" :selected="String(variant.id) === String(item.product_variant_id)"></option>
-                                    </template>
-                                </select>
+                                        x-tom-select="{ options: variantOptions, value: item.product_variant_id }" data-placeholder="Cari SKU / nama barang"
+                                        :class="errors[`items.${index}.product_variant_id`] && 'form-input-error'"></select>
                                 <p class="mt-1 text-xs text-rose-600" x-show="errors[`items.${index}.product_variant_id`]" x-text="errors[`items.${index}.product_variant_id`]"></p>
                             </td>
                             <td class="px-2 py-1.5">
@@ -178,11 +180,9 @@
                             </td>
                             <td class="px-2 py-1.5">
                                 <select class="form-input min-w-36" :name="`items[${index}][warehouse_location_id]`" x-model="item.warehouse_location_id"
+                                        x-tom-select="{ options: locationOptions, value: item.warehouse_location_id }" data-placeholder="Tanpa bin"
                                         :class="errors[`items.${index}.warehouse_location_id`] && 'form-input-error'">
-                                    <option value="">Pilih bin</option>
-                                    <template x-for="location in locationsFor()" :key="location.id">
-                                        <option :value="location.id" x-text="location.code" :selected="String(location.id) === String(item.warehouse_location_id)"></option>
-                                    </template>
+                                    <option value="">Tanpa bin</option>
                                 </select>
                                 <p class="mt-1 max-w-48 text-xs text-rose-600" x-show="errors[`items.${index}.warehouse_location_id`]" x-text="errors[`items.${index}.warehouse_location_id`]"></p>
                             </td>
@@ -211,7 +211,7 @@
             <button type="button" class="btn-secondary mt-3" @click="items.push(blank())">
                 <x-heroicon-o-plus class="size-5" /> Tambah Baris
             </button>
-            <p class="mt-3 text-xs text-slate-500">Hanya jumlah <span class="font-medium">Diterima Baik</span> yang masuk stok. Barang rusak dicatat di dokumen ini tanpa menambah stok.</p>
+            <p class="mt-3 text-xs text-slate-500">Hanya jumlah <span class="font-medium">Diterima Baik</span> yang masuk stok. Barang rusak dicatat di dokumen ini tanpa menambah stok. Baris tanpa lokasi bin masuk sebagai stok "Tanpa bin" di gudang tujuan.</p>
         </div>
     </div>
 </div>

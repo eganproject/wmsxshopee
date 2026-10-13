@@ -81,7 +81,7 @@
                             </td>
                             @if ($mode === 'location')
                                 <td class="px-5 py-3.5 text-slate-600">{{ $stock->warehouse->code }}</td>
-                                <td class="px-5 py-3.5 font-mono text-slate-700">{{ $stock->location->code }}</td>
+                                <td @class(['px-5 py-3.5', 'font-mono text-slate-700' => $stock->location, 'text-slate-400' => ! $stock->location])>{{ $stock->location?->code ?? 'Tanpa bin' }}</td>
                             @else
                                 <td class="px-5 py-3.5 text-center text-slate-600">{{ $stock->location_count }}</td>
                             @endif
@@ -99,7 +99,7 @@
                                     <a href="{{ route('inventory.stock-card.index', array_filter([
                                         'variant' => $stock->product_variant_id,
                                         'warehouse' => $mode === 'location' ? $stock->warehouse_id : request('warehouse'),
-                                        'location' => $mode === 'location' ? $stock->warehouse_location_id : null,
+                                        'location' => $mode === 'location' ? ($stock->warehouse_location_id ?? 'none') : null,
                                     ])) }}" class="btn-icon" title="Kartu stok">
                                         <x-heroicon-o-document-chart-bar class="size-5" />
                                     </a>

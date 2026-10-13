@@ -43,7 +43,7 @@ class StockController extends Controller
         } else {
             $stocks = $query
                 ->with(['variant.product.unit', 'warehouse', 'location'])
-                ->join('warehouse_locations', 'warehouse_locations.id', '=', 'stocks.warehouse_location_id')
+                ->leftJoin('warehouse_locations', 'warehouse_locations.id', '=', 'stocks.warehouse_location_id')
                 ->orderBy('stocks.warehouse_id')
                 ->orderBy('warehouse_locations.code')
                 ->select('stocks.*')

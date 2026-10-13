@@ -11,6 +11,7 @@ use App\Services\StockService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 
 class StockMovementController extends Controller
@@ -81,8 +82,9 @@ class StockMovementController extends Controller
             'created_by' => $request->user()->id,
         ], collect($data['items'])->map(fn ($row) => [
             'product_variant_id' => (int) $row['product_variant_id'],
-            'from_location_id' => in_array($type, ['out', 'transfer']) ? (int) $row['from_location_id'] : null,
-            'to_location_id' => $type !== 'out' ? (int) $row['to_location_id'] : null,
+            // Lokasi bin opsional: kosong berarti stok "Tanpa bin" di level gudang.
+            'from_location_id' => in_array($type, ['out', 'transfer']) && filled($row['from_location_id'] ?? null) ? (int) $row['from_location_id'] : null,
+            'to_location_id' => $type !== 'out' && filled($row['to_location_id'] ?? null) ? (int) $row['to_location_id'] : null,
             'qty' => (int) $row['qty'],
             'notes' => $row['notes'] ?? null,
         ])->all());
@@ -115,7 +117,7 @@ class StockMovementController extends Controller
         $warehouseId = $request->integer('warehouse_id');
         $location = fn () => Rule::exists('warehouse_locations', 'id')->where('warehouse_id', $warehouseId);
 
-        return $request->validate([
+        $data = $request->validate([
             'warehouse_id' => ['required', 'integer', Rule::exists('warehouses', 'id')->where('is_active', true)],
             'movement_date' => ['required', 'date', 'before_or_equal:today'],
             'reference' => ['nullable', 'string', 'max:100'],
@@ -123,9 +125,9 @@ class StockMovementController extends Controller
             'items' => ['required', 'array', 'min:1', 'max:200'],
             'items.*.product_variant_id' => ['required', 'integer', Rule::exists('product_variants', 'id')],
             // Mengambil dari lokasi nonaktif tetap boleh (untuk mengosongkan); menaruh hanya ke lokasi aktif.
-            'items.*.from_location_id' => in_array($type, ['out', 'transfer']) ? ['required', 'integer', $location()] : ['nullable'],
+            'items.*.from_location_id' => in_array($type, ['out', 'transfer']) ? ['nullable', 'integer', $location()] : ['nullable'],
             'items.*.to_location_id' => $type !== 'out'
-                ? ['required', 'integer', $location()->where('is_active', true), ...($type === 'transfer' ? ['different:items.*.from_location_id'] : [])]
+                ? ['nullable', 'integer', $location()->where('is_active', true)]
                 : ['nullable'],
             'items.*.qty' => $type === 'adjustment'
                 ? ['required', 'integer', 'between:-1000000,1000000', 'not_in:0']
@@ -134,7 +136,6 @@ class StockMovementController extends Controller
         ], [
             'items.required' => 'Tambahkan minimal satu barang.',
             'movement_date.before_or_equal' => 'Tanggal mutasi tidak boleh di masa depan.',
-            'items.*.to_location_id.different' => 'Lokasi tujuan harus berbeda dari lokasi asal.',
             'items.*.to_location_id.exists' => 'Lokasi tujuan harus lokasi aktif di gudang yang dipilih.',
             'items.*.from_location_id.exists' => 'Lokasi asal harus berada di gudang yang dipilih.',
             'items.*.qty.not_in' => 'Jumlah penyesuaian tidak boleh 0.',
@@ -149,5 +150,15 @@ class StockMovementController extends Controller
             'items.*.qty' => 'jumlah',
             'items.*.notes' => 'keterangan',
         ]);
+
+        if ($type === 'transfer') {
+            foreach ($data['items'] as $index => $row) {
+                if ((string) ($row['from_location_id'] ?? '') === (string) ($row['to_location_id'] ?? '')) {
+                    throw ValidationException::withMessages(["items.{$index}.to_location_id" => 'Lokasi tujuan harus berbeda dari lokasi asal.']);
+                }
+            }
+        }
+
+        return $data;
     }
 }

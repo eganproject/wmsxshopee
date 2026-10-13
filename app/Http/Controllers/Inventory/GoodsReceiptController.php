@@ -183,7 +183,7 @@ class GoodsReceiptController extends Controller
                 throw ValidationException::withMessages(['items' => 'Belum ada barang dengan jumlah diterima (kondisi baik) lebih dari 0.']);
             }
 
-            $inactive = $lines->first(fn ($item) => ! $item->location->is_active || $item->location->warehouse_id !== $receipt->warehouse_id);
+            $inactive = $lines->first(fn ($item) => $item->location && (! $item->location->is_active || $item->location->warehouse_id !== $receipt->warehouse_id));
             if ($inactive) {
                 throw ValidationException::withMessages(['items' => "Lokasi {$inactive->location->code} sudah nonaktif atau bukan di gudang ini. Ubah lokasinya dulu."]);
             }
@@ -273,7 +273,7 @@ class GoodsReceiptController extends Controller
             'remove_attachment' => ['nullable', 'boolean'],
             'items' => ['required', 'array', 'min:1', 'max:200'],
             'items.*.product_variant_id' => ['required', 'integer', Rule::exists('product_variants', 'id')],
-            'items.*.warehouse_location_id' => ['required', 'integer', Rule::exists('warehouse_locations', 'id')->where('warehouse_id', $warehouseId)->where('is_active', true)],
+            'items.*.warehouse_location_id' => ['nullable', 'integer', Rule::exists('warehouse_locations', 'id')->where('warehouse_id', $warehouseId)->where('is_active', true)],
             'items.*.qty_ordered' => ['nullable', 'integer', 'min:0', 'max:1000000'],
             'items.*.qty_received' => ['required', 'integer', 'min:0', 'max:1000000'],
             'items.*.qty_damaged' => ['nullable', 'integer', 'min:0', 'max:1000000'],
@@ -300,7 +300,7 @@ class GoodsReceiptController extends Controller
 
         $items = collect($data['items'])->map(fn ($row) => [
             'product_variant_id' => (int) $row['product_variant_id'],
-            'warehouse_location_id' => (int) $row['warehouse_location_id'],
+            'warehouse_location_id' => filled($row['warehouse_location_id'] ?? null) ? (int) $row['warehouse_location_id'] : null,
             'qty_ordered' => isset($row['qty_ordered']) ? (int) $row['qty_ordered'] : null,
             'qty_received' => (int) $row['qty_received'],
             'qty_damaged' => (int) ($row['qty_damaged'] ?? 0),

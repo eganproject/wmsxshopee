@@ -84,7 +84,7 @@
                     <h2 class="flex items-center gap-2 font-semibold text-slate-900">
                         <x-heroicon-o-cube class="size-5 text-slate-400" /> Barang
                     </h2>
-                    <p class="mt-0.5 text-sm text-slate-500">Pilih varian atau scan SKU / barcode untuk menambah baris.</p>
+                    <p class="mt-0.5 text-sm text-slate-500">Pilih varian atau scan SKU / barcode untuk menambah baris. Lokasi bin boleh dikosongkan (stok tercatat "Tanpa bin" di gudang).</p>
                 </div>
                 <div class="sm:w-72">
                     <div class="relative">
@@ -100,7 +100,7 @@
             @enderror
 
             <p class="mx-6 mt-4 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-700" x-show="! warehouse" x-cloak>
-                Pilih gudang dulu agar daftar lokasi muncul.
+                Pilih gudang dulu agar daftar lokasi bin muncul.
             </p>
 
             <div class="overflow-x-auto p-6 pt-4">
@@ -109,10 +109,10 @@
                         <tr>
                             <th class="py-2 pr-2">Varian *</th>
                             @if ($needsFrom)
-                                <th class="px-2 py-2">Lokasi Asal *</th>
+                                <th class="px-2 py-2">Lokasi Asal</th>
                             @endif
                             @if ($needsTo)
-                                <th class="px-2 py-2">{{ $type === 'adjustment' ? 'Lokasi' : 'Lokasi Tujuan' }} *</th>
+                                <th class="px-2 py-2">{{ $type === 'adjustment' ? 'Lokasi' : 'Lokasi Tujuan' }}</th>
                             @endif
                             <th class="px-2 py-2">{{ $type === 'adjustment' ? 'Jumlah (+/-)' : 'Jumlah' }} *</th>
                             <th class="px-2 py-2">Keterangan</th>
@@ -131,16 +131,20 @@
                                 @if ($needsFrom)
                                     <td class="px-2 py-1.5">
                                         <select class="form-input min-w-40" :name="`items[${index}][from_location_id]`" x-model="item.from_location_id"
-                                                x-tom-select="{ options: locationOptions(false), value: item.from_location_id }" data-placeholder="Cari lokasi"
-                                                :class="errors[`items.${index}.from_location_id`] && 'form-input-error'"></select>
+                                                x-tom-select="{ options: locationOptions(false), value: item.from_location_id }" data-placeholder="Tanpa bin"
+                                                :class="errors[`items.${index}.from_location_id`] && 'form-input-error'">
+                                            <option value="">Tanpa bin</option>
+                                        </select>
                                         <p class="mt-1 text-xs text-rose-600" x-show="errors[`items.${index}.from_location_id`]" x-text="errors[`items.${index}.from_location_id`]"></p>
                                     </td>
                                 @endif
                                 @if ($needsTo)
                                     <td class="px-2 py-1.5">
                                         <select class="form-input min-w-40" :name="`items[${index}][to_location_id]`" x-model="item.to_location_id"
-                                                x-tom-select="{ options: locationOptions(true), value: item.to_location_id }" data-placeholder="Cari lokasi"
-                                                :class="errors[`items.${index}.to_location_id`] && 'form-input-error'"></select>
+                                                x-tom-select="{ options: locationOptions(true), value: item.to_location_id }" data-placeholder="Tanpa bin"
+                                                :class="errors[`items.${index}.to_location_id`] && 'form-input-error'">
+                                            <option value="">Tanpa bin</option>
+                                        </select>
                                         <p class="mt-1 text-xs text-rose-600" x-show="errors[`items.${index}.to_location_id`]" x-text="errors[`items.${index}.to_location_id`]"></p>
                                     </td>
                                 @endif
