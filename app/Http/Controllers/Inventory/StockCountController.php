@@ -8,6 +8,7 @@ use App\Models\StockCount;
 use App\Models\Warehouse;
 use App\Models\WarehouseLocation;
 use App\Models\WarehouseZone;
+use App\Rules\AccessibleRecord;
 use App\Services\StockCountService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -51,7 +52,7 @@ class StockCountController extends Controller
     public function store(Request $request, StockCountService $service): RedirectResponse
     {
         $data = $request->validate([
-            'warehouse_id' => ['required', 'integer', Rule::exists('warehouses', 'id')->where('is_active', true)],
+            'warehouse_id' => ['required', 'integer', Rule::exists('warehouses', 'id')->where('is_active', true), new AccessibleRecord(Warehouse::class)],
             'scope' => ['required', Rule::in(array_keys(StockCount::SCOPES))],
             'warehouse_zone_id' => ['nullable', 'required_if:scope,zone', 'integer', Rule::exists('warehouse_zones', 'id')->where('warehouse_id', $request->integer('warehouse_id'))],
             'count_date' => ['required', 'date', 'before_or_equal:today'],

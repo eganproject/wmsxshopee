@@ -3,13 +3,14 @@
 namespace App\Models;
 
 use App\Models\Concerns\LogsActivity;
+use App\Models\Concerns\ScopedToWarehouse;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class WarehouseZone extends Model
 {
-    use LogsActivity;
+    use LogsActivity, ScopedToWarehouse;
 
     /** Jenis zona beserta labelnya. */
     public const TYPES = [

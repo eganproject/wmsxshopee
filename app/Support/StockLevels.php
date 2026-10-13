@@ -18,14 +18,16 @@ class StockLevels
 
     /**
      * Varian aktif yang punya stok minimum, paling kritis dulu. Tanpa gudang,
-     * stok & cadangan dijumlahkan dari semua gudang.
+     * stok & cadangan dijumlahkan dari semua gudang yang boleh diakses user.
      */
     public static function minStockQuery(?int $warehouseId = null): Builder
     {
         $available = self::AVAILABLE;
+        $accessible = WarehouseAccess::ids();
 
         $onHand = DB::table('stocks')
             ->when($warehouseId, fn ($q) => $q->where('warehouse_id', $warehouseId))
+            ->when($accessible !== null, fn ($q) => $q->whereIn('warehouse_id', $accessible))
             ->groupBy('product_variant_id')
             ->selectRaw('product_variant_id, SUM(qty) as qty');
 
@@ -33,6 +35,7 @@ class StockLevels
             ->join('sales_orders', 'sales_orders.id', '=', 'sales_order_items.sales_order_id')
             ->whereIn('sales_orders.status', SalesOrder::RESERVING)
             ->when($warehouseId, fn ($q) => $q->where('sales_orders.warehouse_id', $warehouseId))
+            ->when($accessible !== null, fn ($q) => $q->whereIn('sales_orders.warehouse_id', $accessible))
             ->groupBy('sales_order_items.product_variant_id')
             ->selectRaw('sales_order_items.product_variant_id, SUM(sales_order_items.qty) as qty');
 

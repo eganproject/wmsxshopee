@@ -2,12 +2,15 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\ScopedToWarehouse;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 /** Saldo stok saat ini satu varian di satu lokasi bin. Diubah hanya lewat StockService. */
 class Stock extends Model
 {
+    use ScopedToWarehouse;
+
     protected $fillable = [
         'product_variant_id',
         'warehouse_id',

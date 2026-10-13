@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Sales;
 
 use App\Http\Controllers\Controller;
 use App\Models\Warehouse;
+use App\Rules\AccessibleRecord;
 use App\Services\SalesOrderImporter;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -28,7 +29,7 @@ class SalesOrderImportController extends Controller
     public function store(Request $request, SalesOrderImporter $importer): RedirectResponse
     {
         $data = $request->validate([
-            'warehouse_id' => ['required', 'integer', Rule::exists('warehouses', 'id')->where('is_active', true)],
+            'warehouse_id' => ['required', 'integer', Rule::exists('warehouses', 'id')->where('is_active', true), new AccessibleRecord(Warehouse::class)],
             'file' => ['required', 'file', 'mimes:xlsx,csv,txt', 'max:10240'],
             'confirm' => ['nullable', 'boolean'],
         ], [

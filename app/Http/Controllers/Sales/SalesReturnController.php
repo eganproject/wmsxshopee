@@ -8,6 +8,7 @@ use App\Models\SalesOrder;
 use App\Models\SalesReturn;
 use App\Models\Warehouse;
 use App\Models\WarehouseLocation;
+use App\Rules\AccessibleRecord;
 use App\Services\StockService;
 use App\Support\Activity;
 use Illuminate\Http\JsonResponse;
@@ -377,9 +378,9 @@ class SalesReturnController extends Controller
 
         $data = $request->validate([
             'source' => ['required', Rule::in(array_keys(SalesReturn::SOURCES))],
-            'sales_order_id' => [Rule::requiredIf($fromOrder), 'nullable', 'integer', Rule::exists('sales_orders', 'id')->where('status', 'shipped')],
+            'sales_order_id' => [Rule::requiredIf($fromOrder), 'nullable', 'integer', Rule::exists('sales_orders', 'id')->where('status', 'shipped'), new AccessibleRecord(SalesOrder::class)],
             'warehouse_id' => ['required', 'integer', Rule::exists('warehouses', 'id')
-                ->where(fn ($q) => $q->where('is_active', true)->when($return, fn ($q) => $q->orWhere('id', $return->warehouse_id)))],
+                ->where(fn ($q) => $q->where('is_active', true)->when($return, fn ($q) => $q->orWhere('id', $return->warehouse_id))), new AccessibleRecord(Warehouse::class)],
             'return_date' => ['required', 'date', 'before_or_equal:today'],
             'tracking_number' => ['nullable', 'string', 'max:100'],
             'sender_name' => [Rule::requiredIf(! $fromOrder), 'nullable', 'string', 'max:150'],

@@ -7,6 +7,7 @@ use App\Models\Warehouse;
 use App\Models\WarehouseLocation;
 use App\Models\WarehouseRack;
 use App\Models\WarehouseZone;
+use App\Rules\AccessibleRecord;
 use App\Support\Activity;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -148,7 +149,7 @@ class RackController extends Controller
         $sameWarehouseZones = $zone ? WarehouseZone::where('warehouse_id', $zone->warehouse_id)->pluck('id') : collect();
 
         $data = $request->validate([
-            'warehouse_zone_id' => ['required', 'integer', Rule::exists('warehouse_zones', 'id')],
+            'warehouse_zone_id' => ['required', 'integer', Rule::exists('warehouse_zones', 'id'), new AccessibleRecord(WarehouseZone::class)],
             'code' => ['required', 'string', 'alpha_dash', 'max:20',
                 Rule::unique('warehouse_racks')->whereIn('warehouse_zone_id', $sameWarehouseZones->all())->ignore($rack)],
             'name' => ['nullable', 'string', 'max:255'],

@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Warehouse;
 use App\Models\WarehouseLocation;
 use App\Models\WarehouseRack;
+use App\Rules\AccessibleRecord;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -85,7 +86,7 @@ class LocationController extends Controller
         $warehouseId = $rack?->zone->warehouse_id;
 
         $data = $request->validate([
-            'warehouse_rack_id' => ['required', 'integer', Rule::exists('warehouse_racks', 'id')],
+            'warehouse_rack_id' => ['required', 'integer', Rule::exists('warehouse_racks', 'id'), new AccessibleRecord(WarehouseRack::class)],
             'code' => ['required', 'string', 'alpha_dash', 'max:50',
                 Rule::unique('warehouse_locations')->where('warehouse_id', $warehouseId)->ignore($location)],
             'level' => ['nullable', 'integer', 'min:1', 'max:'.($rack->levels ?? 50)],

@@ -8,6 +8,7 @@ use App\Models\ProductVariant;
 use App\Models\Supplier;
 use App\Models\Warehouse;
 use App\Models\WarehouseLocation;
+use App\Rules\AccessibleRecord;
 use App\Services\StockService;
 use App\Support\Activity;
 use Illuminate\Http\RedirectResponse;
@@ -266,7 +267,7 @@ class GoodsReceiptController extends Controller
 
         $data = $request->validate([
             'supplier_id' => ['required', 'integer', $active('suppliers', $receipt?->supplier_id)],
-            'warehouse_id' => ['required', 'integer', $active('warehouses', $receipt?->warehouse_id)],
+            'warehouse_id' => ['required', 'integer', $active('warehouses', $receipt?->warehouse_id), new AccessibleRecord(Warehouse::class)],
             'receipt_date' => ['required', 'date', 'before_or_equal:today'],
             'supplier_reference' => ['nullable', 'string', 'max:100'],
             'notes' => ['nullable', 'string', 'max:1000'],

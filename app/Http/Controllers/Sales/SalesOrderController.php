@@ -9,6 +9,7 @@ use App\Models\ProductVariant;
 use App\Models\SalesOrder;
 use App\Models\Warehouse;
 use App\Models\WarehouseLocation;
+use App\Rules\AccessibleRecord;
 use App\Services\SalesOrderService;
 use App\Support\Activity;
 use Illuminate\Http\RedirectResponse;
@@ -315,7 +316,7 @@ class SalesOrderController extends Controller
             ->where(fn ($q) => $q->where('is_active', true)->when($current, fn ($q) => $q->orWhere('id', $current)));
 
         $data = $request->validate([
-            'warehouse_id' => ['required', 'integer', $active('warehouses', $order?->warehouse_id)],
+            'warehouse_id' => ['required', 'integer', $active('warehouses', $order?->warehouse_id), new AccessibleRecord(Warehouse::class)],
             'order_date' => ['required', 'date', 'before_or_equal:today'],
             'channel_name' => ['nullable', 'string', 'max:100'],
             'external_number' => ['nullable', 'string', 'max:100'],

@@ -49,6 +49,7 @@
                     <tr>
                         <th class="h-8 px-4 py-0 font-normal">User</th>
                         <th class="h-8 px-4 py-0 font-normal">Role</th>
+                        <th class="h-8 px-4 py-0 font-normal">Gudang</th>
                         <th class="h-8 px-4 py-0 font-normal">Status</th>
                         <th class="h-8 px-4 py-0 font-normal">Login Terakhir</th>
                         <th class="h-8 px-4 py-0 font-normal text-right">Aksi</th>
@@ -83,6 +84,21 @@
                                         <span class="text-xs text-slate-400">—</span>
                                     @endforelse
                                 </div>
+                            </td>
+                            <td class="px-4 py-2.5">
+                                @if ($user->hasAllWarehouses())
+                                    <span class="text-xs text-slate-500">Semua gudang</span>
+                                @else
+                                    <div class="flex flex-wrap gap-1.5">
+                                        @forelse ($user->warehouses as $warehouse)
+                                            <span class="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-700">
+                                                <x-heroicon-o-building-office-2 class="size-3.5" /> {{ $warehouse->code }}
+                                            </span>
+                                        @empty
+                                            <span class="text-xs text-rose-600">Belum ada gudang</span>
+                                        @endforelse
+                                    </div>
+                                @endif
                             </td>
                             <td class="px-4 py-2.5">
                                 @if ($user->is_active)
@@ -152,7 +168,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="5" class="px-5 py-16 text-center">
+                            <td colspan="6" class="px-5 py-16 text-center">
                                 <x-heroicon-o-users class="mx-auto size-12 text-slate-300" />
                                 <p class="mt-3 font-medium text-slate-700">Tidak ada user ditemukan</p>
                                 <p class="text-sm text-slate-500">Coba ubah kata kunci atau filter pencarian.</p>

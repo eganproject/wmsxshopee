@@ -34,6 +34,7 @@ class Activity
         'number' => 'Nomor',
         'status' => 'Status',
         'is_active' => 'Aktif',
+        'all_warehouses' => 'Semua Gudang',
         'description' => 'Keterangan',
         'notes' => 'Catatan',
         'address' => 'Alamat',
