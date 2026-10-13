@@ -27,9 +27,8 @@
             'heading' => 'Inventori',
             'items' => [
                 ['label' => 'Penerimaan Barang', 'route' => 'inventory.receipts.index', 'active' => 'inventory.receipts.*', 'icon' => 'heroicon-o-inbox-arrow-down', 'can' => 'receipts.view'],
-                ['label' => 'Stok', 'route' => 'inventory.stocks.index', 'active' => 'inventory.stocks.*', 'icon' => 'heroicon-o-archive-box', 'can' => 'inventory.view'],
-                ['label' => 'Kartu Stok', 'route' => 'inventory.stock-card.index', 'active' => 'inventory.stock-card.*', 'icon' => 'heroicon-o-document-chart-bar', 'can' => 'inventory.view'],
-                ['label' => 'Mutasi Stok', 'route' => 'inventory.movements.index', 'active' => 'inventory.movements.*', 'icon' => 'heroicon-o-arrows-right-left', 'can' => 'inventory.view'],
+                // Kartu Stok & Mutasi Stok adalah tab di halaman Stok, jadi menu Stok tetap aktif di sana.
+                ['label' => 'Stok', 'route' => 'inventory.stocks.index', 'active' => ['inventory.stocks.*', 'inventory.stock-card.*', 'inventory.movements.*'], 'icon' => 'heroicon-o-archive-box', 'can' => 'inventory.view'],
                 ['label' => 'Stock Opname', 'route' => 'inventory.counts.index', 'active' => 'inventory.counts.*', 'icon' => 'heroicon-o-clipboard-document-check', 'can' => 'opname.view'],
             ],
         ],
