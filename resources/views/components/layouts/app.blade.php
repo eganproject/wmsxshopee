@@ -38,19 +38,21 @@
 
     <meta name="application-name" content="{{ config('app.name') }}">
     <meta name="description" content="{{ config('app.name') }} · {{ config('app.tagline') }}">
-    <meta name="theme-color" content="#ffffff">
+    <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
+    <meta name="theme-color" content="#1c1c1c" media="(prefers-color-scheme: dark)">
     <link rel="icon" href="{{ asset('favicon.svg') }}" type="image/svg+xml">
 
     <link rel="preconnect" href="https://fonts.bunny.net">
     <link href="https://fonts.bunny.net/css?family=inter:400,500,600,700&display=swap" rel="stylesheet" />
 
+    <x-theme-script />
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 </head>
 <body class="h-full font-sans text-sm text-slate-900 antialiased" x-data="{ sidebarOpen: false }" @keydown.escape.window="sidebarOpen = false">
 
     {{-- Backdrop mobile --}}
     <div x-cloak x-show="sidebarOpen" x-transition.opacity @click="sidebarOpen = false"
-         class="fixed inset-0 z-40 bg-slate-900/30 lg:hidden"></div>
+         class="fixed inset-0 z-40 bg-black/40 lg:hidden"></div>
 
     {{-- Sidebar --}}
     <aside class="fixed inset-y-0 left-0 z-50 flex w-60 -translate-x-full flex-col border-r border-slate-200 bg-slate-50 p-2 transition-transform duration-200 lg:translate-x-0"
@@ -118,6 +120,12 @@
                     <nav class="flex items-center gap-1.5 text-sm text-slate-500 [&_svg]:size-3.5 [&_svg]:shrink-0">{{ $breadcrumb }}</nav>
                 @endisset
             </div>
+
+            <button type="button" class="btn-icon" x-data="themeToggle" @click="cycle()" :title="labels[theme]" :aria-label="labels[theme]">
+                <x-heroicon-o-sun x-show="theme === 'light'" x-cloak />
+                <x-heroicon-o-moon x-show="theme === 'dark'" x-cloak />
+                <x-heroicon-o-computer-desktop x-show="theme === 'system'" x-cloak />
+            </button>
 
             <div class="relative" x-data="{ open: false }" @click.outside="open = false">
                 <button type="button" @click="open = !open" class="flex items-center gap-1.5 rounded-lg p-1 hover:bg-slate-100" aria-label="Menu akun">

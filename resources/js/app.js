@@ -26,5 +26,16 @@ Alpine.data('confirmDialog', () => ({
     },
 }));
 
+// Tombol tema di topbar: Terang → Gelap → Sistem
+Alpine.data('themeToggle', () => ({
+    theme: window.optimaTheme?.get() ?? 'system',
+    labels: { light: 'Tema terang', dark: 'Tema gelap', system: 'Ikuti sistem' },
+    cycle() {
+        const order = ['light', 'dark', 'system'];
+        this.theme = order[(order.indexOf(this.theme) + 1) % order.length];
+        window.optimaTheme?.set(this.theme);
+    },
+}));
+
 window.Alpine = Alpine;
 Alpine.start();

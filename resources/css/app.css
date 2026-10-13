@@ -44,6 +44,68 @@
     }
 }
 
+/*
+ * Dark mode: kelas `.dark` di <html>, diatur oleh resources/js/theme.js.
+ * Palet slate & white dibalik, jadi halaman yang memakai bg-white / text-slate-* ikut tanpa diubah.
+ */
+@custom-variant dark (&:where(.dark, .dark *));
+
+@layer base {
+    .dark {
+        color-scheme: dark;
+
+        --color-white: oklch(0.205 0 0);
+        --color-slate-50: oklch(0.18 0 0);
+        --color-slate-100: oklch(0.255 0 0);
+        --color-slate-200: oklch(0.3 0 0);
+        --color-slate-300: oklch(0.4 0 0);
+        --color-slate-400: oklch(0.55 0 0);
+        --color-slate-500: oklch(0.66 0 0);
+        --color-slate-600: oklch(0.74 0 0);
+        --color-slate-700: oklch(0.82 0 0);
+        --color-slate-800: oklch(0.89 0 0);
+        --color-slate-900: oklch(0.95 0 0);
+        --color-slate-950: oklch(0.98 0 0);
+
+        --color-emerald-50: oklch(0.27 0.052 162);
+        --color-emerald-100: oklch(0.3 0.068 162);
+        --color-emerald-200: oklch(0.38 0.083 162);
+        --color-emerald-600: oklch(0.74 0.120 162);
+        --color-emerald-700: oklch(0.8 0.105 162);
+        --color-emerald-800: oklch(0.86 0.090 162);
+        --color-rose-50: oklch(0.27 0.070 16);
+        --color-rose-100: oklch(0.3 0.090 16);
+        --color-rose-200: oklch(0.38 0.110 16);
+        --color-rose-600: oklch(0.74 0.160 16);
+        --color-rose-700: oklch(0.8 0.140 16);
+        --color-rose-800: oklch(0.86 0.120 16);
+        --color-amber-50: oklch(0.27 0.056 70);
+        --color-amber-100: oklch(0.3 0.072 70);
+        --color-amber-200: oklch(0.38 0.088 70);
+        --color-amber-600: oklch(0.74 0.128 70);
+        --color-amber-700: oklch(0.8 0.112 70);
+        --color-amber-800: oklch(0.86 0.096 70);
+        --color-sky-50: oklch(0.27 0.049 235);
+        --color-sky-100: oklch(0.3 0.063 235);
+        --color-sky-200: oklch(0.38 0.077 235);
+        --color-sky-600: oklch(0.74 0.112 235);
+        --color-sky-700: oklch(0.8 0.098 235);
+        --color-sky-800: oklch(0.86 0.084 235);
+        --color-violet-50: oklch(0.27 0.070 292);
+        --color-violet-100: oklch(0.3 0.090 292);
+        --color-violet-200: oklch(0.38 0.110 292);
+        --color-violet-600: oklch(0.74 0.160 292);
+        --color-violet-700: oklch(0.8 0.140 292);
+        --color-violet-800: oklch(0.86 0.120 292);
+        --color-brand-50: oklch(0.27 0.066 35);
+        --color-brand-100: oklch(0.3 0.086 35);
+        --color-brand-200: oklch(0.38 0.105 35);
+        --color-brand-600: oklch(0.74 0.152 35);
+        --color-brand-700: oklch(0.8 0.133 35);
+        --color-brand-800: oklch(0.86 0.114 35);
+    }
+}
+
 [x-cloak] {
     display: none !important;
 }
@@ -60,7 +122,7 @@
     @apply btn bg-slate-100 text-slate-900 hover:bg-slate-200 active:bg-slate-300;
 }
 @utility btn-danger {
-    @apply btn bg-rose-600 text-white hover:bg-rose-700;
+    @apply btn bg-rose-600 text-[#fff] hover:bg-rose-700 dark:bg-rose-700 dark:hover:bg-rose-600;
 }
 @utility btn-icon {
     @apply inline-flex size-8 items-center justify-center rounded-lg text-slate-600 transition hover:bg-slate-100 hover:text-slate-900

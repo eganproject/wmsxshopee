@@ -3,7 +3,7 @@
     <button type="button" @click="$dispatch('confirm', { form: 'form-id', title: '...', message: '...' })">
 --}}
 <div x-data="confirmDialog" x-cloak @confirm.window="show($event.detail)" @keydown.escape.window="open = false">
-    <div x-show="open" x-transition.opacity class="fixed inset-0 z-[70] bg-slate-900/30"></div>
+    <div x-show="open" x-transition.opacity class="fixed inset-0 z-[70] bg-black/40"></div>
 
     <div x-show="open" class="fixed inset-0 z-[80] flex items-center justify-center p-4">
         <div x-show="open" x-transition @click.outside="open = false"
