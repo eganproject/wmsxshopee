@@ -11,6 +11,7 @@
         'length_cm' => $decimal($variant->length_cm),
         'width_cm' => $decimal($variant->width_cm),
         'height_cm' => $decimal($variant->height_cm),
+        'min_stock' => $variant->min_stock,
         'is_active' => $variant->is_active,
     ])->all()))
         ->map(fn ($row) => [
@@ -22,12 +23,13 @@
             'length_cm' => $row['length_cm'] ?? '',
             'width_cm' => $row['width_cm'] ?? '',
             'height_cm' => $row['height_cm'] ?? '',
+            'min_stock' => $row['min_stock'] ?? '',
             'is_active' => (bool) ($row['is_active'] ?? true),
         ])
         ->values();
 
     if ($variants->isEmpty()) {
-        $variants->push(['id' => null, 'sku' => '', 'name' => '', 'barcode' => '', 'weight_gram' => '', 'length_cm' => '', 'width_cm' => '', 'height_cm' => '', 'is_active' => true]);
+        $variants->push(['id' => null, 'sku' => '', 'name' => '', 'barcode' => '', 'weight_gram' => '', 'length_cm' => '', 'width_cm' => '', 'height_cm' => '', 'min_stock' => '', 'is_active' => true]);
     }
 
     $images = $product->images->map(fn ($image) => ['id' => $image->id, 'url' => $image->url()])->values();
@@ -140,14 +142,14 @@
          x-data="{
              hasVariants: @js((bool) old('has_variants', $product->has_variants)),
              variants: @js($variants),
-             blank() { return { id: null, sku: '', name: '', barcode: '', weight_gram: '', length_cm: '', width_cm: '', height_cm: '', is_active: true } },
+             blank() { return { id: null, sku: '', name: '', barcode: '', weight_gram: '', length_cm: '', width_cm: '', height_cm: '', min_stock: '', is_active: true } },
          }">
         <div class="flex flex-wrap items-center justify-between gap-4 border-b border-slate-100 px-6 py-4">
             <div>
                 <h2 class="flex items-center gap-2 font-semibold text-slate-900">
                     <x-heroicon-o-rectangle-stack class="size-5 text-slate-400" /> Varian, Barcode &amp; Dimensi
                 </h2>
-                <p class="mt-0.5 text-sm text-slate-500">Berat dan dimensi dipakai untuk ongkir dan sinkron ke Shopee.</p>
+                <p class="mt-0.5 text-sm text-slate-500">Berat dan dimensi dipakai untuk ongkir dan sinkron ke Shopee; stok minimum memicu peringatan di laporan.</p>
             </div>
             <label class="flex cursor-pointer items-center gap-2 text-sm font-medium text-slate-700">
                 <input type="hidden" name="has_variants" value="0">
@@ -188,6 +190,10 @@
                         <label class="form-label" for="variant-height">Tinggi (cm)</label>
                         <input id="variant-height" type="number" min="0" step="0.01" class="form-input" name="variants[0][height_cm]" x-model="variants[0].height_cm">
                     </div>
+                    <div>
+                        <label class="form-label" for="variant-min-stock">Stok Minimum</label>
+                        <input id="variant-min-stock" type="number" min="0" class="form-input" name="variants[0][min_stock]" x-model="variants[0].min_stock" placeholder="Kosong = tanpa peringatan">
+                    </div>
                 </div>
             </template>
 
@@ -203,6 +209,7 @@
                                     <th class="px-2 py-2">Barcode</th>
                                     <th class="px-2 py-2">Berat (g)</th>
                                     <th class="px-2 py-2">P × L × T (cm)</th>
+                                    <th class="px-2 py-2" title="Peringatan bila stok tersedia di bawah atau sama dengan angka ini">Stok Min.</th>
                                     <th class="px-2 py-2 text-center">Aktif</th>
                                     <th class="py-2 pl-2"></th>
                                 </tr>
@@ -224,6 +231,7 @@
                                                 <input type="number" min="0" step="0.01" class="form-input w-20" placeholder="T" :name="`variants[${index}][height_cm]`" x-model="variant.height_cm">
                                             </div>
                                         </td>
+                                        <td class="px-2 py-1.5"><input type="number" min="0" class="form-input w-24" :name="`variants[${index}][min_stock]`" x-model="variant.min_stock"></td>
                                         <td class="px-2 py-1.5 text-center">
                                             <input type="hidden" :name="`variants[${index}][is_active]`" :value="variant.is_active ? 1 : 0">
                                             <input type="checkbox" class="mt-2.5 size-4 rounded border-slate-300 text-brand-600" x-model="variant.is_active">

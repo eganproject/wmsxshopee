@@ -30,6 +30,15 @@
                 ['label' => 'Stok', 'route' => 'inventory.stocks.index', 'active' => 'inventory.stocks.*', 'icon' => 'heroicon-o-archive-box', 'can' => 'inventory.view'],
                 ['label' => 'Kartu Stok', 'route' => 'inventory.stock-card.index', 'active' => 'inventory.stock-card.*', 'icon' => 'heroicon-o-document-chart-bar', 'can' => 'inventory.view'],
                 ['label' => 'Mutasi Stok', 'route' => 'inventory.movements.index', 'active' => 'inventory.movements.*', 'icon' => 'heroicon-o-arrows-right-left', 'can' => 'inventory.view'],
+                ['label' => 'Stock Opname', 'route' => 'inventory.counts.index', 'active' => 'inventory.counts.*', 'icon' => 'heroicon-o-clipboard-document-check', 'can' => 'opname.view'],
+            ],
+        ],
+        [
+            'heading' => 'Laporan',
+            'items' => [
+                ['label' => 'Stok per Lokasi', 'route' => 'reports.stock-locations', 'active' => 'reports.stock-locations', 'icon' => 'heroicon-o-map-pin', 'can' => 'reports.view'],
+                ['label' => 'Stok Minimum', 'route' => 'reports.min-stock', 'active' => 'reports.min-stock', 'icon' => 'heroicon-o-bell-alert', 'can' => 'reports.view'],
+                ['label' => 'Pergerakan Barang', 'route' => 'reports.movements', 'active' => 'reports.movements', 'icon' => 'heroicon-o-presentation-chart-line', 'can' => 'reports.view'],
             ],
         ],
         [

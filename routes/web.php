@@ -7,6 +7,7 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\Inventory\GoodsReceiptController;
 use App\Http\Controllers\Inventory\StockCardController;
 use App\Http\Controllers\Inventory\StockController;
+use App\Http\Controllers\Inventory\StockCountController;
 use App\Http\Controllers\Inventory\StockMovementController;
 use App\Http\Controllers\Inventory\VariantLookupController;
 use App\Http\Controllers\Master\CourierController;
@@ -18,6 +19,7 @@ use App\Http\Controllers\Master\UnitController;
 use App\Http\Controllers\Master\WarehouseController;
 use App\Http\Controllers\Master\ZoneController;
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\ReportController;
 use App\Http\Controllers\Sales\SalesOrderController;
 use App\Http\Controllers\Sales\SalesOrderImportController;
 use Illuminate\Support\Facades\Route;
@@ -85,6 +87,23 @@ Route::middleware(['auth', 'active'])->group(function () {
         Route::put('receipts/{receipt}', [GoodsReceiptController::class, 'update'])->middleware('can:receipts.create')->name('receipts.update');
         Route::post('receipts/{receipt}/receive', [GoodsReceiptController::class, 'receive'])->middleware('can:receipts.receive')->name('receipts.receive');
         Route::delete('receipts/{receipt}', [GoodsReceiptController::class, 'destroy'])->middleware('can:receipts.delete')->name('receipts.destroy');
+
+        // Stock opname: lembar hitung draft diisi hasil hitung, lalu diposting
+        // (selisih masuk lewat mutasi Penyesuaian) dan terkunci.
+        Route::get('counts', [StockCountController::class, 'index'])->middleware('can:opname.view')->name('counts.index');
+        Route::get('counts/create', [StockCountController::class, 'create'])->middleware('can:opname.create')->name('counts.create');
+        Route::post('counts', [StockCountController::class, 'store'])->middleware('can:opname.create')->name('counts.store');
+        Route::get('counts/{count}', [StockCountController::class, 'show'])->middleware('can:opname.view')->name('counts.show');
+        Route::get('counts/{count}/sheet', [StockCountController::class, 'sheet'])->middleware('can:opname.view')->name('counts.sheet');
+        Route::put('counts/{count}', [StockCountController::class, 'update'])->middleware('can:opname.create')->name('counts.update');
+        Route::delete('counts/{count}', [StockCountController::class, 'destroy'])->middleware('can:opname.delete')->name('counts.destroy');
+    });
+
+    // Laporan stok; tiap laporan bisa diekspor ke Excel lewat ?export=xlsx.
+    Route::prefix('reports')->name('reports.')->middleware('can:reports.view')->group(function () {
+        Route::get('stock-locations', [ReportController::class, 'stockLocations'])->name('stock-locations');
+        Route::get('min-stock', [ReportController::class, 'minStock'])->name('min-stock');
+        Route::get('movements', [ReportController::class, 'movements'])->name('movements');
     });
 
     // Pesanan penjualan manual: draft -> dikonfirmasi (stok dicadangkan) -> diambil ->

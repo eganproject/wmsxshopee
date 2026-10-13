@@ -245,6 +245,7 @@ class ProductController extends Controller
             'variants.*.length_cm' => ['nullable', 'numeric', 'min:0', 'max:10000'],
             'variants.*.width_cm' => ['nullable', 'numeric', 'min:0', 'max:10000'],
             'variants.*.height_cm' => ['nullable', 'numeric', 'min:0', 'max:10000'],
+            'variants.*.min_stock' => ['nullable', 'integer', 'min:0', 'max:1000000'],
             'variants.*.is_active' => ['nullable', 'boolean'],
 
             'images' => ['array'],
@@ -275,6 +276,7 @@ class ProductController extends Controller
             'variants.*.length_cm' => 'panjang',
             'variants.*.width_cm' => 'lebar',
             'variants.*.height_cm' => 'tinggi',
+            'variants.*.min_stock' => 'stok minimum',
             'images.*' => 'gambar',
         ]);
 
@@ -315,6 +317,7 @@ class ProductController extends Controller
                     'length_cm' => $row['length_cm'] ?? null,
                     'width_cm' => $row['width_cm'] ?? null,
                     'height_cm' => $row['height_cm'] ?? null,
+                    'min_stock' => $row['min_stock'] ?? null,
                     // Varian produk tanpa varian selalu aktif; status ikut produk.
                     'is_active' => $hasVariants ? (bool) ($row['is_active'] ?? false) : true,
                 ])
