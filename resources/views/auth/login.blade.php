@@ -6,14 +6,15 @@
             <div class="absolute -bottom-40 -left-20 size-96 rounded-full bg-brand-500/10 blur-3xl"></div>
 
             <div class="relative flex items-center gap-3">
-                <span class="flex size-11 items-center justify-center rounded-xl bg-brand-500 text-white shadow-lg">
-                    <x-heroicon-o-cube class="size-6" />
+                <x-app-logo class="size-11 rounded-xl shadow-lg" />
+                <span class="leading-tight">
+                    <span class="block text-lg font-semibold text-white">{{ config('app.name') }}</span>
+                    <span class="block text-xs text-slate-400">{{ config('app.tagline') }}</span>
                 </span>
-                <span class="text-lg font-semibold text-white">{{ config('app.name') }}</span>
             </div>
 
             <div class="relative max-w-md">
-                <h2 class="text-3xl leading-tight font-semibold text-white">Kelola gudang & pesanan Shopee dalam satu tempat.</h2>
+                <h2 class="text-3xl leading-tight font-semibold text-white">Optimalkan gudang & pesanan Shopee dalam satu tempat.</h2>
                 <ul class="mt-8 space-y-4 text-slate-300">
                     <li class="flex items-center gap-3">
                         <span class="flex size-9 items-center justify-center rounded-lg bg-white/10"><x-heroicon-o-archive-box class="size-5 text-brand-300" /></span>
@@ -30,21 +31,19 @@
                 </ul>
             </div>
 
-            <p class="relative text-sm text-slate-500">&copy; {{ date('Y') }} {{ config('app.name') }}</p>
+            <p class="relative text-sm text-slate-500">&copy; {{ date('Y') }} {{ config('app.name') }} &middot; {{ config('app.tagline') }}</p>
         </div>
 
         {{-- Form --}}
         <div class="flex flex-1 items-center justify-center px-6 py-12 sm:px-12">
             <div class="w-full max-w-sm">
                 <div class="mb-8 flex items-center gap-3 lg:hidden">
-                    <span class="flex size-10 items-center justify-center rounded-xl bg-brand-500 text-white">
-                        <x-heroicon-o-cube class="size-6" />
-                    </span>
+                    <x-app-logo class="size-10 rounded-xl" />
                     <span class="text-lg font-semibold text-slate-900">{{ config('app.name') }}</span>
                 </div>
 
                 <h1 class="text-2xl font-semibold text-slate-900">Selamat datang kembali</h1>
-                <p class="mt-1.5 text-sm text-slate-500">Masuk menggunakan akun yang diberikan administrator.</p>
+                <p class="mt-1.5 text-sm text-slate-500">Masuk ke {{ config('app.name') }} menggunakan akun yang diberikan administrator.</p>
 
                 @if (session('status'))
                     <div class="mt-6 flex items-center gap-2 rounded-lg bg-emerald-50 px-4 py-3 text-sm text-emerald-700 ring-1 ring-emerald-200">

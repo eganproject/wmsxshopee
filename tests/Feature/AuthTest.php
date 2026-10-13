@@ -17,6 +17,15 @@ class AuthTest extends TestCase
         $this->get('/login')->assertOk()->assertSee('Masuk');
     }
 
+    public function test_login_page_shows_app_branding(): void
+    {
+        $this->get('/login')
+            ->assertOk()
+            ->assertSee('<title>Masuk · '.config('app.name').'</title>', false)
+            ->assertSee(config('app.tagline'))
+            ->assertSee('favicon.svg');
+    }
+
     public function test_register_route_does_not_exist(): void
     {
         $this->get('/register')->assertNotFound();

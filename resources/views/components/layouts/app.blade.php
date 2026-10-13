@@ -29,6 +29,11 @@
 
     <title>{{ $title ? $title.' · ' : '' }}{{ config('app.name') }}</title>
 
+    <meta name="application-name" content="{{ config('app.name') }}">
+    <meta name="description" content="{{ config('app.name') }} · {{ config('app.tagline') }}">
+    <meta name="theme-color" content="#ee4d2d">
+    <link rel="icon" href="{{ asset('favicon.svg') }}" type="image/svg+xml">
+
     <link rel="preconnect" href="https://fonts.bunny.net">
     <link href="https://fonts.bunny.net/css?family=inter:400,500,600,700&display=swap" rel="stylesheet" />
 
@@ -45,12 +50,10 @@
            :class="sidebarOpen && 'translate-x-0'">
         <div class="flex h-16 shrink-0 items-center justify-between px-5">
             <a href="{{ route('dashboard') }}" class="flex items-center gap-2.5">
-                <span class="flex size-9 items-center justify-center rounded-lg bg-brand-500 text-white shadow">
-                    <x-heroicon-o-cube class="size-5" />
-                </span>
+                <x-app-logo class="size-9 rounded-lg shadow" />
                 <span class="leading-tight">
                     <span class="block text-sm font-semibold text-white">{{ config('app.name') }}</span>
-                    <span class="block text-xs text-slate-400">Warehouse Management</span>
+                    <span class="block text-xs text-slate-400">{{ config('app.tagline') }}</span>
                 </span>
             </a>
             <button type="button" class="rounded-lg p-1.5 text-slate-400 hover:bg-slate-800 hover:text-white lg:hidden" @click="sidebarOpen = false">
@@ -144,6 +147,12 @@
                 {{ $slot }}
             </div>
         </main>
+
+        <footer class="px-4 pb-6 text-xs text-slate-400 sm:px-6 lg:px-8">
+            <div class="mx-auto max-w-7xl border-t border-slate-200 pt-4">
+                &copy; {{ date('Y') }} {{ config('app.name') }} &middot; {{ config('app.tagline') }}
+            </div>
+        </footer>
     </div>
 
     <x-flash />

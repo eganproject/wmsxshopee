@@ -13,7 +13,19 @@ return [
     |
     */
 
-    'name' => env('APP_NAME', 'Laravel'),
+    'name' => env('APP_NAME', 'Optima'),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Application Tagline
+    |--------------------------------------------------------------------------
+    |
+    | Short descriptor shown next to the application name in the sidebar,
+    | login page and footer.
+    |
+    */
+
+    'tagline' => env('APP_TAGLINE', 'Warehouse Management System'),
 
     /*
     |--------------------------------------------------------------------------
