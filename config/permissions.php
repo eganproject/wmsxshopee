@@ -36,6 +36,17 @@ return [
             ],
         ],
 
+        'products' => [
+            'label' => 'Master Produk',
+            'icon' => 'heroicon-o-cube',
+            'actions' => [
+                'view' => 'Lihat produk, varian & satuan',
+                'create' => 'Tambah produk & satuan',
+                'edit' => 'Ubah produk, varian, gambar & satuan',
+                'delete' => 'Hapus produk & satuan',
+            ],
+        ],
+
         'couriers' => [
             'label' => 'Master Kurir',
             'icon' => 'heroicon-o-truck',

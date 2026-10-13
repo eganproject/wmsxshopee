@@ -10,6 +10,7 @@ Dibangun dengan Laravel 12, Blade, Tailwind CSS dan Alpine.js.
 - Manajemen user
 - Role & permission (spatie/laravel-permission)
 - Profil pengguna
+- Master produk: SKU internal, varian, barcode, satuan, berat, dimensi dan gambar produk
 
 ## Instalasi
 
@@ -19,6 +20,7 @@ npm install
 cp .env.example .env
 php artisan key:generate
 php artisan migrate --seed
+php artisan storage:link   # agar gambar produk bisa tampil
 npm run build
 ```
 
