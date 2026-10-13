@@ -30,6 +30,7 @@ use App\Http\Controllers\ReportController;
 use App\Http\Controllers\Sales\SalesOrderController;
 use App\Http\Controllers\Sales\SalesOrderImportController;
 use App\Http\Controllers\Sales\SalesReturnController;
+use App\Http\Controllers\SearchController;
 use Illuminate\Support\Facades\Route;
 
 Route::redirect('/', '/dashboard');
@@ -45,6 +46,9 @@ Route::middleware(['auth', 'active'])->group(function () {
 
     Route::get('dashboard', DashboardController::class)->name('dashboard');
     Route::get('notifications', NotificationController::class)->name('notifications.index');
+
+    // Pencarian global (Ctrl+K). Tiap grup dicek hak lihatnya di App\Support\GlobalSearch.
+    Route::get('search', SearchController::class)->middleware('throttle:120,1')->name('search');
 
     Route::get('profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::put('profile', [ProfileController::class, 'update'])->name('profile.update');
