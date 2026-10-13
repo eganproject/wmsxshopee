@@ -172,6 +172,17 @@ return [
                 'delete' => 'Hapus file backup',
             ],
         ],
+
+        'shopee' => [
+            'label' => 'Integrasi Shopee',
+            'icon' => 'heroicon-o-building-storefront',
+            'actions' => [
+                'view' => 'Lihat toko Shopee & pemetaan SKU',
+                'settings' => 'Ubah Partner ID & Partner Key Shopee',
+                'connect' => 'Hubungkan, perbarui token & hapus koneksi toko',
+                'mapping' => 'Tarik produk & atur pemetaan SKU',
+            ],
+        ],
     ],
 
 ];

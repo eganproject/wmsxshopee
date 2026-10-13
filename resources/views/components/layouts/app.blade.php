@@ -46,6 +46,13 @@
             ],
         ],
         [
+            'heading' => 'Integrasi',
+            'items' => [
+                ['label' => 'Toko Shopee', 'route' => 'shopee.shops.index', 'active' => ['shopee.shops.*', 'shopee.mappings.*'], 'icon' => 'heroicon-o-building-storefront', 'can' => 'shopee.view'],
+                ['label' => 'Pengaturan Shopee', 'route' => 'shopee.settings.edit', 'active' => 'shopee.settings.*', 'icon' => 'heroicon-o-key', 'can' => 'shopee.settings'],
+            ],
+        ],
+        [
             'heading' => 'Administrasi',
             'items' => [
                 ['label' => 'Manajemen User', 'route' => 'admin.users.index', 'active' => 'admin.users.*', 'icon' => 'heroicon-o-users', 'can' => 'users.view'],

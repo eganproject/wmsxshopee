@@ -30,6 +30,9 @@ use App\Http\Controllers\ReportController;
 use App\Http\Controllers\Sales\SalesOrderController;
 use App\Http\Controllers\Sales\SalesOrderImportController;
 use App\Http\Controllers\Sales\SalesReturnController;
+use App\Http\Controllers\Shopee\ShopeeSettingController;
+use App\Http\Controllers\Shopee\ShopeeShopController;
+use App\Http\Controllers\Shopee\ShopeeSkuMappingController;
 use Illuminate\Support\Facades\Route;
 
 Route::redirect('/', '/dashboard');
@@ -175,6 +178,28 @@ Route::middleware(['auth', 'active'])->group(function () {
         Route::put('returns/{return}', [SalesReturnController::class, 'update'])->middleware('can:returns.create')->name('returns.update');
         Route::post('returns/{return}/receive', [SalesReturnController::class, 'receive'])->middleware('can:returns.receive')->name('returns.receive');
         Route::delete('returns/{return}', [SalesReturnController::class, 'destroy'])->middleware('can:returns.delete')->name('returns.destroy');
+    });
+
+    // Integrasi Shopee Open Platform (app Seller In House System). Shopee
+    // mengarahkan pemilik toko kembali ke shopee/callback setelah otorisasi.
+    Route::prefix('shopee')->name('shopee.')->group(function () {
+        Route::get('settings', [ShopeeSettingController::class, 'edit'])->middleware('can:shopee.settings')->name('settings.edit');
+        Route::put('settings', [ShopeeSettingController::class, 'update'])->middleware('can:shopee.settings')->name('settings.update');
+
+        Route::get('shops', [ShopeeShopController::class, 'index'])->middleware('can:shopee.view')->name('shops.index');
+        Route::post('shops/connect', [ShopeeShopController::class, 'connect'])->middleware('can:shopee.connect')->name('shops.connect');
+        Route::get('callback', [ShopeeShopController::class, 'callback'])->middleware('can:shopee.connect')->name('callback');
+        Route::put('shops/{shop}', [ShopeeShopController::class, 'update'])->middleware('can:shopee.connect')->name('shops.update');
+        Route::post('shops/{shop}/refresh', [ShopeeShopController::class, 'refresh'])->middleware('can:shopee.connect')->name('shops.refresh');
+        Route::delete('shops/{shop}', [ShopeeShopController::class, 'destroy'])->middleware('can:shopee.connect')->name('shops.destroy');
+
+        Route::get('mapping-targets', [ShopeeSkuMappingController::class, 'lookup'])->middleware('can:shopee.mapping')->name('mappings.lookup');
+        Route::get('shops/{shop}/mappings', [ShopeeSkuMappingController::class, 'index'])->middleware('can:shopee.view')->name('mappings.index');
+        Route::post('shops/{shop}/mappings', [ShopeeSkuMappingController::class, 'store'])->middleware('can:shopee.mapping')->name('mappings.store');
+        Route::post('shops/{shop}/mappings/auto-match', [ShopeeSkuMappingController::class, 'autoMatch'])->middleware('can:shopee.mapping')->name('mappings.auto-match');
+        Route::post('shops/{shop}/mappings/pull', [ShopeeSkuMappingController::class, 'pull'])->middleware('can:shopee.mapping')->name('mappings.pull');
+        Route::put('shops/{shop}/mappings/{mapping}', [ShopeeSkuMappingController::class, 'update'])->middleware('can:shopee.mapping')->name('mappings.update');
+        Route::delete('shops/{shop}/mappings/{mapping}', [ShopeeSkuMappingController::class, 'destroy'])->middleware('can:shopee.mapping')->name('mappings.destroy');
     });
 
     Route::prefix('admin')->name('admin.')->group(function () {

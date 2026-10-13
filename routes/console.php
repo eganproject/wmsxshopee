@@ -12,3 +12,5 @@ Artisan::command('inspire', function () {
 // Task Scheduler yang memanggil `php artisan schedule:run` tiap menit).
 Schedule::command('db:backup --prune')->dailyAt(config('backup.time'))->withoutOverlapping();
 Schedule::command('stock:check')->dailyAt('01:30');
+// Access token Shopee berumur ± 4 jam; diperbarui sebelum kedaluwarsa.
+Schedule::command('shopee:refresh-tokens')->everyThirtyMinutes()->withoutOverlapping();
