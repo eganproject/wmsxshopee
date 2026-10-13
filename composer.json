@@ -2,8 +2,8 @@
     "$schema": "https://getcomposer.org/schema.json",
     "name": "laravel/laravel",
     "type": "project",
-    "description": "The skeleton application for the Laravel framework.",
-    "keywords": ["laravel", "framework"],
+    "description": "Optima - Warehouse Management System terintegrasi Shopee Open Platform.",
+    "keywords": ["optima", "wms", "warehouse", "shopee", "laravel"],
     "license": "MIT",
     "require": {
         "php": "^8.2",
