@@ -465,7 +465,7 @@ class SalesReturnController extends Controller
                 $remaining = $orderItem->qty - ($returned[$orderItem->id] ?? 0);
 
                 if ($taken[$orderItem->id] > $remaining) {
-                    throw ValidationException::withMessages(["items.{$index}.qty_good" => "Melebihi jumlah yang bisa diretur (dikirim {$orderItem->qty}, sisa {$remaining})."]);
+                    throw ValidationException::withMessages(["items.{$index}.qty_good" => "Melebihi jumlah yang bisa diretur: dikirim {$orderItem->qty}".(($returned[$orderItem->id] ?? 0) ? ", sudah diretur {$returned[$orderItem->id]}" : '').'.']);
                 }
 
                 $rows[$index] = [...$row, 'product_variant_id' => $orderItem->product_variant_id];

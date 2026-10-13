@@ -305,7 +305,6 @@
                     <tr>
                         <th class="py-2 pr-2 font-normal">Barang *</th>
                         <th class="px-2 py-2 text-right font-normal" x-show="source === 'order'">Dikirim</th>
-                        <th class="px-2 py-2 text-right font-normal" x-show="source === 'order'">Sisa</th>
                         <th class="px-2 py-2 text-right font-normal whitespace-nowrap">Layak Jual</th>
                         <th class="px-2 py-2 text-right font-normal">Rusak</th>
                         <th class="px-2 py-2 text-right font-normal" title="Seharusnya ikut kembali tapi tidak ada di paket">Hilang</th>
@@ -339,10 +338,6 @@
                             </td>
                             <td class="px-2 py-1.5 text-right" x-show="source === 'order'">
                                 <span class="inline-block pt-1.5 tabular-nums text-slate-600" x-text="item.line?.shipped"></span>
-                            </td>
-                            <td class="px-2 py-1.5 text-right" x-show="source === 'order'">
-                                <span class="inline-block pt-1.5 font-medium tabular-nums" :class="item.line && qty(item) > item.line.remaining ? 'text-rose-600' : 'text-slate-700'"
-                                      x-text="item.line ? item.line.remaining - qty(item) : ''"></span>
                             </td>
                             <td class="px-2 py-1.5">
                                 <input type="number" min="0" step="1" class="form-input w-16 text-right" :name="`items[${index}][qty_good]`" x-model="item.qty_good" placeholder="0"
@@ -413,7 +408,7 @@
                 </tbody>
                 <tfoot class="border-t border-slate-100 text-[13px] text-slate-500">
                     <tr>
-                        <td class="py-2 pr-2 text-right" :colspan="source === 'order' ? 3 : 1">Total</td>
+                        <td class="py-2 pr-2 text-right" :colspan="source === 'order' ? 2 : 1">Total</td>
                         <td class="px-2 py-2 text-right font-medium tabular-nums text-emerald-700" x-text="totals().good"></td>
                         <td class="px-2 py-2 text-right font-medium tabular-nums text-rose-600" x-text="totals().damaged"></td>
                         <td class="px-2 py-2 text-right font-medium tabular-nums text-amber-600" x-text="totals().missing"></td>
