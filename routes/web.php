@@ -16,6 +16,8 @@ use App\Http\Controllers\Inventory\StockCountController;
 use App\Http\Controllers\Inventory\StockMovementController;
 use App\Http\Controllers\Inventory\VariantLookupController;
 use App\Http\Controllers\LabelController;
+use App\Http\Controllers\Marketplace\MarketplaceController;
+use App\Http\Controllers\Marketplace\MarketplaceProductStatusController;
 use App\Http\Controllers\Master\BundleController;
 use App\Http\Controllers\Master\CourierController;
 use App\Http\Controllers\Master\LocationController;
@@ -36,7 +38,6 @@ use App\Http\Controllers\Sales\SalesOrderImportController;
 use App\Http\Controllers\Sales\SalesReturnController;
 use App\Http\Controllers\Sales\ShipmentController;
 use App\Http\Controllers\SearchController;
-use App\Http\Controllers\Shopee\ShopeeProductStatusController;
 use App\Http\Controllers\Shopee\ShopeeSettingController;
 use App\Http\Controllers\Shopee\ShopeeShopController;
 use App\Http\Controllers\Shopee\ShopeeSkuMappingController;
@@ -231,13 +232,21 @@ Route::middleware(['auth', 'active'])->group(function () {
         Route::delete('returns/{return}', [SalesReturnController::class, 'destroy'])->middleware('can:returns.delete')->name('returns.destroy');
     });
 
+    // Marketplace: satu menu untuk toko, status produk & kredensial Shopee dan TikTok.
+    Route::prefix('marketplace')->name('marketplace.')->group(function () {
+        Route::get('shops', [MarketplaceController::class, 'shops'])->middleware('can:marketplace.view')->name('shops');
+        Route::get('products', MarketplaceProductStatusController::class)->middleware('can:marketplace.view')->name('products');
+        Route::get('settings', [MarketplaceController::class, 'settings'])->middleware('can:marketplace.settings')->name('settings');
+    });
+
     // Integrasi Shopee Open Platform (app Seller In House System). Shopee
     // mengarahkan pemilik toko kembali ke shopee/callback setelah otorisasi.
     Route::prefix('shopee')->name('shopee.')->group(function () {
-        Route::get('settings', [ShopeeSettingController::class, 'edit'])->middleware('can:shopee.settings')->name('settings.edit');
+        // Halaman lama digabung ke menu Marketplace; URL lama tetap diarahkan.
+        Route::get('settings', fn () => redirect()->route('marketplace.settings', ['tab' => 'shopee']))->name('settings.edit');
         Route::put('settings', [ShopeeSettingController::class, 'update'])->middleware('can:shopee.settings')->name('settings.update');
 
-        Route::get('shops', [ShopeeShopController::class, 'index'])->middleware('can:shopee.view')->name('shops.index');
+        Route::get('shops', fn () => redirect()->route('marketplace.shops', ['platform' => 'shopee']))->name('shops.index');
         Route::post('shops/connect', [ShopeeShopController::class, 'connect'])->middleware('can:shopee.connect')->name('shops.connect');
         Route::get('callback', [ShopeeShopController::class, 'callback'])->middleware('can:shopee.connect')->name('callback');
         Route::put('shops/{shop}', [ShopeeShopController::class, 'update'])->middleware('can:shopee.connect')->name('shops.update');
@@ -245,7 +254,7 @@ Route::middleware(['auth', 'active'])->group(function () {
         Route::post('shops/{shop}/sync', [ShopeeShopController::class, 'sync'])->middleware('can:shopee.sync')->name('shops.sync');
         Route::delete('shops/{shop}', [ShopeeShopController::class, 'destroy'])->middleware('can:shopee.connect')->name('shops.destroy');
 
-        Route::get('products', ShopeeProductStatusController::class)->middleware('can:shopee.view')->name('products.index');
+        Route::get('products', fn () => redirect()->route('marketplace.products', ['platform' => 'shopee']))->name('products.index');
         Route::get('mapping-targets', [ShopeeSkuMappingController::class, 'lookup'])->middleware('can:shopee.mapping')->name('mappings.lookup');
         Route::get('shops/{shop}/mappings', [ShopeeSkuMappingController::class, 'index'])->middleware('can:shopee.view')->name('mappings.index');
         Route::post('shops/{shop}/mappings', [ShopeeSkuMappingController::class, 'store'])->middleware('can:shopee.mapping')->name('mappings.store');
@@ -258,10 +267,10 @@ Route::middleware(['auth', 'active'])->group(function () {
     // Integrasi TikTok Shop Partner Center. TikTok mengarahkan pemilik toko
     // kembali ke tiktok/callback setelah otorisasi.
     Route::prefix('tiktok')->name('tiktok.')->group(function () {
-        Route::get('settings', [TiktokSettingController::class, 'edit'])->middleware('can:tiktok.settings')->name('settings.edit');
+        Route::get('settings', fn () => redirect()->route('marketplace.settings', ['tab' => 'tiktok']))->name('settings.edit');
         Route::put('settings', [TiktokSettingController::class, 'update'])->middleware('can:tiktok.settings')->name('settings.update');
 
-        Route::get('shops', [TiktokShopController::class, 'index'])->middleware('can:tiktok.view')->name('shops.index');
+        Route::get('shops', fn () => redirect()->route('marketplace.shops', ['platform' => 'tiktok']))->name('shops.index');
         Route::post('shops/connect', [TiktokShopController::class, 'connect'])->middleware('can:tiktok.connect')->name('shops.connect');
         Route::get('callback', [TiktokShopController::class, 'callback'])->middleware('can:tiktok.connect')->name('callback');
         Route::put('shops/{shop}', [TiktokShopController::class, 'update'])->middleware('can:tiktok.connect')->name('shops.update');

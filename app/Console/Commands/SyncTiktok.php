@@ -11,10 +11,10 @@ use Illuminate\Support\Facades\Log;
 class SyncTiktok extends Command
 {
     protected $signature = 'tiktok:sync
-        {--only=* : Bagian yang disinkron: orders, stock (default semua)}
+        {--only=* : Bagian yang disinkron: orders, returns, stock (default semua)}
         {--shop= : ID toko TikTok (shop_id) tertentu}';
 
-    protected $description = 'Tarik pesanan TikTok Shop lalu kirim stok tersedia ke TikTok';
+    protected $description = 'Tarik pesanan & retur TikTok Shop lalu kirim stok tersedia ke TikTok';
 
     public function handle(TiktokSync $sync): int
     {

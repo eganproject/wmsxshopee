@@ -46,4 +46,10 @@ class Bundle extends Model
     {
         return $this->hasMany(ShopeeSkuMapping::class);
     }
+
+    /** Baris pemetaan SKU TikTok (bisa di beberapa toko) yang menunjuk ke SKU ini. */
+    public function tiktokMappings(): HasMany
+    {
+        return $this->hasMany(TiktokSkuMapping::class);
+    }
 }

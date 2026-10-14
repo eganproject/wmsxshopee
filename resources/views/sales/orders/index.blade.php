@@ -100,7 +100,7 @@
                 <span class="mr-2 text-slate-600"><span class="font-semibold text-slate-900" x-text="selected.length"></span> dipilih</span>
                 @foreach (\App\Models\SalesOrder::SHIPPING_METHODS as $value => $meta)
                     <form method="POST" action="{{ route('sales.orders.shipment.bulk') }}"
-                          data-confirm-title="Atur {{ $meta['label'] }} di Shopee?" data-confirm="Pesanan Shopee terpilih diatur {{ $meta['label'] }} dengan alamat pickup toko dan jadwal paling awal. Pesanan manual dilewati." data-confirm-text="Atur {{ $meta['label'] }}">
+                          data-confirm-title="Atur {{ $meta['label'] }} di marketplace?" data-confirm="Pesanan Shopee & TikTok terpilih diatur {{ $meta['label'] }} dengan alamat pickup toko dan jadwal paling awal. Pesanan manual dilewati." data-confirm-text="Atur {{ $meta['label'] }}">
                         @csrf
                         <input type="hidden" name="method" value="{{ $value }}">
                         <template x-for="id in selected" :key="id"><input type="hidden" name="orders[]" :value="id"></template>

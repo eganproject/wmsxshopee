@@ -35,6 +35,9 @@ class ShopeeReturnSync
         'WRONG_SIZE' => 'wrong_size',
     ];
 
+    /** Status retur Shopee yang tidak berubah lagi. */
+    private const FINAL_STATUSES = ['CANCELLED', 'CLOSED', 'ACCEPTED', 'REFUND_PAID'];
+
     private const FIRST_SYNC_DAYS = 15;
 
     private const WINDOW_DAYS = 15;
@@ -46,6 +49,7 @@ class ShopeeReturnSync
     {
         $api ??= ShopeeShopApi::for($shop);
         $stats = ['created' => 0, 'updated' => 0, 'skipped' => 0];
+        $startedAt = now();
 
         $from = ($shop->returns_synced_until?->copy()->subHour()) ?? now()->subDays(self::FIRST_SYNC_DAYS);
         $now = now();
@@ -73,7 +77,39 @@ class ShopeeReturnSync
             $from = $to;
         }
 
+        $this->refreshOpen($shop, $api, $startedAt);
+
         return $stats;
+    }
+
+    /**
+     * get_return_list hanya memfilter waktu pengajuan, jadi perubahan status retur
+     * lama (cth. resi retur terbit, dibatalkan pembeli) diambil per retur lewat
+     * /returns/get_return_detail untuk retur yang belum diterima gudang.
+     */
+    private function refreshOpen(ShopeeShop $shop, ShopeeShopApi $api, Carbon $before): void
+    {
+        SalesReturn::withoutGlobalScope('warehouse_access')
+            ->where('shopee_shop_id', $shop->id)
+            ->where('status', 'draft')
+            ->whereNotNull('external_return_number')
+            ->where(fn ($q) => $q->whereNull('shopee_return_status')->orWhereNotIn('shopee_return_status', self::FINAL_STATUSES))
+            ->where('created_at', '>=', now()->subDays(60))
+            ->where('updated_at', '<', $before) // yang baru diperbarui dari daftar tidak perlu diambil lagi
+            ->oldest('updated_at')
+            ->limit(50)
+            ->get()
+            ->each(function (SalesReturn $return) use ($shop, $api) {
+                try {
+                    $detail = $api->get('/api/v2/returns/get_return_detail', ['return_sn' => $return->external_return_number])['response'] ?? [];
+                } catch (ShopeeException) {
+                    return;
+                }
+
+                if (filled($detail['return_sn'] ?? null)) {
+                    $this->apply($shop, $detail);
+                }
+            });
     }
 
     /**
@@ -87,6 +123,7 @@ class ShopeeReturnSync
             ->where('shopee_shop_id', $shop->id)->where('external_return_number', $returnSn)->first();
 
         if ($existing) {
+            $existing->touch();
             $existing->update([
                 'shopee_return_status' => $data['status'] ?? $existing->shopee_return_status,
                 'tracking_number' => $existing->tracking_number ?: ($data['tracking_number'] ?? null),

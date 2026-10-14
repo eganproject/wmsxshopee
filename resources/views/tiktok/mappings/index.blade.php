@@ -2,7 +2,7 @@
     <x-slot:breadcrumb>
         <x-heroicon-o-home class="size-4" />
         <x-heroicon-o-chevron-right class="size-3.5" />
-        <a href="{{ route('tiktok.shops.index') }}" class="hover:text-slate-700">Toko TikTok</a>
+        <a href="{{ route('marketplace.shops', ['platform' => 'tiktok']) }}" class="hover:text-slate-700">Toko Marketplace</a>
         <x-heroicon-o-chevron-right class="size-3.5" />
         <span class="font-medium text-slate-700">{{ $shop->displayName() }}</span>
     </x-slot:breadcrumb>
@@ -10,7 +10,7 @@
     <x-page-header title="Pemetaan SKU · {{ $shop->displayName() }}"
                    description="Setiap produk/variasi di TikTok dihubungkan ke varian gudang atau paket di Optima. Pesanan TikTok nanti memakai pemetaan ini untuk mengurangi stok."
                    icon="heroicon-o-arrows-right-left">
-        <a href="{{ route('tiktok.shops.index') }}" class="btn-secondary"><x-heroicon-o-arrow-left class="size-5" /> Kembali</a>
+        <a href="{{ route('marketplace.shops', ['platform' => 'tiktok']) }}" class="btn-secondary"><x-heroicon-o-arrow-left class="size-5" /> Kembali</a>
         @can('tiktok.mapping')
             <form method="POST" action="{{ route('tiktok.mappings.auto-match', $shop) }}">
                 @csrf

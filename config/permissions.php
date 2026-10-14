@@ -209,7 +209,7 @@ return [
                 'settings' => 'Ubah App Key & App Secret TikTok',
                 'connect' => 'Hubungkan, perbarui token & hapus koneksi toko TikTok',
                 'mapping' => 'Tarik produk & atur pemetaan SKU TikTok',
-                'sync' => 'Sinkron pesanan & stok TikTok sekarang',
+                'sync' => 'Sinkron pesanan, retur & stok TikTok sekarang',
             ],
         ],
     ],

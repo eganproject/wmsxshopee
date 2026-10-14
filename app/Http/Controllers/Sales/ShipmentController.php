@@ -7,6 +7,8 @@ use App\Models\Courier;
 use App\Models\SalesOrder;
 use App\Services\Shopee\ShopeeException;
 use App\Services\Shopee\ShopeeLogistics;
+use App\Services\Tiktok\TiktokException;
+use App\Services\Tiktok\TiktokLogistics;
 use App\Support\Activity;
 use App\Support\Barcode;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
@@ -21,21 +23,24 @@ use Illuminate\View\View;
 /**
  * Atur pengiriman (pickup / drop off) dan cetak label resi.
  *
- * Pesanan Shopee diatur lewat API logistik Shopee; pesanan manual cukup
+ * Pesanan Shopee & TikTok diatur lewat API logistik platformnya; pesanan manual cukup
  * dicatat (jadwal jemput kurir atau titik drop off) supaya tim gudang tahu
  * paket mana yang dijemput dan mana yang harus diantar.
  */
 class ShipmentController extends Controller
 {
-    public function create(SalesOrder $order, ShopeeLogistics $logistics): View|RedirectResponse
+    public function create(SalesOrder $order, ShopeeLogistics $logistics, TiktokLogistics $tiktok): View|RedirectResponse
     {
         if (! $order->canArrangeShipment()) {
-            return redirect()->route('sales.orders.show', $order)->with('error', $order->shopeeShipmentArranged()
-                ? "Pengiriman {$order->number} sudah diatur di Shopee."
-                : "Pengiriman {$order->number} bisa diatur setelah pesanan dikonfirmasi dan sebelum dikirim.");
+            return redirect()->route('sales.orders.show', $order)->with('error', match (true) {
+                $order->shopeeShipmentArranged() => "Pengiriman {$order->number} sudah diatur di Shopee.",
+                $order->tiktokShipmentArranged() => "Pengiriman {$order->number} sudah diatur di TikTok.",
+                $order->isTiktok() && $order->tiktok_cancel_requested => "Pembeli {$order->number} mengajukan pembatalan di TikTok. Tunggu keputusan di Seller Center.",
+                default => "Pengiriman {$order->number} bisa diatur setelah pesanan dikonfirmasi dan sebelum dikirim.",
+            });
         }
 
-        $order->load(['warehouse', 'courier', 'shopeeShop']);
+        $order->load(['warehouse', 'courier', 'shopeeShop', 'tiktokShop']);
         $options = null;
         $error = null;
 
@@ -44,6 +49,12 @@ class ShipmentController extends Controller
                 $options = $logistics->options($order);
             } catch (ShopeeException $e) {
                 $error = $e->getMessage();
+            }
+        } elseif ($order->isTiktok()) {
+            try {
+                $options = $tiktok->options($order);
+            } catch (TiktokException|ValidationException $e) {
+                $error = $e instanceof ValidationException ? collect($e->errors())->flatten()->first() : $e->getMessage();
             }
         }
 
@@ -58,9 +69,26 @@ class ShipmentController extends Controller
         ]);
     }
 
-    public function store(Request $request, SalesOrder $order, ShopeeLogistics $logistics): RedirectResponse
+    public function store(Request $request, SalesOrder $order, ShopeeLogistics $logistics, TiktokLogistics $tiktok): RedirectResponse
     {
         abort_unless($order->canArrangeShipment(), 403, 'Pengiriman pesanan ini tidak bisa diatur.');
+
+        if ($order->isTiktok()) {
+            $data = $request->validate([
+                'method' => ['required', Rule::in(['pickup', 'dropoff'])],
+                'pickup_slot' => ['nullable', 'string', 'max:50'],
+            ], [], ['method' => 'cara kirim', 'pickup_slot' => 'jadwal pickup']);
+
+            try {
+                Activity::track($order, fn () => $tiktok->arrange($order, $data['method'], $data, $request->user()->id));
+            } catch (TiktokException $e) {
+                return back()->withInput()->with('error', $e->getMessage());
+            }
+
+            $order->refresh();
+
+            return redirect()->route('sales.orders.show', $order)->with('success', "Pengiriman {$order->number} diatur di TikTok ({$order->shippingMethodLabel()}).".($order->tracking_number ? " Resi {$order->tracking_number}." : ' Resi terisi otomatis begitu terbit.'));
+        }
 
         if ($order->isShopee()) {
             $data = $request->validate([
@@ -120,8 +148,8 @@ class ShipmentController extends Controller
         return redirect()->route('sales.orders.show', $order)->with('success', "Pengiriman {$order->number} dicatat: {$order->shippingMethodLabel()}.");
     }
 
-    /** Atur banyak pesanan Shopee sekaligus dengan pilihan otomatis. */
-    public function bulk(Request $request, ShopeeLogistics $logistics): RedirectResponse
+    /** Atur banyak pesanan Shopee & TikTok sekaligus dengan pilihan otomatis. */
+    public function bulk(Request $request, ShopeeLogistics $logistics, TiktokLogistics $tiktok): RedirectResponse
     {
         $data = $request->validate([
             'orders' => ['required', 'array', 'max:100'],
@@ -129,15 +157,20 @@ class ShipmentController extends Controller
             'method' => ['required', Rule::in(array_keys(SalesOrder::SHIPPING_METHODS))],
         ], ['orders.required' => 'Pilih pesanan yang akan diatur pengirimannya.']);
 
-        $orders = SalesOrder::with(['shopeeShop', 'warehouse'])->whereKey($data['orders'])->orderBy('id')->get();
-        $manual = $orders->reject->isShopee();
+        $orders = SalesOrder::with(['shopeeShop', 'tiktokShop', 'warehouse'])->whereKey($data['orders'])->orderBy('id')->get();
+        $manual = $orders->reject->isMarketplace();
 
-        $result = $logistics->arrangeMany($orders->filter->isShopee(), $data['method'], $request->user()->id);
+        $shopee = $logistics->arrangeMany($orders->filter->isShopee(), $data['method'], $request->user()->id);
+        $tiktokResult = $tiktok->arrangeMany($orders->filter->isTiktok(), $data['method'], $request->user()->id);
+        $result = ['arranged' => [...$shopee['arranged'], ...$tiktokResult['arranged']], 'failed' => $shopee['failed'] + $tiktokResult['failed']];
 
         $label = SalesOrder::SHIPPING_METHODS[$data['method']]['label'];
         $messages = [];
-        if ($result['arranged']) {
-            $messages[] = count($result['arranged'])." pesanan diatur {$label} di Shopee.";
+        if ($shopee['arranged']) {
+            $messages[] = count($shopee['arranged'])." pesanan diatur {$label} di Shopee.";
+        }
+        if ($tiktokResult['arranged']) {
+            $messages[] = count($tiktokResult['arranged'])." pesanan diatur {$label} di TikTok.";
         }
         if ($manual->isNotEmpty()) {
             $messages[] = 'Pesanan manual ('.$manual->pluck('number')->implode(', ').') diatur satu per satu dari halaman pesanan.';
@@ -152,19 +185,50 @@ class ShipmentController extends Controller
         return $redirect;
     }
 
-    public function label(SalesOrder $order, ShopeeLogistics $logistics): Response|View|RedirectResponse
+    public function label(SalesOrder $order, ShopeeLogistics $logistics, TiktokLogistics $tiktok): Response|View|RedirectResponse
     {
+        if ($order->isTiktok()) {
+            $order->load('tiktokShop');
+
+            if (! $order->hasShippingLabel()) {
+                return back()->with('error', 'Label resi TikTok tersedia setelah pengiriman diatur.');
+            }
+
+            try {
+                $pdf = $tiktok->label($order);
+            } catch (TiktokException|ValidationException $e) {
+                return back()->with('error', $e instanceof ValidationException ? collect($e->errors())->flatten()->first() : $e->getMessage());
+            }
+
+            return response($pdf, 200, [
+                'Content-Type' => 'application/pdf',
+                'Content-Disposition' => 'inline; filename="resi-'.$order->external_number.'.pdf"',
+            ]);
+        }
+
         return $this->labels(new EloquentCollection([$order]), $logistics);
     }
 
-    public function bulkLabel(Request $request, ShopeeLogistics $logistics): Response|View|RedirectResponse
+    public function bulkLabel(Request $request, ShopeeLogistics $logistics, TiktokLogistics $tiktok): Response|View|RedirectResponse
     {
         $data = $request->validate([
             'orders' => ['required', 'array', 'max:'.ShopeeLogistics::MAX_DOCUMENTS],
             'orders.*' => ['integer'],
         ], ['orders.required' => 'Pilih pesanan yang labelnya akan dicetak.', 'orders.max' => 'Maksimal :max label sekali cetak.']);
 
-        return $this->labels(SalesOrder::whereKey($data['orders'])->orderBy('id')->get(), $logistics);
+        $orders = SalesOrder::whereKey($data['orders'])->orderBy('id')->get();
+
+        // Label TikTok berupa PDF per paket dari TikTok: satu pesanan dicetak langsung,
+        // lebih dari satu dicetak dari halaman pesanan masing-masing.
+        if ($orders->contains->isTiktok()) {
+            if ($orders->count() === 1) {
+                return $this->label($orders->first(), $logistics, $tiktok);
+            }
+
+            return back()->with('error', 'Label TikTok dicetak per pesanan (tombol Cetak Label di halaman pesanan). Pilih pesanan Shopee atau manual saja untuk cetak massal.');
+        }
+
+        return $this->labels($orders, $logistics);
     }
 
     /** @param EloquentCollection<int, SalesOrder> $orders */

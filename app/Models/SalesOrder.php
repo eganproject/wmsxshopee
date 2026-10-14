@@ -117,6 +117,7 @@ class SalesOrder extends Model
         'shopee_income_synced_at',
         'tiktok_shop_id',
         'tiktok_order_status',
+        'tiktok_cancel_requested',
         'tiktok_package_id',
         'tiktok_sync_error',
         'tiktok_synced_at',
@@ -178,6 +179,7 @@ class SalesOrder extends Model
             'shopee_escrow_amount' => 'decimal:2',
             'shopee_income_final' => 'boolean',
             'shopee_income_synced_at' => 'datetime',
+            'tiktok_cancel_requested' => 'boolean',
             'tiktok_synced_at' => 'datetime',
             'tiktok_ship_by' => 'datetime',
             'tiktok_shipped_at' => 'datetime',
@@ -356,6 +358,7 @@ class SalesOrder extends Model
      * Pengiriman bisa diatur selama stok sudah dicadangkan dan belum dikirim.
      * Pesanan Shopee hanya selama statusnya di Shopee masih READY_TO_SHIP;
      * setelah diatur (PROCESSED) Shopee tidak menerima pengaturan ulang.
+     * Pesanan TikTok selama statusnya AWAITING_SHIPMENT dan paketnya sudah dibuat.
      * Pesanan manual boleh diubah kapan saja sebelum dikirim.
      */
     public function canArrangeShipment(): bool
@@ -364,9 +367,8 @@ class SalesOrder extends Model
             return false;
         }
 
-        // Pesanan TikTok diatur (pickup / drop off) di TikTok Shop Seller Center.
         if ($this->isTiktok()) {
-            return false;
+            return $this->tiktok_order_status === 'AWAITING_SHIPMENT' && filled($this->tiktok_package_id) && ! $this->tiktok_cancel_requested;
         }
 
         return ! $this->isShopee() || $this->shopee_order_status === 'READY_TO_SHIP';
@@ -429,9 +431,9 @@ class SalesOrder extends Model
             return false;
         }
 
-        // Label resi TikTok dicetak dari TikTok Shop Seller Center.
+        // Label resi TikTok tersedia setelah pengiriman diatur (paket menunggu dijemput / diantar).
         if ($this->isTiktok()) {
-            return false;
+            return $this->tiktokShipmentArranged() && filled($this->tiktok_package_id);
         }
 
         return $this->isShopee() ? $this->shopeeShipmentArranged() : ($this->isShipmentArranged() || filled($this->tracking_number));

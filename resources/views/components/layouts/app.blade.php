@@ -51,11 +51,9 @@
         [
             'heading' => 'Integrasi',
             'items' => [
-                ['label' => 'Toko Shopee', 'route' => 'shopee.shops.index', 'active' => ['shopee.shops.*', 'shopee.mappings.*'], 'icon' => 'heroicon-o-building-storefront', 'can' => 'shopee.view'],
-                ['label' => 'Status Produk Shopee', 'route' => 'shopee.products.index', 'active' => 'shopee.products.*', 'icon' => 'heroicon-o-check-badge', 'can' => 'shopee.view'],
-                ['label' => 'Pengaturan Shopee', 'route' => 'shopee.settings.edit', 'active' => 'shopee.settings.*', 'icon' => 'heroicon-o-key', 'can' => 'shopee.settings'],
-                ['label' => 'Toko TikTok', 'route' => 'tiktok.shops.index', 'active' => ['tiktok.shops.*', 'tiktok.mappings.*'], 'icon' => 'heroicon-o-musical-note', 'can' => 'tiktok.view'],
-                ['label' => 'Pengaturan TikTok', 'route' => 'tiktok.settings.edit', 'active' => 'tiktok.settings.*', 'icon' => 'heroicon-o-key', 'can' => 'tiktok.settings'],
+                ['label' => 'Toko Marketplace', 'route' => 'marketplace.shops', 'active' => ['marketplace.shops', 'shopee.mappings.*', 'tiktok.mappings.*'], 'icon' => 'heroicon-o-building-storefront', 'can' => ['shopee.view', 'tiktok.view']],
+                ['label' => 'Status Produk', 'route' => 'marketplace.products', 'active' => 'marketplace.products', 'icon' => 'heroicon-o-check-badge', 'can' => ['shopee.view', 'tiktok.view']],
+                ['label' => 'Pengaturan Marketplace', 'route' => 'marketplace.settings', 'active' => 'marketplace.settings', 'icon' => 'heroicon-o-key', 'can' => ['shopee.settings', 'tiktok.settings']],
             ],
         ],
         [

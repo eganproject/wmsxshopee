@@ -7,6 +7,8 @@ use App\Models\Courier;
 use App\Models\Product;
 use App\Models\ProductVariant;
 use App\Models\SalesOrder;
+use App\Models\SalesReturn;
+use App\Models\ShopeeShop;
 use App\Models\TiktokSetting;
 use App\Models\TiktokShop;
 use App\Models\Unit;
@@ -166,9 +168,10 @@ class TiktokIntegrationTest extends TestCase
 
     public function test_settings_keep_secret_encrypted_and_when_left_blank(): void
     {
-        $this->get('/tiktok/settings')->assertOk()->assertSee('Pengaturan TikTok')->assertSee(route('tiktok.callback'))->assertSee(route('tiktok.webhook'));
+        $this->get('/tiktok/settings')->assertRedirect(route('marketplace.settings', ['tab' => 'tiktok']));
+        $this->get('/marketplace/settings?tab=tiktok')->assertOk()->assertSee('Pengaturan Marketplace')->assertSee(route('tiktok.callback'))->assertSee(route('tiktok.webhook'));
 
-        $this->put('/tiktok/settings', ['app_key' => 'key-1', 'app_secret' => 'rahasia-1', 'service_id' => '73'])->assertRedirect(route('tiktok.settings.edit'));
+        $this->put('/tiktok/settings', ['app_key' => 'key-1', 'app_secret' => 'rahasia-1', 'service_id' => '73'])->assertRedirect(route('marketplace.settings', ['tab' => 'tiktok']));
         $this->assertNotSame('rahasia-1', DB::table('tiktok_settings')->value('app_secret'));
         $this->assertSame('rahasia-1', TiktokSetting::current()->app_secret);
 
@@ -202,7 +205,7 @@ class TiktokIntegrationTest extends TestCase
             ]]]),
         ]);
 
-        $this->get("/tiktok/callback?state={$state}&code=kode123")->assertRedirect(route('tiktok.shops.index'))->assertSessionHas('success');
+        $this->get("/tiktok/callback?state={$state}&code=kode123")->assertRedirect(route('marketplace.shops', ['platform' => 'tiktok']))->assertSessionHas('success');
 
         $this->assertSame(2, TiktokShop::count());
         $shop = TiktokShop::where('shop_id', '7495000000000000001')->firstOrFail();
@@ -213,7 +216,7 @@ class TiktokIntegrationTest extends TestCase
 
         Http::assertSent(fn (Request $r) => str_contains($r->url(), '/api/v2/token/get') && $r['auth_code'] === 'kode123' && $r['grant_type'] === 'authorized_code' && $r['app_key'] === 'appkey123');
 
-        $this->get('/tiktok/shops')->assertOk()->assertSee('Optima Official')->assertSee('Optima Outlet');
+        $this->get('/marketplace/shops?platform=tiktok')->assertOk()->assertSee('Optima Official')->assertSee('Optima Outlet');
     }
 
     public function test_callback_rejects_wrong_state(): void
@@ -221,7 +224,7 @@ class TiktokIntegrationTest extends TestCase
         $this->configure();
         $this->post('/tiktok/shops/connect', ['warehouse_id' => $this->warehouse->id]);
 
-        $this->get('/tiktok/callback?state=salah&code=x')->assertRedirect(route('tiktok.shops.index'))->assertSessionHas('error');
+        $this->get('/tiktok/callback?state=salah&code=x')->assertRedirect(route('marketplace.shops', ['platform' => 'tiktok']))->assertSessionHas('error');
         $this->assertSame(0, TiktokShop::count());
     }
 
@@ -270,7 +273,7 @@ class TiktokIntegrationTest extends TestCase
         $this->assertNotNull($order->tiktok_ship_by);
         $this->assertSame(10 - 3, $this->available($this->kaosM));
         $this->assertSame(1, SalesOrder::count(), 'Belum bayar, sudah selesai & Fulfilled by TikTok tidak dibuat.');
-        $this->assertFalse($order->canArrangeShipment());
+        $this->assertTrue($order->canArrangeShipment(), 'Pengiriman TikTok bisa diatur dari Optima.');
         $this->assertFalse($order->hasShippingLabel());
 
         $this->artisan('tiktok:sync --only=orders')->assertSuccessful();
@@ -407,12 +410,161 @@ class TiktokIntegrationTest extends TestCase
         app(FulfillmentScan::class)->handover($order->number, null);
     }
 
+    private function syncedOrder(string $id, array $extra = []): SalesOrder
+    {
+        $this->fakeSearch([$this->order($id, 'AWAITING_SHIPMENT', $this->units('2001', 1), $extra)]);
+        $this->artisan('tiktok:sync --only=orders')->assertSuccessful();
+        $this->refake();
+
+        return SalesOrder::where('external_number', $id)->firstOrFail();
+    }
+
+    public function test_arrange_pickup_and_print_label_through_fulfillment_api(): void
+    {
+        $this->shop();
+        $order = $this->syncedOrder('630001');
+        $start = now()->addDay()->setTime(9, 0)->getTimestamp();
+
+        Http::fake([
+            '*/fulfillment/202309/packages/PKG630001/handover_time_slots*' => Http::response(['code' => 0, 'data' => [
+                'can_pickup' => true, 'can_drop_off' => true, 'drop_off_point_url' => 'https://seller.tiktok.com/dropoff',
+                'pickup_slots' => [['start_time' => $start, 'end_time' => $start + 7200, 'avaliable' => true], ['start_time' => $start - 7200, 'end_time' => $start, 'avaliable' => false]],
+            ]]),
+            '*/fulfillment/202309/packages/PKG630001/shipping_documents*' => Http::response(['code' => 0, 'data' => ['doc_url' => 'https://files.tiktok.test/label.pdf', 'tracking_number' => 'JX777']]),
+            '*/fulfillment/202309/packages/PKG630001/ship?*' => Http::response(['code' => 0, 'data' => []]),
+            '*/fulfillment/202309/packages/PKG630001?*' => Http::response(['code' => 0, 'data' => ['package_id' => 'PKG630001', 'tracking_number' => 'JX777']]),
+            '*files.tiktok.test/*' => Http::response('%PDF-1.4 label', 200, ['Content-Type' => 'application/pdf']),
+        ]);
+
+        $this->get("/sales/orders/{$order->id}/shipment")->assertOk()->assertSee('Atur di TikTok')->assertSee('Lihat titik drop off terdekat');
+        $this->post("/sales/orders/{$order->id}/shipment", ['method' => 'pickup', 'pickup_slot' => $start.'-'.($start + 7200)])
+            ->assertRedirect(route('sales.orders.show', $order))->assertSessionHas('success');
+
+        Http::assertSent(fn (Request $r) => str_ends_with(parse_url($r->url(), PHP_URL_PATH), '/packages/PKG630001/ship')
+            && $r['handover_method'] === 'PICKUP' && $r['pickup_slot'] == ['start_time' => $start, 'end_time' => $start + 7200]);
+
+        $order->refresh();
+        $this->assertSame(['AWAITING_COLLECTION', 'pickup', 'JX777'], [$order->tiktok_order_status, $order->shipping_method, $order->tracking_number]);
+        $this->assertTrue($order->tiktokShipmentArranged());
+        $this->assertFalse($order->canArrangeShipment());
+        $this->assertTrue($order->hasShippingLabel());
+        $this->get("/sales/orders/{$order->id}/shipping-label")->assertOk()->assertHeader('Content-Type', 'application/pdf');
+        Http::assertSent(fn (Request $r) => str_contains($r->url(), 'shipping_documents') && str_contains($r->url(), 'document_type=SHIPPING_LABEL'));
+        $this->assertNotNull($order->fresh()->shipping_label_printed_at);
+    }
+
+    public function test_bulk_dropoff_arranges_tiktok_orders(): void
+    {
+        $this->shop();
+        $order = $this->syncedOrder('640001');
+
+        Http::fake([
+            '*/handover_time_slots*' => Http::response(['code' => 0, 'data' => ['can_pickup' => false, 'can_drop_off' => true, 'pickup_slots' => []]]),
+            '*/packages/PKG640001/ship*' => Http::response(['code' => 0, 'data' => []]),
+            '*/fulfillment/202309/packages/PKG640001?*' => Http::response(['code' => 0, 'data' => ['tracking_number' => '']]),
+        ]);
+
+        $this->post('/sales/orders/shipment', ['orders' => [$order->id], 'method' => 'dropoff'])->assertRedirect()->assertSessionHas('success');
+
+        Http::assertSent(fn (Request $r) => str_ends_with(parse_url($r->url(), PHP_URL_PATH), '/ship') && $r['handover_method'] === 'DROP_OFF');
+        $this->assertSame(['dropoff', 'AWAITING_COLLECTION'], [$order->fresh()->shipping_method, $order->fresh()->tiktok_order_status]);
+    }
+
+    public function test_buyer_cancel_request_blocks_shipment_and_handover(): void
+    {
+        $this->shop();
+        $order = $this->syncedOrder('650001', ['is_buyer_request_cancel' => true]);
+
+        $this->assertTrue($order->tiktok_cancel_requested);
+        $this->assertStringContainsString('mengajukan pembatalan', $order->tiktok_sync_error);
+        $this->assertFalse($order->canArrangeShipment());
+    }
+
+    public function test_returns_are_pulled_as_draft_sales_returns_and_status_follows(): void
+    {
+        $shop = $this->shop();
+        $lines = [...$this->units('2001', 2), ...$this->units('2003', 1)];
+        $this->fakeSearch([$this->order('660001', 'AWAITING_SHIPMENT', $lines)]);
+        $this->artisan('tiktok:sync --only=orders')->assertSuccessful();
+        $this->refake();
+        $this->fakeSearch([$this->order('660001', 'IN_TRANSIT', $lines, ['tracking_number' => 'JX1'])]);
+        $this->artisan('tiktok:sync --only=orders')->assertSuccessful();
+        $this->refake();
+        $order = SalesOrder::where('external_number', '660001')->firstOrFail();
+        $this->assertSame('shipped', $order->status);
+
+        $returns = fn (string $status) => ['code' => 0, 'data' => ['return_orders' => [
+            ['return_id' => 'R1', 'order_id' => '660001', 'return_type' => 'RETURN_AND_REFUND', 'return_status' => $status, 'return_reason_text' => 'Barang rusak',
+                'return_tracking_number' => 'RET-9', 'create_time' => now()->getTimestamp(),
+                'return_line_items' => [['sku_id' => '2001'], ['sku_id' => '2003']]],
+            ['return_id' => 'R2', 'order_id' => '660001', 'return_type' => 'REFUND', 'return_status' => $status, 'return_line_items' => [['sku_id' => '2001']]],
+            ['return_id' => 'R3', 'order_id' => '999', 'return_type' => 'RETURN_AND_REFUND', 'return_status' => $status, 'return_line_items' => [['sku_id' => '2001']]],
+        ], 'next_page_token' => '']];
+
+        Http::fake(['*/return_refund/202309/returns/search*' => Http::response($returns('AWAITING_BUYER_SHIP'))]);
+        $this->artisan('tiktok:sync --only=returns')->assertSuccessful();
+
+        $return = SalesReturn::where('external_return_number', 'R1')->firstOrFail();
+        $this->assertSame(['draft', $order->id, $shop->id, 'AWAITING_BUYER_SHIP', 'RET-9'], [$return->status, $return->sales_order_id, $return->tiktok_shop_id, $return->tiktok_return_status, $return->tracking_number]);
+        $this->assertSame(1 + 2, (int) $return->items()->sum('qty_good'), '1 kaos M + paket dipecah jadi 2 komponen.');
+        $this->assertSame('damaged', $return->items()->value('reason'));
+        $this->assertSame(1, SalesReturn::count(), 'Refund tanpa barang & pesanan di luar Optima dilewati.');
+        $this->assertNotNull($shop->fresh()->returns_synced_until);
+
+        $this->refake();
+        Http::fake(['*/return_refund/202309/returns/search*' => Http::response($returns('BUYER_SHIPPED_ITEM'))]);
+        $this->artisan('tiktok:sync --only=returns')->assertSuccessful();
+        $this->assertSame('BUYER_SHIPPED_ITEM', $return->fresh()->tiktok_return_status);
+        $this->get("/sales/returns/{$return->id}")->assertOk()->assertSee('TikTok:');
+    }
+
+    public function test_webhook_handles_return_and_expiry_events(): void
+    {
+        $shop = $this->shop();
+        Http::fake(['*/return_refund/202309/returns/search*' => Http::response(['code' => 0, 'data' => ['return_orders' => []]])]);
+        $send = function (array $payload) {
+            $body = json_encode($payload);
+
+            return $this->call('POST', '/tiktok/webhook', [], [], [], ['HTTP_AUTHORIZATION' => hash_hmac('sha256', 'appkey123'.$body, 'rahasia'), 'CONTENT_TYPE' => 'application/json'], $body);
+        };
+
+        $send(['type' => 12, 'shop_id' => $shop->shop_id, 'data' => ['order_id' => '670001', 'return_id' => 'R9']])->assertOk();
+        Http::assertSent(fn (Request $r) => str_contains($r->url(), '/returns/search') && $r['order_ids'] === ['670001']);
+
+        $send(['type' => 7, 'shop_id' => $shop->shop_id, 'data' => []])->assertOk();
+        $this->assertStringContainsString('akan segera berakhir', $shop->fresh()->last_error);
+        $this->assertSame('connected', $shop->fresh()->status);
+    }
+
+    public function test_marketplace_pages_list_both_platforms(): void
+    {
+        $tiktok = $this->shop();
+        $shopee = ShopeeShop::create(['environment' => 'test', 'shop_id' => 555, 'shop_name' => 'Toko Shopee Uji', 'warehouse_id' => $this->warehouse->id, 'status' => 'connected', 'is_active' => true]);
+        $shopee->mappings()->create(['item_id' => 11, 'model_id' => 0, 'shopee_sku' => 'KAOS-L', 'product_variant_id' => $this->kaosL->id]);
+        $tiktok->mappings()->where('sku_id', '2002')->delete();
+
+        $this->get('/marketplace/shops')->assertOk()->assertSee('Optima TikTok')->assertSee('Toko Shopee Uji')->assertSee(route('tiktok.mappings.index', $tiktok))->assertSee(route('shopee.mappings.index', $shopee));
+        $this->assertCount(1, $this->get('/marketplace/shops?platform=shopee')->viewData('shops'));
+        $this->assertCount(1, $this->get('/marketplace/shops?search=tiktok')->viewData('shops'));
+
+        $this->get('/marketplace/products')->assertOk()->assertSee('Optima TikTok')->assertSee('Toko Shopee Uji');
+        $rows = fn (string $query) => $this->get('/marketplace/products?'.$query)->viewData('rows')->pluck('sku')->all();
+        $this->assertSame(['KAOS-L', 'KAOS-M'], $rows('status=linked'));
+        $this->assertSame(['KAOS-L'], $rows("status=unlinked&shop=tiktok-{$tiktok->id}"));
+        $this->assertSame(['KAOS-M'], $rows("status=unlinked&shop=shopee-{$shopee->id}"));
+        $this->assertSame(['KAOS-M'], $rows('platform=tiktok&status=linked'));
+        $this->get('/marketplace/products?export=xlsx')->assertOk()->assertDownload();
+        $this->get('/marketplace/settings')->assertOk()->assertSee('Partner ID')->assertDontSee('App Secret');
+        $this->get('/marketplace/settings?tab=tiktok')->assertOk()->assertSee('App Secret');
+    }
+
     public function test_staff_cannot_manage_tiktok(): void
     {
         $staff = User::factory()->create(['username' => 'staf', 'is_active' => true]);
         $staff->assignRole('Staff Gudang');
 
-        $this->actingAs($staff)->get('/tiktok/shops')->assertForbidden();
-        $this->actingAs($staff)->get('/tiktok/settings')->assertForbidden();
+        $this->actingAs($staff)->get('/marketplace/shops')->assertForbidden();
+        $this->actingAs($staff)->get('/marketplace/settings')->assertForbidden();
+        $this->actingAs($staff)->post('/tiktok/shops/connect', ['warehouse_id' => $this->warehouse->id])->assertForbidden();
     }
 }

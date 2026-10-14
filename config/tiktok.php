@@ -6,7 +6,7 @@
 |--------------------------------------------------------------------------
 |
 | App dibuat di partner.tiktokshop.com. App Key, App Secret & Service ID
-| diisi dari halaman Integrasi › Pengaturan TikTok (secret disimpan terenkripsi).
+| diisi dari halaman Integrasi › Pengaturan Marketplace (tab TikTok) (secret disimpan terenkripsi).
 | Sejak versi 202309 TikTok tidak punya sandbox terpisah: uji memakai toko uji
 | (test shop) dari Partner Center dengan host yang sama.
 |
@@ -37,5 +37,8 @@ return [
 
     // Batas waktu request ke TikTok (detik).
     'timeout' => (int) env('TIKTOK_TIMEOUT', 20),
+
+    // Ukuran label resi PDF dari TikTok: A6 (thermal 100x150) atau A5.
+    'label_size' => env('TIKTOK_LABEL_SIZE', 'A6'),
 
 ];

@@ -151,7 +151,7 @@
                 @if ($order->tiktok_sync_error)
                     <p class="mt-0.5 font-medium">{{ $order->tiktok_sync_error }}</p>
                 @elseif ($order->hasStatus('confirmed', 'picked', 'packed') && ! $order->tiktokShipmentArranged())
-                    <p class="mt-0.5">Atur pickup / drop off dan cetak label resi dari TikTok Shop Seller Center; status & resi masuk otomatis.</p>
+                    <p class="mt-0.5">Atur pickup / drop off dengan tombol Atur Pengiriman (atau dari TikTok Shop Seller Center); status & resi masuk otomatis.</p>
                 @endif
             </div>
         </div>
