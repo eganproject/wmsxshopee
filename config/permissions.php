@@ -112,7 +112,7 @@ return [
                 'skip_scan' => 'Kemas & kirim tanpa scan (lewati QC / serah terima)',
                 'cancel' => 'Batalkan pesanan',
                 'delete' => 'Hapus draft pesanan',
-                'income' => 'Lihat rincian pendapatan Shopee (harga, potongan & dana diterima)',
+                'income' => 'Lihat rincian pendapatan Shopee & pembayaran TikTok (harga, potongan & dana diterima)',
             ],
         ],
 
@@ -198,6 +198,18 @@ return [
                 'connect' => 'Hubungkan, perbarui token & hapus koneksi toko',
                 'mapping' => 'Tarik produk & atur pemetaan SKU',
                 'sync' => 'Sinkron pesanan, resi, stok & retur sekarang',
+            ],
+        ],
+
+        'tiktok' => [
+            'label' => 'Integrasi TikTok Shop',
+            'icon' => 'heroicon-o-musical-note',
+            'actions' => [
+                'view' => 'Lihat toko TikTok & pemetaan SKU',
+                'settings' => 'Ubah App Key & App Secret TikTok',
+                'connect' => 'Hubungkan, perbarui token & hapus koneksi toko TikTok',
+                'mapping' => 'Tarik produk & atur pemetaan SKU TikTok',
+                'sync' => 'Sinkron pesanan & stok TikTok sekarang',
             ],
         ],
     ],

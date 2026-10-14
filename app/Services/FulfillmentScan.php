@@ -121,6 +121,15 @@ class FulfillmentScan
             }
         }
 
+        if ($order->isTiktok()) {
+            if ($order->tiktok_order_status === 'CANCELLED') {
+                throw ValidationException::withMessages(['code' => "{$order->number}: pesanan dibatalkan di TikTok. Tahan paket ini."]);
+            }
+            if (! $order->tiktokShipmentArranged()) {
+                throw ValidationException::withMessages(['code' => "{$order->number}: pengiriman belum diatur di TikTok Shop Seller Center. Atur pickup / drop off dulu."]);
+            }
+        }
+
         DB::transaction(function () use ($order, $userId) {
             $handover = ShipmentHandover::forToday($order->warehouse_id, $order->courier_id, $userId);
 

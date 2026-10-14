@@ -41,12 +41,18 @@ use App\Http\Controllers\Shopee\ShopeeSettingController;
 use App\Http\Controllers\Shopee\ShopeeShopController;
 use App\Http\Controllers\Shopee\ShopeeSkuMappingController;
 use App\Http\Controllers\Shopee\ShopeeWebhookController;
+use App\Http\Controllers\Tiktok\TiktokSettingController;
+use App\Http\Controllers\Tiktok\TiktokShopController;
+use App\Http\Controllers\Tiktok\TiktokSkuMappingController;
+use App\Http\Controllers\Tiktok\TiktokWebhookController;
 use Illuminate\Support\Facades\Route;
 
 Route::redirect('/', '/dashboard');
 
 // Push Mechanism Shopee (tanpa login; diverifikasi lewat tanda tangan partner key).
 Route::post('shopee/webhook', ShopeeWebhookController::class)->name('shopee.webhook');
+// Webhook TikTok Shop (tanpa login; diverifikasi lewat tanda tangan app secret).
+Route::post('tiktok/webhook', TiktokWebhookController::class)->name('tiktok.webhook');
 
 // Tidak ada route register: akun hanya dibuat lewat admin panel.
 Route::middleware('guest')->group(function () {
@@ -247,6 +253,29 @@ Route::middleware(['auth', 'active'])->group(function () {
         Route::post('shops/{shop}/mappings/pull', [ShopeeSkuMappingController::class, 'pull'])->middleware('can:shopee.mapping')->name('mappings.pull');
         Route::put('shops/{shop}/mappings/{mapping}', [ShopeeSkuMappingController::class, 'update'])->middleware('can:shopee.mapping')->name('mappings.update');
         Route::delete('shops/{shop}/mappings/{mapping}', [ShopeeSkuMappingController::class, 'destroy'])->middleware('can:shopee.mapping')->name('mappings.destroy');
+    });
+
+    // Integrasi TikTok Shop Partner Center. TikTok mengarahkan pemilik toko
+    // kembali ke tiktok/callback setelah otorisasi.
+    Route::prefix('tiktok')->name('tiktok.')->group(function () {
+        Route::get('settings', [TiktokSettingController::class, 'edit'])->middleware('can:tiktok.settings')->name('settings.edit');
+        Route::put('settings', [TiktokSettingController::class, 'update'])->middleware('can:tiktok.settings')->name('settings.update');
+
+        Route::get('shops', [TiktokShopController::class, 'index'])->middleware('can:tiktok.view')->name('shops.index');
+        Route::post('shops/connect', [TiktokShopController::class, 'connect'])->middleware('can:tiktok.connect')->name('shops.connect');
+        Route::get('callback', [TiktokShopController::class, 'callback'])->middleware('can:tiktok.connect')->name('callback');
+        Route::put('shops/{shop}', [TiktokShopController::class, 'update'])->middleware('can:tiktok.connect')->name('shops.update');
+        Route::post('shops/{shop}/refresh', [TiktokShopController::class, 'refresh'])->middleware('can:tiktok.connect')->name('shops.refresh');
+        Route::post('shops/{shop}/sync', [TiktokShopController::class, 'sync'])->middleware('can:tiktok.sync')->name('shops.sync');
+        Route::delete('shops/{shop}', [TiktokShopController::class, 'destroy'])->middleware('can:tiktok.connect')->name('shops.destroy');
+
+        Route::get('mapping-targets', [ShopeeSkuMappingController::class, 'lookup'])->middleware('can:tiktok.mapping')->name('mappings.lookup');
+        Route::get('shops/{shop}/mappings', [TiktokSkuMappingController::class, 'index'])->middleware('can:tiktok.view')->name('mappings.index');
+        Route::post('shops/{shop}/mappings', [TiktokSkuMappingController::class, 'store'])->middleware('can:tiktok.mapping')->name('mappings.store');
+        Route::post('shops/{shop}/mappings/auto-match', [TiktokSkuMappingController::class, 'autoMatch'])->middleware('can:tiktok.mapping')->name('mappings.auto-match');
+        Route::post('shops/{shop}/mappings/pull', [TiktokSkuMappingController::class, 'pull'])->middleware('can:tiktok.mapping')->name('mappings.pull');
+        Route::put('shops/{shop}/mappings/{mapping}', [TiktokSkuMappingController::class, 'update'])->middleware('can:tiktok.mapping')->name('mappings.update');
+        Route::delete('shops/{shop}/mappings/{mapping}', [TiktokSkuMappingController::class, 'destroy'])->middleware('can:tiktok.mapping')->name('mappings.destroy');
     });
 
     Route::prefix('admin')->name('admin.')->group(function () {

@@ -1,0 +1,64 @@
+<?php
+
+namespace App\Services\Tiktok;
+
+use App\Models\TiktokShop;
+
+/** Sinkron lengkap satu toko TikTok: pesanan lalu stok. */
+class TiktokSync
+{
+    public const PARTS = ['orders', 'stock'];
+
+    public function __construct(
+        private readonly TiktokOrderSync $orders,
+        private readonly TiktokStockSync $stock,
+    ) {}
+
+    /**
+     * @param  list<string>  $parts
+     * @return array<string, array<string, mixed>>
+     */
+    public function run(TiktokShop $shop, array $parts = self::PARTS): array
+    {
+        if (! $shop->isSyncable()) {
+            throw new TiktokException("Toko {$shop->displayName()} belum bisa disinkron: pastikan terhubung, aktif dan punya gudang pengirim.");
+        }
+
+        $api = TiktokShopApi::for($shop);
+        $result = [];
+
+        try {
+            if (in_array('orders', $parts, true)) {
+                $result['orders'] = $this->orders->sync($shop, $api);
+            }
+            if (in_array('stock', $parts, true)) {
+                $result['stock'] = $this->stock->push($shop, $api);
+            }
+        } catch (TiktokException $e) {
+            $shop->update(['last_error' => mb_substr($e->getMessage(), 0, 500), 'status' => $e->needsReauthorization() ? 'expired' : $shop->status]);
+
+            throw $e;
+        }
+
+        $shop->update(['last_synced_at' => now()]);
+
+        return $result;
+    }
+
+    /** Ringkasan hasil untuk pesan di layar / console. */
+    public static function summary(array $result): string
+    {
+        $parts = [];
+
+        if (isset($result['orders'])) {
+            $o = $result['orders'];
+            $parts[] = "pesanan: {$o['created']} baru, {$o['updated']} diperbarui, {$o['cancelled']} batal".($o['pending'] ? ", {$o['pending']} perlu dicek" : '');
+        }
+        if (isset($result['stock'])) {
+            $s = $result['stock'];
+            $parts[] = "stok: {$s['skus']} SKU dikirim".($s['failed'] ? ', '.count($s['failed']).' gagal' : '');
+        }
+
+        return ucfirst(implode('; ', $parts)).'.';
+    }
+}

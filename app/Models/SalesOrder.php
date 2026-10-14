@@ -45,6 +45,25 @@ class SalesOrder extends Model
     /** Status Shopee setelah pengiriman diatur tapi kurir belum scan paket. */
     public const SHOPEE_AWAITING_COURIER = ['PROCESSED', 'RETRY_SHIP'];
 
+    /** Status pesanan di TikTok Shop dengan label Indonesia. */
+    public const TIKTOK_STATUSES = [
+        'UNPAID' => ['label' => 'Belum Bayar', 'color' => 'slate'],
+        'ON_HOLD' => ['label' => 'Ditahan', 'color' => 'slate'],
+        'AWAITING_SHIPMENT' => ['label' => 'Perlu Dikirim', 'color' => 'sky'],
+        'PARTIALLY_SHIPPING' => ['label' => 'Dikirim Sebagian', 'color' => 'amber'],
+        'AWAITING_COLLECTION' => ['label' => 'Menunggu Kurir', 'color' => 'violet'],
+        'IN_TRANSIT' => ['label' => 'Dalam Perjalanan', 'color' => 'emerald'],
+        'DELIVERED' => ['label' => 'Terkirim', 'color' => 'emerald'],
+        'COMPLETED' => ['label' => 'Selesai', 'color' => 'emerald'],
+        'CANCELLED' => ['label' => 'Batal', 'color' => 'rose'],
+    ];
+
+    /** Status TikTok yang berarti pesanan harus disiapkan gudang. */
+    public const TIKTOK_TO_FULFIL = ['AWAITING_SHIPMENT', 'PARTIALLY_SHIPPING', 'AWAITING_COLLECTION'];
+
+    /** Status TikTok yang berarti paket sudah di tangan kurir. */
+    public const TIKTOK_LEFT_WAREHOUSE = ['IN_TRANSIT', 'DELIVERED', 'COMPLETED'];
+
     /** Status yang menahan (mencadangkan) stok di gudang. */
     public const RESERVING = ['confirmed', 'picked', 'packed'];
 
@@ -75,7 +94,7 @@ class SalesOrder extends Model
     ];
 
     /** Rincian pendapatan Shopee tidak ikut ke JSON/array (hanya untuk hak sales.income). */
-    protected $hidden = ['shopee_income', 'shopee_escrow_amount'];
+    protected $hidden = ['shopee_income', 'shopee_escrow_amount', 'tiktok_payment'];
 
     protected $fillable = [
         'number',
@@ -96,6 +115,14 @@ class SalesOrder extends Model
         'shopee_escrow_amount',
         'shopee_income_final',
         'shopee_income_synced_at',
+        'tiktok_shop_id',
+        'tiktok_order_status',
+        'tiktok_package_id',
+        'tiktok_sync_error',
+        'tiktok_synced_at',
+        'tiktok_ship_by',
+        'tiktok_shipped_at',
+        'tiktok_payment',
         'customer_name',
         'customer_phone',
         'shipping_address',
@@ -151,6 +178,10 @@ class SalesOrder extends Model
             'shopee_escrow_amount' => 'decimal:2',
             'shopee_income_final' => 'boolean',
             'shopee_income_synced_at' => 'datetime',
+            'tiktok_synced_at' => 'datetime',
+            'tiktok_ship_by' => 'datetime',
+            'tiktok_shipped_at' => 'datetime',
+            'tiktok_payment' => 'array',
         ];
     }
 
@@ -172,6 +203,11 @@ class SalesOrder extends Model
     public function shopeeShop(): BelongsTo
     {
         return $this->belongsTo(ShopeeShop::class);
+    }
+
+    public function tiktokShop(): BelongsTo
+    {
+        return $this->belongsTo(TiktokShop::class);
     }
 
     public function arranger(): BelongsTo
@@ -261,6 +297,36 @@ class SalesOrder extends Model
         return $this->shopee_shop_id !== null;
     }
 
+    public function isTiktok(): bool
+    {
+        return $this->tiktok_shop_id !== null;
+    }
+
+    /** Pesanan dari marketplace yang terhubung API (Shopee / TikTok). */
+    public function isMarketplace(): bool
+    {
+        return $this->isShopee() || $this->isTiktok();
+    }
+
+    public function tiktokStatusLabel(): ?string
+    {
+        return $this->tiktok_order_status ? (self::TIKTOK_STATUSES[$this->tiktok_order_status]['label'] ?? $this->tiktok_order_status) : null;
+    }
+
+    /** TikTok sudah mengirim paket, tapi di Optima belum Dikirim. */
+    public function tiktokAhead(): bool
+    {
+        return $this->isTiktok() && in_array($this->status, ['draft', ...self::RESERVING], true)
+            && in_array($this->tiktok_order_status, self::TIKTOK_LEFT_WAREHOUSE, true);
+    }
+
+    /** Pengiriman pesanan TikTok sudah diatur di Seller Center (resi terbit / menunggu kurir). */
+    public function tiktokShipmentArranged(): bool
+    {
+        return $this->isTiktok() && ($this->tiktok_order_status === 'AWAITING_COLLECTION'
+            || in_array($this->tiktok_order_status, self::TIKTOK_LEFT_WAREHOUSE, true));
+    }
+
     public function isSelfPickup(): bool
     {
         return $this->delivery_type === 'self_pickup';
@@ -295,6 +361,11 @@ class SalesOrder extends Model
     public function canArrangeShipment(): bool
     {
         if (! $this->hasStatus(...self::RESERVING) || $this->isSelfPickup()) {
+            return false;
+        }
+
+        // Pesanan TikTok diatur (pickup / drop off) di TikTok Shop Seller Center.
+        if ($this->isTiktok()) {
             return false;
         }
 
@@ -355,6 +426,11 @@ class SalesOrder extends Model
     public function hasShippingLabel(): bool
     {
         if ($this->hasStatus('draft', 'cancelled') || $this->isSelfPickup()) {
+            return false;
+        }
+
+        // Label resi TikTok dicetak dari TikTok Shop Seller Center.
+        if ($this->isTiktok()) {
             return false;
         }
 

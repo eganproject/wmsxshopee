@@ -18,3 +18,8 @@ Schedule::command('shopee:refresh-tokens')->everyThirtyMinutes()->withoutOverlap
 Schedule::command('shopee:sync --only=orders')->everyFiveMinutes()->withoutOverlapping();
 Schedule::command('shopee:sync --only=stock')->everyFifteenMinutes()->withoutOverlapping();
 Schedule::command('shopee:sync --only=returns')->hourly()->withoutOverlapping();
+
+// TikTok Shop: access token ± 7 hari (dicek tiap jam), pesanan tiap 5 menit, stok tiap 15 menit.
+Schedule::command('tiktok:refresh-tokens')->hourly()->withoutOverlapping();
+Schedule::command('tiktok:sync --only=orders')->everyFiveMinutes()->withoutOverlapping();
+Schedule::command('tiktok:sync --only=stock')->everyFifteenMinutes()->withoutOverlapping();

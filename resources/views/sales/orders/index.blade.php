@@ -148,8 +148,8 @@
                             <td class="px-4 py-2.5 whitespace-nowrap text-slate-600">{{ $order->order_date->format('d/m/Y') }}</td>
                             <td class="px-4 py-2.5">
                                 <p class="text-slate-700">{{ $order->channel_name ?? '—' }}</p>
-                                @if ($order->shopee_sync_error)
-                                    <p class="text-xs text-amber-600" title="{{ $order->shopee_sync_error }}">Perlu dicek</p>
+                                @if ($order->shopee_sync_error || $order->tiktok_sync_error)
+                                    <p class="text-xs text-amber-600" title="{{ $order->shopee_sync_error ?? $order->tiktok_sync_error }}">Perlu dicek</p>
                                 @endif
                                 @if ($order->external_number)
                                     <p class="font-mono text-xs text-slate-500">{{ $order->external_number }}</p>
@@ -172,6 +172,7 @@
                             <td class="px-4 py-2.5">
                                 <x-sales.status-badge :status="$order->status" />
                                 <x-sales.shopee-status :order="$order" />
+                                <x-sales.tiktok-status :order="$order" />
                             </td>
                             <td class="px-4 py-2.5">
                                 <div class="flex justify-end gap-1">
