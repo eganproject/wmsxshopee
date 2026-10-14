@@ -18,7 +18,14 @@ class StockMovement extends Model
         'out' => ['label' => 'Barang Keluar', 'prefix' => 'KLR', 'icon' => 'heroicon-o-arrow-up-tray', 'color' => 'rose'],
         'transfer' => ['label' => 'Transfer Lokasi', 'prefix' => 'TRF', 'icon' => 'heroicon-o-arrows-right-left', 'color' => 'sky'],
         'adjustment' => ['label' => 'Penyesuaian', 'prefix' => 'ADJ', 'icon' => 'heroicon-o-adjustments-horizontal', 'color' => 'amber'],
+        // Dicatat otomatis oleh dokumen barang rusak (lihat DamagedDocument).
+        'damage' => ['label' => 'Pindah ke Rusak', 'prefix' => 'MRS', 'icon' => 'heroicon-o-exclamation-triangle', 'color' => 'rose'],
+        'repair' => ['label' => 'Hasil Perbaikan', 'prefix' => 'MPB', 'icon' => 'heroicon-o-wrench-screwdriver', 'color' => 'emerald'],
+        'assembly' => ['label' => 'Rakit / Campur', 'prefix' => 'MRK', 'icon' => 'heroicon-o-puzzle-piece', 'color' => 'violet'],
     ];
+
+    /** Jenis dengan qty bertanda: + masuk ke to_location_id, - keluar dari from_location_id (penyesuaian: keduanya to_location_id). */
+    public const SIGNED_TYPES = ['adjustment', 'assembly'];
 
     /**
      * Jenis yang boleh dicatat manual lewat halaman Stok. Barang masuk hanya lewat

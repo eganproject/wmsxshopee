@@ -22,6 +22,7 @@ class StockService
 
     /**
      * Penyesuaian memakai to_location_id dengan qty bertanda (+ tambah, - kurang).
+     * Rakit / campur juga bertanda: - keluar dari from_location_id, + masuk ke to_location_id.
      * Lokasi bin boleh null: stok disimpan di level gudang ("Tanpa bin").
      *
      * @param  array{type: string, warehouse_id: int, movement_date: string, reference?: ?string, notes?: ?string, created_by?: ?int}  $header
@@ -78,6 +79,9 @@ class StockService
             'out' => [[$item->from_location_id, -$item->qty]],
             'transfer' => [[$item->from_location_id, -$item->qty], [$item->to_location_id, $item->qty]],
             'adjustment' => [[$item->to_location_id, $item->qty]],
+            'damage' => [[$item->from_location_id, -$item->qty]],
+            'repair' => [[$item->to_location_id, $item->qty]],
+            'assembly' => $item->qty < 0 ? [[$item->from_location_id, $item->qty]] : [[$item->to_location_id, $item->qty]],
         };
     }
 
@@ -137,7 +141,7 @@ class StockService
     {
         $prefix = StockMovement::typeMeta($type, 'prefix').'-'.now()->format('Ym').'-';
 
-        $last = StockMovement::where('number', 'like', "{$prefix}%")->lockForUpdate()->max('number');
+        $last = StockMovement::withoutGlobalScope('warehouse_access')->where('number', 'like', "{$prefix}%")->lockForUpdate()->max('number');
         $sequence = $last ? (int) substr($last, strlen($prefix)) + 1 : 1;
 
         return $prefix.str_pad((string) $sequence, 4, '0', STR_PAD_LEFT);

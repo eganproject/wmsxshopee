@@ -68,6 +68,19 @@ return [
             ],
         ],
 
+        'damaged' => [
+            'label' => 'Stok Rusak',
+            'icon' => 'heroicon-o-exclamation-triangle',
+            'actions' => [
+                'view' => 'Lihat stok rusak, kartu stok rusak & dokumen barang rusak',
+                'move' => 'Pindahkan stok baik ke stok rusak',
+                'return' => 'Retur barang rusak ke supplier / pihak lain',
+                'dispose' => 'Catat pemusnahan barang rusak',
+                'repair' => 'Catat perbaikan (barang rusak kembali ke stok baik)',
+                'assemble' => 'Rakit / campur barang rusak jadi barang baru',
+            ],
+        ],
+
         'opname' => [
             'label' => 'Stock Opname',
             'icon' => 'heroicon-o-clipboard-document-check',

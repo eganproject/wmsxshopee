@@ -419,7 +419,7 @@
             <button type="button" class="btn-secondary mt-3" x-show="source === 'manual'" @click="manualRows.push(blankRow())">
                 <x-heroicon-o-plus class="size-5" /> Tambah Baris
             </button>
-            <p class="mt-3 text-xs text-slate-500">Hanya jumlah <span class="font-medium">Layak Jual</span> yang masuk lagi ke stok. Barang <span class="font-medium">Rusak</span> dicatat terpisah di retur ini dan tidak menambah stok jual. <span class="font-medium">Hilang</span> untuk barang yang seharusnya ikut kembali tapi tidak ada di paket (bahan klaim ke Shopee / kurir); alasannya otomatis "Tidak ada di paket". Tanpa lokasi bin, barang masuk sebagai stok "Tanpa bin".</p>
+            <p class="mt-3 text-xs text-slate-500">Hanya jumlah <span class="font-medium">Layak Jual</span> yang masuk lagi ke stok. Barang <span class="font-medium">Rusak</span> masuk ke Stok Rusak gudang (tidak ikut dijual), lalu bisa diretur, dimusnahkan, diperbaiki atau dirakit. <span class="font-medium">Hilang</span> untuk barang yang seharusnya ikut kembali tapi tidak ada di paket (bahan klaim ke Shopee / kurir); alasannya otomatis "Tidak ada di paket". Tanpa lokasi bin, barang masuk sebagai stok "Tanpa bin".</p>
         </div>
     </div>
 </div>

@@ -16,6 +16,52 @@ class StockIntegrity
      */
     public function problems(): Collection
     {
+        return $this->goodStock()->merge($this->damagedStock())->values();
+    }
+
+    /**
+     * Saldo stok rusak per gudang dibanding kartu stok rusak.
+     *
+     * @return Collection<int, array{sku: string, warehouse: string, location: ?string, stock: int, ledger: int, problem: string}>
+     */
+    private function damagedStock(): Collection
+    {
+        $key = fn ($row) => $row->product_variant_id.':'.$row->warehouse_id;
+
+        $stocks = DB::table('damaged_stocks')->get(['product_variant_id', 'warehouse_id', 'qty'])->keyBy($key);
+        $ledgers = DB::table('damaged_stock_ledgers')
+            ->groupBy('product_variant_id', 'warehouse_id')
+            ->selectRaw('product_variant_id, warehouse_id, SUM(qty_in) - SUM(qty_out) as qty')
+            ->get()
+            ->keyBy($key);
+
+        $problems = collect();
+
+        foreach ($stocks->keys()->merge($ledgers->keys())->unique() as $k) {
+            $row = $stocks[$k] ?? $ledgers[$k];
+            $stock = (int) ($stocks[$k]->qty ?? 0);
+            $ledger = (int) ($ledgers[$k]->qty ?? 0);
+
+            if ($stock < 0 || $stock !== $ledger) {
+                $problems->push([
+                    'sku' => DB::table('product_variants')->where('id', $row->product_variant_id)->value('sku') ?? '#'.$row->product_variant_id,
+                    'warehouse' => DB::table('warehouses')->where('id', $row->warehouse_id)->value('code') ?? '#'.$row->warehouse_id,
+                    'location' => 'Stok rusak',
+                    'stock' => $stock,
+                    'ledger' => $ledger,
+                    'problem' => $stock < 0 ? 'Saldo rusak minus' : 'Saldo rusak beda dengan kartu stok rusak',
+                ]);
+            }
+        }
+
+        return $problems;
+    }
+
+    /**
+     * @return Collection<int, array{sku: string, warehouse: string, location: ?string, stock: int, ledger: int, problem: string}>
+     */
+    private function goodStock(): Collection
+    {
         $key = fn ($row) => $row->product_variant_id.':'.$row->warehouse_id.':'.($row->warehouse_location_id ?? 'none');
 
         $stocks = DB::table('stocks')

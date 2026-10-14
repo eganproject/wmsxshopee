@@ -199,8 +199,8 @@ class ReportController extends Controller
             ->selectRaw("stock_ledgers.product_variant_id, product_variants.sku, product_variants.name as variant_name,
                 products.name as product_name, units.code as unit_code,
                 SUM(CASE WHEN {$inRange} THEN 0 ELSE stock_ledgers.qty_in END) - SUM(CASE WHEN {$inRange} THEN 0 ELSE stock_ledgers.qty_out END) as opening,
-                SUM(CASE WHEN {$inRange} AND stock_ledgers.type = 'in' THEN stock_ledgers.qty_in ELSE 0 END) as qty_in,
-                SUM(CASE WHEN {$inRange} AND stock_ledgers.type = 'out' THEN stock_ledgers.qty_out ELSE 0 END) as qty_out,
+                SUM(CASE WHEN {$inRange} AND stock_ledgers.type IN ('in', 'repair', 'assembly') THEN stock_ledgers.qty_in ELSE 0 END) as qty_in,
+                SUM(CASE WHEN {$inRange} AND stock_ledgers.type IN ('out', 'damage', 'assembly') THEN stock_ledgers.qty_out ELSE 0 END) as qty_out,
                 SUM(CASE WHEN {$inRange} AND stock_ledgers.type = 'adjustment' THEN stock_ledgers.qty_in ELSE 0 END)
                     - SUM(CASE WHEN {$inRange} AND stock_ledgers.type = 'adjustment' THEN stock_ledgers.qty_out ELSE 0 END) as adjusted,
                 SUM(stock_ledgers.qty_in) - SUM(stock_ledgers.qty_out) as closing");

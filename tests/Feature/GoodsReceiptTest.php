@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\DamagedStock;
 use App\Models\GoodsReceipt;
 use App\Models\Product;
 use App\Models\ProductVariant;
@@ -187,18 +188,21 @@ class GoodsReceiptTest extends TestCase
         $this->assertSame(0, GoodsReceipt::count());
     }
 
-    public function test_all_damaged_cannot_be_received(): void
+    public function test_all_damaged_is_received_into_damaged_stock_only(): void
     {
         $this->actingAs($this->superAdmin());
 
         $this->post('/inventory/receipts', $this->payload([
             'action' => 'receive',
             'items' => [['product_variant_id' => $this->variant->id, 'warehouse_location_id' => $this->binA->id, 'qty_received' => 0, 'qty_damaged' => 3]],
-        ]))->assertSessionHasErrors('items');
+        ]))->assertSessionHasNoErrors();
 
+        // Tidak ada stok jual yang bertambah; 3 rusak masuk Stok Rusak (siap diretur ke supplier).
         $receipt = GoodsReceipt::first();
-        $this->assertTrue($receipt->isDraft());
+        $this->assertSame('received', $receipt->status);
+        $this->assertNull($receipt->stock_movement_id);
         $this->assertSame(0, StockLedger::count());
+        $this->assertSame(3, (int) DamagedStock::where('product_variant_id', $this->variant->id)->value('qty'));
     }
 
     public function test_permissions(): void

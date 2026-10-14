@@ -1,3 +1,9 @@
+@php
+    $signed = in_array($movement->type, \App\Models\StockMovement::SIGNED_TYPES, true);
+    $showFrom = in_array($movement->type, ['out', 'transfer', 'damage', 'assembly'], true);
+    $showTo = ! in_array($movement->type, ['out', 'damage'], true);
+@endphp
+
 <x-layouts.app :title="$movement->number">
     <x-slot:breadcrumb>
         <x-heroicon-o-home class="size-4" />
@@ -48,10 +54,10 @@
                         <th class="px-5 py-3">#</th>
                         <th class="px-5 py-3">SKU</th>
                         <th class="px-5 py-3">Produk / Varian</th>
-                        @if (in_array($movement->type, ['out', 'transfer']))
+                        @if ($showFrom)
                             <th class="px-5 py-3">Lokasi Asal</th>
                         @endif
-                        @if ($movement->type !== 'out')
+                        @if ($showTo)
                             <th class="px-5 py-3">{{ $movement->type === 'adjustment' ? 'Lokasi' : 'Lokasi Tujuan' }}</th>
                         @endif
                         <th class="px-5 py-3 text-right">Jumlah</th>
@@ -69,19 +75,19 @@
                                     <p class="text-xs text-slate-500">{{ $item->variant->name }}</p>
                                 @endif
                             </td>
-                            @if (in_array($movement->type, ['out', 'transfer']))
-                                <td class="px-5 py-3.5 font-mono text-slate-700">{{ $item->fromLocation?->code ?? 'Tanpa bin' }}</td>
+                            @if ($showFrom)
+                                <td class="px-5 py-3.5 font-mono text-slate-700">{{ $movement->type === 'assembly' && $item->qty > 0 ? '—' : ($item->fromLocation?->code ?? 'Tanpa bin') }}</td>
                             @endif
-                            @if ($movement->type !== 'out')
-                                <td class="px-5 py-3.5 font-mono text-slate-700">{{ $item->toLocation?->code ?? 'Tanpa bin' }}</td>
+                            @if ($showTo)
+                                <td class="px-5 py-3.5 font-mono text-slate-700">{{ $movement->type === 'assembly' && $item->qty < 0 ? '—' : ($item->toLocation?->code ?? 'Tanpa bin') }}</td>
                             @endif
                             <td @class([
                                 'px-5 py-3.5 text-right font-semibold tabular-nums',
-                                'text-emerald-600' => $movement->type === 'adjustment' && $item->qty > 0,
-                                'text-rose-600' => $movement->type === 'adjustment' && $item->qty < 0,
-                                'text-slate-900' => $movement->type !== 'adjustment',
+                                'text-emerald-600' => $signed && $item->qty > 0,
+                                'text-rose-600' => $signed && $item->qty < 0,
+                                'text-slate-900' => ! $signed,
                             ])>
-                                {{ $movement->type === 'adjustment' && $item->qty > 0 ? '+' : '' }}{{ number_format($item->qty, 0, ',', '.') }}
+                                {{ $signed && $item->qty > 0 ? '+' : '' }}{{ number_format($item->qty, 0, ',', '.') }}
                                 <span class="text-xs font-normal text-slate-500">{{ $item->variant->product->unit->code }}</span>
                             </td>
                             <td class="px-5 py-3.5 text-slate-600">{{ $item->notes ?? '—' }}</td>
