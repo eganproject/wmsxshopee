@@ -40,15 +40,19 @@ class ShopeeStockSync
                 $response = $api->post('/api/v2/product/update_stock', ['item_id' => (int) $itemId, 'stock_list' => $stockList])['response'] ?? [];
             } catch (ShopeeException $e) {
                 $failed[] = "item {$itemId}: {$e->getMessage()}";
+                $this->record($rows, $stock, fn () => $e->getMessage());
 
                 continue;
             }
 
             $models += count($response['success_list'] ?? $stockList);
+            $failures = collect($response['failure_list'] ?? [])->keyBy(fn ($failure) => (int) ($failure['model_id'] ?? 0));
 
-            foreach ($response['failure_list'] ?? [] as $failure) {
-                $failed[] = "item {$itemId}/{$failure['model_id']}: ".($failure['failed_reason'] ?? 'gagal');
+            foreach ($failures as $modelId => $failure) {
+                $failed[] = "item {$itemId}/{$modelId}: ".($failure['failed_reason'] ?? 'gagal');
             }
+
+            $this->record($rows, $stock, fn (ShopeeSkuMapping $row) => isset($failures[$row->model_id]) ? ($failures[$row->model_id]['failed_reason'] ?? 'Ditolak Shopee') : null);
         }
 
         $shop->update([
@@ -57,6 +61,24 @@ class ShopeeStockSync
         ]);
 
         return ['items' => $mappings->pluck('item_id')->unique()->count(), 'models' => $models, 'failed' => $failed];
+    }
+
+    /**
+     * Simpan hasil kirim per baris: stok yang dikirim & waktunya bila berhasil,
+     * atau alasan gagal (stok terakhir yang berhasil tetap disimpan).
+     *
+     * @param  Collection<int, ShopeeSkuMapping>  $rows
+     * @param  callable(ShopeeSkuMapping): ?string  $error
+     */
+    private function record(Collection $rows, callable $stock, callable $error): void
+    {
+        foreach ($rows as $row) {
+            $message = $error($row);
+
+            $row->update($message === null
+                ? ['stock_pushed' => max(0, $stock($row)), 'stock_pushed_at' => now(), 'stock_error' => null]
+                : ['stock_error' => mb_substr($message, 0, 255)]);
+        }
     }
 
     /**

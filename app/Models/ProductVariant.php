@@ -74,4 +74,10 @@ class ProductVariant extends Model
 
         return "{$format($this->length_cm)} × {$format($this->width_cm)} × {$format($this->height_cm)} cm";
     }
+
+    /** Baris pemetaan SKU Shopee (bisa di beberapa toko) yang menunjuk ke SKU ini. */
+    public function shopeeMappings(): HasMany
+    {
+        return $this->hasMany(ShopeeSkuMapping::class);
+    }
 }

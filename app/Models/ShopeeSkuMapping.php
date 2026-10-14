@@ -21,6 +21,9 @@ class ShopeeSkuMapping extends Model
         'product_variant_id',
         'bundle_id',
         'match_type',
+        'stock_pushed',
+        'stock_pushed_at',
+        'stock_error',
     ];
 
     protected function casts(): array
@@ -28,6 +31,8 @@ class ShopeeSkuMapping extends Model
         return [
             'item_id' => 'integer',
             'model_id' => 'integer',
+            'stock_pushed' => 'integer',
+            'stock_pushed_at' => 'datetime',
         ];
     }
 

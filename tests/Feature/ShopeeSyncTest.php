@@ -17,6 +17,7 @@ use App\Models\User;
 use App\Models\Warehouse;
 use App\Services\AlertService;
 use App\Services\SalesOrderService;
+use App\Services\Shopee\ShopeeStockSync;
 use App\Services\StockService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Factory;
@@ -363,6 +364,52 @@ class ShopeeSyncTest extends TestCase
         Http::assertSent(fn (Request $r) => str_contains($r->url(), 'update_stock') && $r['item_id'] === 22
             && $r['stock_list'] === [['model_id' => 0, 'seller_stock' => [['stock' => 4]]]]);
         $this->assertNotNull($this->shop->fresh()->stock_pushed_at);
+        $this->assertSame([7, 4, 4], $this->shop->mappings()->orderBy('id')->pluck('stock_pushed')->all());
+        $this->assertSame(0, $this->shop->mappings()->whereNotNull('stock_error')->count());
+    }
+
+    public function test_stock_push_records_rejected_models_per_sku(): void
+    {
+        Http::fake([
+            '*/product/update_stock*' => Http::sequence()
+                ->push(['error' => '', 'response' => ['success_list' => [['model_id' => 101]], 'failure_list' => [['model_id' => 102, 'failed_reason' => 'Model sudah dihapus']]]])
+                ->push(['error' => 'error_auth', 'message' => 'Item dibekukan'], 200),
+        ]);
+
+        app(ShopeeStockSync::class)->push($this->shop);
+
+        $rows = $this->shop->mappings()->get()->keyBy('model_id');
+        $this->assertSame(10, $rows[101]->stock_pushed);
+        $this->assertNull($rows[101]->stock_error);
+        $this->assertNull($rows[102]->stock_pushed);
+        $this->assertSame('Model sudah dihapus', $rows[102]->stock_error);
+        $this->assertNotNull($rows[0]->stock_error);
+    }
+
+    public function test_product_status_page_lists_linked_and_unlinked_skus(): void
+    {
+        $this->actingAs(User::where('username', 'superadmin')->first());
+        $kaosXl = $this->kaosM->product->variants()->create(['sku' => 'KAOS-XL', 'name' => 'XL', 'is_active' => true]);
+        $this->shop->mappings()->where('model_id', 102)->update(['stock_error' => 'Model sudah dihapus']);
+        $this->shop->mappings()->where('model_id', 101)->update(['stock_pushed' => 7, 'stock_pushed_at' => now()]);
+
+        $this->get('/shopee/products')->assertOk()
+            ->assertSee('KAOS-M')->assertSee('KAOS-XL')->assertSee('Toko Uji')
+            ->assertSeeText('Stok dikirim 7')->assertSee('Model sudah dihapus');
+
+        $this->get('/shopee/products?status=unlinked')->assertOk()->assertSee('KAOS-XL');
+        $unlinked = $this->get('/shopee/products?status=unlinked')->viewData('rows')->pluck('sku')->all();
+        $this->assertSame(['KAOS-XL'], $unlinked);
+        $this->assertSame(['KAOS-L', 'KAOS-M'], $this->get('/shopee/products?status=linked')->viewData('rows')->pluck('sku')->all());
+        $this->assertSame(['KAOS-L'], $this->get('/shopee/products?status=error')->viewData('rows')->pluck('sku')->all());
+        $this->assertSame(['PAKET-2'], $this->get('/shopee/products?type=bundle&status=linked')->viewData('rows')->pluck('sku')->all());
+
+        // Toko lain belum punya pemetaan apa pun: semua SKU belum terhubung di toko itu.
+        $other = ShopeeShop::create(['environment' => 'test', 'shop_id' => 777, 'shop_name' => 'Toko Dua', 'warehouse_id' => $this->warehouse->id, 'status' => 'connected']);
+        $this->assertSame(['KAOS-L', 'KAOS-M', 'KAOS-XL'], $this->get("/shopee/products?shop={$other->id}&status=unlinked")->viewData('rows')->pluck('sku')->all());
+        $this->assertNotNull($kaosXl);
+
+        $this->get('/shopee/products?export=xlsx')->assertOk()->assertDownload();
     }
 
     public function test_return_is_pulled_as_draft_for_shipped_order(): void

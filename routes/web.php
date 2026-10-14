@@ -34,6 +34,7 @@ use App\Http\Controllers\Sales\SalesOrderImportController;
 use App\Http\Controllers\Sales\SalesReturnController;
 use App\Http\Controllers\Sales\ShipmentController;
 use App\Http\Controllers\SearchController;
+use App\Http\Controllers\Shopee\ShopeeProductStatusController;
 use App\Http\Controllers\Shopee\ShopeeSettingController;
 use App\Http\Controllers\Shopee\ShopeeShopController;
 use App\Http\Controllers\Shopee\ShopeeSkuMappingController;
@@ -220,6 +221,7 @@ Route::middleware(['auth', 'active'])->group(function () {
         Route::post('shops/{shop}/sync', [ShopeeShopController::class, 'sync'])->middleware('can:shopee.sync')->name('shops.sync');
         Route::delete('shops/{shop}', [ShopeeShopController::class, 'destroy'])->middleware('can:shopee.connect')->name('shops.destroy');
 
+        Route::get('products', ShopeeProductStatusController::class)->middleware('can:shopee.view')->name('products.index');
         Route::get('mapping-targets', [ShopeeSkuMappingController::class, 'lookup'])->middleware('can:shopee.mapping')->name('mappings.lookup');
         Route::get('shops/{shop}/mappings', [ShopeeSkuMappingController::class, 'index'])->middleware('can:shopee.view')->name('mappings.index');
         Route::post('shops/{shop}/mappings', [ShopeeSkuMappingController::class, 'store'])->middleware('can:shopee.mapping')->name('mappings.store');
