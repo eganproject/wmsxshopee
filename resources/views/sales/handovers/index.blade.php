@@ -16,8 +16,8 @@
                 <label for="code" class="form-label">Scan Resi / No. Pesanan</label>
                 <div class="relative">
                     <x-heroicon-o-qr-code class="pointer-events-none absolute top-1/2 left-3 size-5 -translate-y-1/2 text-slate-400" />
-                    <input id="code" name="code" autofocus autocomplete="off" required maxlength="100"
-                           class="form-input h-12 pl-10 font-mono text-lg" placeholder="Scan resi paket yang diserahkan...">
+                    <input id="code" name="code" data-auto-scan autofocus autocomplete="off" required maxlength="100"
+                           class="form-input h-12 pl-10 font-mono text-lg" placeholder="Scan resi paket, terkirim otomatis...">
                 </div>
                 @if (session('scan_ok') || session('scan_error'))
                     <div @class(['mt-3 rounded-lg px-4 py-3 text-base font-medium', 'bg-emerald-50 text-emerald-700' => session('scan_ok'), 'bg-rose-50 text-rose-700' => session('scan_error')]) role="status">

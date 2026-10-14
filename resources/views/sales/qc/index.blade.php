@@ -15,7 +15,7 @@
         <div class="flex gap-2">
             <div class="relative flex-1">
                 <x-heroicon-o-qr-code class="pointer-events-none absolute top-1/2 left-3 size-5 -translate-y-1/2 text-slate-400" />
-                <input id="code" name="code" autofocus autocomplete="off" required maxlength="100"
+                <input id="code" name="code" data-auto-scan autofocus autocomplete="off" required maxlength="100"
                        class="form-input h-12 pl-10 font-mono text-lg" placeholder="Arahkan scanner ke resi...">
             </div>
             <button type="submit" class="btn-primary h-12 px-5">Buka</button>

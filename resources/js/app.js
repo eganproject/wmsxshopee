@@ -4,6 +4,7 @@ import collapse from '@alpinejs/collapse';
 import { enhance, enhanceDate, enhanceSelect, registerAlpine } from './form-controls';
 import { labelBuilder } from './labels';
 import { globalSearch } from './search';
+import { initAutoScan } from './scan';
 import { initUi, registerToasts } from './ui';
 
 Alpine.plugin(collapse);
@@ -115,6 +116,7 @@ Alpine.data('sidebarTips', () => ({
 window.Alpine = Alpine;
 window.Optima = { ...window.Optima, enhance, enhanceSelect, enhanceDate, toast };
 initUi(toast);
+initAutoScan();
 
 // Select & tanggal diperkaya setelah Alpine selesai mengisi nilai awal (x-model).
 document.addEventListener('alpine:initialized', () => enhance());
