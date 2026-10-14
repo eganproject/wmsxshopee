@@ -32,6 +32,7 @@ class HandoverController extends Controller
         $ready = SalesOrder::query()
             ->with('courier')
             ->where('status', 'packed')
+            ->where('delivery_type', 'courier')
             ->get(['id', 'warehouse_id', 'courier_id', 'shipping_method'])
             ->groupBy(fn ($order) => $order->courier?->name ?? 'Tanpa kurir')
             ->map->count();
@@ -69,6 +70,7 @@ class HandoverController extends Controller
         $waiting = $handover->isOpen()
             ? SalesOrder::query()
                 ->where('status', 'packed')
+                ->where('delivery_type', 'courier')
                 ->where('warehouse_id', $handover->warehouse_id)
                 ->when($handover->courier_id, fn ($q) => $q->where(fn ($q) => $q->where('courier_id', $handover->courier_id)->orWhereNull('courier_id')))
                 ->when($handover->shipping_method, fn ($q) => $q->where(fn ($q) => $q->where('shipping_method', $handover->shipping_method)->orWhereNull('shipping_method')))

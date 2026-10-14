@@ -78,6 +78,12 @@
                     </button>
                 @endcan
                 <a href="{{ route('sales.qc.show', $order) }}" class="btn-primary"><x-heroicon-o-viewfinder-circle class="size-5" /> QC Scan</a>
+            @elseif ($order->hasStatus('packed') && $order->isSelfPickup())
+                <form id="hand-to-customer" method="POST" action="{{ route('sales.orders.hand-to-customer', $order) }}">@csrf</form>
+                <button type="button" class="btn-primary"
+                        @click="$dispatch('confirm', { form: 'hand-to-customer', title: 'Serahkan ke pembeli?', message: @js("Barang diserahkan ke {$order->customer_name}. Stok keluar dari bin hasil picking dan pesanan selesai."), confirmText: 'Serahkan', variant: 'primary' })">
+                    <x-heroicon-o-hand-raised class="size-5" /> Serahkan ke Pembeli
+                </button>
             @elseif ($order->hasStatus('packed'))
                 <a href="{{ route('sales.handovers.index') }}" class="btn-primary"><x-heroicon-o-paper-airplane class="size-5" /> Serah Terima</a>
             @endif
@@ -213,7 +219,7 @@
             <p class="mt-1 text-sm font-medium text-slate-900">{{ $order->order_date->translatedFormat('d F Y') }}</p>
         </div>
         <div>
-            <p class="text-xs text-slate-500">Saluran / Toko</p>
+            <p class="text-xs text-slate-500">Saluran Penjualan</p>
             <p class="mt-1 text-sm font-medium text-slate-900">{{ $order->channel_name ?? '—' }}</p>
             @if ($order->external_number)
                 <p class="font-mono text-xs text-slate-500">{{ $order->external_number }}</p>
@@ -235,8 +241,23 @@
             <p class="mt-1 text-sm whitespace-pre-line text-slate-700">{{ $order->shipping_address ?? '—' }}</p>
         </div>
         <div>
-            <p class="text-xs text-slate-500">Kurir / Resi</p>
+            <p class="text-xs text-slate-500">Pembayaran</p>
+            <p class="mt-1 text-sm font-medium text-slate-900">{{ $order->paymentMethodLabel() ?? '—' }}</p>
+            @if ($order->payment_status)
+                <span @class([
+                    'mt-0.5 inline-flex items-center rounded-full px-2 py-0.5 text-xs',
+                    'bg-emerald-50 text-emerald-700' => $order->payment_status === 'paid',
+                    'bg-amber-50 text-amber-700' => $order->payment_status !== 'paid',
+                ])>{{ $order->paymentStatusLabel() }}</span>
+            @endif
+        </div>
+        <div>
+            <p class="text-xs text-slate-500">{{ $order->isSelfPickup() ? 'Pengiriman' : 'Kurir / Resi' }}</p>
+            @if ($order->isSelfPickup())
+                <p class="mt-1 flex items-center gap-1.5 text-sm font-medium text-slate-900"><x-heroicon-o-hand-raised class="size-4 text-slate-400" /> Diambil Pembeli</p>
+            @else
             <p class="mt-1 text-sm font-medium text-slate-900">{{ $order->courier?->name ?? '—' }}{{ $order->courier_service ? ' · '.$order->courier_service : '' }}</p>
+            @endif
             @if ($order->tracking_number)
                 @if ($url = $order->trackingUrl())
                     <a href="{{ $url }}" target="_blank" class="font-mono text-xs text-brand-600 hover:underline">{{ $order->tracking_number }}</a>
@@ -278,7 +299,7 @@
         @endif
     </div>
 
-    @if ($order->hasStatus('packed'))
+    @if ($order->hasStatus('packed') && ! $order->isSelfPickup())
         @can('sales.fulfill')
             <div class="mb-6 flex items-start gap-3 rounded-lg border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-800">
                 <x-heroicon-o-paper-airplane class="mt-0.5 size-5 shrink-0" />
@@ -377,6 +398,13 @@
                         <td class="px-4 py-2 text-right font-medium tabular-nums text-slate-700">{{ $money($subtotal) }}</td>
                         <td></td>
                     </tr>
+                    @if ((float) $order->discount > 0)
+                        <tr>
+                            <td colspan="{{ $extraCols + 5 }}" class="px-4 py-1 text-right text-slate-500">Diskon</td>
+                            <td class="px-4 py-1 text-right tabular-nums text-rose-600">-{{ $money($order->discount) }}</td>
+                            <td></td>
+                        </tr>
+                    @endif
                     <tr>
                         <td colspan="{{ $extraCols + 5 }}" class="px-4 py-1 text-right text-slate-500">Ongkir</td>
                         <td class="px-4 py-1 text-right tabular-nums text-slate-700">{{ $money($order->shipping_fee) }}</td>
@@ -384,7 +412,7 @@
                     </tr>
                     <tr>
                         <td colspan="{{ $extraCols + 5 }}" class="px-4 py-2 text-right text-slate-500">Total Pesanan</td>
-                        <td class="px-4 py-2 text-right font-semibold tabular-nums text-slate-900">{{ $money($subtotal + $order->shipping_fee) }}</td>
+                        <td class="px-4 py-2 text-right font-semibold tabular-nums text-slate-900">{{ $money($order->grandTotal()) }}</td>
                         <td></td>
                     </tr>
                 </tfoot>
@@ -400,6 +428,14 @@
 
     <p class="mt-4 flex items-center gap-1.5 text-xs text-slate-500">
         <x-heroicon-o-information-circle class="size-4" />
+        @if ($order->isSelfPickup() && $order->hasStatus('confirmed', 'picked', 'packed', 'shipped'))
+            @switch($order->status)
+                @case('confirmed') Stok sudah dicadangkan. Diambil pembeli: tidak perlu atur pengiriman atau resi. Cetak picking list lalu klik Picking. @break
+                @case('picked') Barang sudah diambil dari bin. Cek barang lewat QC Scan (scan nomor SO lalu tiap barang) sebelum diserahkan. @break
+                @case('packed') Barang siap. Klik Serahkan ke Pembeli saat pembeli mengambil; stok keluar dari gudang. @break
+                @default Barang sudah diserahkan ke pembeli dan stok sudah keluar lewat mutasi Barang Keluar.
+            @endswitch
+        @else
         @switch($order->status)
             @case('draft') Stok belum dicadangkan. Klik Konfirmasi bila barang siap diproses. @break
             @case('confirmed') Stok sudah dicadangkan. Atur pengiriman (pickup / drop off) dan cetak resi, lalu cetak picking list dan klik Picking. @break
@@ -408,6 +444,7 @@
             @case('shipped') Pesanan sudah dikirim dan stok sudah keluar lewat mutasi Barang Keluar. @break
             @default Pesanan dibatalkan; cadangan stok sudah dilepas.
         @endswitch
+        @endif
     </p>
 
     @if ($order->returns->isNotEmpty())

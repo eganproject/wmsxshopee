@@ -54,6 +54,26 @@ class SalesOrder extends Model
         'dropoff' => ['label' => 'Drop Off', 'description' => 'Paket diantar ke cabang / agen kurir', 'icon' => 'heroicon-o-building-storefront'],
     ];
 
+    /** Cara barang sampai ke pembeli. Diambil pembeli tidak butuh kurir, resi maupun serah terima. */
+    public const DELIVERY_TYPES = [
+        'courier' => ['label' => 'Dikirim Kurir', 'description' => 'Paket dikirim ke alamat pembeli', 'icon' => 'heroicon-o-truck'],
+        'self_pickup' => ['label' => 'Diambil Pembeli', 'description' => 'Pembeli datang mengambil di gudang / toko', 'icon' => 'heroicon-o-hand-raised'],
+    ];
+
+    public const PAYMENT_METHODS = [
+        'cash' => 'Tunai',
+        'transfer' => 'Transfer Bank',
+        'qris' => 'QRIS / E-Wallet',
+        'cod' => 'COD (Bayar di Tempat)',
+        'marketplace' => 'Lewat Marketplace',
+        'other' => 'Lainnya',
+    ];
+
+    public const PAYMENT_STATUSES = [
+        'unpaid' => ['label' => 'Belum Lunas', 'color' => 'amber'],
+        'paid' => ['label' => 'Lunas', 'color' => 'emerald'],
+    ];
+
     /** Rincian pendapatan Shopee tidak ikut ke JSON/array (hanya untuk hak sales.income). */
     protected $hidden = ['shopee_income', 'shopee_escrow_amount'];
 
@@ -79,10 +99,14 @@ class SalesOrder extends Model
         'customer_name',
         'customer_phone',
         'shipping_address',
+        'delivery_type',
         'courier_id',
         'courier_service',
         'tracking_number',
         'shipping_fee',
+        'discount',
+        'payment_method',
+        'payment_status',
         'shipping_method',
         'pickup_at',
         'pickup_slot',
@@ -110,6 +134,7 @@ class SalesOrder extends Model
         return [
             'order_date' => 'date',
             'shipping_fee' => 'decimal:2',
+            'discount' => 'decimal:2',
             'confirmed_at' => 'datetime',
             'picked_at' => 'datetime',
             'packed_at' => 'datetime',
@@ -236,6 +261,26 @@ class SalesOrder extends Model
         return $this->shopee_shop_id !== null;
     }
 
+    public function isSelfPickup(): bool
+    {
+        return $this->delivery_type === 'self_pickup';
+    }
+
+    public function deliveryTypeLabel(): string
+    {
+        return self::DELIVERY_TYPES[$this->delivery_type]['label'] ?? self::DELIVERY_TYPES['courier']['label'];
+    }
+
+    public function paymentMethodLabel(): ?string
+    {
+        return $this->payment_method ? (self::PAYMENT_METHODS[$this->payment_method] ?? $this->payment_method) : null;
+    }
+
+    public function paymentStatusLabel(): ?string
+    {
+        return $this->payment_status ? (self::PAYMENT_STATUSES[$this->payment_status]['label'] ?? $this->payment_status) : null;
+    }
+
     public function isShipmentArranged(): bool
     {
         return $this->shipment_arranged_at !== null;
@@ -249,7 +294,7 @@ class SalesOrder extends Model
      */
     public function canArrangeShipment(): bool
     {
-        if (! $this->hasStatus(...self::RESERVING)) {
+        if (! $this->hasStatus(...self::RESERVING) || $this->isSelfPickup()) {
             return false;
         }
 
@@ -309,7 +354,7 @@ class SalesOrder extends Model
     /** Label resi: Shopee setelah pengiriman diatur, manual setelah ada metode / resi. */
     public function hasShippingLabel(): bool
     {
-        if ($this->hasStatus('draft', 'cancelled')) {
+        if ($this->hasStatus('draft', 'cancelled') || $this->isSelfPickup()) {
             return false;
         }
 
@@ -331,6 +376,12 @@ class SalesOrder extends Model
         // Isi paket berharga 0; harga paket ada di baris paketnya.
         return (float) $this->items->sum(fn ($item) => $item->qty * $item->price)
             + (float) $this->bundles->sum(fn ($line) => $line->qty * $line->price);
+    }
+
+    /** Subtotal barang dikurangi diskon, ditambah ongkir. */
+    public function grandTotal(): float
+    {
+        return max(0, $this->subtotal() - (float) $this->discount) + (float) $this->shipping_fee;
     }
 
     public function trackingUrl(): ?string

@@ -30,6 +30,8 @@
          variants: @js($variants),
          errors: @js($rowErrors),
          shippingFee: @js((string) old('shipping_fee', (float) $order->shipping_fee ?: '')),
+         discount: @js((string) old('discount', (float) $order->discount ?: '')),
+         delivery: @js(old('delivery_type', $order->delivery_type ?? 'courier')),
          scan: '',
          scanError: '',
          get variantOptions() {
@@ -48,7 +50,9 @@
          totals() {
              const qty = this.items.reduce((total, item) => total + (parseInt(item.qty) || 0), 0);
              const subtotal = this.items.reduce((total, item) => total + this.lineTotal(item), 0);
-             return { qty, subtotal, grand: subtotal + (parseFloat(this.shippingFee) || 0) };
+             const discount = parseFloat(this.discount) || 0;
+             const shipping = this.delivery === 'courier' ? (parseFloat(this.shippingFee) || 0) : 0;
+             return { qty, subtotal, discount, shipping, grand: Math.max(0, subtotal - discount) + shipping };
          },
          money(value) {
              return new Intl.NumberFormat('id-ID', { maximumFractionDigits: 2 }).format(value);
@@ -91,34 +95,95 @@
                 @endforeach
             </x-select>
             @php($channel = old('channel_name', $order->channel_name))
-            <x-select name="channel_name" label="Saluran / Toko" data-create data-placeholder="Pilih atau ketik baru"
-                      hint="cth. Shopee Toko A, WhatsApp. Nanti diganti daftar toko saat API Shopee tersambung.">
+            <x-select name="channel_name" label="Saluran Penjualan" data-create data-placeholder="Pilih atau ketik baru"
+                      hint="cth. WhatsApp, Toko Offline. Pesanan Shopee masuk otomatis dari API.">
                 <option value="">Tanpa saluran</option>
-                @foreach ($channels->push($channel)->filter()->unique()->sort() as $name)
+                @foreach ($channels->concat(['WhatsApp', 'Instagram', 'TikTok', 'Toko Offline', 'Reseller'])->push($channel)->filter()->unique()->sort() as $name)
                     <option value="{{ $name }}" @selected($channel === $name)>{{ $name }}</option>
                 @endforeach
             </x-select>
-            <x-input name="external_number" label="No. Pesanan Marketplace" :value="$order->external_number" placeholder="cth. 2510130ABCD12" maxlength="100"
-                     hint="Opsional. Mencegah pesanan yang sama diinput dua kali." />
             <x-input name="customer_name" label="Nama Pembeli" :value="$order->customer_name" required maxlength="150" />
-            <x-input name="customer_phone" label="Telepon" :value="$order->customer_phone" maxlength="30" placeholder="08xx" />
-            <x-textarea name="shipping_address" label="Alamat Kirim" :value="$order->shipping_address" rows="2" class="sm:col-span-3" />
-            <x-select name="courier_id" label="Kurir">
+            <x-input name="customer_phone" label="Telepon / WhatsApp" :value="$order->customer_phone" maxlength="30" placeholder="08xx" />
+            <x-input name="external_number" label="No. Referensi" :value="$order->external_number" placeholder="cth. INV-0012" maxlength="100"
+                     hint="Opsional: no. nota, invoice atau pesanan marketplace. Mencegah input ganda." />
+            <x-textarea name="notes" label="Catatan" :value="$order->notes" rows="2" class="sm:col-span-3" />
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="border-b border-slate-100 px-5 py-3">
+            <h2 class="flex items-center gap-2 text-base font-semibold text-slate-900">
+                <x-heroicon-o-truck class="size-5 text-slate-400" /> Pengiriman
+            </h2>
+            <p class="mt-0.5 text-sm text-slate-500">Pilih Diambil Pembeli untuk penjualan di tempat; tidak perlu kurir, resi maupun serah terima.</p>
+        </div>
+        <div class="space-y-4 p-5">
+            <div class="grid gap-3 sm:grid-cols-2">
+                @foreach (\App\Models\SalesOrder::DELIVERY_TYPES as $value => $type)
+                    <label class="flex cursor-pointer items-start gap-3 rounded-lg border px-4 py-3 transition"
+                           :class="delivery === @js($value) ? 'border-brand-500 bg-brand-50/60 ring-1 ring-brand-500' : 'border-slate-200 hover:border-slate-300'">
+                        <input type="radio" name="delivery_type" value="{{ $value }}" x-model="delivery" class="mt-1 text-brand-600 focus:ring-brand-500">
+                        <span>
+                            <span class="flex items-center gap-1.5 text-sm font-medium text-slate-900">
+                                <x-dynamic-component :component="$type['icon']" class="size-4 text-slate-400" /> {{ $type['label'] }}
+                            </span>
+                            <span class="block text-xs text-slate-500">{{ $type['description'] }}</span>
+                        </span>
+                    </label>
+                @endforeach
+            </div>
+            @error('delivery_type')
+                <p class="text-xs text-rose-600">{{ $message }}</p>
+            @enderror
+            <div class="grid gap-x-6 gap-y-4 sm:grid-cols-3" x-show="delivery === 'courier'" x-cloak>
+                <x-textarea name="shipping_address" label="Alamat Kirim" :value="$order->shipping_address" rows="2" class="sm:col-span-3" />
+                <x-select name="courier_id" label="Kurir">
+                    <option value="">Belum ditentukan</option>
+                    @foreach ($couriers as $courier)
+                        <option value="{{ $courier->id }}" @selected((string) old('courier_id', $order->courier_id) === (string) $courier->id)>{{ $courier->name }}</option>
+                    @endforeach
+                </x-select>
+                <x-input name="courier_service" label="Layanan" :value="$order->courier_service" placeholder="cth. REG" maxlength="50" />
+                <div>
+                    <label for="shipping_fee" class="form-label">Ongkir</label>
+                    <input id="shipping_fee" name="shipping_fee" type="number" min="0" step="any" x-model="shippingFee" placeholder="0"
+                           @class(['form-input text-right', 'form-input-error' => $errors->has('shipping_fee')])>
+                    @error('shipping_fee')
+                        <p class="mt-1 text-xs text-rose-600">{{ $message }}</p>
+                    @enderror
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="border-b border-slate-100 px-5 py-3">
+            <h2 class="flex items-center gap-2 text-base font-semibold text-slate-900">
+                <x-heroicon-o-banknotes class="size-5 text-slate-400" /> Pembayaran
+            </h2>
+            <p class="mt-0.5 text-sm text-slate-500">Catatan pembayaran dari pembeli. Tidak memengaruhi stok.</p>
+        </div>
+        <div class="grid gap-x-6 gap-y-4 p-5 sm:grid-cols-3">
+            <x-select name="payment_method" label="Metode Bayar">
                 <option value="">Belum ditentukan</option>
-                @foreach ($couriers as $courier)
-                    <option value="{{ $courier->id }}" @selected((string) old('courier_id', $order->courier_id) === (string) $courier->id)>{{ $courier->name }}</option>
+                @foreach (\App\Models\SalesOrder::PAYMENT_METHODS as $value => $label)
+                    <option value="{{ $value }}" @selected(old('payment_method', $order->payment_method) === $value)>{{ $label }}</option>
                 @endforeach
             </x-select>
-            <x-input name="courier_service" label="Layanan" :value="$order->courier_service" placeholder="cth. REG" maxlength="50" />
+            <x-select name="payment_status" label="Status Bayar">
+                <option value="">Belum dicatat</option>
+                @foreach (\App\Models\SalesOrder::PAYMENT_STATUSES as $value => $status)
+                    <option value="{{ $value }}" @selected(old('payment_status', $order->payment_status) === $value)>{{ $status['label'] }}</option>
+                @endforeach
+            </x-select>
             <div>
-                <label for="shipping_fee" class="form-label">Ongkir</label>
-                <input id="shipping_fee" name="shipping_fee" type="number" min="0" step="any" x-model="shippingFee" placeholder="0"
-                       @class(['form-input text-right', 'form-input-error' => $errors->has('shipping_fee')])>
-                @error('shipping_fee')
+                <label for="discount" class="form-label">Diskon (Rp)</label>
+                <input id="discount" name="discount" type="number" min="0" step="any" x-model="discount" placeholder="0"
+                       @class(['form-input text-right', 'form-input-error' => $errors->has('discount')])>
+                @error('discount')
                     <p class="mt-1 text-xs text-rose-600">{{ $message }}</p>
                 @enderror
             </div>
-            <x-textarea name="notes" label="Catatan" :value="$order->notes" rows="2" class="sm:col-span-3" />
         </div>
     </div>
 
@@ -199,8 +264,18 @@
                         <td class="px-2 py-2 text-right font-medium tabular-nums text-slate-700" x-text="money(totals().subtotal)"></td>
                         <td colspan="2"></td>
                     </tr>
+                    <tr x-show="totals().discount > 0" x-cloak>
+                        <td colspan="3" class="px-2 py-1 text-right">Diskon</td>
+                        <td class="px-2 py-1 text-right tabular-nums text-rose-600" x-text="'-' + money(totals().discount)"></td>
+                        <td colspan="2"></td>
+                    </tr>
+                    <tr x-show="totals().shipping > 0" x-cloak>
+                        <td colspan="3" class="px-2 py-1 text-right">Ongkir</td>
+                        <td class="px-2 py-1 text-right tabular-nums text-slate-700" x-text="money(totals().shipping)"></td>
+                        <td colspan="2"></td>
+                    </tr>
                     <tr>
-                        <td colspan="3" class="px-2 py-1 text-right">Total + ongkir</td>
+                        <td colspan="3" class="px-2 py-1 text-right">Total</td>
                         <td class="px-2 py-1 text-right font-semibold tabular-nums text-slate-900" x-text="money(totals().grand)"></td>
                         <td colspan="2"></td>
                     </tr>
