@@ -119,6 +119,10 @@ class FulfillmentScan
             throw ValidationException::withMessages(['code' => "{$order->number} berstatus {$order->statusLabel()}; paket harus lolos QC (Sudah Dikemas) sebelum diserahkan."]);
         }
 
+        if ($order->isSelfPickup()) {
+            throw ValidationException::withMessages(['code' => "{$order->number} diambil pembeli, bukan lewat kurir. Serahkan dari halaman pesanannya."]);
+        }
+
         if ($handover->courier_id && $order->courier_id && $order->courier_id !== $handover->courier_id) {
             throw ValidationException::withMessages(['code' => "{$order->number} memakai kurir {$order->courier?->name}, bukan {$handover->courier?->name}. Pisahkan paketnya."]);
         }

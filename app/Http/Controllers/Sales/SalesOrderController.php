@@ -37,6 +37,7 @@ class SalesOrderController extends Controller
             ->when($request->filled('to'), fn ($query) => $query->whereDate('order_date', '<=', $request->date('to')))
             ->when($request->input('shipment') === 'unarranged', fn ($query) => $query
                 ->whereIn('status', SalesOrder::RESERVING)
+                ->where('delivery_type', 'courier')
                 ->whereNull('shipment_arranged_at')
                 ->where(fn ($q) => $q->whereNull('shopee_shop_id')->orWhere('shopee_order_status', 'READY_TO_SHIP')))
             ->when($request->filled('shopee'), fn ($query) => $query->shopeeFilter((string) $request->input('shopee')))
@@ -57,12 +58,12 @@ class SalesOrderController extends Controller
             $income = $request->user()->can('sales.income');
 
             return XlsxExport::download('pesanan-'.now()->format('Ymd-His').'.xlsx',
-                ['No. SO', 'Tanggal', 'Status', 'Status Shopee', 'Saluran / Toko', 'No. Pesanan Marketplace', 'Pembeli', 'Telepon', 'Alamat', 'Gudang', 'Kurir', 'Layanan', 'No. Resi', 'Total Qty', 'Ongkir',
+                ['No. SO', 'Tanggal', 'Status', 'Status Shopee', 'Saluran / Toko', 'No. Referensi', 'Pembeli', 'Telepon', 'Pengiriman', 'Alamat', 'Gudang', 'Kurir', 'Layanan', 'No. Resi', 'Total Qty', 'Diskon', 'Ongkir', 'Metode Bayar', 'Status Bayar',
                     ...($income ? ['Biaya Shopee', 'Dana Diterima Shopee'] : []), 'Catatan'],
                 $query->lazy(500)->map(fn ($o) => [
                     $o->number, $o->order_date->format('d/m/Y'), $o->statusLabel(), $o->shopeeStatusLabel(), $o->channel_name, $o->external_number, $o->customer_name, $o->customer_phone,
-                    $o->shipping_address, $o->warehouse?->code, $o->courier?->name, $o->courier_service, $o->tracking_number,
-                    (int) $o->items_sum_qty, (float) $o->shipping_fee,
+                    $o->deliveryTypeLabel(), $o->shipping_address, $o->warehouse?->code, $o->courier?->name, $o->courier_service, $o->tracking_number,
+                    (int) $o->items_sum_qty, (float) $o->discount, (float) $o->shipping_fee, $o->paymentMethodLabel(), $o->paymentStatusLabel(),
                     ...($income ? [$o->shopee_income ? ShopeeIncome::fees($o->shopee_income) : null, $o->shopee_escrow_amount !== null ? (float) $o->shopee_escrow_amount : null] : []),
                     $o->notes,
                 ]));
@@ -83,7 +84,7 @@ class SalesOrderController extends Controller
     public function create(): View
     {
         return view('sales.orders.create', [
-            'order' => new SalesOrder(['order_date' => now()]),
+            'order' => new SalesOrder(['order_date' => now(), 'delivery_type' => 'courier', 'payment_status' => 'unpaid']),
             ...$this->formData(),
         ]);
     }
@@ -256,6 +257,19 @@ class SalesOrderController extends Controller
             ->with('success', "Pesanan {$order->number} dikirim. Stok keluar lewat {$order->movement->number}.");
     }
 
+    /** Pesanan diambil pembeli: setelah dikemas langsung diserahkan, tanpa kurir dan resi. */
+    public function handToCustomer(Request $request, SalesOrder $order, SalesOrderService $service): RedirectResponse
+    {
+        abort_unless($order->isSelfPickup(), 403, 'Hanya pesanan yang diambil pembeli.');
+
+        $service->ship($order, [], $request->user()->id);
+
+        $order->refresh()->load('movement');
+
+        return redirect()->route('sales.orders.show', $order)
+            ->with('success', "Pesanan {$order->number} diserahkan ke {$order->customer_name}. Stok keluar lewat {$order->movement->number}.");
+    }
+
     public function cancel(Request $request, SalesOrder $order, SalesOrderService $service): RedirectResponse
     {
         $data = $request->validate(['cancel_reason' => ['nullable', 'string', 'max:255']], [], ['cancel_reason' => 'alasan batal']);
@@ -347,10 +361,14 @@ class SalesOrderController extends Controller
             'external_number' => ['nullable', 'string', 'max:100'],
             'customer_name' => ['required', 'string', 'max:150'],
             'customer_phone' => ['nullable', 'string', 'max:30'],
+            'delivery_type' => ['nullable', Rule::in(array_keys(SalesOrder::DELIVERY_TYPES))],
             'shipping_address' => ['nullable', 'string', 'max:1000'],
             'courier_id' => ['nullable', 'integer', $active('couriers', $order?->courier_id)],
             'courier_service' => ['nullable', 'string', 'max:50'],
             'shipping_fee' => ['nullable', 'numeric', 'min:0', 'max:999999999'],
+            'discount' => ['nullable', 'numeric', 'min:0', 'max:999999999'],
+            'payment_method' => ['nullable', Rule::in(array_keys(SalesOrder::PAYMENT_METHODS))],
+            'payment_status' => ['nullable', Rule::in(array_keys(SalesOrder::PAYMENT_STATUSES))],
             'notes' => ['nullable', 'string', 'max:1000'],
             'items' => ['required', 'array', 'min:1', 'max:200'],
             'items.*.product_variant_id' => ['nullable', 'required_without:items.*.bundle_id', 'integer', Rule::exists('product_variants', 'id')],
@@ -368,7 +386,11 @@ class SalesOrderController extends Controller
             'warehouse_id' => 'gudang',
             'order_date' => 'tanggal pesanan',
             'channel_name' => 'saluran / toko',
-            'external_number' => 'no. pesanan marketplace',
+            'external_number' => 'no. referensi',
+            'delivery_type' => 'pengiriman',
+            'discount' => 'diskon',
+            'payment_method' => 'metode bayar',
+            'payment_status' => 'status bayar',
             'customer_name' => 'nama pembeli',
             'customer_phone' => 'telepon',
             'shipping_address' => 'alamat kirim',
@@ -385,6 +407,10 @@ class SalesOrderController extends Controller
 
         $this->ensureUniqueExternal($data['channel_name'] ?? null, $data['external_number'] ?? null, $order?->id);
 
+        // Diambil pembeli: tidak ada kurir maupun ongkir.
+        $delivery = $data['delivery_type'] ?? 'courier';
+        $pickup = $delivery === 'self_pickup';
+
         return [
             'header' => [
                 'warehouse_id' => (int) $data['warehouse_id'],
@@ -393,10 +419,14 @@ class SalesOrderController extends Controller
                 'external_number' => filled($data['external_number'] ?? null) ? trim($data['external_number']) : null,
                 'customer_name' => trim($data['customer_name']),
                 'customer_phone' => $data['customer_phone'] ?? null,
+                'delivery_type' => $delivery,
                 'shipping_address' => $data['shipping_address'] ?? null,
-                'courier_id' => isset($data['courier_id']) ? (int) $data['courier_id'] : null,
-                'courier_service' => $data['courier_service'] ?? null,
-                'shipping_fee' => $data['shipping_fee'] ?? 0,
+                'courier_id' => ! $pickup && isset($data['courier_id']) ? (int) $data['courier_id'] : null,
+                'courier_service' => $pickup ? null : ($data['courier_service'] ?? null),
+                'shipping_fee' => $pickup ? 0 : ($data['shipping_fee'] ?? 0),
+                'discount' => $data['discount'] ?? 0,
+                'payment_method' => $data['payment_method'] ?? null,
+                'payment_status' => $data['payment_status'] ?? null,
                 'notes' => $data['notes'] ?? null,
             ],
             'items' => collect($data['items'])->filter(fn ($row) => blank($row['bundle_id'] ?? null))->map(fn ($row) => [

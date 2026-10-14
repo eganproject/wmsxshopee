@@ -7,7 +7,7 @@
         <span class="font-medium text-slate-700">Baru</span>
     </x-slot:breadcrumb>
 
-    <x-page-header title="Pesanan Baru" description="Input pesanan manual dari marketplace, WhatsApp atau penjualan langsung." icon="heroicon-o-shopping-cart">
+    <x-page-header title="Pesanan Baru" description="Penjualan di luar marketplace: WhatsApp, toko offline, reseller. Pesanan Shopee masuk otomatis." icon="heroicon-o-shopping-cart">
         <a href="{{ route('sales.orders.index') }}" class="btn-secondary"><x-heroicon-o-arrow-left class="size-5" /> Kembali</a>
     </x-page-header>
 

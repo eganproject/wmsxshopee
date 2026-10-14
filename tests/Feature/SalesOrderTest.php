@@ -126,6 +126,52 @@ class SalesOrderTest extends TestCase
         $this->assertSame($order->number, $order->movement->reference);
     }
 
+    public function test_self_pickup_direct_sale_skips_courier_and_hands_to_customer(): void
+    {
+        $this->post('/sales/orders', $this->payload([
+            'action' => 'confirm',
+            'channel_name' => 'WhatsApp',
+            'external_number' => '',
+            'delivery_type' => 'self_pickup',
+            'courier_id' => Courier::first()->id,
+            'shipping_fee' => 15000,
+            'discount' => 20000,
+            'payment_method' => 'cash',
+            'payment_status' => 'paid',
+            'items' => [['product_variant_id' => $this->variant->id, 'qty' => 2, 'price' => 75000]],
+        ]))->assertSessionHasNoErrors();
+
+        $order = SalesOrder::firstOrFail();
+        $this->assertTrue($order->isSelfPickup());
+        $this->assertNull($order->courier_id);
+        $this->assertSame(0.0, (float) $order->shipping_fee);
+        $this->assertSame(130000.0, $order->grandTotal());
+        $this->assertFalse($order->canArrangeShipment());
+
+        $this->get("/sales/orders/{$order->id}")->assertOk()->assertSee('Diambil Pembeli')->assertSee('Lunas')->assertDontSee('Atur Pengiriman');
+
+        [$item] = $order->items->all();
+        $this->post("/sales/orders/{$order->id}/pick", ['picks' => [
+            $item->id => [['warehouse_location_id' => $this->binA->id, 'qty' => 2]],
+        ]])->assertSessionHasNoErrors();
+        $this->post("/sales/orders/{$order->id}/pack")->assertSessionHasNoErrors();
+        $this->get("/sales/orders/{$order->id}")->assertSee('Serahkan ke Pembeli');
+
+        $this->post("/sales/orders/{$order->id}/hand-to-customer")->assertSessionHasNoErrors();
+
+        $order->refresh();
+        $this->assertSame('shipped', $order->status);
+        $this->assertNull($order->tracking_number);
+        $this->assertSame(4, $this->onHand($this->variant, $this->binA));
+    }
+
+    public function test_hand_to_customer_rejects_courier_orders(): void
+    {
+        $this->post('/sales/orders', $this->payload(['action' => 'confirm']))->assertSessionHasNoErrors();
+
+        $this->post('/sales/orders/'.SalesOrder::firstOrFail()->id.'/hand-to-customer')->assertForbidden();
+    }
+
     public function test_confirm_fails_when_reserved_by_other_orders(): void
     {
         $this->post('/sales/orders', $this->payload(['action' => 'confirm', 'items' => [['product_variant_id' => $this->variant->id, 'qty' => 7]]]));
