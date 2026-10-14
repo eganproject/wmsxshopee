@@ -9,6 +9,7 @@ use App\Models\SalesReturn;
 use App\Models\Warehouse;
 use App\Models\WarehouseLocation;
 use App\Rules\AccessibleRecord;
+use App\Services\DamagedStockService;
 use App\Services\StockService;
 use App\Support\Activity;
 use App\Support\XlsxExport;
@@ -223,14 +224,17 @@ class SalesReturnController extends Controller
 
     private function receivedMessage(SalesReturn $return): string
     {
-        return $return->movement
+        $damaged = (int) $return->items()->sum('qty_damaged');
+
+        return ($return->movement
             ? "Retur {$return->number} diterima. Barang layak jual masuk stok lewat {$return->movement->number}."
-            : "Retur {$return->number} diterima. Tidak ada barang layak jual, jadi stok tidak bertambah.";
+            : "Retur {$return->number} diterima. Tidak ada barang layak jual, jadi stok tidak bertambah.")
+            .($damaged ? " {$damaged} barang rusak masuk Stok Rusak." : '');
     }
 
     /**
      * Ubah status jadi Diterima dan catat Barang Masuk untuk qty layak jual.
-     * Barang rusak hanya tercatat di dokumen retur.
+     * Barang rusak masuk Stok Rusak gudang (terpisah dari stok jual).
      *
      * @throws ValidationException
      */
@@ -273,6 +277,14 @@ class SalesReturnController extends Controller
                     'notes' => $item->reasonLabel(),
                 ])->values()->all());
             }
+
+            // Barang rusak masuk stok rusak gudang, terpisah dari stok jual.
+            app(DamagedStockService::class)->receive($return, 'return', $return->warehouse_id, $return->return_date->toDateString(), $return->number,
+                $return->items->where('qty_damaged', '>', 0)->map(fn ($item) => [
+                    'product_variant_id' => $item->product_variant_id,
+                    'qty' => $item->qty_damaged,
+                    'notes' => trim("Retur dari {$return->sender_name} · {$item->reasonLabel()}"),
+                ])->values()->all(), $request->user()->id);
 
             $return->update([
                 'status' => 'received',

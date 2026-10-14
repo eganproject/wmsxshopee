@@ -111,7 +111,7 @@ class StockCount extends Model
     {
         $prefix = self::PREFIX.now()->format('ym').'-';
 
-        $last = self::where('number', 'like', "{$prefix}%")->lockForUpdate()->pluck('number')
+        $last = self::withoutGlobalScope('warehouse_access')->where('number', 'like', "{$prefix}%")->lockForUpdate()->pluck('number')
             ->map(fn ($number) => (int) substr($number, strlen($prefix)))
             ->max();
 

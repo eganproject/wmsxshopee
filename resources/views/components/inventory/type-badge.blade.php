@@ -6,6 +6,9 @@
         'out' => 'bg-rose-50 text-rose-700',
         'transfer' => 'bg-sky-50 text-sky-700',
         'adjustment' => 'bg-amber-50 text-amber-700',
+        'damage' => 'bg-rose-50 text-rose-700',
+        'repair' => 'bg-emerald-50 text-emerald-700',
+        'assembly' => 'bg-violet-50 text-violet-700',
     ];
     $meta = \App\Models\StockMovement::TYPES[$type] ?? ['label' => $type, 'icon' => 'heroicon-o-question-mark-circle'];
 @endphp

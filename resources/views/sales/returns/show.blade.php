@@ -1,8 +1,9 @@
 @php
     $totals = ['good' => $return->items->sum('qty_good'), 'damaged' => $return->items->sum('qty_damaged'), 'missing' => $return->items->sum('qty_missing')];
-    $confirmMessage = "{$totals['good']} barang layak jual akan masuk stok, {$totals['damaged']} barang rusak"
-        .($totals['missing'] ? " dan {$totals['missing']} barang hilang" : '')
-        .' dicatat tanpa menambah stok. Setelah ini dokumen tidak bisa diubah.';
+    $confirmMessage = "{$totals['good']} barang layak jual akan masuk stok"
+        .($totals['damaged'] ? ", {$totals['damaged']} barang rusak masuk Stok Rusak" : '')
+        .($totals['missing'] ? ", {$totals['missing']} barang hilang dicatat tanpa menambah stok" : '')
+        .'. Setelah ini dokumen tidak bisa diubah.';
 @endphp
 
 <x-layouts.app :title="$return->number">
@@ -44,8 +45,13 @@
             <p class="mt-1 text-2xl font-semibold tabular-nums text-emerald-600">{{ number_format($totals['good'], 0, ',', '.') }}</p>
         </div>
         <div class="card p-4">
-            <p class="text-xs text-slate-500">Rusak (dicatat terpisah)</p>
+            <p class="text-xs text-slate-500">Rusak (masuk Stok Rusak)</p>
             <p @class(['mt-1 text-2xl font-semibold tabular-nums', 'text-rose-600' => $totals['damaged'] > 0, 'text-slate-400' => ! $totals['damaged']])>{{ number_format($totals['damaged'], 0, ',', '.') }}</p>
+            @if ($totals['damaged'] && ! $return->isDraft())
+                @can('damaged.view')
+                    <a href="{{ route('inventory.damaged.index', ['warehouse' => $return->warehouse_id]) }}" class="text-xs text-brand-600 hover:underline">Lihat Stok Rusak</a>
+                @endcan
+            @endif
         </div>
         <div class="card p-4">
             <p class="text-xs text-slate-500">Hilang (tidak ada di paket)</p>

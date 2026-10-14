@@ -84,6 +84,8 @@ class Activity
         'payment_term_days' => 'Termin (hari)',
         'reference' => 'Referensi',
         'movement_date' => 'Tanggal Mutasi',
+        'document_date' => 'Tanggal Dokumen',
+        'recipient' => 'Penerima',
     ];
 
     /** @var array<int, true> Model yang sedang dicatat oleh track(), dikunci per objek. */

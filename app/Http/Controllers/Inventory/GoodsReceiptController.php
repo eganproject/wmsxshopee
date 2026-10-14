@@ -9,6 +9,7 @@ use App\Models\Supplier;
 use App\Models\Warehouse;
 use App\Models\WarehouseLocation;
 use App\Rules\AccessibleRecord;
+use App\Services\DamagedStockService;
 use App\Services\StockService;
 use App\Support\Activity;
 use App\Support\XlsxExport;
@@ -135,7 +136,7 @@ class GoodsReceiptController extends Controller
         $this->post($request, $receipt, $stock);
 
         return redirect()->route('inventory.receipts.show', $receipt)
-            ->with('success', "Penerimaan {$receipt->number} diterima. Stok masuk lewat {$receipt->movement->number}.");
+            ->with('success', $this->receivedMessage($receipt));
     }
 
     public function destroy(GoodsReceipt $receipt): RedirectResponse
@@ -168,7 +169,7 @@ class GoodsReceiptController extends Controller
             }
 
             return redirect()->route('inventory.receipts.show', $receipt)
-                ->with('success', "Penerimaan {$receipt->number} diterima. Stok masuk lewat {$receipt->movement->number}.");
+                ->with('success', $this->receivedMessage($receipt));
         }
 
         return redirect()->route('inventory.receipts.show', $receipt)
@@ -191,9 +192,10 @@ class GoodsReceiptController extends Controller
 
             $receipt->load(['supplier', 'items.location']);
             $lines = $receipt->items->where('qty_received', '>', 0);
+            $damaged = $receipt->items->where('qty_damaged', '>', 0);
 
-            if ($lines->isEmpty()) {
-                throw ValidationException::withMessages(['items' => 'Belum ada barang dengan jumlah diterima (kondisi baik) lebih dari 0.']);
+            if ($lines->isEmpty() && $damaged->isEmpty()) {
+                throw ValidationException::withMessages(['items' => 'Belum ada barang dengan jumlah diterima atau rusak lebih dari 0.']);
             }
 
             $inactive = $lines->first(fn ($item) => $item->location && (! $item->location->is_active || $item->location->warehouse_id !== $receipt->warehouse_id));
@@ -201,29 +203,50 @@ class GoodsReceiptController extends Controller
                 throw ValidationException::withMessages(['items' => "Lokasi {$inactive->location->code} sudah nonaktif atau bukan di gudang ini. Ubah lokasinya dulu."]);
             }
 
-            $movement = $stock->record([
-                'type' => 'in',
-                'warehouse_id' => $receipt->warehouse_id,
-                'movement_date' => $receipt->receipt_date->toDateString(),
-                'reference' => $receipt->number,
-                'notes' => trim("Penerimaan dari {$receipt->supplier->name}".($receipt->supplier_reference ? " · {$receipt->supplier_reference}" : '')),
-                'created_by' => $request->user()->id,
-            ], $lines->map(fn ($item) => [
-                'product_variant_id' => $item->product_variant_id,
-                'to_location_id' => $item->warehouse_location_id,
-                'qty' => $item->qty_received,
-                'notes' => $item->notes,
-            ])->values()->all());
+            $movement = null;
+
+            if ($lines->isNotEmpty()) {
+                $movement = $stock->record([
+                    'type' => 'in',
+                    'warehouse_id' => $receipt->warehouse_id,
+                    'movement_date' => $receipt->receipt_date->toDateString(),
+                    'reference' => $receipt->number,
+                    'notes' => trim("Penerimaan dari {$receipt->supplier->name}".($receipt->supplier_reference ? " · {$receipt->supplier_reference}" : '')),
+                    'created_by' => $request->user()->id,
+                ], $lines->map(fn ($item) => [
+                    'product_variant_id' => $item->product_variant_id,
+                    'to_location_id' => $item->warehouse_location_id,
+                    'qty' => $item->qty_received,
+                    'notes' => $item->notes,
+                ])->values()->all());
+            }
+
+            // Barang rusak masuk stok rusak gudang (terpisah dari stok jual), siap diretur ke supplier.
+            app(DamagedStockService::class)->receive($receipt, 'receipt', $receipt->warehouse_id, $receipt->receipt_date->toDateString(), $receipt->number,
+                $damaged->map(fn ($item) => [
+                    'product_variant_id' => $item->product_variant_id,
+                    'qty' => $item->qty_damaged,
+                    'notes' => "Rusak saat diterima dari {$receipt->supplier->name}",
+                ])->values()->all(), $request->user()->id);
 
             $receipt->update([
                 'status' => 'received',
-                'stock_movement_id' => $movement->id,
+                'stock_movement_id' => $movement?->id,
                 'received_by' => $request->user()->id,
                 'received_at' => now(),
             ]);
         });
 
         $receipt->refresh()->load('movement');
+    }
+
+    private function receivedMessage(GoodsReceipt $receipt): string
+    {
+        $damaged = (int) $receipt->items()->sum('qty_damaged');
+
+        return "Penerimaan {$receipt->number} diterima."
+            .($receipt->movement ? " Stok masuk lewat {$receipt->movement->number}." : '')
+            .($damaged ? " {$damaged} barang rusak masuk Stok Rusak." : '');
     }
 
     private function storeAttachment(Request $request, GoodsReceipt $receipt): void

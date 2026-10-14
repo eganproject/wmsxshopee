@@ -6,6 +6,8 @@ use App\Http\Controllers\Admin\RoleController;
 use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\Inventory\DamagedDocumentController;
+use App\Http\Controllers\Inventory\DamagedStockController;
 use App\Http\Controllers\Inventory\GoodsReceiptController;
 use App\Http\Controllers\Inventory\OpeningStockImportController;
 use App\Http\Controllers\Inventory\StockCardController;
@@ -120,6 +122,19 @@ Route::middleware(['auth', 'active'])->group(function () {
         Route::put('receipts/{receipt}', [GoodsReceiptController::class, 'update'])->middleware('can:receipts.create')->name('receipts.update');
         Route::post('receipts/{receipt}/receive', [GoodsReceiptController::class, 'receive'])->middleware('can:receipts.receive')->name('receipts.receive');
         Route::delete('receipts/{receipt}', [GoodsReceiptController::class, 'destroy'])->middleware('can:receipts.delete')->name('receipts.destroy');
+
+        // Stok rusak per gudang, terpisah dari stok jual. Masuk dari penerimaan, retur
+        // penjualan atau Pindah ke Rusak; keluar lewat retur ke supplier, pemusnahan,
+        // perbaikan (kembali ke stok baik) atau rakit / campur. Hak buat dicek per jenis
+        // di controller; dokumen tidak bisa diubah/dihapus.
+        Route::middleware('can:damaged.view')->group(function () {
+            Route::get('damaged', [DamagedStockController::class, 'index'])->name('damaged.index');
+            Route::get('damaged/ledger', [DamagedStockController::class, 'ledger'])->name('damaged.ledger');
+            Route::get('damaged/documents', [DamagedDocumentController::class, 'index'])->name('damaged.documents.index');
+            Route::get('damaged/documents/create', [DamagedDocumentController::class, 'create'])->name('damaged.documents.create');
+            Route::post('damaged/documents', [DamagedDocumentController::class, 'store'])->name('damaged.documents.store');
+            Route::get('damaged/documents/{document}', [DamagedDocumentController::class, 'show'])->name('damaged.documents.show');
+        });
 
         // Stock opname: lembar hitung draft diisi hasil hitung, lalu diposting
         // (selisih masuk lewat mutasi Penyesuaian) dan terkunci.

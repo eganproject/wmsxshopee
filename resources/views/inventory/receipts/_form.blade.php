@@ -211,7 +211,7 @@
             <button type="button" class="btn-secondary mt-3" @click="items.push(blank())">
                 <x-heroicon-o-plus class="size-5" /> Tambah Baris
             </button>
-            <p class="mt-3 text-xs text-slate-500">Hanya jumlah <span class="font-medium">Diterima Baik</span> yang masuk stok. Barang rusak dicatat di dokumen ini tanpa menambah stok. Baris tanpa lokasi bin masuk sebagai stok "Tanpa bin" di gudang tujuan.</p>
+            <p class="mt-3 text-xs text-slate-500">Hanya jumlah <span class="font-medium">Diterima Baik</span> yang masuk stok. Barang <span class="font-medium">Rusak</span> masuk ke Stok Rusak gudang (tidak ikut dijual), lalu bisa diretur ke supplier, dimusnahkan atau diperbaiki. Baris tanpa lokasi bin masuk sebagai stok "Tanpa bin" di gudang tujuan.</p>
         </div>
     </div>
 </div>

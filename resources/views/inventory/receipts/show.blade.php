@@ -83,6 +83,11 @@
                 @if ($receipt->movement)
                     <a href="{{ route('inventory.movements.show', $receipt->movement) }}" class="font-mono text-xs text-brand-600 hover:underline">{{ $receipt->movement->number }}</a>
                 @endif
+                @if ($totals['damaged'])
+                    @can('damaged.view')
+                        <a href="{{ route('inventory.damaged.index', ['warehouse' => $receipt->warehouse_id]) }}" class="ml-2 text-xs text-brand-600 hover:underline">{{ $totals['damaged'] }} rusak di Stok Rusak</a>
+                    @endcan
+                @endif
             @else
                 <p class="mt-1 text-sm text-slate-400">Belum diterima</p>
             @endif
