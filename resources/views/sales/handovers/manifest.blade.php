@@ -46,10 +46,10 @@
         </header>
 
         <div class="grid">
-            <div><div class="label">Kurir</div><div><strong>{{ $handover->courier?->name ?? 'Semua kurir' }}</strong></div></div>
+            <div><div class="label">Kurir</div><div><strong>{{ $handover->courier?->name ?? '—' }}</strong></div></div>
             <div><div class="label">Cara Kirim</div><div>{{ $handover->methodLabel() ?? 'Pickup & drop off' }}</div></div>
             <div><div class="label">Jumlah Paket</div><div><strong>{{ $handover->orders->count() }}</strong></div></div>
-            <div><div class="label">Status</div><div>{{ $handover->isOpen() ? 'Masih scan' : 'Selesai' }}</div></div>
+            <div><div class="label">Status</div><div>{{ $handover->isOpen() ? 'Hari ini' : 'Selesai' }}</div></div>
         </div>
 
         <table>
