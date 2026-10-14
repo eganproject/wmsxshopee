@@ -40,4 +40,10 @@ class Bundle extends Model
     {
         return "{$this->sku} · {$this->name}";
     }
+
+    /** Baris pemetaan SKU Shopee (bisa di beberapa toko) yang menunjuk ke SKU ini. */
+    public function shopeeMappings(): HasMany
+    {
+        return $this->hasMany(ShopeeSkuMapping::class);
+    }
 }
