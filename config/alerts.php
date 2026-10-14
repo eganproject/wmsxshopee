@@ -8,6 +8,9 @@ return [
     // Pesanan dikonfirmasi tapi belum dikirim lebih dari N jam dianggap tertunda.
     'pending_order_hours' => (int) env('ALERT_PENDING_ORDER_HOURS', 24),
 
+    // Pesanan Shopee yang sudah diserahkan ke kurir tapi lebih dari N jam belum discan kurir (status Shopee masih Diproses).
+    'courier_scan_hours' => (int) env('ALERT_COURIER_SCAN_HOURS', 24),
+
     // Pesanan draft yang belum dikonfirmasi lebih dari N jam.
     'draft_order_hours' => (int) env('ALERT_DRAFT_ORDER_HOURS', 24),
 

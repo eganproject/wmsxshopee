@@ -97,6 +97,31 @@ class AlertService
                 'items' => $limit ? $pending->with('warehouse:id,code')->oldest('confirmed_at')->limit($limit)->get() : collect(),
             ];
 
+            $courierHours = (int) config('alerts.courier_scan_hours', 24);
+            $courier = SalesOrder::query()->shopeeFilter('courier_overdue');
+
+            $groups['courier_pending'] = [
+                'key' => 'courier_pending',
+                'label' => 'Paket belum discan kurir',
+                'hint' => "Sudah serah terima lebih dari {$courierHours} jam, tapi di Shopee masih Diproses",
+                'count' => (clone $courier)->count(),
+                'icon' => 'heroicon-o-truck',
+                'tone' => 'rose',
+                'items' => $limit ? $courier->with('warehouse:id,code')->oldest('shipped_at')->limit($limit)->get() : collect(),
+            ];
+
+            $ahead = SalesOrder::query()->shopeeFilter('shopee_ahead');
+
+            $groups['shopee_ahead'] = [
+                'key' => 'shopee_ahead',
+                'label' => 'Dikirim di Shopee, belum di gudang',
+                'hint' => 'Pengiriman otomatis gagal; buka pesanan untuk melihat alasannya',
+                'count' => (clone $ahead)->count(),
+                'icon' => 'heroicon-o-exclamation-triangle',
+                'tone' => 'amber',
+                'items' => $limit ? $ahead->with('warehouse:id,code')->oldest('shopee_synced_at')->limit($limit)->get() : collect(),
+            ];
+
             $draftHours = (int) config('alerts.draft_order_hours', 24);
             $drafts = SalesOrder::query()
                 ->where('status', 'draft')

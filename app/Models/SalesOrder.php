@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Models\Concerns\LogsActivity;
 use App\Models\Concerns\ScopedToWarehouse;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -23,6 +24,26 @@ class SalesOrder extends Model
         'shipped' => ['label' => 'Dikirim', 'icon' => 'heroicon-o-truck', 'color' => 'emerald'],
         'cancelled' => ['label' => 'Batal', 'icon' => 'heroicon-o-x-circle', 'color' => 'rose'],
     ];
+
+    /** Status pesanan di Shopee (order_status) dengan label Indonesia. */
+    public const SHOPEE_STATUSES = [
+        'UNPAID' => ['label' => 'Belum Bayar', 'color' => 'slate'],
+        'READY_TO_SHIP' => ['label' => 'Siap Dikirim', 'color' => 'sky'],
+        'PROCESSED' => ['label' => 'Diproses', 'color' => 'violet'],
+        'RETRY_SHIP' => ['label' => 'Kirim Ulang', 'color' => 'amber'],
+        'SHIPPED' => ['label' => 'Dikirim', 'color' => 'emerald'],
+        'TO_CONFIRM_RECEIVE' => ['label' => 'Sampai di Pembeli', 'color' => 'emerald'],
+        'COMPLETED' => ['label' => 'Selesai', 'color' => 'emerald'],
+        'IN_CANCEL' => ['label' => 'Pengajuan Batal', 'color' => 'amber'],
+        'CANCELLED' => ['label' => 'Batal', 'color' => 'rose'],
+        'TO_RETURN' => ['label' => 'Retur', 'color' => 'rose'],
+    ];
+
+    /** Status Shopee yang berarti paket sudah di tangan kurir (resi berhasil dikirim). */
+    public const SHOPEE_LEFT_WAREHOUSE = ['SHIPPED', 'TO_CONFIRM_RECEIVE', 'COMPLETED', 'TO_RETURN'];
+
+    /** Status Shopee setelah pengiriman diatur tapi kurir belum scan paket. */
+    public const SHOPEE_AWAITING_COURIER = ['PROCESSED', 'RETRY_SHIP'];
 
     /** Status yang menahan (mencadangkan) stok di gudang. */
     public const RESERVING = ['confirmed', 'picked', 'packed'];
@@ -49,6 +70,8 @@ class SalesOrder extends Model
         'shopee_sync_error',
         'shopee_synced_at',
         'shopee_ship_by',
+        'shopee_shipped_at',
+        'shipped_automatically',
         'shopee_income',
         'shopee_escrow_amount',
         'shopee_income_final',
@@ -94,6 +117,8 @@ class SalesOrder extends Model
             'cancelled_at' => 'datetime',
             'shopee_synced_at' => 'datetime',
             'shopee_ship_by' => 'datetime',
+            'shopee_shipped_at' => 'datetime',
+            'shipped_automatically' => 'boolean',
             'pickup_at' => 'datetime',
             'shipment_arranged_at' => 'datetime',
             'shipping_label_printed_at' => 'datetime',
@@ -232,6 +257,50 @@ class SalesOrder extends Model
     }
 
     /** Pesanan Shopee yang pengirimannya sudah diatur (di Optima atau Seller Centre). */
+    public function shopeeStatusLabel(): ?string
+    {
+        return $this->shopee_order_status ? (self::SHOPEE_STATUSES[$this->shopee_order_status]['label'] ?? $this->shopee_order_status) : null;
+    }
+
+    /** Sudah diserahkan di gudang, tapi Shopee belum melaporkan paket di tangan kurir. */
+    public function awaitingCourierScan(): bool
+    {
+        return $this->isShopee() && $this->status === 'shipped' && $this->shopee_shipped_at === null
+            && in_array($this->shopee_order_status, self::SHOPEE_AWAITING_COURIER, true);
+    }
+
+    public function courierScanOverdue(): bool
+    {
+        return $this->awaitingCourierScan() && $this->shipped_at?->lte(now()->subHours((int) config('alerts.courier_scan_hours', 24)));
+    }
+
+    /** Shopee sudah mengirim paket, tapi di Optima belum Dikirim (pengiriman otomatis gagal). */
+    public function shopeeAhead(): bool
+    {
+        return $this->isShopee() && in_array($this->status, ['draft', ...self::RESERVING], true)
+            && in_array($this->shopee_order_status, self::SHOPEE_LEFT_WAREHOUSE, true);
+    }
+
+    /**
+     * Filter daftar pesanan berdasarkan status Shopee atau selisih status Shopee vs gudang.
+     *
+     * @param  Builder<SalesOrder>  $query
+     */
+    public function scopeShopeeFilter(Builder $query, string $filter): void
+    {
+        match ($filter) {
+            'courier_pending', 'courier_overdue' => $query->whereNotNull('shopee_shop_id')
+                ->where('status', 'shipped')
+                ->whereNull('shopee_shipped_at')
+                ->whereIn('shopee_order_status', self::SHOPEE_AWAITING_COURIER)
+                ->when($filter === 'courier_overdue', fn ($q) => $q->where('shipped_at', '<=', now()->subHours((int) config('alerts.courier_scan_hours', 24)))),
+            'shopee_ahead' => $query->whereNotNull('shopee_shop_id')
+                ->whereIn('status', ['draft', ...self::RESERVING])
+                ->whereIn('shopee_order_status', self::SHOPEE_LEFT_WAREHOUSE),
+            default => $query->where('shopee_order_status', $filter),
+        };
+    }
+
     public function shopeeShipmentArranged(): bool
     {
         return $this->isShopee() && filled($this->shopee_order_status) && ! in_array($this->shopee_order_status, ['UNPAID', 'READY_TO_SHIP', 'IN_CANCEL', 'CANCELLED'], true);

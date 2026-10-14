@@ -23,9 +23,11 @@ use Illuminate\Validation\ValidationException;
  *   READY_TO_SHIP / PROCESSED / RETRY_SHIP  pesanan dibuat & dikonfirmasi (stok dicadangkan)
  *   CANCELLED                               pesanan dibatalkan (cadangan lepas) bila belum dikirim
  *   UNPAID                                  diabaikan sampai dibayar
- *   SHIPPED / COMPLETED / dst.              hanya status diperbarui; pesanan yang belum
- *                                           pernah masuk Optima tidak dibuat (sudah keluar
- *                                           tanpa lewat gudang, jadi tidak mengurangi stok)
+ *   SHIPPED / TO_CONFIRM_RECEIVE / COMPLETED paket di tangan kurir: dicatat sebagai tanda
+ *                                           resi berhasil dikirim; pesanan yang belum Dikirim
+ *                                           di Optima otomatis di-pick, dikemas & dikirim.
+ *                                           Pesanan yang belum pernah masuk Optima tidak
+ *                                           dibuat (keluar tanpa lewat gudang)
  */
 class ShopeeOrderSync
 {
@@ -138,6 +140,11 @@ class ShopeeOrderSync
             'shopee_ship_by' => $this->shipBy($detail) ?? $order->shopee_ship_by,
         ]);
 
+        $leftWarehouse = in_array($status, SalesOrder::SHOPEE_LEFT_WAREHOUSE, true);
+        if ($leftWarehouse && ! $order->shopee_shipped_at) {
+            $order->shopee_shipped_at = now();
+        }
+
         if ($status === 'CANCELLED') {
             return $this->cancel($order, $detail);
         }
@@ -152,13 +159,16 @@ class ShopeeOrderSync
         $order->save();
 
         // Draft karena SKU belum dipetakan / stok kurang: coba lagi tiap sinkron.
-        if ($order->status === 'draft' && in_array($status, self::TO_FULFIL, true)) {
+        $retried = $order->status === 'draft' && (in_array($status, self::TO_FULFIL, true) || $leftWarehouse);
+        if ($retried) {
             $this->fillAndConfirm($order, $shop, $detail);
-
-            return $order->status === 'draft' ? 'pending' : 'updated';
         }
 
-        return 'updated';
+        if ($leftWarehouse && $order->status !== 'shipped') {
+            $this->shipFromShopee($order);
+        }
+
+        return $retried && $order->status === 'draft' ? 'pending' : 'updated';
     }
 
     /**
@@ -318,6 +328,25 @@ class ShopeeOrderSync
         }
 
         return [$items, $bundles, array_values(array_unique($unmapped))];
+    }
+
+    /** Shopee sudah mengirim paket: ikutkan status gudang & keluarkan stok. */
+    private function shipFromShopee(SalesOrder $order): void
+    {
+        $prefix = 'Sudah dikirim di Shopee, tapi belum bisa dikirim otomatis di Optima: ';
+
+        if ($order->status === 'draft') {
+            $order->update(['shopee_sync_error' => mb_substr($prefix.($order->shopee_sync_error ?? 'pesanan masih draft.'), 0, 500)]);
+
+            return;
+        }
+
+        try {
+            $this->orders->shipFromMarketplace($order);
+            $order->refresh()->update(['shopee_sync_error' => null]);
+        } catch (ValidationException $e) {
+            $order->refresh()->update(['shopee_sync_error' => mb_substr($prefix.implode(' ', $e->validator->errors()->all()), 0, 500)]);
+        }
     }
 
     /**
