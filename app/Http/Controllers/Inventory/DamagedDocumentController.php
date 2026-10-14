@@ -11,6 +11,7 @@ use App\Models\Warehouse;
 use App\Models\WarehouseLocation;
 use App\Rules\AccessibleRecord;
 use App\Services\DamagedStockService;
+use App\Support\Activity;
 use App\Support\XlsxExport;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -20,8 +21,9 @@ use Illuminate\View\View;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 /**
- * Dokumen alokasi barang rusak. Disimpan langsung dan tidak bisa diubah;
- * hak buat dicek per jenis (lihat DamagedDocument::TYPES).
+ * Dokumen alokasi barang rusak: draft bisa diubah/dihapus oleh pemegang hak
+ * jenisnya (lihat DamagedDocument::TYPES); stok berubah saat disetujui
+ * (damaged.approve) dan dokumen terkunci.
  */
 class DamagedDocumentController extends Controller
 {
@@ -32,6 +34,7 @@ class DamagedDocumentController extends Controller
             ->withCount('items')
             ->withSum('items', 'qty')
             ->when($request->filled('type'), fn ($query) => $query->where('type', $request->input('type')))
+            ->when($request->filled('status'), fn ($query) => $query->where('status', $request->input('status')))
             ->when($request->filled('warehouse'), fn ($query) => $query->where('warehouse_id', $request->integer('warehouse')))
             ->when($request->filled('from'), fn ($query) => $query->whereDate('document_date', '>=', $request->date('from')))
             ->when($request->filled('to'), fn ($query) => $query->whereDate('document_date', '<=', $request->date('to')))
@@ -47,9 +50,9 @@ class DamagedDocumentController extends Controller
 
         if ($request->input('export') === 'xlsx') {
             return XlsxExport::download('dokumen-barang-rusak-'.now()->format('Ymd-His').'.xlsx',
-                ['No. Dokumen', 'Tanggal', 'Jenis', 'Gudang', 'Penerima', 'Referensi', 'Jumlah Baris', 'Total Qty', 'Dibuat Oleh', 'Catatan'],
+                ['No. Dokumen', 'Tanggal', 'Jenis', 'Status', 'Gudang', 'Penerima', 'Referensi', 'Jumlah Baris', 'Total Qty', 'Dibuat Oleh', 'Catatan'],
                 $query->lazy(500)->map(fn ($d) => [
-                    $d->number, $d->document_date->format('d/m/Y'), $d->typeLabel(), $d->warehouse?->code, $d->recipientName(), $d->reference,
+                    $d->number, $d->document_date->format('d/m/Y'), $d->typeLabel(), DamagedDocument::STATUSES[$d->status]['label'] ?? $d->status, $d->warehouse?->code, $d->recipientName(), $d->reference,
                     $d->items_count, (int) $d->items_sum_qty, $d->creator?->name, $d->notes,
                 ]));
         }
@@ -69,9 +72,120 @@ class DamagedDocumentController extends Controller
         $type = $request->query('type', array_key_first($allowed));
         $this->authorizeType($request, $type);
 
-        $warehouses = Warehouse::where('is_active', true)->orderBy('code')->get();
+        return view('inventory.damaged.documents.create', [
+            ...$this->formData($type),
+            'document' => null,
+            'prefill' => [
+                'warehouse' => $request->query('warehouse'),
+                'variant' => $request->query('variant'),
+            ],
+        ]);
+    }
+
+    public function store(Request $request, DamagedStockService $damaged): RedirectResponse
+    {
+        $type = (string) $request->input('type');
+        $this->authorizeType($request, $type);
+        [$header, $items] = $this->validated($request, $type);
+
+        $document = $damaged->draft([...$header, 'type' => $type, 'created_by' => $request->user()->id], $items);
+
+        return $this->afterSave($request, $document, $damaged, 'disimpan sebagai draft');
+    }
+
+    public function edit(Request $request, DamagedDocument $document): View|RedirectResponse
+    {
+        $this->authorizeType($request, $document->type);
+
+        if (! $document->isDraft()) {
+            return redirect()->route('inventory.damaged.documents.show', $document)->with('error', "{$document->number} sudah disetujui dan tidak bisa diubah.");
+        }
+
+        $document->load('items');
 
         return view('inventory.damaged.documents.create', [
+            ...$this->formData($document->type, $document),
+            'document' => $document,
+            'prefill' => ['warehouse' => $document->warehouse_id, 'variant' => null],
+        ]);
+    }
+
+    public function update(Request $request, DamagedDocument $document, DamagedStockService $damaged): RedirectResponse
+    {
+        $this->authorizeType($request, $document->type);
+        abort_unless($document->isDraft(), 403, 'Dokumen yang sudah disetujui tidak bisa diubah.');
+
+        [$header, $items] = $this->validated($request, $document->type);
+
+        Activity::track($document, fn () => $damaged->updateDraft($document, $header, $items));
+
+        return $this->afterSave($request, $document, $damaged, 'diperbarui');
+    }
+
+    public function approve(Request $request, DamagedDocument $document, DamagedStockService $damaged): RedirectResponse
+    {
+        $damaged->approve($document, $request->user()->id);
+
+        return redirect()->route('inventory.damaged.documents.show', $document)->with('success', $this->approvedMessage($document->refresh()));
+    }
+
+    public function destroy(Request $request, DamagedDocument $document): RedirectResponse
+    {
+        $this->authorizeType($request, $document->type);
+
+        if (! $document->isDraft()) {
+            return back()->with('error', "{$document->number} sudah disetujui sehingga tidak bisa dihapus.");
+        }
+
+        $document->delete();
+
+        return redirect()->route('inventory.damaged.documents.index')->with('success', "Draft {$document->number} berhasil dihapus.");
+    }
+
+    public function show(DamagedDocument $document): View
+    {
+        $document->load(['warehouse', 'supplier', 'creator', 'approver', 'movement', 'items.variant.product.unit', 'items.fromLocation', 'items.toLocation']);
+
+        return view('inventory.damaged.documents.show', ['document' => $document]);
+    }
+
+    /** Tombol "Simpan & Setujui" langsung menyetujui setelah draft tersimpan. */
+    private function afterSave(Request $request, DamagedDocument $document, DamagedStockService $damaged, string $verb): RedirectResponse
+    {
+        if ($request->input('action') === 'approve') {
+            abort_unless($request->user()->can('damaged.approve'), 403);
+
+            try {
+                $damaged->approve($document, $request->user()->id);
+            } catch (ValidationException $e) {
+                // Draft sudah tersimpan; kembalikan ke form edit dengan pesan kenapa belum bisa disetujui.
+                return redirect()->route('inventory.damaged.documents.edit', $document)->withErrors($e->errors());
+            }
+
+            return redirect()->route('inventory.damaged.documents.show', $document)->with('success', $this->approvedMessage($document->refresh()));
+        }
+
+        return redirect()->route('inventory.damaged.documents.show', $document)
+            ->with('success', "{$document->typeLabel()} {$document->number} berhasil {$verb}.");
+    }
+
+    private function approvedMessage(DamagedDocument $document): string
+    {
+        return "{$document->typeLabel()} {$document->number} disetujui. Stok sudah diperbarui"
+            .($document->movement ? " (mutasi stok baik {$document->movement->number})." : '.');
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function formData(string $type, ?DamagedDocument $document = null): array
+    {
+        $warehouses = Warehouse::query()
+            ->where(fn ($q) => $q->where('is_active', true)->when($document, fn ($q) => $q->orWhere('id', $document->warehouse_id)))
+            ->orderBy('code')
+            ->get();
+
+        return [
             'type' => $type,
             'meta' => DamagedDocument::TYPES[$type],
             'warehouses' => $warehouses,
@@ -97,53 +211,7 @@ class DamagedDocumentController extends Controller
                 ->get(['warehouse_id', 'product_variant_id', 'qty'])
                 ->groupBy('warehouse_id')
                 ->map(fn ($rows) => $rows->pluck('qty', 'product_variant_id')),
-            'prefill' => [
-                'warehouse' => $request->query('warehouse'),
-                'variant' => $request->query('variant'),
-            ],
-        ]);
-    }
-
-    public function store(Request $request, DamagedStockService $damaged): RedirectResponse
-    {
-        $type = (string) $request->input('type');
-        $this->authorizeType($request, $type);
-        $data = $this->validated($request, $type);
-
-        $document = $damaged->record([
-            'type' => $type,
-            'warehouse_id' => (int) $data['warehouse_id'],
-            'document_date' => $data['document_date'],
-            'supplier_id' => $type === 'supplier_return' && filled($data['supplier_id'] ?? null) ? (int) $data['supplier_id'] : null,
-            'recipient' => $type === 'supplier_return' && blank($data['supplier_id'] ?? null) ? ($data['recipient'] ?? null) : null,
-            'reference' => $data['reference'] ?? null,
-            'notes' => $data['notes'] ?? null,
-            'created_by' => $request->user()->id,
-        ], collect($data['items'])->map(function ($row) use ($type) {
-            $role = $type === 'assembly' ? $row['role'] : 'input';
-            $source = $type === 'assembly' && $role === 'input' ? $row['source'] : ($type === 'intake' ? 'good' : 'damaged');
-
-            return [
-                'role' => $role,
-                'source' => $role === 'output' ? 'good' : $source,
-                'product_variant_id' => (int) $row['product_variant_id'],
-                // Lokasi bin opsional: kosong berarti stok baik "Tanpa bin" di level gudang.
-                'from_location_id' => ($type === 'intake' || ($role === 'input' && $source === 'good')) && filled($row['from_location_id'] ?? null) ? (int) $row['from_location_id'] : null,
-                'to_location_id' => ($type === 'repair' || $role === 'output') && filled($row['to_location_id'] ?? null) ? (int) $row['to_location_id'] : null,
-                'qty' => (int) $row['qty'],
-                'notes' => $row['notes'] ?? null,
-            ];
-        })->all());
-
-        return redirect()->route('inventory.damaged.documents.show', $document)
-            ->with('success', "{$document->typeLabel()} {$document->number} berhasil disimpan.");
-    }
-
-    public function show(DamagedDocument $document): View
-    {
-        $document->load(['warehouse', 'supplier', 'creator', 'movement', 'items.variant.product.unit', 'items.fromLocation', 'items.toLocation']);
-
-        return view('inventory.damaged.documents.show', ['document' => $document]);
+        ];
     }
 
     private function authorizeType(Request $request, string $type): void
@@ -153,7 +221,7 @@ class DamagedDocumentController extends Controller
     }
 
     /**
-     * @return array<string, mixed>
+     * @return array{0: array<string, mixed>, 1: array<int, array<string, mixed>>} [header, baris]
      */
     private function validated(Request $request, string $type): array
     {
@@ -209,6 +277,31 @@ class DamagedDocumentController extends Controller
             }
         }
 
-        return $data;
+        $header = [
+            'warehouse_id' => (int) $data['warehouse_id'],
+            'document_date' => $data['document_date'],
+            'supplier_id' => $type === 'supplier_return' && filled($data['supplier_id'] ?? null) ? (int) $data['supplier_id'] : null,
+            'recipient' => $type === 'supplier_return' && blank($data['supplier_id'] ?? null) ? ($data['recipient'] ?? null) : null,
+            'reference' => $data['reference'] ?? null,
+            'notes' => $data['notes'] ?? null,
+        ];
+
+        $items = collect($data['items'])->values()->map(function ($row) use ($type) {
+            $role = $type === 'assembly' ? $row['role'] : 'input';
+            $source = $type === 'assembly' && $role === 'input' ? $row['source'] : ($type === 'intake' ? 'good' : 'damaged');
+
+            return [
+                'role' => $role,
+                'source' => $role === 'output' ? 'good' : $source,
+                'product_variant_id' => (int) $row['product_variant_id'],
+                // Lokasi bin opsional: kosong berarti stok baik "Tanpa bin" di level gudang.
+                'from_location_id' => ($type === 'intake' || ($role === 'input' && $source === 'good')) && filled($row['from_location_id'] ?? null) ? (int) $row['from_location_id'] : null,
+                'to_location_id' => ($type === 'repair' || $role === 'output') && filled($row['to_location_id'] ?? null) ? (int) $row['to_location_id'] : null,
+                'qty' => (int) $row['qty'],
+                'notes' => $row['notes'] ?? null,
+            ];
+        })->all();
+
+        return [$header, $items];
     }
 }

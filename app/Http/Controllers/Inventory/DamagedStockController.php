@@ -52,6 +52,7 @@ class DamagedStockController extends Controller
                 'in' => (int) (clone $month)->sum('qty_in'),
                 'out' => (int) (clone $month)->sum('qty_out'),
             ],
+            'drafts' => DamagedDocument::query()->tap($warehouseFilter)->where('status', 'draft')->count(),
             'warehouses' => Warehouse::orderBy('code')->get(),
             'actions' => $this->allowedTypes($request),
         ]);

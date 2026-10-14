@@ -18,6 +18,14 @@
 
     <x-damaged.tabs />
 
+    @if ($drafts)
+        <a href="{{ route('inventory.damaged.documents.index', ['status' => 'draft', ...request()->only('warehouse')]) }}"
+           class="mb-6 flex items-center gap-2 rounded-lg bg-amber-50 px-4 py-3 text-sm text-amber-700 hover:bg-amber-100">
+            <x-heroicon-o-clock class="size-5 shrink-0" /> {{ $drafts }} dokumen draft menunggu persetujuan. Saldo di bawah belum termasuk draft.
+            <x-heroicon-o-chevron-right class="ml-auto size-4" />
+        </a>
+    @endif
+
     <div class="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <div class="card p-4">
             <p class="text-xs text-slate-500">Total Barang Rusak</p>

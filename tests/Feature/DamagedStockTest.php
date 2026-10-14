@@ -118,6 +118,7 @@ class DamagedStockTest extends TestCase
             'type' => $type,
             'warehouse_id' => $this->warehouse->id,
             'document_date' => now()->toDateString(),
+            'action' => 'approve',
             'items' => $items,
             ...$overrides,
         ]);
@@ -226,7 +227,7 @@ class DamagedStockTest extends TestCase
         $this->document('intake', [['product_variant_id' => $this->variant->id, 'from_location_id' => $this->bin->id, 'qty' => 5]])
             ->assertSessionHasErrors('items.0.qty');
 
-        $this->assertSame(0, DamagedDocument::count());
+        $this->assertTrue(DamagedDocument::sole()->isDraft());
         $this->assertSame(2, $this->good($this->variant));
         $this->assertSame(0, $this->damaged($this->variant));
     }
@@ -367,11 +368,22 @@ class DamagedStockTest extends TestCase
         $this->stockIn($this->variant, 5);
 
         $this->get(route('inventory.damaged.index'))->assertOk();
-        $this->document('intake', [['product_variant_id' => $this->variant->id, 'from_location_id' => $this->bin->id, 'qty' => 2]])->assertSessionHasNoErrors();
+        $this->document('intake', [['product_variant_id' => $this->variant->id, 'from_location_id' => $this->bin->id, 'qty' => 2]], ['action' => 'draft'])->assertSessionHasNoErrors();
+        $draft = DamagedDocument::sole();
 
-        // Staff Gudang bawaan hanya boleh memindahkan ke rusak, bukan memusnahkan / meretur.
+        // Staff Gudang bawaan boleh membuat draft Pindah ke Rusak tapi tidak menyetujuinya.
+        $this->document('intake', [['product_variant_id' => $this->variant->id, 'from_location_id' => $this->bin->id, 'qty' => 1]])->assertForbidden();
+        $this->post(route('inventory.damaged.documents.approve', $draft))->assertForbidden();
+        $this->get(route('inventory.damaged.documents.show', $draft))->assertOk()->assertDontSee('Setujui dokumen?');
+        $this->assertSame(0, $this->damaged($this->variant));
+
+        $this->actingAs($this->superAdmin())->post(route('inventory.damaged.documents.approve', $draft))->assertSessionHasNoErrors();
+        $this->assertSame($this->superAdmin()->id, $draft->refresh()->approved_by);
+        $this->actingAs($staff);
+
+        // Juga tidak boleh memusnahkan / meretur.
         $this->get(route('inventory.damaged.documents.create', ['type' => 'disposal']))->assertForbidden();
-        $this->document('disposal', [['product_variant_id' => $this->variant->id, 'qty' => 1]])->assertForbidden();
+        $this->document('disposal', [['product_variant_id' => $this->variant->id, 'qty' => 1]], ['action' => 'draft'])->assertForbidden();
         $this->document('supplier_return', [['product_variant_id' => $this->variant->id, 'qty' => 1]], ['recipient' => 'X'])->assertForbidden();
         $this->assertSame(2, $this->damaged($this->variant));
 
@@ -402,6 +414,77 @@ class DamagedStockTest extends TestCase
         $this->document('intake', [['product_variant_id' => $this->variant->id, 'from_location_id' => $this->bin->id, 'qty' => 1]])->assertSessionHasNoErrors();
         $this->assertStringEndsWith('-0002', DamagedDocument::withoutGlobalScopes()->latest('id')->value('number'));
         $this->assertSame(2, StockMovement::withoutGlobalScopes()->where('type', 'damage')->distinct()->count('number'));
+    }
+
+    public function test_draft_does_not_touch_stock_until_approved(): void
+    {
+        $this->actingAs($this->superAdmin());
+        $this->stockIn($this->variant, 10);
+
+        $this->document('intake', [['product_variant_id' => $this->variant->id, 'from_location_id' => $this->bin->id, 'qty' => 3]], ['action' => 'draft'])
+            ->assertSessionHasNoErrors();
+
+        $document = DamagedDocument::sole();
+        $this->assertTrue($document->isDraft());
+        $this->assertSame(10, $this->good($this->variant));
+        $this->assertSame(0, $this->damaged($this->variant));
+        $this->assertSame(0, DamagedStockLedger::count());
+        $this->get(route('inventory.damaged.index'))->assertOk()->assertSee('1 dokumen draft menunggu persetujuan');
+        $this->get(route('inventory.damaged.documents.show', $document))->assertOk()->assertSee('Draft')->assertSee('Setujui');
+
+        // Draft bisa diubah.
+        $this->get(route('inventory.damaged.documents.edit', $document))->assertOk()->assertSee($document->number);
+        $this->put(route('inventory.damaged.documents.update', $document), [
+            'type' => 'intake',
+            'warehouse_id' => $this->warehouse->id,
+            'document_date' => now()->toDateString(),
+            'reference' => 'CEK-RAK',
+            'action' => 'draft',
+            'items' => [['product_variant_id' => $this->variant->id, 'from_location_id' => $this->bin->id, 'qty' => 4]],
+        ])->assertSessionHasNoErrors();
+        $this->assertSame([4], $document->refresh()->items->pluck('qty')->all());
+        $this->assertSame('CEK-RAK', $document->reference);
+
+        $this->post(route('inventory.damaged.documents.approve', $document))->assertRedirect(route('inventory.damaged.documents.show', $document));
+
+        $document->refresh();
+        $this->assertSame('approved', $document->status);
+        $this->assertNotNull($document->approved_at);
+        $this->assertSame(6, $this->good($this->variant));
+        $this->assertSame(4, $this->damaged($this->variant));
+        $this->assertTrue(ActivityLog::where('subject_type', $document->getMorphClass())->where('subject_id', $document->id)->where('event', 'status')->exists());
+
+        // Setelah disetujui terkunci.
+        $this->post(route('inventory.damaged.documents.approve', $document))->assertSessionHasErrors('document');
+        $this->get(route('inventory.damaged.documents.edit', $document))->assertRedirect(route('inventory.damaged.documents.show', $document));
+        $this->delete(route('inventory.damaged.documents.destroy', $document))->assertSessionHas('error');
+        $this->assertSame(4, $this->damaged($this->variant));
+    }
+
+    public function test_draft_can_be_deleted(): void
+    {
+        $this->actingAs($this->superAdmin());
+        $this->makeDamaged(2);
+        $this->document('disposal', [['product_variant_id' => $this->variant->id, 'qty' => 2]], ['action' => 'draft'])->assertSessionHasNoErrors();
+        $draft = DamagedDocument::where('type', 'disposal')->sole();
+
+        $this->delete(route('inventory.damaged.documents.destroy', $draft))->assertRedirect(route('inventory.damaged.documents.index'));
+
+        $this->assertNull(DamagedDocument::find($draft->id));
+        $this->assertSame(2, $this->damaged($this->variant));
+    }
+
+    public function test_save_and_approve_keeps_draft_when_stock_is_short(): void
+    {
+        $this->actingAs($this->superAdmin());
+        $this->makeDamaged(1);
+
+        $this->document('disposal', [['product_variant_id' => $this->variant->id, 'qty' => 5]])
+            ->assertSessionHasErrors('items.0.qty');
+
+        $draft = DamagedDocument::where('type', 'disposal')->sole();
+        $this->assertTrue($draft->isDraft());
+        $this->assertSame(1, $this->damaged($this->variant));
     }
 
     public function test_migration_backfills_damaged_qty_from_earlier_documents(): void

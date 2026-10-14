@@ -8,7 +8,10 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
-/** Dokumen barang rusak. Disimpan langsung (tanpa draft) dan tidak bisa diubah. */
+/**
+ * Dokumen barang rusak. Draft masih bisa diubah/dihapus dan belum mengubah stok;
+ * setelah disetujui stok rusak & stok baik berubah dan dokumen terkunci.
+ */
 class DamagedDocument extends Model
 {
     use LogsActivity, ScopedToWarehouse;
@@ -40,9 +43,15 @@ class DamagedDocument extends Model
         ],
     ];
 
+    public const STATUSES = [
+        'draft' => ['label' => 'Draft', 'color' => 'slate'],
+        'approved' => ['label' => 'Disetujui', 'color' => 'emerald'],
+    ];
+
     protected $fillable = [
         'number',
         'type',
+        'status',
         'warehouse_id',
         'document_date',
         'supplier_id',
@@ -51,13 +60,26 @@ class DamagedDocument extends Model
         'notes',
         'stock_movement_id',
         'created_by',
+        'approved_by',
+        'approved_at',
     ];
 
     protected function casts(): array
     {
         return [
             'document_date' => 'date',
+            'approved_at' => 'datetime',
         ];
+    }
+
+    public function isDraft(): bool
+    {
+        return $this->status === 'draft';
+    }
+
+    public function approver(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'approved_by');
     }
 
     public function warehouse(): BelongsTo

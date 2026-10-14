@@ -24,12 +24,35 @@
 
     <x-page-header :title="$document->number" :description="$document->typeLabel()" :icon="\App\Models\DamagedDocument::typeMeta($document->type, 'icon')">
         <a href="{{ route('inventory.damaged.documents.index') }}" class="btn-secondary"><x-heroicon-o-arrow-left class="size-5" /> Kembali</a>
+        @if ($document->isDraft())
+            @can(\App\Models\DamagedDocument::typeMeta($document->type, 'permission'))
+                <form id="delete-document" method="POST" action="{{ route('inventory.damaged.documents.destroy', $document) }}">@csrf @method('DELETE')</form>
+                <button type="button" class="btn-secondary hover:text-rose-600"
+                        @click="$dispatch('confirm', { form: 'delete-document', title: 'Hapus draft?', message: @js("Draft {$document->number} akan dihapus permanen."), confirmText: 'Hapus' })">
+                    <x-heroicon-o-trash class="size-5" /> Hapus
+                </button>
+                <a href="{{ route('inventory.damaged.documents.edit', $document) }}" class="btn-secondary"><x-heroicon-o-pencil-square class="size-5" /> Edit</a>
+            @endcan
+            @can('damaged.approve')
+                <form id="approve-document" method="POST" action="{{ route('inventory.damaged.documents.approve', $document) }}">@csrf</form>
+                <button type="button" class="btn-primary"
+                        @click="$dispatch('confirm', { form: 'approve-document', title: 'Setujui dokumen?', message: @js($effect.' Setelah ini dokumen tidak bisa diubah.'), confirmText: 'Setujui', variant: 'primary' })">
+                    <x-heroicon-o-check class="size-5" /> Setujui
+                </button>
+            @endcan
+        @endif
     </x-page-header>
+
+    @if ($document->isDraft())
+        <p class="mb-6 flex items-center gap-2 rounded-lg bg-amber-50 px-4 py-3 text-sm text-amber-700">
+            <x-heroicon-o-clock class="size-5 shrink-0" /> Draft: stok belum berubah sampai dokumen ini disetujui.
+        </p>
+    @endif
 
     <div class="card mb-6 grid gap-5 p-5 sm:grid-cols-2 lg:grid-cols-4">
         <div>
             <p class="text-xs text-slate-500">Jenis</p>
-            <p class="mt-1"><x-damaged.type-badge :type="$document->type" /></p>
+            <p class="mt-1 flex flex-wrap gap-1.5"><x-damaged.type-badge :type="$document->type" /> <x-damaged.status-badge :document="$document" /></p>
         </div>
         <div>
             <p class="text-xs text-slate-500">Tanggal</p>
@@ -53,6 +76,8 @@
             <p class="text-xs text-slate-500">Mutasi Stok Baik</p>
             @if ($document->movement)
                 <a href="{{ route('inventory.movements.show', $document->movement) }}" class="mt-1 inline-block font-mono text-sm font-medium text-brand-600 hover:underline">{{ $document->movement->number }}</a>
+            @elseif ($document->isDraft())
+                <p class="mt-1 text-sm text-slate-400">Dibuat saat disetujui</p>
             @else
                 <p class="mt-1 text-sm text-slate-400">Tidak ada (hanya stok rusak)</p>
             @endif
@@ -60,6 +85,14 @@
         <div>
             <p class="text-xs text-slate-500">Dibuat oleh</p>
             <p class="mt-1 text-sm text-slate-700">{{ $document->creator?->name ?? '—' }} · {{ $document->created_at->format('d/m/Y H:i') }}</p>
+        </div>
+        <div>
+            <p class="text-xs text-slate-500">Disetujui oleh</p>
+            @if ($document->approved_at)
+                <p class="mt-1 text-sm text-slate-700">{{ $document->approver?->name ?? '—' }} · {{ $document->approved_at->format('d/m/Y H:i') }}</p>
+            @else
+                <p class="mt-1 text-sm text-slate-400">Belum disetujui</p>
+            @endif
         </div>
         @if ($document->notes)
             <div class="sm:col-span-2 lg:col-span-4">
@@ -124,7 +157,7 @@
     @endforeach
 
     <p class="mt-4 flex items-center gap-1.5 text-xs text-slate-500">
-        <x-heroicon-o-lock-closed class="size-4" /> {{ $effect }} Dokumen yang sudah disimpan tidak bisa diubah.
+        <x-heroicon-o-lock-closed class="size-4" /> {{ $effect }} {{ $document->isDraft() ? 'Terjadi saat dokumen disetujui, lalu dokumen terkunci.' : 'Dokumen yang sudah disetujui tidak bisa diubah.' }}
     </p>
 
     <x-activity.history :subject="$document" />
