@@ -114,6 +114,28 @@
     display: none !important;
 }
 
+/*
+ * Scroll menu sidebar: scrollbar tipis yang baru tampil saat disorot, ruangnya dipesan agar menu
+ * tidak bergeser, dan scroll tidak merambat ke halaman saat mentok di ujung.
+ */
+.sidebar-scroll {
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+    scrollbar-color: transparent transparent;
+    scrollbar-gutter: stable;
+}
+.sidebar-scroll:hover,
+.sidebar-scroll:focus-within {
+    scrollbar-color: var(--color-slate-300) transparent;
+}
+/* Mode ikon saja: tanpa scrollbar (tetap bisa digulir) agar ikon tetap di tengah. */
+@media (min-width: 64rem) {
+    .sidebar-collapsed .sidebar-scroll {
+        scrollbar-width: none;
+        scrollbar-gutter: auto;
+    }
+}
+
 /* Bar progres tipis di atas layar saat halaman dimuat (resources/js/ui.js). */
 #page-progress {
     position: fixed;
