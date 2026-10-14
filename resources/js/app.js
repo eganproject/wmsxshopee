@@ -109,7 +109,15 @@ Alpine.data('sidebarTips', () => ({
         this.$el.addEventListener('focusin', show);
         this.$el.addEventListener('mouseleave', hide);
         this.$el.addEventListener('focusout', hide);
-        this.$el.querySelector('nav')?.addEventListener('scroll', hide);
+        const nav = this.$el.querySelector('nav');
+        let scrollTimer;
+        nav?.addEventListener('scroll', () => {
+            hide();
+            // Thumb scrollbar tampil sebentar saat menu digulir, lalu memudar lagi.
+            nav.classList.add('is-scrolling');
+            clearTimeout(scrollTimer);
+            scrollTimer = setTimeout(() => nav.classList.remove('is-scrolling'), 800);
+        }, { passive: true });
     },
 }));
 
