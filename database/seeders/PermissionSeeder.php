@@ -25,7 +25,7 @@ class PermissionSeeder extends Seeder
             'receipts.view', 'receipts.create', 'receipts.receive', 'receipts.delete',
             'sales.view', 'sales.create', 'sales.confirm', 'sales.fulfill', 'sales.skip_scan', 'sales.cancel', 'sales.delete',
             'returns.view', 'returns.create', 'returns.receive', 'returns.delete',
-            'damaged.view', 'damaged.move', 'damaged.return', 'damaged.dispose', 'damaged.repair', 'damaged.assemble',
+            'damaged.view', 'damaged.move', 'damaged.return', 'damaged.dispose', 'damaged.repair', 'damaged.assemble', 'damaged.approve',
             'opname.view', 'opname.create', 'opname.post', 'opname.delete', 'reports.view',
             'activity.view', 'shopee.view', 'shopee.mapping', 'shopee.sync',
         ],

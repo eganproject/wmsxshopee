@@ -126,7 +126,7 @@ Route::middleware(['auth', 'active'])->group(function () {
         // Stok rusak per gudang, terpisah dari stok jual. Masuk dari penerimaan, retur
         // penjualan atau Pindah ke Rusak; keluar lewat retur ke supplier, pemusnahan,
         // perbaikan (kembali ke stok baik) atau rakit / campur. Hak buat dicek per jenis
-        // di controller; dokumen tidak bisa diubah/dihapus.
+        // di controller. Draft bisa diubah/dihapus; stok berubah saat disetujui.
         Route::middleware('can:damaged.view')->group(function () {
             Route::get('damaged', [DamagedStockController::class, 'index'])->name('damaged.index');
             Route::get('damaged/ledger', [DamagedStockController::class, 'ledger'])->name('damaged.ledger');
@@ -134,6 +134,10 @@ Route::middleware(['auth', 'active'])->group(function () {
             Route::get('damaged/documents/create', [DamagedDocumentController::class, 'create'])->name('damaged.documents.create');
             Route::post('damaged/documents', [DamagedDocumentController::class, 'store'])->name('damaged.documents.store');
             Route::get('damaged/documents/{document}', [DamagedDocumentController::class, 'show'])->name('damaged.documents.show');
+            Route::get('damaged/documents/{document}/edit', [DamagedDocumentController::class, 'edit'])->name('damaged.documents.edit');
+            Route::put('damaged/documents/{document}', [DamagedDocumentController::class, 'update'])->name('damaged.documents.update');
+            Route::delete('damaged/documents/{document}', [DamagedDocumentController::class, 'destroy'])->name('damaged.documents.destroy');
+            Route::post('damaged/documents/{document}/approve', [DamagedDocumentController::class, 'approve'])->middleware('can:damaged.approve')->name('damaged.documents.approve');
         });
 
         // Stock opname: lembar hitung draft diisi hasil hitung, lalu diposting

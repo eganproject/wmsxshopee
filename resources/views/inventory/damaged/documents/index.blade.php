@@ -26,6 +26,12 @@
                     <option value="{{ $value }}" @selected(request('type') === $value)>{{ $meta['label'] }}</option>
                 @endforeach
             </select>
+            <select name="status" class="form-input lg:w-36" onchange="this.form.submit()">
+                <option value="">Semua status</option>
+                @foreach (\App\Models\DamagedDocument::STATUSES as $value => $meta)
+                    <option value="{{ $value }}" @selected(request('status') === $value)>{{ $meta['label'] }}</option>
+                @endforeach
+            </select>
             <select name="warehouse" class="form-input lg:w-36" onchange="this.form.submit()">
                 <option value="">Semua gudang</option>
                 @foreach ($warehouses as $warehouse)
@@ -36,7 +42,7 @@
             <input type="date" name="to" value="{{ request('to') }}" class="form-input lg:w-36" title="Sampai tanggal">
             <div class="flex gap-2">
                 <button type="submit" class="btn-secondary"><x-heroicon-o-funnel class="size-5" /> Filter</button>
-                @if (request()->hasAny(['search', 'type', 'warehouse', 'from', 'to']))
+                @if (request()->hasAny(['search', 'type', 'status', 'warehouse', 'from', 'to']))
                     <a href="{{ route('inventory.damaged.documents.index') }}" class="btn-icon" title="Reset filter"><x-heroicon-o-x-mark class="size-5" /></a>
                 @endif
             </div>
@@ -54,6 +60,7 @@
                         <th class="h-8 px-4 py-0 font-normal">Referensi</th>
                         <th class="h-8 px-4 py-0 text-right font-normal">Baris</th>
                         <th class="h-8 px-4 py-0 text-right font-normal">Total Qty</th>
+                        <th class="h-8 px-4 py-0 font-normal">Status</th>
                         <th class="h-8 px-4 py-0 font-normal">Dibuat oleh</th>
                         <th class="h-8 px-4 py-0 text-right font-normal">Aksi</th>
                     </tr>
@@ -71,9 +78,17 @@
                             <td class="px-4 py-2.5 text-slate-600">{{ $document->reference ?? '—' }}</td>
                             <td class="px-4 py-2.5 text-right tabular-nums text-slate-700">{{ $document->items_count }}</td>
                             <td class="px-4 py-2.5 text-right tabular-nums text-slate-700">{{ number_format((int) $document->items_sum_qty, 0, ',', '.') }}</td>
+                            <td class="px-4 py-2.5"><x-damaged.status-badge :document="$document" /></td>
                             <td class="px-4 py-2.5 text-slate-600">{{ $document->creator?->name ?? '—' }}</td>
                             <td class="px-4 py-2.5">
-                                <div class="flex justify-end">
+                                <div class="flex justify-end gap-1">
+                                    @if ($document->isDraft())
+                                        @can(\App\Models\DamagedDocument::typeMeta($document->type, 'permission'))
+                                            <a href="{{ route('inventory.damaged.documents.edit', $document) }}" class="btn-icon" title="Edit">
+                                                <x-heroicon-o-pencil-square class="size-5" />
+                                            </a>
+                                        @endcan
+                                    @endif
                                     <a href="{{ route('inventory.damaged.documents.show', $document) }}" class="btn-icon" title="Lihat detail">
                                         <x-heroicon-o-eye class="size-5" />
                                     </a>
@@ -81,7 +96,7 @@
                             </td>
                         </tr>
                     @empty
-                        <x-empty-state colspan="10" icon="heroicon-o-document-text" title="Belum ada dokumen barang rusak" description="Alokasikan stok rusak lewat tombol Catat Dokumen." :ignore="['warehouse']" />
+                        <x-empty-state colspan="11" icon="heroicon-o-document-text" title="Belum ada dokumen barang rusak" description="Alokasikan stok rusak lewat tombol Catat Dokumen." :ignore="['warehouse']" />
                     @endforelse
                 </tbody>
             </table>

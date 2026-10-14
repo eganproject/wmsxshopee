@@ -12,7 +12,8 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 /**
- * Satu-satunya pintu perubahan stok rusak. Saldo rusak per varian per gudang
+ * Satu-satunya pintu perubahan stok rusak. Dokumen barang rusak dibuat sebagai
+ * draft dulu; stok baru berubah saat disetujui. Saldo rusak per varian per gudang
  * selalu diubah bersama kartu stok rusak dalam satu transaksi; bila dokumen
  * juga menyentuh stok baik (pindah ke rusak, perbaikan, rakit), mutasinya
  * dicatat lewat StockService di transaksi yang sama.
@@ -57,35 +58,61 @@ class DamagedStockService
     }
 
     /**
-     * Simpan dokumen barang rusak beserta perubahan stok rusak dan stok baiknya.
+     * Simpan draft dokumen barang rusak. Stok belum berubah sampai disetujui.
      *
      * @param  array{type: string, warehouse_id: int, document_date: string, supplier_id?: ?int, recipient?: ?string, reference?: ?string, notes?: ?string, created_by?: ?int}  $header
-     * @param  array<int, array{role?: string, source?: string, product_variant_id: int, from_location_id?: ?int, to_location_id?: ?int, qty: int, notes?: ?string}>  $items  indeks = indeks baris di form
-     *
-     * @throws ValidationException bila stok rusak atau stok baik tidak cukup
+     * @param  array<int, array{role?: string, source?: string, product_variant_id: int, from_location_id?: ?int, to_location_id?: ?int, qty: int, notes?: ?string}>  $items  urut sesuai baris di form
      */
-    public function record(array $header, array $items): DamagedDocument
+    public function draft(array $header, array $items): DamagedDocument
     {
         return DB::transaction(function () use ($header, $items) {
-            $this->lockVariants(array_column($items, 'product_variant_id'));
-
             $document = DamagedDocument::create([
                 ...$header,
+                'status' => 'draft',
                 'number' => $this->nextNumber($header['type']),
             ]);
 
+            $this->fillItems($document, $items);
+
+            return $document;
+        }, self::ATTEMPTS);
+    }
+
+    /**
+     * Ganti isi draft. Jenis dokumen tidak berubah.
+     *
+     * @param  array<string, mixed>  $header
+     * @param  array<int, array<string, mixed>>  $items
+     */
+    public function updateDraft(DamagedDocument $document, array $header, array $items): void
+    {
+        DB::transaction(function () use ($document, $header, $items) {
+            $this->assertDraft(DamagedDocument::whereKey($document->id)->lockForUpdate()->firstOrFail());
+
+            $document->update(collect($header)->except(['type', 'created_by'])->all());
+            $document->items()->delete();
+            $this->fillItems($document, $items);
+        }, self::ATTEMPTS);
+    }
+
+    /**
+     * Setujui draft: stok rusak & stok baik berubah, dokumen terkunci.
+     *
+     * @throws ValidationException bila sudah disetujui, atau stok rusak / stok baik tidak cukup
+     */
+    public function approve(DamagedDocument $document, ?int $userId): DamagedDocument
+    {
+        return DB::transaction(function () use ($document, $userId) {
+            $document = DamagedDocument::whereKey($document->id)->lockForUpdate()->firstOrFail();
+            $this->assertDraft($document);
+
+            $document->load('items');
+            $this->lockVariants($document->items->pluck('product_variant_id')->all());
+
             /** @var array<int, array{0: DamagedDocumentItem, 1: int}> $created [baris, indeks form] */
-            $created = [];
+            $created = $document->items->values()->map(fn ($item, $index) => [$item, $index])->all();
 
-            foreach ($items as $index => $row) {
-                $created[] = [$document->items()->create([
-                    'role' => $row['role'] ?? 'input',
-                    'source' => $row['source'] ?? 'damaged',
-                    ...collect($row)->except(['role', 'source'])->all(),
-                ]), $index];
-            }
-
-            $this->recordGoodStock($document, $created);
+            $this->recordGoodStock($document, $created, $userId);
 
             foreach ($created as [$item, $index]) {
                 $delta = $this->damagedDelta($document->type, $item);
@@ -103,12 +130,46 @@ class DamagedStockService
                     'reference' => $document->number,
                     'movement_date' => $document->document_date,
                     'notes' => $item->notes,
-                    'created_by' => $document->created_by,
+                    'created_by' => $userId,
                 ], $delta, $index);
             }
 
+            $document->update(['status' => 'approved', 'approved_by' => $userId, 'approved_at' => now()]);
+
             return $document;
         }, self::ATTEMPTS);
+    }
+
+    /**
+     * Buat dan langsung setujui (dipakai tes & proses otomatis).
+     *
+     * @param  array<string, mixed>  $header
+     * @param  array<int, array<string, mixed>>  $items
+     */
+    public function record(array $header, array $items): DamagedDocument
+    {
+        return DB::transaction(fn () => $this->approve($this->draft($header, $items), $header['created_by'] ?? null), self::ATTEMPTS);
+    }
+
+    private function assertDraft(DamagedDocument $document): void
+    {
+        if (! $document->isDraft()) {
+            throw ValidationException::withMessages(['document' => "{$document->number} sudah disetujui sebelumnya."]);
+        }
+    }
+
+    /**
+     * @param  array<int, array<string, mixed>>  $items
+     */
+    private function fillItems(DamagedDocument $document, array $items): void
+    {
+        foreach (array_values($items) as $row) {
+            $document->items()->create([
+                'role' => $row['role'] ?? 'input',
+                'source' => $row['source'] ?? 'damaged',
+                ...collect($row)->except(['role', 'source'])->all(),
+            ]);
+        }
     }
 
     /** Perubahan saldo rusak yang ditimbulkan satu baris dokumen. */
@@ -127,7 +188,7 @@ class DamagedStockService
      *
      * @param  array<int, array{0: DamagedDocumentItem, 1: int}>  $created
      */
-    private function recordGoodStock(DamagedDocument $document, array $created): void
+    private function recordGoodStock(DamagedDocument $document, array $created, ?int $userId): void
     {
         $movementType = ['intake' => 'damage', 'repair' => 'repair', 'assembly' => 'assembly'][$document->type] ?? null;
 
@@ -166,7 +227,7 @@ class DamagedStockService
                 'movement_date' => $document->document_date->toDateString(),
                 'reference' => $document->number,
                 'notes' => $document->typeLabel().($document->notes ? ' · '.$document->notes : ''),
-                'created_by' => $document->created_by,
+                'created_by' => $userId,
             ], $rows);
         } catch (ValidationException $e) {
             $messages = collect($e->errors())->mapWithKeys(function ($messages, $key) use ($formIndex) {

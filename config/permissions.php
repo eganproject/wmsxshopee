@@ -73,11 +73,12 @@ return [
             'icon' => 'heroicon-o-exclamation-triangle',
             'actions' => [
                 'view' => 'Lihat stok rusak, kartu stok rusak & dokumen barang rusak',
-                'move' => 'Pindahkan stok baik ke stok rusak',
-                'return' => 'Retur barang rusak ke supplier / pihak lain',
-                'dispose' => 'Catat pemusnahan barang rusak',
-                'repair' => 'Catat perbaikan (barang rusak kembali ke stok baik)',
-                'assemble' => 'Rakit / campur barang rusak jadi barang baru',
+                'move' => 'Buat draft pindah stok baik ke stok rusak',
+                'return' => 'Buat draft retur barang rusak ke supplier / pihak lain',
+                'dispose' => 'Buat draft pemusnahan barang rusak',
+                'repair' => 'Buat draft perbaikan (barang rusak kembali ke stok baik)',
+                'assemble' => 'Buat draft rakit / campur barang rusak jadi barang baru',
+                'approve' => 'Setujui dokumen barang rusak (stok berubah)',
             ],
         ],
 

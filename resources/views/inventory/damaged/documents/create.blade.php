@@ -3,7 +3,12 @@
     $damagedOut = in_array($type, ['supplier_return', 'disposal', 'repair'], true);
     $blankInput = ['role' => 'input', 'source' => $type === 'intake' ? 'good' : 'damaged', 'product_variant_id' => '', 'from_location_id' => '', 'to_location_id' => '', 'qty' => '', 'notes' => ''];
     $blankOutput = [...$blankInput, 'role' => 'output', 'source' => 'good'];
-    $items = collect(old('items', []))->map(fn ($row) => [...($row['role'] ?? 'input') === 'output' ? $blankOutput : $blankInput, ...$row])->values();
+    $existing = $document?->items->map(fn ($item) => [
+        'role' => $item->role, 'source' => $item->source, 'product_variant_id' => (string) $item->product_variant_id,
+        'from_location_id' => (string) ($item->from_location_id ?? ''), 'to_location_id' => (string) ($item->to_location_id ?? ''),
+        'qty' => (string) $item->qty, 'notes' => $item->notes ?? '',
+    ])->all() ?? [];
+    $items = collect(old('items', $existing))->map(fn ($row) => [...($row['role'] ?? 'input') === 'output' ? $blankOutput : $blankInput, ...$row])->values();
 
     if ($items->isEmpty()) {
         $items = collect([[...$blankInput, 'product_variant_id' => (string) ($prefill['variant'] ?? '')]]);
@@ -14,22 +19,23 @@
 
     $rowErrors = collect($errors->getMessages())->filter(fn ($messages, $key) => str_starts_with($key, 'items.'))->map(fn ($messages) => $messages[0]);
     $defaultWarehouse = old('warehouse_id', $prefill['warehouse'] ?? ($warehouses->count() === 1 ? $warehouses->first()->id : ''));
+    $title = $document ? "Edit {$document->number}" : 'Catat '.$meta['label'];
 @endphp
 
-<x-layouts.app :title="'Catat '.$meta['label']">
+<x-layouts.app :title="$title">
     <x-slot:breadcrumb>
         <x-heroicon-o-home class="size-4" />
         <x-heroicon-o-chevron-right class="size-3.5" />
         <a href="{{ route('inventory.damaged.index') }}" class="hover:text-slate-700">Stok Rusak</a>
         <x-heroicon-o-chevron-right class="size-3.5" />
-        <span class="font-medium text-slate-700">{{ $meta['label'] }}</span>
+        <span class="font-medium text-slate-700">{{ $document ? $document->number : $meta['label'] }}</span>
     </x-slot:breadcrumb>
 
-    <x-page-header :title="'Catat '.$meta['label']" :description="$meta['hint']" :icon="$meta['icon']">
-        <a href="{{ route('inventory.damaged.index', array_filter(['warehouse' => $prefill['warehouse'] ?? null])) }}" class="btn-secondary"><x-heroicon-o-arrow-left class="size-5" /> Kembali</a>
+    <x-page-header :title="$title" :description="$meta['hint']" :icon="$meta['icon']">
+        <a href="{{ $document ? route('inventory.damaged.documents.show', $document) : route('inventory.damaged.index', array_filter(['warehouse' => $prefill['warehouse'] ?? null])) }}" class="btn-secondary"><x-heroicon-o-arrow-left class="size-5" /> Kembali</a>
     </x-page-header>
 
-    <form method="POST" action="{{ route('inventory.damaged.documents.store') }}" data-dirty-guard class="space-y-6"
+    <form method="POST" action="{{ $document ? route('inventory.damaged.documents.update', $document) : route('inventory.damaged.documents.store') }}" data-dirty-guard class="space-y-6"
           x-data="{
               warehouse: @js((string) $defaultWarehouse),
               items: @js($items),
@@ -79,6 +85,9 @@
               },
           }">
         @csrf
+        @if ($document)
+            @method('PUT')
+        @endif
         <input type="hidden" name="type" value="{{ $type }}">
 
         <div class="card">
@@ -95,18 +104,18 @@
                         <option value="{{ $warehouse->id }}">{{ $warehouse->code }} · {{ $warehouse->name }}</option>
                     @endforeach
                 </x-select>
-                <x-input name="document_date" type="date" label="Tanggal" :value="now()->toDateString()" :max="now()->toDateString()" required />
-                <x-input name="reference" label="Referensi" :placeholder="$type === 'supplier_return' ? 'cth. no. surat jalan retur' : 'opsional'" />
+                <x-input name="document_date" type="date" label="Tanggal" :value="$document?->document_date->toDateString() ?? now()->toDateString()" :max="now()->toDateString()" required />
+                <x-input name="reference" label="Referensi" :value="$document?->reference" :placeholder="$type === 'supplier_return' ? 'cth. no. surat jalan retur' : 'opsional'" />
                 @if ($type === 'supplier_return')
                     <x-select name="supplier_id" label="Supplier" hint="Kosongkan bila diretur ke pihak lain.">
                         <option value="">Bukan supplier / pihak lain</option>
                         @foreach ($suppliers as $supplier)
-                            <option value="{{ $supplier->id }}" @selected(old('supplier_id') == $supplier->id)>{{ $supplier->code }} · {{ $supplier->name }}</option>
+                            <option value="{{ $supplier->id }}" @selected(old('supplier_id', $document?->supplier_id) == $supplier->id)>{{ $supplier->code }} · {{ $supplier->name }}</option>
                         @endforeach
                     </x-select>
-                    <x-input name="recipient" label="Penerima Lain" placeholder="cth. distributor, service center" hint="Diisi bila tidak memilih supplier." class="sm:col-span-2" />
+                    <x-input name="recipient" label="Penerima Lain" :value="$document?->recipient" placeholder="cth. distributor, service center" hint="Diisi bila tidak memilih supplier." class="sm:col-span-2" />
                 @endif
-                <x-textarea name="notes" label="Catatan" rows="2" class="sm:col-span-3" />
+                <x-textarea name="notes" label="Catatan" rows="2" class="sm:col-span-3" :value="$document?->notes" />
             </div>
         </div>
 
@@ -311,11 +320,14 @@
 
         <div class="sticky bottom-0 flex items-center justify-between gap-3 border-t border-slate-200 bg-slate-50/90 py-4 backdrop-blur">
             <p class="hidden items-center gap-1.5 text-xs text-slate-500 sm:flex">
-                <x-heroicon-o-lock-closed class="size-4" /> Setelah disimpan, dokumen tidak bisa diubah.
+                <x-heroicon-o-information-circle class="size-4" /> Stok baru berubah setelah dokumen disetujui. Draft masih bisa diubah.
             </p>
-            <div class="flex gap-3">
-                <a href="{{ route('inventory.damaged.index') }}" class="btn-secondary">Batal</a>
-                <button type="submit" class="btn-primary"><x-heroicon-o-check class="size-5" /> Simpan {{ $meta['label'] }}</button>
+            <div class="flex gap-2">
+                <a href="{{ $document ? route('inventory.damaged.documents.show', $document) : route('inventory.damaged.index') }}" class="btn-secondary">Batal</a>
+                <button type="submit" name="action" value="draft" class="btn-secondary"><x-heroicon-o-document class="size-5" /> Simpan Draft</button>
+                @can('damaged.approve')
+                    <button type="submit" name="action" value="approve" class="btn-primary"><x-heroicon-o-check class="size-5" /> Simpan & Setujui</button>
+                @endcan
             </div>
         </div>
     </form>
