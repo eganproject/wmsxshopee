@@ -72,11 +72,24 @@
                     <option value="{{ $value }}" @selected(request('shipment') === $value)>{{ $meta['label'] }}</option>
                 @endforeach
             </select>
+            <select name="shopee" class="form-input lg:w-52" onchange="this.form.submit()">
+                <option value="">Semua status Shopee</option>
+                <optgroup label="Perlu dicek">
+                    <option value="courier_pending" @selected(request('shopee') === 'courier_pending')>Sudah serah terima, belum discan kurir</option>
+                    <option value="courier_overdue" @selected(request('shopee') === 'courier_overdue')>Belum discan kurir &gt; {{ config('alerts.courier_scan_hours') }} jam</option>
+                    <option value="shopee_ahead" @selected(request('shopee') === 'shopee_ahead')>Dikirim di Shopee, belum di gudang</option>
+                </optgroup>
+                <optgroup label="Status di Shopee">
+                    @foreach (\App\Models\SalesOrder::SHOPEE_STATUSES as $value => $meta)
+                        <option value="{{ $value }}" @selected(request('shopee') === $value)>{{ $meta['label'] }}</option>
+                    @endforeach
+                </optgroup>
+            </select>
             <input type="date" name="from" value="{{ request('from') }}" class="form-input lg:w-40" title="Dari tanggal">
             <input type="date" name="to" value="{{ request('to') }}" class="form-input lg:w-40" title="Sampai tanggal">
             <div class="flex gap-2">
                 <button type="submit" class="btn-secondary"><x-heroicon-o-funnel class="size-5" /> Filter</button>
-                @if (request()->hasAny(['search', 'channel', 'warehouse', 'shipment', 'from', 'to']))
+                @if (request()->hasAny(['search', 'channel', 'warehouse', 'shipment', 'shopee', 'from', 'to']))
                     <a href="{{ route('sales.orders.index', request()->only('status')) }}" class="btn-icon" title="Reset filter"><x-heroicon-o-x-mark class="size-5" /></a>
                 @endif
             </div>
@@ -156,7 +169,10 @@
                                     <span class="mt-0.5 inline-block rounded-full bg-amber-50 px-2 py-0.5 text-[11px] text-amber-700">Pengiriman belum diatur</span>
                                 @endif
                             </td>
-                            <td class="px-4 py-2.5"><x-sales.status-badge :status="$order->status" /></td>
+                            <td class="px-4 py-2.5">
+                                <x-sales.status-badge :status="$order->status" />
+                                <x-sales.shopee-status :order="$order" />
+                            </td>
                             <td class="px-4 py-2.5">
                                 <div class="flex justify-end gap-1">
                                     @if ($order->isEditable())

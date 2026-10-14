@@ -100,7 +100,15 @@
             <div>
                 <p>
                     Pesanan Shopee <span class="font-mono">{{ $order->external_number }}</span>
-                    · status di Shopee <span class="font-medium">{{ $order->shopee_order_status ?? '—' }}</span>
+                    · status di Shopee <span class="font-medium">{{ $order->shopeeStatusLabel() ?? '—' }}</span>
+                    @if ($order->shopee_shipped_at)
+                        · diterima kurir {{ $order->shopee_shipped_at->translatedFormat('d M Y H:i') }}
+                    @elseif ($order->awaitingCourierScan())
+                        · <span class="font-medium">belum discan kurir</span> (serah terima {{ $order->shipped_at?->diffForHumans() }})
+                    @endif
+                    @if ($order->shipped_automatically)
+                        · dikirim otomatis mengikuti status Shopee
+                    @endif
                     @if ($order->shopee_synced_at)
                         · disinkron {{ $order->shopee_synced_at->diffForHumans() }}
                     @endif

@@ -10,9 +10,12 @@ use App\Models\SalesOrder;
 use App\Models\SalesReturn;
 use App\Models\ShopeeSetting;
 use App\Models\ShopeeShop;
+use App\Models\Stock;
+use App\Models\StockMovement;
 use App\Models\Unit;
 use App\Models\User;
 use App\Models\Warehouse;
+use App\Services\AlertService;
 use App\Services\SalesOrderService;
 use App\Services\StockService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -266,6 +269,83 @@ class ShopeeSyncTest extends TestCase
         Http::assertSent(fn (Request $r) => str_contains($r->url(), 'get_tracking_number') && $r['order_sn'] === 'D2' && $r['package_number'] === 'PKG-D2');
     }
 
+    private function resync(array $orders): void
+    {
+        Http::swap(new Factory);
+        Http::preventStrayRequests();
+        $this->fakeOrders($orders);
+        $this->artisan('shopee:sync --only=orders')->assertSuccessful();
+    }
+
+    public function test_shipped_in_shopee_ships_order_automatically_and_takes_stock_out(): void
+    {
+        $this->fakeOrders([$this->order('E1', 'READY_TO_SHIP', [$this->line(11, 101, 2)])]);
+        $this->artisan('shopee:sync --only=orders')->assertSuccessful();
+        $this->assertSame(8, $this->available($this->kaosM));
+
+        $this->resync([$this->order('E1', 'SHIPPED', [$this->line(11, 101, 2)])]);
+
+        $order = SalesOrder::where('external_number', 'E1')->firstOrFail();
+        $this->assertSame('shipped', $order->status);
+        $this->assertTrue($order->shipped_automatically);
+        $this->assertNotNull($order->shopee_shipped_at);
+        $this->assertNotNull($order->stock_movement_id);
+        $this->assertNull($order->shopee_sync_error);
+        $this->assertSame(8, $this->available($this->kaosM));
+        $this->assertSame(8, (int) Stock::where('product_variant_id', $this->kaosM->id)->sum('qty'), 'Stok fisik berkurang 2.');
+
+        // Sinkron berikutnya (Selesai) tidak mengirim dua kali.
+        $this->resync([$this->order('E1', 'COMPLETED', [$this->line(11, 101, 2)])]);
+        $this->assertSame(1, StockMovement::where('reference', $order->number)->count());
+        $this->assertSame('COMPLETED', $order->fresh()->shopee_order_status);
+    }
+
+    public function test_handed_over_order_is_flagged_until_courier_scan_reaches_shopee(): void
+    {
+        $this->fakeOrders([$this->order('F1', 'PROCESSED', [$this->line(11, 101, 1)])]);
+        $this->artisan('shopee:sync --only=orders')->assertSuccessful();
+
+        $order = SalesOrder::where('external_number', 'F1')->firstOrFail();
+        $service = app(SalesOrderService::class);
+        $service->pick($order, $service->suggestPicks($order));
+        $service->pack($order);
+        $service->ship($order, [], null);
+        SalesOrder::whereKey($order->id)->update(['shipped_at' => now()->subHours(30)]);
+
+        $order->refresh();
+        $this->assertTrue($order->awaitingCourierScan());
+        $this->assertTrue($order->courierScanOverdue());
+        $this->assertSame([$order->id], SalesOrder::shopeeFilter('courier_overdue')->pluck('id')->all());
+
+        $admin = User::where('email', 'superadmin@wms.local')->firstOrFail();
+        $this->actingAs($admin)->get(route('sales.orders.index', ['shopee' => 'courier_pending']))
+            ->assertOk()->assertSee('Belum discan kurir')->assertSee($order->number);
+        $this->assertSame(1, app(AlertService::class)->groups($admin)['courier_pending']['count']);
+
+        $this->resync([$this->order('F1', 'SHIPPED', [$this->line(11, 101, 1)])]);
+
+        $order->refresh();
+        $this->assertFalse($order->awaitingCourierScan());
+        $this->assertNotNull($order->shopee_shipped_at);
+        $this->assertFalse($order->shipped_automatically);
+        $this->actingAs($admin)->get(route('sales.orders.index'))->assertOk()->assertSee('Diterima kurir')->assertSee('Shopee: Dikirim');
+    }
+
+    public function test_shipped_in_shopee_without_stock_is_flagged(): void
+    {
+        $this->fakeOrders([$this->order('G1', 'READY_TO_SHIP', [$this->line(11, 102, 9)])]);
+        $this->artisan('shopee:sync --only=orders')->assertSuccessful();
+        $this->assertSame('draft', SalesOrder::where('external_number', 'G1')->value('status'));
+
+        $this->resync([$this->order('G1', 'SHIPPED', [$this->line(11, 102, 9)])]);
+
+        $order = SalesOrder::where('external_number', 'G1')->firstOrFail();
+        $this->assertSame('draft', $order->status);
+        $this->assertTrue($order->shopeeAhead());
+        $this->assertStringContainsString('Sudah dikirim di Shopee', $order->shopee_sync_error);
+        $this->assertSame([$order->id], SalesOrder::shopeeFilter('shopee_ahead')->pluck('id')->all());
+    }
+
     public function test_stock_push_sends_available_stock_including_bundles(): void
     {
         // Pesanan terkonfirmasi mencadangkan 3 KAOS-M.
@@ -340,7 +420,7 @@ class ShopeeSyncTest extends TestCase
         $this->post("/shopee/shops/{$this->shop->id}/sync")->assertSessionHas('success');
 
         $order = SalesOrder::where('external_number', 'H1')->firstOrFail();
-        $this->get("/sales/orders/{$order->id}")->assertOk()->assertSee('READY_TO_SHIP');
+        $this->get("/sales/orders/{$order->id}")->assertOk()->assertSee('Siap Dikirim');
         $this->get('/shopee/shops')->assertOk()->assertSee('Sinkron');
     }
 }

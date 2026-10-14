@@ -257,6 +257,27 @@ class SalesOrderService
         });
     }
 
+    /**
+     * Shopee melaporkan paket sudah di tangan kurir padahal di gudang belum
+     * diserahkan: selesaikan langkah yang tersisa (picking sesuai usulan bin,
+     * kemas, kirim) supaya stok keluar dan status ikut Shopee.
+     *
+     * @throws ValidationException
+     */
+    public function shipFromMarketplace(SalesOrder $order): void
+    {
+        DB::transaction(function () use ($order) {
+            if ($order->fresh()->hasStatus('confirmed')) {
+                $this->pick($order, $this->suggestPicks($order->fresh()));
+            }
+            if ($order->fresh()->hasStatus('picked')) {
+                $this->pack($order);
+            }
+
+            $this->ship($order, ['shipped_automatically' => true], null);
+        });
+    }
+
     /** Batal dari status mana pun sebelum dikirim; cadangan stok otomatis lepas. */
     public function cancel(SalesOrder $order, ?string $reason): void
     {
