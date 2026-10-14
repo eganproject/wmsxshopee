@@ -55,6 +55,7 @@ function baseSelectSettings(select) {
             // Wrapper mewarisi kelas <select> (lebar, dll.), tapi kotaknya digambar oleh .ts-control.
             this.wrapper.classList.remove('form-input', 'form-input-error');
             mirrorState(this);
+            trackQuery(this);
         },
     };
 }
@@ -84,6 +85,17 @@ function mirrorState(ts) {
     };
     sync();
     new MutationObserver(sync).observe(ts.input, { attributes: true, attributeFilter: ['class'] });
+}
+
+/*
+ * Tandai wrapper dengan .has-query selama kotak ketik berisi teks. CSS memakainya untuk
+ * menyembunyikan nilai terpilih hanya saat pengguna sedang mencari, bukan sekadar fokus.
+ */
+function trackQuery(ts) {
+    const sync = () => ts.wrapper.classList.toggle('has-query', ts.control_input.value !== '');
+    ts.control_input.addEventListener('input', sync);
+    ts.control_input.addEventListener('update', sync);
+    ts.on('blur', sync);
 }
 
 export function enhanceSelect(select, extra = {}) {
