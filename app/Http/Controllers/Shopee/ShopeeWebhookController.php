@@ -5,6 +5,8 @@ namespace App\Http\Controllers\Shopee;
 use App\Http\Controllers\Controller;
 use App\Models\ShopeeSetting;
 use App\Models\ShopeeShop;
+use App\Services\Shopee\ShopeeAuth;
+use App\Services\Shopee\ShopeeClient;
 use App\Services\Shopee\ShopeeException;
 use App\Services\Shopee\ShopeeOrderSync;
 use Illuminate\Http\Request;
@@ -13,8 +15,8 @@ use Illuminate\Support\Facades\Log;
 
 /**
  * Push Mechanism Shopee: Shopee mengirim POST ke URL ini saat status pesanan
- * berubah (code 3) atau resi terbit (code 4). Tanda tangan di header
- * Authorization = HMAC-SHA256(partner_key, url + "|" + body).
+ * berubah (code 3), resi terbit (code 4) atau otorisasi toko dicabut (code 2).
+ * Tanda tangan di header Authorization = HMAC-SHA256(partner_key, url + "|" + body).
  * Daftarkan URL ini di console app Shopee (Push Mechanism) bila Optima bisa
  * diakses dari internet; tanpa itu sinkron terjadwal tetap berjalan.
  */
@@ -23,7 +25,7 @@ class ShopeeWebhookController extends Controller
     public function __invoke(Request $request): Response
     {
         $payload = $request->json()->all();
-        $shops = ShopeeShop::where('shop_id', (int) ($payload['shop_id'] ?? 0))->get();
+        $shops = ShopeeShop::where('shop_id', (int) ($payload['shop_id'] ?? $payload['data']['shop_id'] ?? 0))->get();
         $shop = $shops->first(fn (ShopeeShop $shop) => $this->verified($request, $shop->environment));
 
         // Push untuk toko tak dikenal / tanda tangan salah diabaikan; Shopee tetap diberi 200
@@ -34,6 +36,22 @@ class ShopeeWebhookController extends Controller
 
         $code = (int) ($payload['code'] ?? 0);
         $data = $payload['data'] ?? [];
+
+        // Otorisasi dicabut: pastikan lewat get_shop_info dulu, baru tandai perlu otorisasi ulang.
+        if ($code === 2) {
+            dispatch(function () use ($shop) {
+                try {
+                    app(ShopeeAuth::class)->syncShopInfo(ShopeeClient::make($shop->environment), $shop);
+                } catch (ShopeeException $e) {
+                    $shop->update([
+                        'last_error' => 'Otorisasi toko dicabut dari Shopee. Hubungkan ulang toko. ('.$e->getMessage().')',
+                        'status' => $e->needsReauthorization() ? 'expired' : $shop->status,
+                    ]);
+                }
+            })->afterResponse();
+
+            return response()->noContent(200);
+        }
         $orderSn = (string) ($data['ordersn'] ?? $data['order_sn'] ?? '');
 
         if ($orderSn !== '' && $shop->isSyncable() && in_array($code, [3, 4], true)) {

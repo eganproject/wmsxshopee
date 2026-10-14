@@ -51,6 +51,8 @@ class SalesReturn extends Model
         'external_return_number',
         'shopee_shop_id',
         'shopee_return_status',
+        'tiktok_shop_id',
+        'tiktok_return_status',
         'notes',
         'stock_movement_id',
         'created_by',

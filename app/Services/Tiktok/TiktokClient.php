@@ -183,7 +183,7 @@ class TiktokClient
     private function ensureConfigured(): void
     {
         if (! $this->isConfigured()) {
-            throw new TiktokException('App Key & App Secret TikTok Shop belum diisi di Pengaturan TikTok.');
+            throw new TiktokException('App Key & App Secret TikTok Shop belum diisi di Pengaturan Marketplace › TikTok.');
         }
     }
 }

@@ -7,7 +7,7 @@
 |
 | Optima memakai app jenis "Seller In House System": app milik seller sendiri
 | untuk toko-toko miliknya, bukan app pihak ketiga (ISV). Partner ID & Key
-| diisi dari halaman Integrasi › Pengaturan Shopee dan disimpan terenkripsi.
+| diisi dari halaman Integrasi › Pengaturan Marketplace (tab Shopee) dan disimpan terenkripsi.
 |
 | Alur otorisasi toko:
 |   1. Buka {host}/api/v2/shop/auth_partner (ditandatangani partner key).

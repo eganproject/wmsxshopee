@@ -190,7 +190,7 @@ class ShopeeClient
         if (! $this->isConfigured()) {
             $label = ShopeeSetting::ENVIRONMENTS[$this->environment] ?? $this->environment;
 
-            throw new ShopeeException("Partner ID & Partner Key Shopee untuk {$label} belum diisi di Pengaturan Shopee.");
+            throw new ShopeeException("Partner ID & Partner Key Shopee untuk {$label} belum diisi di Pengaturan Marketplace › Shopee.");
         }
     }
 }

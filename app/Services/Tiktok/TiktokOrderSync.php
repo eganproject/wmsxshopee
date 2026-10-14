@@ -122,6 +122,7 @@ class TiktokOrderSync
             'tiktok_package_id' => $this->packageId($detail) ?? $order->tiktok_package_id,
             'tiktok_ship_by' => $this->shipBy($detail) ?? $order->tiktok_ship_by,
             'tiktok_payment' => $detail['payment'] ?? $order->tiktok_payment,
+            'tiktok_cancel_requested' => (bool) ($detail['is_buyer_request_cancel'] ?? false),
         ]);
 
         if (filled($tracking = $this->trackingNumber($detail)) && $order->status !== 'cancelled') {
@@ -137,7 +138,10 @@ class TiktokOrderSync
             return $this->cancel($order, $detail);
         }
 
-        if ($order->status !== 'draft') {
+        if ($order->tiktok_cancel_requested && $order->status !== 'shipped') {
+            $order->tiktok_sync_error = 'Pembeli mengajukan pembatalan di TikTok. Tahan pengiriman sampai ada keputusan di Seller Center.';
+        } elseif ($order->status !== 'draft') {
+            // Pengajuan batal ditolak / sudah lanjut: peringatan lama tidak berlaku lagi.
             $order->tiktok_sync_error = null;
         }
 
@@ -184,6 +188,7 @@ class TiktokOrderSync
             'tiktok_synced_at' => now(),
             'tiktok_ship_by' => $this->shipBy($detail),
             'tiktok_payment' => $detail['payment'] ?? null,
+            'tiktok_cancel_requested' => (bool) ($detail['is_buyer_request_cancel'] ?? false),
             'tracking_number' => $this->trackingNumber($detail),
             'customer_name' => mb_substr($address['name'] ?? 'Pembeli TikTok', 0, 150),
             'customer_phone' => isset($address['phone_number']) ? mb_substr($address['phone_number'], 0, 30) : null,
@@ -195,6 +200,10 @@ class TiktokOrderSync
         ]));
 
         $this->fillAndConfirm($order, $shop, $detail);
+
+        if ($order->tiktok_cancel_requested) {
+            $order->update(['tiktok_sync_error' => 'Pembeli mengajukan pembatalan di TikTok. Tahan pengiriman sampai ada keputusan di Seller Center.']);
+        }
 
         return $order;
     }
@@ -209,7 +218,7 @@ class TiktokOrderSync
         DB::transaction(fn () => $this->orders->fillLines($order, $items, $bundles));
 
         if ($unmapped) {
-            $order->update(['tiktok_sync_error' => mb_substr('SKU TikTok belum dipetakan: '.implode(', ', $unmapped).'. Petakan di Toko TikTok › Pemetaan SKU; pesanan diproses otomatis di sinkron berikutnya.', 0, 500)]);
+            $order->update(['tiktok_sync_error' => mb_substr('SKU TikTok belum dipetakan: '.implode(', ', $unmapped).'. Petakan di Toko Marketplace › Pemetaan SKU; pesanan diproses otomatis di sinkron berikutnya.', 0, 500)]);
 
             return;
         }

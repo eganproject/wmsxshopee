@@ -56,10 +56,17 @@ class ShopeeSetting extends Model
     /** URL callback yang harus didaftarkan sebagai Redirect URL di Shopee Open Platform. */
     public function callbackUrl(): string
     {
-        $path = route('shopee.callback', absolute: false);
+        return $this->publicUrl(route('shopee.callback', absolute: false));
+    }
 
-        return $this->redirect_base_url
-            ? rtrim($this->redirect_base_url, '/').$path
-            : url($path);
+    /** URL Push Mechanism (Live Push) yang didaftarkan di console app Shopee. */
+    public function webhookUrl(): string
+    {
+        return $this->publicUrl(route('shopee.webhook', absolute: false));
+    }
+
+    private function publicUrl(string $path): string
+    {
+        return $this->redirect_base_url ? rtrim($this->redirect_base_url, '/').$path : url($path);
     }
 }

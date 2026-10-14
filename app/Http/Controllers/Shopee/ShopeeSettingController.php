@@ -4,24 +4,13 @@ namespace App\Http\Controllers\Shopee;
 
 use App\Http\Controllers\Controller;
 use App\Models\ShopeeSetting;
-use App\Models\ShopeeShop;
 use App\Support\Activity;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
-use Illuminate\View\View;
 
 class ShopeeSettingController extends Controller
 {
-    public function edit(): View
-    {
-        return view('shopee.settings', [
-            'setting' => ShopeeSetting::current(),
-            'hosts' => config('shopee.hosts'),
-            'shopCount' => ShopeeShop::count(),
-        ]);
-    }
-
     public function update(Request $request): RedirectResponse
     {
         $data = $request->validate([
@@ -65,6 +54,6 @@ class ShopeeSettingController extends Controller
             Activity::record('updated', 'shopee', 'Pengaturan Shopee diubah', $setting, [], ['field' => implode(', ', $changed)]);
         }
 
-        return redirect()->route('shopee.settings.edit')->with('success', 'Pengaturan Shopee disimpan.');
+        return redirect()->route('marketplace.settings', ['tab' => 'shopee'])->with('success', 'Pengaturan Shopee disimpan.');
     }
 }

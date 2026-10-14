@@ -55,12 +55,14 @@ class ShopeeIntegrationTest extends TestCase
 
     public function test_pages_render(): void
     {
-        $this->get('/shopee/settings')->assertOk()->assertSee('Seller In House System')->assertSee(route('shopee.callback'));
-        $this->get('/shopee/shops')->assertOk()->assertSee('Isi Kredensial');
+        $this->get('/shopee/settings')->assertRedirect(route('marketplace.settings', ['tab' => 'shopee']));
+        $this->get('/shopee/shops')->assertRedirect(route('marketplace.shops', ['platform' => 'shopee']));
+        $this->get('/marketplace/settings?tab=shopee')->assertOk()->assertSee('Seller In House System')->assertSee(route('shopee.callback'))->assertSee(route('shopee.webhook'));
+        $this->get('/marketplace/shops')->assertOk()->assertSee('Isi Kredensial');
 
         $this->configure();
         $shop = $this->connectedShop();
-        $this->get('/shopee/shops')->assertOk()->assertSee('Hubungkan Toko')->assertSee('Toko Uji');
+        $this->get('/marketplace/shops')->assertOk()->assertSee('Hubungkan Toko')->assertSee('Toko Uji');
         $this->get("/shopee/shops/{$shop->id}/mappings")->assertOk()->assertSee('Tarik dari Shopee');
     }
 
@@ -83,7 +85,7 @@ class ShopeeIntegrationTest extends TestCase
             ->assertSessionHasErrors('live_partner_id');
 
         $this->put('/shopee/settings', ['environment' => 'test', 'test_partner_id' => 1000001, 'test_partner_key' => 'rahasia'])
-            ->assertRedirect(route('shopee.settings.edit'));
+            ->assertRedirect(route('marketplace.settings', ['tab' => 'shopee']));
 
         $this->assertNotSame('rahasia', DB::table('shopee_settings')->value('test_partner_key'));
         $this->assertSame('rahasia', ShopeeSetting::current()->test_partner_key);
@@ -91,7 +93,7 @@ class ShopeeIntegrationTest extends TestCase
         $this->put('/shopee/settings', ['environment' => 'test', 'test_partner_id' => 1000002, 'test_partner_key' => ''])->assertSessionHasNoErrors();
         $this->assertSame(1000002, ShopeeSetting::current()->test_partner_id);
         $this->assertSame('rahasia', ShopeeSetting::current()->test_partner_key);
-        $this->get('/shopee/settings')->assertDontSee('rahasia');
+        $this->get('/marketplace/settings?tab=shopee')->assertDontSee('rahasia');
     }
 
     public function test_connect_and_callback_store_the_shop_with_tokens(): void
@@ -112,7 +114,7 @@ class ShopeeIntegrationTest extends TestCase
         ]);
 
         $this->get("/shopee/callback?state={$state}&code=kode123&shop_id=555")
-            ->assertRedirect(route('shopee.shops.index'))->assertSessionHas('success');
+            ->assertRedirect(route('marketplace.shops', ['platform' => 'shopee']))->assertSessionHas('success');
 
         $shop = ShopeeShop::firstOrFail();
         $this->assertSame([555, 'test', 'Optima Official', 'ID', $this->warehouse->id, 'connected'], [$shop->shop_id, $shop->environment, $shop->shop_name, $shop->region, $shop->warehouse_id, $shop->status]);
@@ -216,7 +218,9 @@ class ShopeeIntegrationTest extends TestCase
         $staff = User::factory()->create(['username' => 'staf', 'is_active' => true]);
         $staff->assignRole('Staff Gudang');
 
-        $this->actingAs($staff)->get('/shopee/shops')->assertForbidden();
-        $this->actingAs($staff)->get('/shopee/settings')->assertForbidden();
+        $this->actingAs($staff)->get('/marketplace/shops')->assertForbidden();
+        $this->actingAs($staff)->get('/marketplace/settings')->assertForbidden();
+        $this->actingAs($staff)->get('/marketplace/products')->assertForbidden();
+        $this->actingAs($staff)->post('/shopee/shops/connect', ['warehouse_id' => $this->warehouse->id])->assertForbidden();
     }
 }

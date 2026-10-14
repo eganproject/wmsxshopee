@@ -4,23 +4,12 @@ namespace App\Http\Controllers\Tiktok;
 
 use App\Http\Controllers\Controller;
 use App\Models\TiktokSetting;
-use App\Models\TiktokShop;
 use App\Support\Activity;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\View\View;
 
 class TiktokSettingController extends Controller
 {
-    public function edit(): View
-    {
-        return view('tiktok.settings', [
-            'setting' => TiktokSetting::current(),
-            'hosts' => config('tiktok.hosts'),
-            'shopCount' => TiktokShop::count(),
-        ]);
-    }
-
     public function update(Request $request): RedirectResponse
     {
         $data = $request->validate([
@@ -56,6 +45,6 @@ class TiktokSettingController extends Controller
             Activity::record('updated', 'tiktok', 'Pengaturan TikTok diubah', $setting, [], ['field' => implode(', ', $changed)]);
         }
 
-        return redirect()->route('tiktok.settings.edit')->with('success', 'Pengaturan TikTok disimpan.');
+        return redirect()->route('marketplace.settings', ['tab' => 'tiktok'])->with('success', 'Pengaturan TikTok disimpan.');
     }
 }

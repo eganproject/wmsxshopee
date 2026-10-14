@@ -71,6 +71,12 @@
         <div>
             <p class="text-xs text-slate-500">Status</p>
             <p class="mt-1">@include('sales.returns._status')</p>
+            @if ($return->shopee_return_status || $return->tiktok_return_status)
+                <p class="mt-1 text-xs text-slate-500" title="Status pengajuan retur di marketplace">
+                    {{ $return->shopee_return_status ? 'Shopee' : 'TikTok' }}:
+                    <span class="font-mono">{{ \Illuminate\Support\Str::of($return->shopee_return_status ?? $return->tiktok_return_status)->replace('_', ' ')->lower()->ucfirst() }}</span>
+                </p>
+            @endif
         </div>
         <div>
             <p class="text-xs text-slate-500">Tanggal Retur</p>

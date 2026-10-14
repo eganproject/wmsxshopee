@@ -1,8 +1,18 @@
 @php
     $shopee = $order->isShopee();
+    $tiktok = $order->isTiktok();
+    $marketplace = $shopee || $tiktok;
+    $platformName = $shopee ? 'Shopee' : 'TikTok';
+    $platformError = $shopeeError;
     $methods = [];
 
-    if ($shopee && $options) {
+    if ($tiktok && $options) {
+        foreach (['pickup', 'dropoff'] as $key) {
+            if ($options[$key]) {
+                $methods[$key] = \App\Models\SalesOrder::SHIPPING_METHODS[$key];
+            }
+        }
+    } elseif ($shopee && $options) {
         foreach (['pickup', 'dropoff'] as $key) {
             if ($options[$key]) {
                 $methods[$key] = \App\Models\SalesOrder::SHIPPING_METHODS[$key];
@@ -11,18 +21,20 @@
         if ($options['non_integrated']) {
             $methods['non_integrated'] = ['label' => 'Resi Sendiri', 'description' => 'Kurir di luar integrasi Shopee; isi resi dari kurir', 'icon' => 'heroicon-o-qr-code'];
         }
-    } elseif (! $shopee) {
+    } elseif (! $marketplace) {
         $methods = \App\Models\SalesOrder::SHIPPING_METHODS;
     }
 
-    $addresses = $options['pickup']['addresses'] ?? [];
+    $addresses = $shopee ? ($options['pickup']['addresses'] ?? []) : [];
     $firstAddress = $addresses[0] ?? null;
     $firstSlot = collect($firstAddress['slots'] ?? [])->firstWhere('recommended', true) ?? ($firstAddress['slots'][0] ?? null);
     $needs = fn (string $method, string $field) => in_array($field, $options[$method]['needs'] ?? [], true);
+    $tiktokSlots = $tiktok ? ($options['pickup']['slots'] ?? []) : [];
 
     $warehouse = $order->warehouse;
     $warehouseAddress = collect([$warehouse->address, $warehouse->city, $warehouse->province, $warehouse->postal_code])->filter()->implode(', ');
-    $defaultMethod = old($shopee ? 'method' : 'shipping_method', $order->shipping_method ?? array_key_first($methods));
+    $defaultMethod = old($marketplace ? 'method' : 'shipping_method', $order->shipping_method ?? array_key_first($methods));
+    $shipBy = $order->shopee_ship_by ?? $order->tiktok_ship_by;
 @endphp
 
 <x-layouts.app :title="'Atur Pengiriman '.$order->number">
@@ -37,7 +49,7 @@
     </x-slot:breadcrumb>
 
     <x-page-header :title="'Atur Pengiriman '.$order->number"
-                   :description="$shopee ? 'Pilih pickup atau drop off. Pengiriman diatur langsung di Shopee dan resi terisi otomatis.' : 'Catat apakah paket dijemput kurir atau diantar ke cabang / agen kurir.'"
+                   :description="$marketplace ? 'Pilih pickup atau drop off. Pengiriman diatur langsung di '.$platformName.' dan resi terisi otomatis.' : 'Catat apakah paket dijemput kurir atau diantar ke cabang / agen kurir.'"
                    icon="heroicon-o-truck">
         <a href="{{ route('sales.orders.show', $order) }}" class="btn-secondary"><x-heroicon-o-arrow-left class="size-5" /> Kembali</a>
     </x-page-header>
@@ -57,25 +69,25 @@
         <div>
             <p class="text-xs text-slate-500">Kurir</p>
             <p class="mt-1 text-sm font-medium text-slate-900">{{ $order->courier?->name ?? '—' }}{{ $order->courier_service ? ' · '.$order->courier_service : '' }}</p>
-            @if ($order->shopee_ship_by)
-                <p @class(['text-xs', 'font-medium text-rose-600' => $order->shopee_ship_by->isPast() || $order->shopee_ship_by->lt(now()->addDay()), 'text-slate-500' => $order->shopee_ship_by->gte(now()->addDay())])>
-                    Kirim sebelum {{ $order->shopee_ship_by->format('d/m/Y H:i') }}
+            @if ($shipBy)
+                <p @class(['text-xs', 'font-medium text-rose-600' => $shipBy->isPast() || $shipBy->lt(now()->addDay()), 'text-slate-500' => $shipBy->gte(now()->addDay())])>
+                    Kirim sebelum {{ $shipBy->format('d/m/Y H:i') }}
                 </p>
             @endif
         </div>
     </div>
 
-    @if ($shopee && $shopeeError)
+    @if ($marketplace && $platformError)
         <div class="mb-6 flex items-start gap-3 rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
             <x-heroicon-o-exclamation-triangle class="mt-0.5 size-5 shrink-0" />
             <div>
-                <p class="font-medium">Pilihan pengiriman tidak bisa diambil dari Shopee.</p>
-                <p class="mt-0.5">{{ $shopeeError }}</p>
+                <p class="font-medium">Pilihan pengiriman tidak bisa diambil dari {{ $platformName }}.</p>
+                <p class="mt-0.5">{{ $platformError }}</p>
                 <a href="{{ route('sales.orders.shipment', $order) }}" class="mt-2 inline-flex items-center gap-1 font-medium underline"><x-heroicon-o-arrow-path class="size-4" /> Coba lagi</a>
             </div>
         </div>
     @elseif ($methods === [])
-        <div class="card p-8 text-center text-sm text-slate-500">Shopee tidak menyediakan pilihan pengiriman untuk pesanan ini.</div>
+        <div class="card p-8 text-center text-sm text-slate-500">{{ $platformName }} tidak menyediakan pilihan pengiriman untuk pesanan ini.</div>
     @else
         <form method="POST" action="{{ route('sales.orders.shipment.store', $order) }}" class="max-w-4xl space-y-6"
               x-data="{
@@ -83,6 +95,7 @@
                   addresses: @js($addresses),
                   addressId: @js((string) old('address_id', $firstAddress['address_id'] ?? '')),
                   slotId: @js((string) old('pickup_time_id', $firstSlot['pickup_time_id'] ?? '')),
+                  tiktokSlot: @js((string) old('pickup_slot', $tiktokSlots[0]['key'] ?? '')),
                   get slots() { return (this.addresses.find(a => String(a.address_id) === this.addressId) || { slots: [] }).slots; },
                   pickAddress(id) {
                       this.addressId = String(id);
@@ -101,7 +114,7 @@
                     @foreach ($methods as $value => $meta)
                         <label class="flex cursor-pointer items-start gap-3 rounded-lg border p-3"
                                :class="method === @js($value) ? 'border-slate-900 bg-slate-50' : 'border-slate-200 hover:bg-slate-50'">
-                            <input type="radio" name="{{ $shopee ? 'method' : 'shipping_method' }}" value="{{ $value }}" x-model="method" class="mt-1">
+                            <input type="radio" name="{{ $marketplace ? 'method' : 'shipping_method' }}" value="{{ $value }}" x-model="method" class="mt-1">
                             <x-dynamic-component :component="$meta['icon']" class="mt-0.5 size-5 shrink-0 text-slate-400" />
                             <span>
                                 <span class="block font-medium text-slate-900">{{ $meta['label'] }}</span>
@@ -112,7 +125,46 @@
                 </div>
             </div>
 
-            @if ($shopee)
+            @if ($tiktok)
+                @if ($options['pickup'])
+                    <div class="card" x-show="method === 'pickup'" x-cloak>
+                        <div class="border-b border-slate-100 px-5 py-3">
+                            <h2 class="text-base font-semibold text-slate-900">Jadwal Pickup</h2>
+                            <p class="mt-0.5 text-sm text-slate-500">Kurir TikTok menjemput di alamat pickup toko (diatur di TikTok Shop Seller Center).</p>
+                        </div>
+                        <div class="p-5">
+                            @if ($tiktokSlots)
+                                <label for="pickup_slot" class="form-label">Jadwal Pickup <span class="text-rose-500">*</span></label>
+                                <select id="pickup_slot" name="pickup_slot" x-model="tiktokSlot" class="form-input sm:max-w-md" data-native :disabled="method !== 'pickup'">
+                                    @foreach ($tiktokSlots as $slot)
+                                        <option value="{{ $slot['key'] }}">{{ $slot['label'] }}</option>
+                                    @endforeach
+                                </select>
+                            @else
+                                <p class="text-sm text-slate-600">TikTok tidak meminta jadwal; kurir menjemput sesuai jadwal toko.</p>
+                            @endif
+                        </div>
+                    </div>
+                @endif
+
+                @if ($options['dropoff'])
+                    <div class="card" x-show="method === 'dropoff'" x-cloak>
+                        <div class="border-b border-slate-100 px-5 py-3">
+                            <h2 class="text-base font-semibold text-slate-900">Drop Off</h2>
+                            <p class="mt-0.5 text-sm text-slate-500">Setelah diatur, antar paket ke titik drop off kurir dan tunjukkan label resi.</p>
+                        </div>
+                        <div class="p-5 text-sm text-slate-600">
+                            @if ($options['dropoff']['url'])
+                                <a href="{{ $options['dropoff']['url'] }}" target="_blank" rel="noopener" class="inline-flex items-center gap-1 font-medium text-brand-600 hover:underline">
+                                    <x-heroicon-o-map-pin class="size-4" /> Lihat titik drop off terdekat
+                                </a>
+                            @else
+                                Tidak perlu isian tambahan.
+                            @endif
+                        </div>
+                    </div>
+                @endif
+            @elseif ($shopee)
                 @if ($options['pickup'])
                     <div class="card" x-show="method === 'pickup'" x-cloak>
                         <div class="border-b border-slate-100 px-5 py-3">
@@ -231,7 +283,7 @@
 
             <div class="flex justify-end gap-2">
                 <a href="{{ route('sales.orders.show', $order) }}" class="btn-secondary">Batal</a>
-                <button type="submit" class="btn-primary"><x-heroicon-o-check class="size-5" /> {{ $shopee ? 'Atur di Shopee' : 'Simpan' }}</button>
+                <button type="submit" class="btn-primary"><x-heroicon-o-check class="size-5" /> {{ $marketplace ? 'Atur di '.$platformName : 'Simpan' }}</button>
             </div>
         </form>
     @endif

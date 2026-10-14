@@ -5,7 +5,6 @@ namespace App\Http\Controllers\Shopee;
 use App\Http\Controllers\Controller;
 use App\Models\ShopeeSetting;
 use App\Models\ShopeeShop;
-use App\Models\Warehouse;
 use App\Services\Shopee\ShopeeAuth;
 use App\Services\Shopee\ShopeeClient;
 use App\Services\Shopee\ShopeeException;
@@ -14,24 +13,9 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
-use Illuminate\View\View;
 
 class ShopeeShopController extends Controller
 {
-    public function index(): View
-    {
-        $setting = ShopeeSetting::current();
-
-        return view('shopee.shops.index', [
-            'setting' => $setting,
-            'shops' => ShopeeShop::with('warehouse:id,code,name')->withCount([
-                'mappings',
-                'mappings as unmapped_count' => fn ($q) => $q->whereNull('product_variant_id')->whereNull('bundle_id'),
-            ])->orderBy('environment')->orderBy('shop_name')->get(),
-            'warehouses' => Warehouse::where('is_active', true)->orderBy('name')->get(['id', 'code', 'name']),
-        ]);
-    }
-
     /** Arahkan ke halaman otorisasi Shopee; pemilik toko login Shopee Seller lalu menyetujui. */
     public function connect(Request $request, ShopeeAuth $auth): RedirectResponse
     {
@@ -42,7 +26,7 @@ class ShopeeShopController extends Controller
         $client = ShopeeClient::make();
 
         if (! $client->isConfigured()) {
-            return redirect()->route('shopee.settings.edit')->with('error', 'Isi Partner ID & Partner Key Shopee dulu sebelum menghubungkan toko.');
+            return redirect()->route('marketplace.settings', ['tab' => 'shopee'])->with('error', 'Isi Partner ID & Partner Key Shopee dulu sebelum menghubungkan toko.');
         }
 
         $state = Str::random(32);
@@ -65,7 +49,7 @@ class ShopeeShopController extends Controller
 
         if (! $pending || $pending['expires_at'] < now()->getTimestamp()
             || ! hash_equals($pending['state'], (string) $request->query('state'))) {
-            return redirect()->route('shopee.shops.index')->with('error', 'Sesi otorisasi Shopee tidak valid atau sudah kedaluwarsa. Ulangi dari tombol Hubungkan Toko.');
+            return redirect()->route('marketplace.shops', ['platform' => 'shopee'])->with('error', 'Sesi otorisasi Shopee tidak valid atau sudah kedaluwarsa. Ulangi dari tombol Hubungkan Toko.');
         }
 
         $code = (string) $request->query('code');
@@ -73,18 +57,18 @@ class ShopeeShopController extends Controller
         $mainAccountId = $request->integer('main_account_id') ?: null;
 
         if ($code === '' || (! $shopId && ! $mainAccountId)) {
-            return redirect()->route('shopee.shops.index')->with('error', 'Otorisasi dibatalkan atau Shopee tidak mengirim kode otorisasi.');
+            return redirect()->route('marketplace.shops', ['platform' => 'shopee'])->with('error', 'Otorisasi dibatalkan atau Shopee tidak mengirim kode otorisasi.');
         }
 
         try {
             $shops = $auth->connect(ShopeeClient::make($pending['environment']), $code, $shopId, $mainAccountId, $pending['warehouse_id']);
         } catch (ShopeeException $e) {
-            return redirect()->route('shopee.shops.index')->with('error', 'Gagal menghubungkan toko. '.$e->getMessage());
+            return redirect()->route('marketplace.shops', ['platform' => 'shopee'])->with('error', 'Gagal menghubungkan toko. '.$e->getMessage());
         }
 
         $names = collect($shops)->map->displayName()->implode(', ');
 
-        return redirect()->route('shopee.shops.index')->with('success', "Toko {$names} berhasil terhubung.");
+        return redirect()->route('marketplace.shops', ['platform' => 'shopee'])->with('success', "Toko {$names} berhasil terhubung.");
     }
 
     public function update(Request $request, ShopeeShop $shop): RedirectResponse
@@ -134,6 +118,6 @@ class ShopeeShopController extends Controller
     {
         $shop->delete();
 
-        return redirect()->route('shopee.shops.index')->with('success', "Koneksi toko {$shop->displayName()} dihapus.");
+        return redirect()->route('marketplace.shops', ['platform' => 'shopee'])->with('success', "Koneksi toko {$shop->displayName()} dihapus.");
     }
 }

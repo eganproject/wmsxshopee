@@ -393,23 +393,24 @@ class ShopeeSyncTest extends TestCase
         $this->shop->mappings()->where('model_id', 102)->update(['stock_error' => 'Model sudah dihapus']);
         $this->shop->mappings()->where('model_id', 101)->update(['stock_pushed' => 7, 'stock_pushed_at' => now()]);
 
-        $this->get('/shopee/products')->assertOk()
+        $this->get('/shopee/products')->assertRedirect(route('marketplace.products', ['platform' => 'shopee']));
+        $this->get('/marketplace/products')->assertOk()
             ->assertSee('KAOS-M')->assertSee('KAOS-XL')->assertSee('Toko Uji')
             ->assertSeeText('Stok dikirim 7')->assertSee('Model sudah dihapus');
 
-        $this->get('/shopee/products?status=unlinked')->assertOk()->assertSee('KAOS-XL');
-        $unlinked = $this->get('/shopee/products?status=unlinked')->viewData('rows')->pluck('sku')->all();
+        $this->get('/marketplace/products?status=unlinked')->assertOk()->assertSee('KAOS-XL');
+        $unlinked = $this->get('/marketplace/products?status=unlinked')->viewData('rows')->pluck('sku')->all();
         $this->assertSame(['KAOS-XL'], $unlinked);
-        $this->assertSame(['KAOS-L', 'KAOS-M'], $this->get('/shopee/products?status=linked')->viewData('rows')->pluck('sku')->all());
-        $this->assertSame(['KAOS-L'], $this->get('/shopee/products?status=error')->viewData('rows')->pluck('sku')->all());
-        $this->assertSame(['PAKET-2'], $this->get('/shopee/products?type=bundle&status=linked')->viewData('rows')->pluck('sku')->all());
+        $this->assertSame(['KAOS-L', 'KAOS-M'], $this->get('/marketplace/products?status=linked')->viewData('rows')->pluck('sku')->all());
+        $this->assertSame(['KAOS-L'], $this->get('/marketplace/products?status=error')->viewData('rows')->pluck('sku')->all());
+        $this->assertSame(['PAKET-2'], $this->get('/marketplace/products?type=bundle&status=linked')->viewData('rows')->pluck('sku')->all());
 
         // Toko lain belum punya pemetaan apa pun: semua SKU belum terhubung di toko itu.
         $other = ShopeeShop::create(['environment' => 'test', 'shop_id' => 777, 'shop_name' => 'Toko Dua', 'warehouse_id' => $this->warehouse->id, 'status' => 'connected']);
-        $this->assertSame(['KAOS-L', 'KAOS-M', 'KAOS-XL'], $this->get("/shopee/products?shop={$other->id}&status=unlinked")->viewData('rows')->pluck('sku')->all());
+        $this->assertSame(['KAOS-L', 'KAOS-M', 'KAOS-XL'], $this->get("/marketplace/products?shop=shopee-{$other->id}&status=unlinked")->viewData('rows')->pluck('sku')->all());
         $this->assertNotNull($kaosXl);
 
-        $this->get('/shopee/products?export=xlsx')->assertOk()->assertDownload();
+        $this->get('/marketplace/products?export=xlsx')->assertOk()->assertDownload();
     }
 
     public function test_return_is_pulled_as_draft_for_shipped_order(): void
@@ -434,8 +435,15 @@ class ShopeeSyncTest extends TestCase
         $this->assertSame([[$this->kaosM->id, 1, 'damaged'], [$this->kaosM->id, 1, 'damaged'], [$this->kaosL->id, 1, 'damaged']],
             $return->items->sortBy('id')->map(fn ($i) => [$i->product_variant_id, $i->qty_good, $i->reason])->values()->all());
 
+        // Retur yang belum selesai diperbarui lewat get_return_detail (status lama ikut berubah).
+        $this->travel(2)->hours();
+        Http::swap(new Factory);
+        Http::preventStrayRequests();
+        Http::fake(['*/returns/get_return_list*' => Http::response(['error' => '', 'response' => ['more' => false, 'return' => []]])]);
+        Http::fake(['*/returns/get_return_detail*' => Http::response(['error' => '', 'response' => ['return_sn' => 'R1', 'status' => 'CANCELLED', 'tracking_number' => 'RTN01']])]);
         $this->artisan('shopee:sync --only=returns')->assertSuccessful();
         $this->assertSame(1, SalesReturn::count());
+        $this->assertSame('CANCELLED', $return->fresh()->shopee_return_status);
     }
 
     public function test_webhook_verifies_signature_and_syncs_order(): void
@@ -456,6 +464,33 @@ class ShopeeSyncTest extends TestCase
         $this->assertSame('JNT123', SalesOrder::where('external_number', 'G1')->value('tracking_number'));
     }
 
+    public function test_deauthorization_push_marks_shop_after_confirming(): void
+    {
+        Http::fake(['*/api/v2/shop/get_shop_info*' => Http::response(['error' => 'error_auth', 'message' => 'Invalid access_token'])]);
+        $url = route('shopee.webhook');
+        $body = json_encode(['code' => 2, 'timestamp' => now()->getTimestamp(), 'data' => ['shop_id' => 555, 'partner_id' => 1000001]]);
+
+        $this->call('POST', $url, [], [], [], ['CONTENT_TYPE' => 'application/json', 'HTTP_AUTHORIZATION' => hash_hmac('sha256', $url.'|'.$body, 'rahasia-test')], $body)->assertOk();
+
+        $this->assertSame('expired', $this->shop->fresh()->status);
+        $this->assertStringContainsString('dicabut', $this->shop->fresh()->last_error);
+    }
+
+    public function test_stock_push_splits_items_with_many_models(): void
+    {
+        $this->shop->mappings()->delete();
+        foreach (range(1, 60) as $i) {
+            $this->shop->mappings()->create(['item_id' => 99, 'model_id' => 1000 + $i, 'shopee_sku' => 'X'.$i, 'product_variant_id' => $this->kaosM->id]);
+        }
+        Http::fake(['*/product/update_stock*' => Http::response(['error' => '', 'response' => []])]);
+
+        $this->artisan('shopee:sync --only=stock')->assertSuccessful();
+
+        Http::assertSentCount(2);
+        Http::assertSent(fn ($r) => count($r['stock_list']) === 50);
+        Http::assertSent(fn ($r) => count($r['stock_list']) === 10);
+    }
+
     public function test_sync_button_and_order_page(): void
     {
         $this->actingAs(User::where('username', 'superadmin')->first());
@@ -468,6 +503,6 @@ class ShopeeSyncTest extends TestCase
 
         $order = SalesOrder::where('external_number', 'H1')->firstOrFail();
         $this->get("/sales/orders/{$order->id}")->assertOk()->assertSee('Siap Dikirim');
-        $this->get('/shopee/shops')->assertOk()->assertSee('Sinkron');
+        $this->get('/marketplace/shops')->assertOk()->assertSee('Sinkron');
     }
 }

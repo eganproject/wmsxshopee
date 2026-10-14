@@ -263,7 +263,7 @@ class ShopeeOrderSync
 
         if ($unmapped) {
             DB::transaction(fn () => $this->orders->fillLines($order, $items, $bundles));
-            $order->update(['shopee_sync_error' => 'SKU Shopee belum dipetakan: '.implode(', ', $unmapped).'. Petakan di Toko Shopee › Pemetaan SKU; pesanan diproses otomatis di sinkron berikutnya.']);
+            $order->update(['shopee_sync_error' => 'SKU Shopee belum dipetakan: '.implode(', ', $unmapped).'. Petakan di Toko Marketplace › Pemetaan SKU; pesanan diproses otomatis di sinkron berikutnya.']);
 
             return;
         }

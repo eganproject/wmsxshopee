@@ -4,13 +4,14 @@ namespace App\Services\Tiktok;
 
 use App\Models\TiktokShop;
 
-/** Sinkron lengkap satu toko TikTok: pesanan lalu stok. */
+/** Sinkron lengkap satu toko TikTok: pesanan, retur, lalu stok. */
 class TiktokSync
 {
-    public const PARTS = ['orders', 'stock'];
+    public const PARTS = ['orders', 'returns', 'stock'];
 
     public function __construct(
         private readonly TiktokOrderSync $orders,
+        private readonly TiktokReturnSync $returns,
         private readonly TiktokStockSync $stock,
     ) {}
 
@@ -30,6 +31,9 @@ class TiktokSync
         try {
             if (in_array('orders', $parts, true)) {
                 $result['orders'] = $this->orders->sync($shop, $api);
+            }
+            if (in_array('returns', $parts, true)) {
+                $result['returns'] = $this->returns->sync($shop, $api);
             }
             if (in_array('stock', $parts, true)) {
                 $result['stock'] = $this->stock->push($shop, $api);
@@ -53,6 +57,9 @@ class TiktokSync
         if (isset($result['orders'])) {
             $o = $result['orders'];
             $parts[] = "pesanan: {$o['created']} baru, {$o['updated']} diperbarui, {$o['cancelled']} batal".($o['pending'] ? ", {$o['pending']} perlu dicek" : '');
+        }
+        if (isset($result['returns'])) {
+            $parts[] = "retur: {$result['returns']['created']} baru";
         }
         if (isset($result['stock'])) {
             $s = $result['stock'];

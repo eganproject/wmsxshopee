@@ -32,6 +32,10 @@ class AppServiceProvider extends ServiceProvider
         // Super Admin melewati semua pengecekan permission.
         Gate::before(fn (User $user) => $user->isSuperAdmin() ? true : null);
 
+        // Menu Marketplace terbuka bila user punya hak di salah satu platform.
+        Gate::define('marketplace.view', fn (User $user) => $user->canAny(['shopee.view', 'tiktok.view']));
+        Gate::define('marketplace.settings', fn (User $user) => $user->canAny(['shopee.settings', 'tiktok.settings']));
+
         Carbon::setLocale(config('app.locale'));
 
         Password::defaults(fn () => Password::min(8)->letters()->numbers());

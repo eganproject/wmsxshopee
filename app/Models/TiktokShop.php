@@ -33,6 +33,7 @@ class TiktokShop extends Model
         'last_refreshed_at',
         'last_synced_at',
         'orders_synced_until',
+        'returns_synced_until',
         'stock_pushed_at',
         'last_error',
         'is_active',
@@ -51,6 +52,7 @@ class TiktokShop extends Model
             'last_refreshed_at' => 'datetime',
             'last_synced_at' => 'datetime',
             'orders_synced_until' => 'datetime',
+            'returns_synced_until' => 'datetime',
             'stock_pushed_at' => 'datetime',
             'is_active' => 'boolean',
         ];
@@ -116,6 +118,6 @@ class TiktokShop extends Model
 
     public function activityIgnored(): array
     {
-        return ['access_token', 'refresh_token', 'shop_cipher', 'access_token_expires_at', 'refresh_token_expires_at', 'last_refreshed_at', 'last_synced_at', 'last_error', 'orders_synced_until', 'stock_pushed_at'];
+        return ['access_token', 'refresh_token', 'shop_cipher', 'access_token_expires_at', 'refresh_token_expires_at', 'last_refreshed_at', 'last_synced_at', 'last_error', 'orders_synced_until', 'returns_synced_until', 'stock_pushed_at'];
     }
 }

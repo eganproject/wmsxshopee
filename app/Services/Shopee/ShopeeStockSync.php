@@ -17,6 +17,9 @@ use Illuminate\Support\Collection;
  */
 class ShopeeStockSync
 {
+    /** Batas stock_list per panggilan /product/update_stock. */
+    public const MAX_MODELS = 50;
+
     public function __construct(private readonly SalesOrderService $orders) {}
 
     /**
@@ -30,7 +33,8 @@ class ShopeeStockSync
         $failed = [];
         $models = 0;
 
-        foreach ($mappings->groupBy('item_id') as $itemId => $rows) {
+        // Satu panggilan update_stock untuk satu item, maksimal 50 model per panggilan.
+        foreach ($mappings->groupBy('item_id')->flatMap(fn ($rows, $itemId) => $rows->chunk(self::MAX_MODELS)->map(fn ($chunk) => [$itemId, $chunk->values()])) as [$itemId, $rows]) {
             $stockList = $rows->map(fn (ShopeeSkuMapping $row) => [
                 'model_id' => $row->model_id,
                 'seller_stock' => [['stock' => max(0, $stock($row))]],
