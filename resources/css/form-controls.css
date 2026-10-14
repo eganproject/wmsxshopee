@@ -51,11 +51,11 @@
     .ts-wrapper.single.has-items .ts-control > input {
         @apply absolute -left-[9999px];
     }
-    .ts-wrapper.single.has-items.focus.dropdown-active .ts-control > input,
-    .ts-wrapper.single.input-active .ts-control > input {
+    /* Nilai terpilih tetap tampil selama fokus; baru diganti kotak ketik saat pengguna mulai mengetik. */
+    .ts-wrapper.single.has-query .ts-control > input {
         @apply static;
     }
-    .ts-wrapper.single.input-active .ts-control > .item {
+    .ts-wrapper.single.has-query .ts-control > .item {
         @apply hidden;
     }
     .ts-wrapper.single .ts-control > .item {
