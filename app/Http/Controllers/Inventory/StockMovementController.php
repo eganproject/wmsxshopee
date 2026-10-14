@@ -54,7 +54,8 @@ class StockMovementController extends Controller
 
     public function create(Request $request): View
     {
-        $type = $this->authorizedType($request, $request->query('type', 'in'));
+        $default = $request->user()->can('inventory.create') ? 'transfer' : 'adjustment';
+        $type = $this->authorizedType($request, $request->query('type', $default));
 
         $warehouses = Warehouse::where('is_active', true)->orderBy('code')->get();
 
@@ -94,8 +95,8 @@ class StockMovementController extends Controller
         ], collect($data['items'])->map(fn ($row) => [
             'product_variant_id' => (int) $row['product_variant_id'],
             // Lokasi bin opsional: kosong berarti stok "Tanpa bin" di level gudang.
-            'from_location_id' => in_array($type, ['out', 'transfer']) && filled($row['from_location_id'] ?? null) ? (int) $row['from_location_id'] : null,
-            'to_location_id' => $type !== 'out' && filled($row['to_location_id'] ?? null) ? (int) $row['to_location_id'] : null,
+            'from_location_id' => $type === 'transfer' && filled($row['from_location_id'] ?? null) ? (int) $row['from_location_id'] : null,
+            'to_location_id' => filled($row['to_location_id'] ?? null) ? (int) $row['to_location_id'] : null,
             'qty' => (int) $row['qty'],
             'notes' => $row['notes'] ?? null,
         ])->all());
@@ -111,10 +112,13 @@ class StockMovementController extends Controller
         return view('inventory.movements.show', ['movement' => $movement]);
     }
 
-    /** Penyesuaian butuh permission tersendiri; jenis lain cukup inventory.create. */
+    /**
+     * Hanya transfer & penyesuaian yang dicatat manual. Penyesuaian butuh
+     * inventory.adjust, transfer cukup inventory.create.
+     */
     private function authorizedType(Request $request, string $type): string
     {
-        abort_unless(array_key_exists($type, StockMovement::TYPES), 404);
+        abort_unless(in_array($type, StockMovement::MANUAL_TYPES, true), 404);
         abort_unless($request->user()->can($type === 'adjustment' ? 'inventory.adjust' : 'inventory.create'), 403);
 
         return $type;
@@ -136,10 +140,8 @@ class StockMovementController extends Controller
             'items' => ['required', 'array', 'min:1', 'max:200'],
             'items.*.product_variant_id' => ['required', 'integer', Rule::exists('product_variants', 'id')],
             // Mengambil dari lokasi nonaktif tetap boleh (untuk mengosongkan); menaruh hanya ke lokasi aktif.
-            'items.*.from_location_id' => in_array($type, ['out', 'transfer']) ? ['nullable', 'integer', $location()] : ['nullable'],
-            'items.*.to_location_id' => $type !== 'out'
-                ? ['nullable', 'integer', $location()->where('is_active', true)]
-                : ['nullable'],
+            'items.*.from_location_id' => $type === 'transfer' ? ['nullable', 'integer', $location()] : ['nullable'],
+            'items.*.to_location_id' => ['nullable', 'integer', $location()->where('is_active', true)],
             'items.*.qty' => $type === 'adjustment'
                 ? ['required', 'integer', 'between:-1000000,1000000', 'not_in:0']
                 : ['required', 'integer', 'min:1', 'max:1000000'],

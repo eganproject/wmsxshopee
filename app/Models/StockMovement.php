@@ -20,6 +20,12 @@ class StockMovement extends Model
         'adjustment' => ['label' => 'Penyesuaian', 'prefix' => 'ADJ', 'icon' => 'heroicon-o-adjustments-horizontal', 'color' => 'amber'],
     ];
 
+    /**
+     * Jenis yang boleh dicatat manual lewat halaman Stok. Barang masuk hanya lewat
+     * Penerimaan Barang (dan impor stok awal), barang keluar lewat pesanan/retur.
+     */
+    public const MANUAL_TYPES = ['transfer', 'adjustment'];
+
     protected $fillable = [
         'number',
         'type',

@@ -103,7 +103,7 @@
                             </td>
                         </tr>
                     @empty
-                        <x-empty-state colspan="7" icon="heroicon-o-map-pin" title="Tidak ada stok" description="Ubah filter, atau catat barang masuk dulu." />
+                        <x-empty-state colspan="7" icon="heroicon-o-map-pin" title="Tidak ada stok" description="Ubah filter, atau terima barang lewat Penerimaan Barang dulu." />
                     @endforelse
                 </tbody>
             </table>

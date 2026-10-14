@@ -168,12 +168,12 @@ class StockReliabilityTest extends TestCase
 
         // Baris pertama cukup, baris kedua tidak: seluruh dokumen batal.
         $this->post('/inventory/movements', [
-            'type' => 'out',
+            'type' => 'transfer',
             'warehouse_id' => $this->warehouse->id,
             'movement_date' => now()->toDateString(),
             'items' => [
-                ['product_variant_id' => $this->variant->id, 'from_location_id' => $this->binA->id, 'qty' => 3],
-                ['product_variant_id' => $this->variant->id, 'from_location_id' => $this->binA->id, 'qty' => 3],
+                ['product_variant_id' => $this->variant->id, 'from_location_id' => $this->binA->id, 'to_location_id' => $this->binB->id, 'qty' => 3],
+                ['product_variant_id' => $this->variant->id, 'from_location_id' => $this->binA->id, 'to_location_id' => $this->binB->id, 'qty' => 3],
             ],
         ])->assertSessionHasErrors('items.1.qty');
 

@@ -52,7 +52,7 @@ return [
             'icon' => 'heroicon-o-archive-box',
             'actions' => [
                 'view' => 'Lihat stok serta tab Kartu Stok & Mutasi Stok',
-                'create' => 'Catat mutasi barang masuk, keluar & transfer lokasi',
+                'create' => 'Catat transfer lokasi & impor stok awal',
                 'adjust' => 'Catat mutasi penyesuaian stok',
             ],
         ],
