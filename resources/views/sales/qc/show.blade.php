@@ -68,7 +68,7 @@
             <label for="scan-code" class="form-label">Scan Barcode / QR SKU</label>
             <div class="relative">
                 <x-heroicon-o-qr-code class="pointer-events-none absolute top-1/2 left-3 size-5 -translate-y-1/2 text-slate-400" />
-                <input id="scan-code" x-ref="code" x-model="code" @keydown.enter.prevent="scan()" autofocus autocomplete="off" data-native
+                <input id="scan-code" x-ref="code" x-model="code" @keydown.enter.prevent="scan()" data-auto-scan="enter" autofocus autocomplete="off" data-native
                        class="form-input h-12 pl-10 font-mono text-lg" placeholder="Scan barang satu per satu...">
             </div>
             <div x-show="message" x-cloak class="mt-3 rounded-lg px-4 py-3 text-base font-medium"
