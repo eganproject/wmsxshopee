@@ -54,6 +54,8 @@
                 ['label' => 'Toko Shopee', 'route' => 'shopee.shops.index', 'active' => ['shopee.shops.*', 'shopee.mappings.*'], 'icon' => 'heroicon-o-building-storefront', 'can' => 'shopee.view'],
                 ['label' => 'Status Produk Shopee', 'route' => 'shopee.products.index', 'active' => 'shopee.products.*', 'icon' => 'heroicon-o-check-badge', 'can' => 'shopee.view'],
                 ['label' => 'Pengaturan Shopee', 'route' => 'shopee.settings.edit', 'active' => 'shopee.settings.*', 'icon' => 'heroicon-o-key', 'can' => 'shopee.settings'],
+                ['label' => 'Toko TikTok', 'route' => 'tiktok.shops.index', 'active' => ['tiktok.shops.*', 'tiktok.mappings.*'], 'icon' => 'heroicon-o-musical-note', 'can' => 'tiktok.view'],
+                ['label' => 'Pengaturan TikTok', 'route' => 'tiktok.settings.edit', 'active' => 'tiktok.settings.*', 'icon' => 'heroicon-o-key', 'can' => 'tiktok.settings'],
             ],
         ],
         [

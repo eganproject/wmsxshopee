@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Shopee;
 
+use App\Http\Controllers\Concerns\ResolvesSkuTarget;
 use App\Http\Controllers\Controller;
 use App\Models\Bundle;
 use App\Models\ProductVariant;
@@ -14,11 +15,12 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
-use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 
 class ShopeeSkuMappingController extends Controller
 {
+    use ResolvesSkuTarget;
+
     public function index(Request $request, ShopeeShop $shop): View
     {
         $mappings = $shop->mappings()
@@ -121,35 +123,5 @@ class ShopeeSkuMappingController extends Controller
             ->map(fn (Bundle $b) => ['value' => 'bundle:'.$b->id, 'text' => 'Paket · '.$b->displayName()]);
 
         return response()->json($variants->concat($bundles)->values());
-    }
-
-    /**
-     * "variant:ID" / "bundle:ID" -> kolom target. Kosong = lepas pemetaan.
-     *
-     * @return array{product_variant_id: ?int, bundle_id: ?int, match_type: ?string}
-     */
-    private function target(?string $value): array
-    {
-        if (blank($value)) {
-            return ['product_variant_id' => null, 'bundle_id' => null, 'match_type' => null];
-        }
-
-        [$type, $id] = array_pad(explode(':', $value, 2), 2, null);
-
-        $exists = match ($type) {
-            'variant' => ProductVariant::whereKey($id)->exists(),
-            'bundle' => Bundle::whereKey($id)->exists(),
-            default => false,
-        };
-
-        if (! $exists) {
-            throw ValidationException::withMessages(['target' => 'SKU Optima yang dipilih tidak ditemukan.']);
-        }
-
-        return [
-            'product_variant_id' => $type === 'variant' ? (int) $id : null,
-            'bundle_id' => $type === 'bundle' ? (int) $id : null,
-            'match_type' => 'manual',
-        ];
     }
 }

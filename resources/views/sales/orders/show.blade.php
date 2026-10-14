@@ -127,6 +127,36 @@
     @endif
 
 
+    @if ($order->tiktok_shop_id)
+        <div @class([
+            'mb-5 flex items-start gap-3 rounded-lg border px-4 py-3 text-sm',
+            'border-amber-200 bg-amber-50 text-amber-800' => $order->tiktok_sync_error,
+            'border-slate-200 bg-slate-50 text-slate-600' => ! $order->tiktok_sync_error,
+        ])>
+            <x-heroicon-o-musical-note class="mt-0.5 size-5 shrink-0" />
+            <div>
+                <p>
+                    Pesanan TikTok <span class="font-mono">{{ $order->external_number }}</span>
+                    · status di TikTok <span class="font-medium">{{ $order->tiktokStatusLabel() ?? '—' }}</span>
+                    @if ($order->tiktok_ship_by && ! $order->hasStatus('shipped', 'cancelled'))
+                        · siap kirim sebelum {{ $order->tiktok_ship_by->format('d/m/Y H:i') }}
+                    @endif
+                    @if ($order->shipped_automatically)
+                        · dikirim otomatis mengikuti status TikTok
+                    @endif
+                    @if ($order->tiktok_synced_at)
+                        · disinkron {{ $order->tiktok_synced_at->diffForHumans() }}
+                    @endif
+                </p>
+                @if ($order->tiktok_sync_error)
+                    <p class="mt-0.5 font-medium">{{ $order->tiktok_sync_error }}</p>
+                @elseif ($order->hasStatus('confirmed', 'picked', 'packed') && ! $order->tiktokShipmentArranged())
+                    <p class="mt-0.5">Atur pickup / drop off dan cetak label resi dari TikTok Shop Seller Center; status & resi masuk otomatis.</p>
+                @endif
+            </div>
+        </div>
+    @endif
+
     @if ($order->hasStatus('cancelled'))
         <div class="mb-6 rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
             <p class="flex items-center gap-1.5 font-medium"><x-heroicon-o-x-circle class="size-4" /> Dibatalkan {{ $order->cancelled_at?->format('d/m/Y H:i') }}</p>
@@ -423,6 +453,12 @@
     @if ($order->shopee_income)
         @can('sales.income')
             @include('sales.orders._shopee-income')
+        @endcan
+    @endif
+
+    @if ($order->tiktok_payment)
+        @can('sales.income')
+            @include('sales.orders._tiktok-payment')
         @endcan
     @endif
 
