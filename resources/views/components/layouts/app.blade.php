@@ -120,7 +120,7 @@
             </button>
         </div>
 
-        <nav class="flex-1 overflow-x-hidden overflow-y-auto">
+        <nav id="sidebar-nav" class="sidebar-scroll flex-1 overflow-x-hidden overflow-y-auto">
             @foreach ($navigation as $section)
                 @php($items = collect($section['items'])->filter(fn ($item) => ! $item['can'] || $user->canAny((array) $item['can'])))
                 @if ($items->isNotEmpty())
@@ -149,6 +149,23 @@
                 @endif
             @endforeach
         </nav>
+        {{-- Pulihkan posisi scroll menu sebelum tampil agar tidak melompat ke atas tiap pindah halaman. --}}
+        <script>
+            (() => {
+                const nav = document.getElementById('sidebar-nav');
+                let saved = null;
+                try { saved = sessionStorage.getItem('sidebar-scroll'); } catch (e) {}
+                if (saved !== null) nav.scrollTop = +saved;
+                const current = nav.querySelector('[aria-current="page"]');
+                if (current) {
+                    const box = nav.getBoundingClientRect(), item = current.getBoundingClientRect();
+                    if (item.top < box.top || item.bottom > box.bottom) nav.scrollTop += item.top - box.top - (box.height - item.height) / 2;
+                }
+                addEventListener('pagehide', () => {
+                    try { sessionStorage.setItem('sidebar-scroll', String(Math.round(nav.scrollTop))); } catch (e) {}
+                });
+            })();
+        </script>
 
         <a href="{{ route('profile.edit') }}" class="flex items-center gap-2 rounded-lg p-1.5 hover:bg-slate-100 lg:collapsed:justify-center lg:collapsed:px-0" data-tip="{{ $user->name }}">
             <x-avatar :user="$user" class="size-7 shrink-0 text-xs" />
