@@ -98,7 +98,7 @@
             <x-select name="channel_name" label="Saluran Penjualan" data-create data-placeholder="Pilih atau ketik baru"
                       hint="cth. WhatsApp, Toko Offline. Pesanan Shopee masuk otomatis dari API.">
                 <option value="">Tanpa saluran</option>
-                @foreach ($channels->concat(['WhatsApp', 'Instagram', 'TikTok', 'Toko Offline', 'Reseller'])->push($channel)->filter()->unique()->sort() as $name)
+                @foreach ($channels->concat(['WhatsApp', 'Instagram', 'TikTok', 'Toko Offline', 'Reseller'])->push($channel)->filter()->reject(fn ($name) => $name === 'Lainnya')->unique()->sort()->push('Lainnya') as $name)
                     <option value="{{ $name }}" @selected($channel === $name)>{{ $name }}</option>
                 @endforeach
             </x-select>
