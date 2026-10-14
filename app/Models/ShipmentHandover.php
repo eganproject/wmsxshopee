@@ -9,9 +9,9 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
- * Serah terima paket ke ekspedisi. Petugas scan resi tiap paket yang diambil
- * kurir (pickup) atau dibawa ke cabang (drop off); tiap scan mengirim pesanan
- * (stok keluar). Setelah selesai, manifest dicetak untuk ditandatangani kurir.
+ * Manifest serah terima paket ke ekspedisi. Petugas cukup scan resi / no. pesanan;
+ * tiap scan langsung mengirim pesanan (stok keluar) dan otomatis masuk manifest
+ * harian per gudang & kurir. Manifest hari sebelumnya otomatis ditutup.
  */
 class ShipmentHandover extends Model
 {
@@ -61,6 +61,47 @@ class ShipmentHandover extends Model
     public function isOpen(): bool
     {
         return $this->status === 'open';
+    }
+
+    /** Manifest per gudang + kurir per hari; dibuat otomatis saat scan pertama. */
+    public static function forToday(int $warehouseId, ?int $courierId, ?int $userId): self
+    {
+        self::closeStale();
+
+        return self::withoutGlobalScope('warehouse_access')
+            ->where('status', 'open')
+            ->where('warehouse_id', $warehouseId)
+            ->where('courier_id', $courierId)
+            ->where('created_at', '>=', today())
+            ->latest('id')
+            ->first()
+            ?? self::create([
+                'number' => self::nextNumber(),
+                'warehouse_id' => $warehouseId,
+                'courier_id' => $courierId,
+                'status' => 'open',
+                'created_by' => $userId,
+            ]);
+    }
+
+    /** Tutup manifest hari-hari sebelumnya; waktu selesai = scan terakhirnya. */
+    public static function closeStale(): void
+    {
+        self::withoutGlobalScope('warehouse_access')
+            ->where('status', 'open')
+            ->where('created_at', '<', today())
+            ->get()
+            ->each(function (self $handover) {
+                $last = SalesOrder::withoutGlobalScope('warehouse_access')->where('shipment_handover_id', $handover->id)->max('shipped_at');
+
+                if (! $last) {
+                    $handover->delete();
+
+                    return;
+                }
+
+                $handover->update(['status' => 'closed', 'closed_at' => $last]);
+            });
     }
 
     public function methodLabel(): ?string

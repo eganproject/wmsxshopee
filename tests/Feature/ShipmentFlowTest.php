@@ -274,26 +274,36 @@ class ShipmentFlowTest extends TestCase
             $this->post("/sales/orders/{$order->id}/pack")->assertSessionHasNoErrors();
         }
 
-        $this->post('/sales/handovers', ['warehouse_id' => $this->warehouse->id, 'courier_id' => $spx->id, 'shipping_method' => 'pickup'])->assertRedirect();
-        $handover = ShipmentHandover::firstOrFail();
-        $this->get("/sales/handovers/{$handover->id}")->assertOk()->assertSee('SPX-A')->assertDontSee('JNE-B');
+        $this->get('/sales/handovers')->assertOk()->assertSee('Scan Resi / No. Pesanan');
 
-        $this->post("/sales/handovers/{$handover->id}/scan", ['code' => 'SPX-A'])->assertSessionHas('success');
-        $this->post("/sales/handovers/{$handover->id}/scan", ['code' => 'SPX-A'])->assertSessionHas('error', fn ($m) => str_contains($m, 'sudah di-scan'));
-        $this->post("/sales/handovers/{$handover->id}/scan", ['code' => 'JNE-B'])->assertSessionHas('error', fn ($m) => str_contains($m, 'bukan SPX'));
-        $this->post("/sales/handovers/{$handover->id}/scan", ['code' => 'SPX-C'])->assertSessionHas('error', fn ($m) => str_contains($m, 'QC'));
-        $this->post("/sales/handovers/{$handover->id}/scan", ['code' => 'SPX-S'])->assertSessionHas('error', fn ($m) => str_contains($m, 'belum diatur di Shopee'));
+        $this->post('/sales/handovers/scan', ['code' => 'SPX-A'])->assertSessionHas('scan_ok');
+        $this->post('/sales/handovers/scan', ['code' => $b->number])->assertSessionHas('scan_ok');
+        $this->post('/sales/handovers/scan', ['code' => 'SPX-A'])->assertSessionHas('scan_error', fn ($m) => str_contains($m, 'sudah dikirim'));
+        $this->post('/sales/handovers/scan', ['code' => 'SPX-C'])->assertSessionHas('scan_error', fn ($m) => str_contains($m, 'QC'));
+        $this->post('/sales/handovers/scan', ['code' => 'SPX-S'])->assertSessionHas('scan_error', fn ($m) => str_contains($m, 'belum diatur di Shopee'));
+        $this->post('/sales/handovers/scan', ['code' => 'NOPE'])->assertSessionHas('scan_error', fn ($m) => str_contains($m, 'tidak ditemukan'));
 
+        // Satu manifest per gudang & kurir per hari, dibuat otomatis.
+        $this->assertSame(2, ShipmentHandover::count());
+        $spxManifest = ShipmentHandover::where('courier_id', $spx->id)->firstOrFail();
         $a->refresh();
-        $this->assertSame(['shipped', $handover->id, $this->admin->id], [$a->status, $a->shipment_handover_id, $a->shipped_by]);
-        $this->assertSame(20 - 2, (int) Stock::where('product_variant_id', $this->kaosM->id)->sum('qty'), 'Hanya paket yang diserahkan yang keluar dari stok.');
-        $this->assertSame('packed', $b->fresh()->status);
+        $this->assertSame(['shipped', $spxManifest->id, $this->admin->id], [$a->status, $a->shipment_handover_id, $a->shipped_by]);
+        $this->assertSame('shipped', $b->fresh()->status);
+        $this->assertNotSame($spxManifest->id, $b->fresh()->shipment_handover_id);
+        $this->assertSame(20 - 4, (int) Stock::where('product_variant_id', $this->kaosM->id)->sum('qty'), 'Hanya paket yang diserahkan yang keluar dari stok.');
 
-        $this->post("/sales/handovers/{$handover->id}/close", ['receiver_name' => 'Andi'])->assertSessionHasNoErrors();
-        $this->assertSame('closed', $handover->fresh()->status);
-        $this->post("/sales/handovers/{$handover->id}/scan", ['code' => 'SPX-S'])->assertSessionHas('error', fn ($m) => str_contains($m, 'ditutup'));
-        $this->get("/sales/handovers/{$handover->id}/manifest")->assertOk()->assertSee('SPX-A')->assertSee('Andi')->assertDontSee('JNE-B');
-        $this->get('/sales/handovers')->assertOk()->assertSee($handover->number);
+        $this->get("/sales/handovers/{$spxManifest->id}")->assertOk()->assertSee('SPX-A')->assertDontSee('JNE-B');
+        $this->get("/sales/handovers/{$spxManifest->id}/manifest")->assertOk()->assertSee('SPX-A')->assertDontSee('JNE-B');
+        $this->get('/sales/handovers')->assertOk()->assertSee($spxManifest->number)->assertSee('SPX-A');
+
+        // Hari berikutnya: manifest kemarin tertutup, scan baru masuk manifest baru.
+        $this->travel(1)->days();
+        $shopee->update(['shopee_order_status' => 'PROCESSED']);
+        $this->post('/sales/handovers/scan', ['code' => 'SPX-S'])->assertSessionHas('scan_ok');
+        $this->assertSame('closed', $spxManifest->fresh()->status);
+        $this->assertNotNull($spxManifest->fresh()->closed_at);
+        $this->assertNotSame($spxManifest->id, $shopee->fresh()->shipment_handover_id);
+        $this->assertSame(3, ShipmentHandover::count());
     }
 
     public function test_staff_must_use_scans_instead_of_manual_pack_and_ship(): void

@@ -13,8 +13,9 @@ use Illuminate\Validation\ValidationException;
  *
  *   QC kemas     : scan resi / no. SO -> scan barcode atau SKU tiap barang. Bila semua
  *                  jumlah cocok, pesanan Sudah Diambil -> Sudah Dikemas.
- *   Serah terima : scan resi paket saat diserahkan ke kurir / cabang drop off. Tiap
- *                  scan mengirim pesanan (stok keluar) dan masuk manifest serah terima.
+ *   Serah terima : scan resi / no. pesanan saat diserahkan ke kurir / cabang drop off.
+ *                  Tiap scan langsung mengirim pesanan (stok keluar) dan otomatis masuk
+ *                  manifest harian gudang & kurirnya.
  */
 class FulfillmentScan
 {
@@ -87,28 +88,16 @@ class FulfillmentScan
     }
 
     /**
-     * Scan resi di sesi serah terima: kirim pesanan & catat di manifest.
+     * Scan resi / no. pesanan di serah terima: kirim pesanan & catat di manifest hari ini.
      *
      * @throws ValidationException
      */
-    public function handover(ShipmentHandover $handover, string $code, ?int $userId): SalesOrder
+    public function handover(string $code, ?int $userId): SalesOrder
     {
-        if (! $handover->isOpen()) {
-            throw ValidationException::withMessages(['code' => "Serah terima {$handover->number} sudah ditutup."]);
-        }
-
         $order = SalesOrder::findByScan($code);
 
         if (! $order) {
             throw ValidationException::withMessages(['code' => "Resi / pesanan \"{$code}\" tidak ditemukan."]);
-        }
-
-        if ($order->shipment_handover_id === $handover->id) {
-            throw ValidationException::withMessages(['code' => "{$order->number} sudah di-scan di serah terima ini."]);
-        }
-
-        if ($order->warehouse_id !== $handover->warehouse_id) {
-            throw ValidationException::withMessages(['code' => "{$order->number} dikirim dari gudang lain."]);
         }
 
         if ($order->hasStatus('shipped')) {
@@ -123,10 +112,6 @@ class FulfillmentScan
             throw ValidationException::withMessages(['code' => "{$order->number} diambil pembeli, bukan lewat kurir. Serahkan dari halaman pesanannya."]);
         }
 
-        if ($handover->courier_id && $order->courier_id && $order->courier_id !== $handover->courier_id) {
-            throw ValidationException::withMessages(['code' => "{$order->number} memakai kurir {$order->courier?->name}, bukan {$handover->courier?->name}. Pisahkan paketnya."]);
-        }
-
         if ($order->isShopee()) {
             if ($order->shopee_order_status === 'IN_CANCEL' || $order->shopee_order_status === 'CANCELLED') {
                 throw ValidationException::withMessages(['code' => "{$order->number}: pembeli mengajukan pembatalan di Shopee. Tahan paket ini."]);
@@ -136,10 +121,11 @@ class FulfillmentScan
             }
         }
 
-        $this->orders->ship($order, [
-            'shipment_handover_id' => $handover->id,
-            'courier_id' => $order->courier_id ?? $handover->courier_id,
-        ], $userId);
+        DB::transaction(function () use ($order, $userId) {
+            $handover = ShipmentHandover::forToday($order->warehouse_id, $order->courier_id, $userId);
+
+            $this->orders->ship($order, ['shipment_handover_id' => $handover->id], $userId);
+        });
 
         return $order->refresh();
     }

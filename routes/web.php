@@ -189,10 +189,8 @@ Route::middleware(['auth', 'active'])->group(function () {
         Route::get('qc/{order}', [QcController::class, 'show'])->middleware('can:sales.fulfill')->name('qc.show');
         Route::post('qc/{order}', [QcController::class, 'store'])->middleware('can:sales.fulfill')->name('qc.store');
         Route::get('handovers', [HandoverController::class, 'index'])->middleware('can:sales.fulfill')->name('handovers.index');
-        Route::post('handovers', [HandoverController::class, 'store'])->middleware('can:sales.fulfill')->name('handovers.store');
+        Route::post('handovers/scan', [HandoverController::class, 'scan'])->middleware('can:sales.fulfill')->name('handovers.scan');
         Route::get('handovers/{handover}', [HandoverController::class, 'show'])->middleware('can:sales.fulfill')->name('handovers.show');
-        Route::post('handovers/{handover}/scan', [HandoverController::class, 'scan'])->middleware('can:sales.fulfill')->name('handovers.scan');
-        Route::post('handovers/{handover}/close', [HandoverController::class, 'close'])->middleware('can:sales.fulfill')->name('handovers.close');
         Route::get('handovers/{handover}/manifest', [HandoverController::class, 'manifest'])->middleware('can:sales.fulfill')->name('handovers.manifest');
         Route::post('orders/shipment', [ShipmentController::class, 'bulk'])->middleware('can:sales.fulfill')->name('orders.shipment.bulk');
         Route::get('orders/shipping-labels', [ShipmentController::class, 'bulkLabel'])->middleware('can:sales.fulfill')->name('orders.shipping-labels');
