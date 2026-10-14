@@ -1,12 +1,9 @@
 @php
-    $needsFrom = in_array($type, ['out', 'transfer']);
-    $needsTo = $type !== 'out';
+    $needsFrom = $type === 'transfer';
     $blank = ['product_variant_id' => '', 'from_location_id' => '', 'to_location_id' => '', 'qty' => '', 'notes' => ''];
     $items = collect(old('items', []))->map(fn ($row) => [...$blank, ...$row])->values();
     $rowErrors = collect($errors->getMessages())->filter(fn ($messages, $key) => str_starts_with($key, 'items.'))->map(fn ($messages) => $messages[0]);
     $hints = [
-        'in' => 'Tambah stok ke lokasi bin, misalnya saat barang datang dari supplier.',
-        'out' => 'Kurangi stok dari lokasi bin, misalnya barang rusak, sampel atau pengiriman manual.',
         'transfer' => 'Pindahkan stok dari satu lokasi bin ke lokasi lain di gudang yang sama.',
         'adjustment' => 'Koreksi selisih stok. Isi angka positif untuk menambah, negatif untuk mengurangi.',
     ];
@@ -73,7 +70,7 @@
                     @endforeach
                 </x-select>
                 <x-input name="movement_date" type="date" label="Tanggal" :value="now()->toDateString()" :max="now()->toDateString()" required />
-                <x-input name="reference" label="Referensi" placeholder="{{ $type === 'in' ? 'cth. No. surat jalan / PO' : 'opsional' }}" />
+                <x-input name="reference" label="Referensi" placeholder="opsional" />
                 <x-textarea name="notes" label="Catatan" rows="2" class="sm:col-span-3" />
             </div>
         </div>
@@ -111,9 +108,7 @@
                             @if ($needsFrom)
                                 <th class="px-2 py-2">Lokasi Asal</th>
                             @endif
-                            @if ($needsTo)
-                                <th class="px-2 py-2">{{ $type === 'adjustment' ? 'Lokasi' : 'Lokasi Tujuan' }}</th>
-                            @endif
+                            <th class="px-2 py-2">{{ $type === 'adjustment' ? 'Lokasi' : 'Lokasi Tujuan' }}</th>
                             <th class="px-2 py-2">{{ $type === 'adjustment' ? 'Jumlah (+/-)' : 'Jumlah' }} *</th>
                             <th class="px-2 py-2">Keterangan</th>
                             <th class="py-2 pl-2"></th>
@@ -138,16 +133,14 @@
                                         <p class="mt-1 text-xs text-rose-600" x-show="errors[`items.${index}.from_location_id`]" x-text="errors[`items.${index}.from_location_id`]"></p>
                                     </td>
                                 @endif
-                                @if ($needsTo)
-                                    <td class="px-2 py-1.5">
-                                        <select class="form-input min-w-40" :name="`items[${index}][to_location_id]`" x-model="item.to_location_id"
-                                                x-tom-select="{ options: locationOptions(true), value: item.to_location_id }" data-placeholder="Tanpa bin"
-                                                :class="errors[`items.${index}.to_location_id`] && 'form-input-error'">
-                                            <option value="">Tanpa bin</option>
-                                        </select>
-                                        <p class="mt-1 text-xs text-rose-600" x-show="errors[`items.${index}.to_location_id`]" x-text="errors[`items.${index}.to_location_id`]"></p>
-                                    </td>
-                                @endif
+                                <td class="px-2 py-1.5">
+                                    <select class="form-input min-w-40" :name="`items[${index}][to_location_id]`" x-model="item.to_location_id"
+                                            x-tom-select="{ options: locationOptions(true), value: item.to_location_id }" data-placeholder="Tanpa bin"
+                                            :class="errors[`items.${index}.to_location_id`] && 'form-input-error'">
+                                        <option value="">Tanpa bin</option>
+                                    </select>
+                                    <p class="mt-1 text-xs text-rose-600" x-show="errors[`items.${index}.to_location_id`]" x-text="errors[`items.${index}.to_location_id`]"></p>
+                                </td>
                                 <td class="px-2 py-1.5">
                                     <input type="number" step="1" class="form-input w-28" :name="`items[${index}][qty]`" x-model="item.qty"
                                            {{ $type === 'adjustment' ? '' : 'min=1' }} :class="errors[`items.${index}.qty`] && 'form-input-error'">

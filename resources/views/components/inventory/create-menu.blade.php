@@ -1,6 +1,8 @@
-{{-- Tombol "Catat Mutasi" dengan pilihan jenis sesuai hak akses --}}
+{{-- Tombol "Catat Mutasi" dengan pilihan jenis sesuai hak akses. Barang masuk/keluar
+     tidak dicatat manual: masuk lewat Penerimaan Barang, keluar lewat pesanan/retur. --}}
 @php
     $options = collect(\App\Models\StockMovement::TYPES)
+        ->only(\App\Models\StockMovement::MANUAL_TYPES)
         ->filter(fn ($meta, $type) => auth()->user()->can($type === 'adjustment' ? 'inventory.adjust' : 'inventory.create'));
 @endphp
 

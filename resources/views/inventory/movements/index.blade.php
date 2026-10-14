@@ -77,7 +77,7 @@
                             </td>
                         </tr>
                     @empty
-                        <x-empty-state colspan="8" icon="heroicon-o-arrows-right-left" title="Belum ada mutasi stok" description="Mulai dengan mencatat barang masuk ke lokasi bin." />
+                        <x-empty-state colspan="8" icon="heroicon-o-arrows-right-left" title="Belum ada mutasi stok" description="Stok masuk lewat Penerimaan Barang atau Impor Stok Awal." />
                     @endforelse
                 </tbody>
             </table>

@@ -108,7 +108,7 @@
                             </td>
                         </tr>
                     @empty
-                        <x-empty-state colspan="6" icon="heroicon-o-archive-box" title="Belum ada stok" description="Stok bertambah saat barang masuk dicatat di menu Mutasi Stok." />
+                        <x-empty-state colspan="6" icon="heroicon-o-archive-box" title="Belum ada stok" description="Stok bertambah saat Penerimaan Barang dikonfirmasi atau lewat Impor Stok Awal." />
                     @endforelse
                 </tbody>
             </table>
