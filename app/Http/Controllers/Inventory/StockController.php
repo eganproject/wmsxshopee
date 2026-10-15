@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Inventory;
 use App\Http\Controllers\Controller;
 use App\Models\Stock;
 use App\Models\Warehouse;
+use App\Services\WarehouseSupply;
 use App\Support\XlsxExport;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
@@ -70,11 +71,17 @@ class StockController extends Controller
 
         $stocks = $query->paginate(25)->withQueryString();
 
+        // Per varian di satu gudang: tampilkan juga yang sedang dalam perjalanan ke gudang itu.
+        $transit = $mode === 'variant' && $request->filled('warehouse')
+            ? app(WarehouseSupply::class)->inTransit($request->integer('warehouse'), $stocks->pluck('product_variant_id')->all())
+            : collect();
+
         return view('inventory.stocks.index', [
             'stocks' => $stocks,
             'mode' => $mode,
             'warehouses' => Warehouse::orderBy('code')->get(),
             'totalQty' => $totalQty,
+            'transit' => $transit,
         ]);
     }
 }

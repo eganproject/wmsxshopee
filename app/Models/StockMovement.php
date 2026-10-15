@@ -22,6 +22,9 @@ class StockMovement extends Model
         'damage' => ['label' => 'Pindah ke Rusak', 'prefix' => 'MRS', 'icon' => 'heroicon-o-exclamation-triangle', 'color' => 'rose'],
         'repair' => ['label' => 'Hasil Perbaikan', 'prefix' => 'MPB', 'icon' => 'heroicon-o-wrench-screwdriver', 'color' => 'emerald'],
         'assembly' => ['label' => 'Rakit / Campur', 'prefix' => 'MRK', 'icon' => 'heroicon-o-puzzle-piece', 'color' => 'violet'],
+        // Dicatat otomatis oleh Transfer Antar Gudang (lihat WarehouseTransfer).
+        'transfer_out' => ['label' => 'Kirim Antar Gudang', 'prefix' => 'TKG', 'icon' => 'heroicon-o-truck', 'color' => 'sky'],
+        'transfer_in' => ['label' => 'Terima Antar Gudang', 'prefix' => 'TMG', 'icon' => 'heroicon-o-inbox-arrow-down', 'color' => 'sky'],
     ];
 
     /** Jenis dengan qty bertanda: + masuk ke to_location_id, - keluar dari from_location_id (penyesuaian: keduanya to_location_id). */

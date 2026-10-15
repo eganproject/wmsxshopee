@@ -33,6 +33,8 @@
                 ['label' => 'Penerimaan Barang', 'route' => 'inventory.receipts.index', 'active' => 'inventory.receipts.*', 'icon' => 'heroicon-o-inbox-arrow-down', 'can' => 'receipts.view'],
                 // Kartu Stok & Mutasi Stok adalah tab di halaman Stok, jadi menu Stok tetap aktif di sana.
                 ['label' => 'Stok', 'route' => 'inventory.stocks.index', 'active' => ['inventory.stocks.*', 'inventory.stock-card.*', 'inventory.movements.*'], 'icon' => 'heroicon-o-archive-box', 'can' => 'inventory.view'],
+                ['label' => 'Transfer Gudang', 'route' => 'inventory.transfers.index', 'active' => 'inventory.transfers.*', 'icon' => 'heroicon-o-truck', 'can' => 'inventory.view'],
+                ['label' => 'Lokasi Tetap SKU', 'route' => 'inventory.sku-settings.index', 'active' => 'inventory.sku-settings.*', 'icon' => 'heroicon-o-map-pin', 'can' => 'inventory.view'],
                 ['label' => 'Stok Rusak', 'route' => 'inventory.damaged.index', 'active' => 'inventory.damaged.*', 'icon' => 'heroicon-o-exclamation-triangle', 'can' => 'damaged.view'],
                 ['label' => 'Stock Opname', 'route' => 'inventory.counts.index', 'active' => 'inventory.counts.*', 'icon' => 'heroicon-o-clipboard-document-check', 'can' => 'opname.view'],
                 // Label produk butuh hak lihat produk, label lokasi butuh hak lihat gudang.

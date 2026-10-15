@@ -25,6 +25,17 @@
         <a href="{{ route('sales.orders.show', $order) }}" class="btn-secondary"><x-heroicon-o-arrow-left class="size-5" /> Kembali</a>
     </x-page-header>
 
+    @if ($shortage->isNotEmpty())
+        <div class="mb-6 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+            <p class="flex items-center gap-1.5 font-medium"><x-heroicon-o-truck class="size-4" /> Menunggu stok dari gudang cadangan</p>
+            <p class="mt-1">Pesanan diterima memakai stok gudang cadangan. Picking bisa dilakukan setelah transfer antar gudang diterima di {{ $order->warehouse->code }}:
+                {{ $shortage->map(fn ($row) => $row['sku'].' kurang '.$row['short'])->join(', ') }}.</p>
+            @can('inventory.view')
+                <a href="{{ route('inventory.transfers.index') }}" class="mt-1.5 inline-flex items-center gap-1 font-medium text-amber-900 underline">Lihat transfer & saran isi ulang</a>
+            @endcan
+        </div>
+    @endif
+
 
     <form method="POST" action="{{ route('sales.orders.pick', $order) }}"
           x-data="{

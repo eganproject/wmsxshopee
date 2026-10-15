@@ -67,6 +67,9 @@
                                 @endcan
                             </div>
                             @break
+                        @case('refill')
+                            <a href="{{ route('inventory.transfers.index') }}" class="text-sm font-medium text-brand-600 hover:text-brand-700">Buat transfer</a>
+                            @break
                         @case('bundles')
                             @can('products.view')
                                 <a href="{{ route('master.bundles.index') }}" class="text-sm text-slate-600 hover:text-slate-900">Lihat paket</a>
@@ -100,6 +103,16 @@
                                             {{ $item->available <= 0 ? 'Habis' : $fmt($item->available).' '.$item->unit_code }}
                                         </p>
                                         <p class="text-xs text-slate-500 tabular-nums">min. {{ $fmt($item->min_stock) }}</p>
+                                    </div>
+                                    @break
+                                @case('refill')
+                                    <div class="min-w-0 flex-1">
+                                        <p class="font-mono text-sm font-medium text-slate-900">{{ $item->variant->sku }}</p>
+                                        <p class="truncate text-xs text-slate-500">{{ $item->warehouse->code }} ← {{ $item->supply->code }}{{ $item->urgent ? ' · ada pesanan menunggu' : '' }}</p>
+                                    </div>
+                                    <div class="text-right">
+                                        <p @class(['text-sm font-semibold tabular-nums', 'text-rose-600' => $item->urgent, 'text-amber-700' => ! $item->urgent])>tersedia {{ $fmt($item->available) }}</p>
+                                        <p class="text-xs text-slate-500 tabular-nums">saran kirim {{ $fmt($item->qty) }}</p>
                                     </div>
                                     @break
                                 @case('bundles')

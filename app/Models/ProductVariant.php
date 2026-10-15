@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Support\Cartons;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -18,6 +19,7 @@ class ProductVariant extends Model
         'width_cm',
         'height_cm',
         'min_stock',
+        'pcs_per_carton',
         'sort_order',
         'is_active',
     ];
@@ -30,6 +32,7 @@ class ProductVariant extends Model
             'width_cm' => 'decimal:2',
             'height_cm' => 'decimal:2',
             'min_stock' => 'integer',
+            'pcs_per_carton' => 'integer',
             'sort_order' => 'integer',
             'is_active' => 'boolean',
         ];
@@ -43,6 +46,11 @@ class ProductVariant extends Model
     public function stocks(): HasMany
     {
         return $this->hasMany(Stock::class);
+    }
+
+    public function warehouseSettings(): HasMany
+    {
+        return $this->hasMany(WarehouseVariantSetting::class);
     }
 
     public function bundleItems(): HasMany
@@ -61,6 +69,12 @@ class ProductVariant extends Model
         $name = $this->product?->name.($this->name ? ' / '.$this->name : '');
 
         return "{$this->sku} · {$name}";
+    }
+
+    /** "12 koli + 5 pcs" bila isi per koli diisi, selain itu null. */
+    public function cartonLabel(int $qty): ?string
+    {
+        return Cartons::label($qty, $this->pcs_per_carton);
     }
 
     /** Dimensi "P × L × T cm", atau null bila belum lengkap. */

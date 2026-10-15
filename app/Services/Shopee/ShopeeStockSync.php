@@ -5,14 +5,14 @@ namespace App\Services\Shopee;
 use App\Models\Bundle;
 use App\Models\ShopeeShop;
 use App\Models\ShopeeSkuMapping;
-use App\Services\SalesOrderService;
+use App\Services\WarehouseSupply;
 use Illuminate\Support\Collection;
 
 /**
  * Kirim stok tersedia ke Shopee lewat /product/update_stock (seller_stock).
  *
  * Stok tersedia = stok fisik di gudang pengirim toko dikurangi cadangan pesanan
- * yang belum dikirim. SKU paket memakai stok paket virtual (komponen paling
+ * yang belum dikirim, ditambah stok gudang cadangannya bila ada (WarehouseSupply). SKU paket memakai stok paket virtual (komponen paling
  * sedikit yang menentukan). Hanya baris yang sudah dipetakan yang dikirim.
  */
 class ShopeeStockSync
@@ -20,7 +20,7 @@ class ShopeeStockSync
     /** Batas stock_list per panggilan /product/update_stock. */
     public const MAX_MODELS = 50;
 
-    public function __construct(private readonly SalesOrderService $orders) {}
+    public function __construct(private readonly WarehouseSupply $supply) {}
 
     /**
      * @return array{items: int, models: int, failed: list<string>}
@@ -93,8 +93,10 @@ class ShopeeStockSync
      */
     public function levels(ShopeeShop $shop, $mappings): callable
     {
-        $variants = $this->orders->availability($shop->warehouse_id, $mappings->pluck('product_variant_id')->filter()->unique()->values()->all());
-        $bundles = $this->orders->bundleAvailability($shop->warehouse_id, Bundle::with('items')->whereIn('id', $mappings->pluck('bundle_id')->filter()->unique())->get());
+        // Stok jual: gudang toko + gudang cadangannya (bila ada), lihat WarehouseSupply.
+        $variants = $this->supply->sellable($shop->warehouse_id, $mappings->pluck('product_variant_id')->filter()->unique()->values()->all())
+            ->map(fn ($row) => ['available' => $row['sellable']]);
+        $bundles = $this->supply->bundleSellable($shop->warehouse_id, Bundle::with('items')->whereIn('id', $mappings->pluck('bundle_id')->filter()->unique())->get());
 
         return fn (ShopeeSkuMapping $row) => $row->product_variant_id
             ? (int) ($variants[$row->product_variant_id]['available'] ?? 0)

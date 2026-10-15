@@ -8,6 +8,7 @@ use App\Models\ProductVariant;
 use App\Models\Supplier;
 use App\Models\Warehouse;
 use App\Models\WarehouseLocation;
+use App\Models\WarehouseVariantSetting;
 use App\Rules\AccessibleRecord;
 use App\Services\DamagedStockService;
 use App\Services\StockService;
@@ -272,6 +273,10 @@ class GoodsReceiptController extends Controller
                 ->orderBy('name')
                 ->get(),
             'warehouses' => $warehouses,
+            // Lokasi tetap SKU per gudang: [gudang, varian, lokasi], diisi otomatis saat memilih barang.
+            'defaults' => WarehouseVariantSetting::whereIn('warehouse_id', $warehouses->pluck('id'))->whereNotNull('default_location_id')
+                ->get(['warehouse_id', 'product_variant_id', 'default_location_id'])
+                ->map(fn ($s) => [$s->warehouse_id, $s->product_variant_id, $s->default_location_id])->values(),
             'locations' => WarehouseLocation::query()
                 ->whereIn('warehouse_id', $warehouses->pluck('id'))
                 ->where('is_active', true)

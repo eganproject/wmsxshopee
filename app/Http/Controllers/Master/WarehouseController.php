@@ -8,6 +8,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 
 class WarehouseController extends Controller
@@ -16,6 +17,7 @@ class WarehouseController extends Controller
     {
         $warehouses = Warehouse::query()
             ->withCount(['zones', 'racks', 'locations'])
+            ->with(['supplyWarehouse' => fn ($q) => $q->withoutGlobalScope('warehouse_access')])
             ->when($request->filled('search'), function ($query) use ($request) {
                 $search = $request->string('search');
                 $query->where(fn ($q) => $q
@@ -33,7 +35,7 @@ class WarehouseController extends Controller
 
     public function create(): View
     {
-        return view('master.warehouses.create', ['warehouse' => new Warehouse(['is_active' => true])]);
+        return view('master.warehouses.create', ['warehouse' => new Warehouse(['is_active' => true, 'supply_stock_percent' => 100]), 'supplyOptions' => $this->supplyOptions()]);
     }
 
     public function store(Request $request): RedirectResponse
@@ -57,7 +59,7 @@ class WarehouseController extends Controller
 
     public function edit(Warehouse $warehouse): View
     {
-        return view('master.warehouses.edit', ['warehouse' => $warehouse]);
+        return view('master.warehouses.edit', ['warehouse' => $warehouse, 'supplyOptions' => $this->supplyOptions($warehouse)]);
     }
 
     public function update(Request $request, Warehouse $warehouse): RedirectResponse
@@ -80,6 +82,12 @@ class WarehouseController extends Controller
             ->with('success', "Gudang {$warehouse->name} berhasil dihapus.");
     }
 
+    /** Pilihan gudang cadangan: semua gudang lain (tanpa batasan akses user). */
+    private function supplyOptions(?Warehouse $warehouse = null)
+    {
+        return Warehouse::withoutGlobalScope('warehouse_access')->when($warehouse, fn ($q) => $q->whereKeyNot($warehouse->id))->orderBy('code')->get(['id', 'code', 'name', 'is_active']);
+    }
+
     /**
      * @return array<string, mixed>
      */
@@ -96,6 +104,8 @@ class WarehouseController extends Controller
             'postal_code' => ['nullable', 'string', 'max:10'],
             'phone' => ['nullable', 'string', 'max:30'],
             'pic_name' => ['nullable', 'string', 'max:100'],
+            'supply_warehouse_id' => ['nullable', 'integer', Rule::exists('warehouses', 'id'), Rule::notIn(array_filter([$warehouse?->id]))],
+            'supply_stock_percent' => ['nullable', 'integer', 'between:0,100'],
             'is_active' => ['nullable', 'boolean'],
             'notes' => ['nullable', 'string', 'max:1000'],
         ], [], [
@@ -108,8 +118,21 @@ class WarehouseController extends Controller
             'phone' => 'no. telepon',
             'pic_name' => 'penanggung jawab',
             'notes' => 'catatan',
+            'supply_warehouse_id' => 'gudang cadangan',
+            'supply_stock_percent' => 'persentase stok cadangan',
         ]);
 
-        return [...$data, 'is_active' => $data['is_active'] ?? false];
+        // Satu tingkat saja: gudang cadangan tidak boleh memakai gudang ini sebagai cadangannya.
+        if (filled($data['supply_warehouse_id'] ?? null) && $warehouse
+            && Warehouse::withoutGlobalScope('warehouse_access')->whereKey($data['supply_warehouse_id'])->value('supply_warehouse_id') === $warehouse->id) {
+            throw ValidationException::withMessages(['supply_warehouse_id' => 'Gudang ini sudah menjadi cadangan gudang tersebut; tidak bisa saling jadi cadangan.']);
+        }
+
+        return [
+            ...$data,
+            'supply_warehouse_id' => $data['supply_warehouse_id'] ?? null,
+            'supply_stock_percent' => $data['supply_stock_percent'] ?? 100,
+            'is_active' => $data['is_active'] ?? false,
+        ];
     }
 }

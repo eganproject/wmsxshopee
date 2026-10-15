@@ -9,6 +9,7 @@ use App\Models\ShopeeShop;
 use App\Models\ShopeeSkuMapping;
 use App\Models\TiktokShop;
 use App\Models\TiktokSkuMapping;
+use App\Services\WarehouseSupply;
 use App\Support\XlsxExport;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
@@ -65,6 +66,7 @@ class MarketplaceProductStatusController extends Controller
             'shop' => $shop,
             'mappings' => $this->mappingsFor($type, $rows->getCollection(), $columns),
             'summary' => $this->summary($type, $scope),
+            'breakdowns' => $type === 'variant' ? $this->breakdowns($rows->getCollection(), $columns) : collect(),
         ]);
     }
 
@@ -143,6 +145,21 @@ class MarketplaceProductStatusController extends Controller
         }
 
         return collect($grouped)->map(fn ($byShop) => collect($byShop)->map(fn ($list) => collect($list)));
+    }
+
+    /**
+     * Rincian stok jual saat ini untuk toko yang gudangnya punya gudang cadangan,
+     * per gudang toko lalu per varian (lihat WarehouseSupply::sellable).
+     *
+     * @return Collection<int, Collection<int, array<string, int>>>
+     */
+    private function breakdowns(Collection $rows, Collection $columns): Collection
+    {
+        $supply = app(WarehouseSupply::class);
+
+        return $columns->pluck('shop.warehouse_id')->filter()->unique()
+            ->filter(fn ($warehouseId) => $supply->supplyOf($warehouseId))
+            ->mapWithKeys(fn ($warehouseId) => [$warehouseId => $supply->sellable($warehouseId, $rows->pluck('id')->all())]);
     }
 
     /**

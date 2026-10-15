@@ -115,6 +115,12 @@
                                             @endif
                                         </p>
                                     @endif
+                                    @if ($cell->isNotEmpty() && ($split = $breakdowns[$column['shop']->warehouse_id][$row->id] ?? null))
+                                        <p class="mt-1 text-xs text-slate-500" title="Stok jual sekarang = gudang toko + gudang cadangan + dalam perjalanan">
+                                            Sekarang <span class="font-medium tabular-nums text-slate-700">{{ number_format($split['sellable'], 0, ',', '.') }}</span>
+                                            = kecil {{ number_format($split['own'], 0, ',', '.') }} + besar {{ number_format($split['supply'], 0, ',', '.') }}{{ $split['transit'] ? ' + jalan '.number_format($split['transit'], 0, ',', '.') : '' }}
+                                        </p>
+                                    @endif
                                     @if ($cell->count() > 1)
                                         <p class="text-xs text-slate-400">{{ $cell->count() }} listing</p>
                                     @endif

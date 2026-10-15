@@ -56,6 +56,11 @@
                             <td class="px-4 py-2.5">
                                 <p class="font-medium text-slate-900">{{ $warehouse->name }}</p>
                                 <p class="font-mono text-xs text-slate-500">{{ $warehouse->code }}</p>
+                                @if ($warehouse->supplyWarehouse)
+                                    <span class="mt-1 inline-flex items-center gap-1 rounded-full bg-sky-50 px-2 py-0.5 text-xs text-sky-700" title="Stok gudang cadangan ikut dijual ke marketplace">
+                                        <x-heroicon-o-link class="size-3.5" /> Cadangan: {{ $warehouse->supplyWarehouse->code }}
+                                    </span>
+                                @endif
                             </td>
                             <td class="px-4 py-2.5 text-slate-600">
                                 {{ collect([$warehouse->city, $warehouse->province])->filter()->join(', ') ?: '—' }}
