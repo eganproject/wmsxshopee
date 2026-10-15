@@ -89,6 +89,12 @@
                             <td @class(['px-5 py-3.5 text-right font-semibold tabular-nums', 'text-slate-900' => $stock->qty > 0, 'text-slate-400' => $stock->qty <= 0])>
                                 {{ number_format($stock->qty, 0, ',', '.') }}
                                 <span class="text-xs font-normal text-slate-500">{{ $stock->variant->product->unit->code }}</span>
+                                @if ($cartons = $stock->variant->cartonLabel((int) $stock->qty))
+                                    <p class="text-xs font-normal text-slate-500">{{ $cartons }}</p>
+                                @endif
+                                @if ($transit[$stock->product_variant_id] ?? 0)
+                                    <p class="text-xs font-normal text-amber-600" title="Transfer antar gudang yang belum diterima">+{{ number_format($transit[$stock->product_variant_id], 0, ',', '.') }} dalam perjalanan</p>
+                                @endif
                             </td>
                             <td class="px-5 py-3.5">
                                 <div class="flex items-center justify-end gap-1">

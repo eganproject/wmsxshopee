@@ -21,6 +21,7 @@
          items: @js($items->isEmpty() ? [$blank] : $items),
          variants: @js($variants),
          locations: @js($locations),
+         defaults: @js($defaults),
          errors: @js($rowErrors),
          scan: '',
          scanError: '',
@@ -28,6 +29,11 @@
              // Baris baru ikut lokasi bin baris terakhir supaya tidak perlu pilih ulang.
              const last = this.items[this.items.length - 1];
              return { ...@js($blank), warehouse_location_id: last ? last.warehouse_location_id : '' };
+         },
+         fillDefault(item) {
+             // Lokasi tetap SKU di gudang ini (Inventori > Lokasi Tetap SKU) menggantikan bin baris sebelumnya.
+             const hit = this.defaults.find(d => String(d[0]) === String(this.warehouse) && String(d[1]) === String(item.product_variant_id));
+             if (hit) item.warehouse_location_id = String(hit[2]);
          },
          locationsFor() {
              return this.locations.filter(l => String(l.warehouse_id) === String(this.warehouse));
@@ -57,8 +63,10 @@
              const existing = this.items.find(i => String(i.product_variant_id) === String(variant.id));
              if (existing) { existing.qty_received = (parseInt(existing.qty_received) || 0) + 1; return; }
              const empty = this.items.find(i => ! i.product_variant_id);
-             if (empty) { empty.product_variant_id = String(variant.id); empty.qty_received = empty.qty_received || 1; return; }
-             this.items.push({ ...this.blank(), product_variant_id: String(variant.id), qty_received: 1 });
+             if (empty) { empty.product_variant_id = String(variant.id); empty.qty_received = empty.qty_received || 1; this.fillDefault(empty); return; }
+             const row = { ...this.blank(), product_variant_id: String(variant.id), qty_received: 1 };
+             this.fillDefault(row);
+             this.items.push(row);
          },
      }">
     <div class="card">
@@ -155,7 +163,7 @@
                     <template x-for="(item, index) in items" :key="index">
                         <tr class="align-top">
                             <td class="py-1.5 pr-2">
-                                <select class="form-input min-w-64" :name="`items[${index}][product_variant_id]`" x-model="item.product_variant_id"
+                                <select class="form-input min-w-64" :name="`items[${index}][product_variant_id]`" x-model="item.product_variant_id" @change="$nextTick(() => fillDefault(item))"
                                         x-tom-select="{ options: variantOptions, value: item.product_variant_id }" data-placeholder="Cari SKU / nama barang"
                                         :class="errors[`items.${index}.product_variant_id`] && 'form-input-error'"></select>
                                 <p class="mt-1 text-xs text-rose-600" x-show="errors[`items.${index}.product_variant_id`]" x-text="errors[`items.${index}.product_variant_id`]"></p>

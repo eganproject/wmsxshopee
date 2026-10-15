@@ -174,6 +174,13 @@ class SalesOrderService
             $order->load('items.variant');
             $this->lockVariants($order);
 
+            $short = $this->shortage($order);
+            if ($short->isNotEmpty()) {
+                throw ValidationException::withMessages($short->mapWithKeys(fn ($row, $variantId) => [
+                    "stock.{$variantId}" => "Stok {$row['sku']} di gudang ini belum cukup untuk picking (butuh {$row['needed']}, ada {$row['free']}). Tunggu transfer dari gudang cadangan diterima.",
+                ])->all());
+            }
+
             $free = $this->freeByLocation($order->warehouse_id, $order->items->pluck('product_variant_id')->all(), $order->id);
             $used = [];
 
@@ -330,7 +337,10 @@ class SalesOrderService
     /** @throws ValidationException */
     private function ensureAvailable(SalesOrder $order): void
     {
-        $availability = $this->availability($order->warehouse_id, $order->items->pluck('product_variant_id')->all(), $order->id);
+        // Gudang dengan gudang cadangan boleh menerima pesanan sebesar stok gabungan;
+        // kekurangan di gudang ini menunggu transfer dari gudang cadangan sebelum picking.
+        $availability = app(WarehouseSupply::class)->sellable($order->warehouse_id, $order->items->pluck('product_variant_id')->all(), $order->id)
+            ->map(fn ($row) => ['available' => $row['sellable']]);
         $needed = $order->items->groupBy('product_variant_id')->map(fn ($rows) => $rows->sum('qty'));
         $messages = [];
 
@@ -348,6 +358,26 @@ class SalesOrderService
         if ($messages) {
             throw ValidationException::withMessages($messages);
         }
+    }
+
+    /**
+     * Kekurangan stok bebas di gudang pesanan untuk picking, per varian (hanya
+     * yang kurang). Terjadi bila pesanan diterima memakai stok gudang cadangan
+     * yang belum ditransfer ke gudang ini.
+     *
+     * @return Collection<int, array{sku: string, needed: int, free: int, short: int}>
+     */
+    public function shortage(SalesOrder $order): Collection
+    {
+        $order->loadMissing('items.variant');
+        $free = $this->freeByLocation($order->warehouse_id, $order->items->pluck('product_variant_id')->all(), $order->id);
+
+        return $order->items->groupBy('product_variant_id')->map(function ($rows, $variantId) use ($free) {
+            $needed = (int) $rows->sum('qty');
+            $have = (int) $free->get($variantId, collect())->sum('qty');
+
+            return ['sku' => $rows->first()->variant->sku, 'needed' => $needed, 'free' => $have, 'short' => max(0, $needed - $have)];
+        })->filter(fn ($row) => $row['short'] > 0);
     }
 
     /**

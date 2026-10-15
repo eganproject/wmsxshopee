@@ -81,6 +81,8 @@ class StockService
             'adjustment' => [[$item->to_location_id, $item->qty]],
             'damage' => [[$item->from_location_id, -$item->qty]],
             'repair' => [[$item->to_location_id, $item->qty]],
+            'transfer_out' => [[$item->from_location_id, -$item->qty]],
+            'transfer_in' => [[$item->to_location_id, $item->qty]],
             'assembly' => $item->qty < 0 ? [[$item->from_location_id, $item->qty]] : [[$item->to_location_id, $item->qty]],
         };
     }

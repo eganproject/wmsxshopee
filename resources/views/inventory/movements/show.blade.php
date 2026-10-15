@@ -1,7 +1,7 @@
 @php
     $signed = in_array($movement->type, \App\Models\StockMovement::SIGNED_TYPES, true);
-    $showFrom = in_array($movement->type, ['out', 'transfer', 'damage', 'assembly'], true);
-    $showTo = ! in_array($movement->type, ['out', 'damage'], true);
+    $showFrom = in_array($movement->type, ['out', 'transfer', 'damage', 'assembly', 'transfer_out'], true);
+    $showTo = ! in_array($movement->type, ['out', 'damage', 'transfer_out'], true);
 @endphp
 
 <x-layouts.app :title="$movement->number">

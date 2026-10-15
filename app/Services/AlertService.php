@@ -69,6 +69,22 @@ class AlertService
                 'items' => $limit && $count ? $query->limit($limit)->get() : collect(),
             ];
 
+            // Gudang kecil yang perlu diisi ulang dari gudang besar (cadangan).
+            $supply = app(WarehouseSupply::class);
+            $refill = Warehouse::query()->whereNotNull('supply_warehouse_id')->where('is_active', true)->orderBy('code')->get()
+                ->flatMap(fn (Warehouse $warehouse) => $supply->suggestions($warehouse)->each(fn ($row) => $row->warehouse = $warehouse));
+            $urgent = $refill->where('urgent', true)->count();
+
+            $groups['refill'] = [
+                'key' => 'refill',
+                'label' => 'Gudang kecil perlu diisi ulang',
+                'hint' => $urgent ? "{$urgent} SKU kurang untuk pesanan yang sudah masuk" : 'Stok di bawah minimum, gudang cadangan masih ada',
+                'count' => $refill->count(),
+                'icon' => 'heroicon-o-truck',
+                'tone' => $urgent ? 'rose' : 'amber',
+                'items' => $refill->take($limit ?: 0)->values(),
+            ];
+
             $bundles = $this->unavailableBundles();
             $groups['bundles'] = [
                 'key' => 'bundles',

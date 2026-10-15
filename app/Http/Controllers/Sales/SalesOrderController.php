@@ -11,6 +11,7 @@ use App\Models\Warehouse;
 use App\Models\WarehouseLocation;
 use App\Rules\AccessibleRecord;
 use App\Services\SalesOrderService;
+use App\Services\WarehouseSupply;
 use App\Support\Activity;
 use App\Support\ShopeeIncome;
 use App\Support\XlsxExport;
@@ -108,7 +109,7 @@ class SalesOrderController extends Controller
         return $this->afterSave($request, $order, $service, 'disimpan sebagai draft');
     }
 
-    public function show(SalesOrder $order, SalesOrderService $service): View
+    public function show(SalesOrder $order, SalesOrderService $service, WarehouseSupply $supply): View
     {
         $order->load(['warehouse', 'courier', 'creator', 'movement', 'arranger', 'qcChecker', 'handover', 'items.variant.product.unit', 'items.picks.location', 'bundles.bundle.items', 'returns.items']);
 
@@ -116,8 +117,11 @@ class SalesOrderController extends Controller
 
         return view('sales.orders.show', [
             'order' => $order,
-            'availability' => $draft ? $service->availability($order->warehouse_id, $order->items->pluck('product_variant_id')->all(), $order->id) : collect(),
-            'bundleAvailability' => $draft ? $service->bundleAvailability($order->warehouse_id, $order->bundles->pluck('bundle')->unique('id'), $order->id) : collect(),
+            // Stok yang bisa dipesan: gudang ini + gudang cadangannya (bila ada).
+            'availability' => $draft ? $supply->sellable($order->warehouse_id, $order->items->pluck('product_variant_id')->all(), $order->id)->map(fn ($row) => ['available' => $row['sellable']]) : collect(),
+            'bundleAvailability' => $draft ? $supply->bundleSellable($order->warehouse_id, $order->bundles->pluck('bundle')->unique('id')) : collect(),
+            // Pesanan yang diterima dari stok gudang cadangan: menunggu transfer sebelum picking.
+            'shortage' => $order->hasStatus('confirmed') ? $service->shortage($order) : collect(),
             'couriers' => Courier::query()
                 ->where(fn ($q) => $q->where('is_active', true)->when($order->courier_id, fn ($q) => $q->orWhere('id', $order->courier_id)))
                 ->orderBy('name')
@@ -179,6 +183,7 @@ class SalesOrderController extends Controller
 
         return view('sales.orders.picking', [
             'order' => $order,
+            'shortage' => $service->shortage($order),
             'suggestion' => $service->suggestPicks($order),
             'slots' => $service->freeByLocation($order->warehouse_id, $variantIds, $order->id),
         ]);

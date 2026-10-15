@@ -15,6 +15,8 @@ use App\Http\Controllers\Inventory\StockController;
 use App\Http\Controllers\Inventory\StockCountController;
 use App\Http\Controllers\Inventory\StockMovementController;
 use App\Http\Controllers\Inventory\VariantLookupController;
+use App\Http\Controllers\Inventory\WarehouseTransferController;
+use App\Http\Controllers\Inventory\WarehouseVariantSettingController;
 use App\Http\Controllers\LabelController;
 use App\Http\Controllers\Marketplace\MarketplaceController;
 use App\Http\Controllers\Marketplace\MarketplaceProductStatusController;
@@ -124,6 +126,18 @@ Route::middleware(['auth', 'active'])->group(function () {
         Route::get('movements/create', [StockMovementController::class, 'create'])->name('movements.create');
         Route::post('movements', [StockMovementController::class, 'store'])->name('movements.store');
         Route::get('movements/{movement}', [StockMovementController::class, 'show'])->middleware('can:inventory.view')->name('movements.show');
+
+        // Transfer antar gudang (gudang besar -> gudang kecil): kirim, terima, batal.
+        Route::get('transfers', [WarehouseTransferController::class, 'index'])->middleware('can:inventory.view')->name('transfers.index');
+        Route::get('transfers/create', [WarehouseTransferController::class, 'create'])->middleware('can:inventory.create')->name('transfers.create');
+        Route::post('transfers', [WarehouseTransferController::class, 'store'])->middleware('can:inventory.create')->name('transfers.store');
+        Route::get('transfers/{transfer}', [WarehouseTransferController::class, 'show'])->middleware('can:inventory.view')->name('transfers.show');
+        Route::post('transfers/{transfer}/receive', [WarehouseTransferController::class, 'receive'])->middleware('can:inventory.create')->name('transfers.receive');
+        Route::post('transfers/{transfer}/cancel', [WarehouseTransferController::class, 'cancel'])->middleware('can:inventory.create')->name('transfers.cancel');
+
+        // Lokasi tetap SKU & stok min/maks per gudang.
+        Route::get('sku-settings', [WarehouseVariantSettingController::class, 'index'])->middleware('can:inventory.view')->name('sku-settings.index');
+        Route::put('sku-settings', [WarehouseVariantSettingController::class, 'update'])->middleware('can:inventory.create')->name('sku-settings.update');
 
         // Penerimaan barang: draft bisa diubah/dihapus; setelah dikonfirmasi diterima,
         // stok masuk lewat mutasi Barang Masuk dan dokumen terkunci.
