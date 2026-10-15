@@ -9,6 +9,9 @@
 
     <x-page-header title="Rak Gudang" description="Rak di setiap zona beserta jumlah lokasi bin-nya." icon="heroicon-o-view-columns">
         @can('warehouses.create')
+            <a href="{{ route('master.locations.import') }}" class="btn-secondary">
+                <x-heroicon-o-arrow-up-tray class="size-5" /> Impor Excel / CSV
+            </a>
             <a href="{{ route('master.racks.create', ['zone' => request('zone')]) }}" class="btn-primary">
                 <x-heroicon-o-plus class="size-5" /> Tambah Rak
             </a>
