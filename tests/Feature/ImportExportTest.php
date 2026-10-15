@@ -10,9 +10,13 @@ use App\Models\Unit;
 use App\Models\User;
 use App\Models\Warehouse;
 use App\Models\WarehouseLocation;
+use App\Models\WarehouseRack;
+use App\Models\WarehouseZone;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
+use OpenSpout\Common\Entity\Row;
 use OpenSpout\Reader\XLSX\Reader;
+use OpenSpout\Writer\XLSX\Writer;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
@@ -222,6 +226,88 @@ class ImportExportTest extends TestCase
         ])->assertSessionHasErrors('warehouse_id');
     }
 
+    public function test_location_import_creates_missing_zones_racks_and_skips_existing(): void
+    {
+        $csv = "gudang;kode_zona;nama_zona;jenis_zona;kode_rak;jumlah_level;kode_lokasi;level;posisi;jenis_lokasi;maks_qty;aktif\n"
+            ."jkt01;A;;;A01;;;1;1;;;\n"                       // sudah ada -> dilewati
+            ."JKT01;A;;;A01;;;2;1;Shelf;40;Ya\n"                // rak lama, lokasi baru
+            ."JKT01;B;Zona B;Picking;B01;;;4;2;;;\n"            // zona & rak baru, level dari file
+            ."JKT01;B;;;B01;;PLT-01;;;Pallet;;Tidak\n"
+            ."BDG01;C;;Karantina;;;;;;;;\n";                    // hanya zona
+        $this->post('/master/locations/import', ['file' => $this->csv('lokasi.csv', $csv)])
+            ->assertSessionHasNoErrors()
+            ->assertRedirect('/master/locations/import');
+
+        $this->assertSame(['A01-02-01', 'B01-04-02', 'PLT-01'], session('import_summary')[0]['items']);
+        $this->assertSame(['A01-01-01'], session('import_summary')[2]['items']);
+
+        $zoneB = $this->jakarta->zones()->where('code', 'B')->first();
+        $this->assertSame(['Zona B', 'picking'], [$zoneB->name, $zoneB->type]);
+        $this->assertSame('quarantine', $this->bandung->zones()->where('code', 'C')->value('type'));
+        $rackB = $zoneB->racks()->where('code', 'B01')->first();
+        $this->assertSame(4, $rackB->levels);
+        $this->assertSame(3, $this->bin->rack->fresh()->levels);
+
+        $shelf = WarehouseLocation::where('code', 'A01-02-01')->first();
+        $this->assertSame(['shelf', 40, 2, 1, true], [$shelf->type, $shelf->max_qty, $shelf->level, $shelf->position, $shelf->is_active]);
+        $pallet = WarehouseLocation::where('code', 'PLT-01')->first();
+        $this->assertSame([$rackB->id, 'pallet', false], [$pallet->warehouse_rack_id, $pallet->type, $pallet->is_active]);
+        $this->assertSame(4, WarehouseLocation::count());
+
+        // Unggah ulang file yang sama tidak menambah apa pun.
+        $this->post('/master/locations/import', ['file' => $this->csv('lokasi.csv', $csv)])->assertSessionHasNoErrors();
+        $this->assertSame(4, WarehouseLocation::count());
+        $this->assertSame(0, session('import_summary')[0]['value']);
+    }
+
+    public function test_location_import_rejects_bad_rows_and_saves_nothing(): void
+    {
+        $csv = "gudang,kode_zona,kode_rak,kode_lokasi,level,posisi,jenis_lokasi\n"
+            ."XXX,A,A01,,1,1,\n"            // gudang tidak ada
+            ."JKT01,B,A01,,1,2,\n"          // rak A01 sudah di zona A
+            ."JKT01,A,A01,,5,1,\n"          // melebihi level rak
+            ."JKT01,A,,X-1,,,\n"            // lokasi tanpa rak
+            ."JKT01,A,A02,,1,,\n"           // kode tidak bisa dibuat
+            ."JKT01,A,A02,Z-1,,,Gudang\n"   // jenis tidak dikenal
+            ."JKT01,A,A02,Z-2,,,\n"
+            ."JKT01,A,A02,z-2,,,\n";        // dobel
+        $this->post('/master/locations/import', ['file' => $this->csv('lokasi.csv', $csv)])->assertSessionHasErrors('rows');
+
+        $this->assertCount(7, session('errors')->get('rows'));
+        $this->assertSame(1, WarehouseLocation::count());
+        $this->assertSame(0, WarehouseRack::where('code', 'A02')->count());
+        $this->assertSame(0, WarehouseZone::where('code', 'B')->count());
+    }
+
+    public function test_exported_locations_can_be_imported_back_and_access_is_enforced(): void
+    {
+        $response = $this->get('/master/locations?export=xlsx')->assertOk();
+        $path = $response->baseResponse->getFile()->getPathname();
+        $rows = $this->readXlsx($path);
+        $rows[1][3] = 'A01-03-09';
+        $rows[1][5] = 9;
+        $copy = tempnam(sys_get_temp_dir(), 'loc').'.xlsx';
+        $writer = new Writer;
+        $writer->openToFile($copy);
+        foreach ($rows as $row) {
+            $writer->addRow(Row::fromValues($row));
+        }
+        $writer->close();
+
+        $this->post('/master/locations/import', ['file' => new UploadedFile($copy, 'lokasi.xlsx', null, null, true)])->assertSessionHasNoErrors();
+        $this->assertTrue(WarehouseLocation::where('code', 'A01-03-09')->exists());
+
+        $user = User::factory()->create()->assignRole('Staff Gudang');
+        $user->syncWarehouseAccess(false, [$this->bandung->id]);
+        $this->actingAs($user->fresh());
+        if ($user->can('warehouses.create')) {
+            $this->post('/master/locations/import', ['file' => $this->csv('lokasi.csv', "gudang,kode_zona\nJKT01,Z\n")])->assertSessionHasErrors('rows');
+        } else {
+            $this->get('/master/locations/import')->assertForbidden();
+        }
+        $this->assertSame(0, WarehouseZone::withoutGlobalScopes()->where('code', 'Z')->count());
+    }
+
     public function test_import_pages_and_templates(): void
     {
         $this->get('/master/products/import')->assertOk()->assertSee('sku_induk');
@@ -230,6 +316,8 @@ class ImportExportTest extends TestCase
         $this->get('/inventory/opening-stock')->assertOk()->assertSee('JKT01');
         $this->get('/inventory/opening-stock/template.xlsx')->assertOk()->assertDownload('template-impor-stok-awal.xlsx');
         $this->get('/inventory/opening-stock/template.pdf')->assertNotFound();
+        $this->get('/master/locations/import')->assertOk()->assertSee('kode_rak');
+        $this->get('/master/locations/import/template.xlsx')->assertOk()->assertDownload('template-impor-lokasi.xlsx');
     }
 
     public function test_every_list_exports_to_excel(): void

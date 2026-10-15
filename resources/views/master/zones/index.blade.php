@@ -9,6 +9,9 @@
 
     <x-page-header title="Zona Gudang" description="Pembagian area di setiap gudang." icon="heroicon-o-squares-2x2">
         @can('warehouses.create')
+            <a href="{{ route('master.locations.import') }}" class="btn-secondary">
+                <x-heroicon-o-arrow-up-tray class="size-5" /> Impor Excel / CSV
+            </a>
             <a href="{{ route('master.zones.create', ['warehouse' => request('warehouse')]) }}" class="btn-primary">
                 <x-heroicon-o-plus class="size-5" /> Tambah Zona
             </a>

@@ -21,6 +21,7 @@ use App\Http\Controllers\Marketplace\MarketplaceProductStatusController;
 use App\Http\Controllers\Master\BundleController;
 use App\Http\Controllers\Master\CourierController;
 use App\Http\Controllers\Master\LocationController;
+use App\Http\Controllers\Master\LocationImportController;
 use App\Http\Controllers\Master\ProductController;
 use App\Http\Controllers\Master\ProductImportController;
 use App\Http\Controllers\Master\RackController;
@@ -79,6 +80,11 @@ Route::middleware(['auth', 'active'])->group(function () {
         Route::get('products/import', [ProductImportController::class, 'create'])->middleware('can:products.create')->name('products.import');
         Route::post('products/import', [ProductImportController::class, 'store'])->middleware('can:products.create')->name('products.import.store');
         Route::get('products/import/template.{format}', [ProductImportController::class, 'template'])->middleware('can:products.create')->name('products.import.template');
+
+        // Impor massal zona, rak & lokasi bin dari Excel/CSV.
+        Route::get('locations/import', [LocationImportController::class, 'create'])->middleware('can:warehouses.create')->name('locations.import');
+        Route::post('locations/import', [LocationImportController::class, 'store'])->middleware('can:warehouses.create')->name('locations.import.store');
+        Route::get('locations/import/template.{format}', [LocationImportController::class, 'template'])->middleware('can:warehouses.create')->name('locations.import.template');
 
         // Zona, rak & lokasi bin memakai permission yang sama dengan gudang;
         // satuan & produk paket memakai permission produk.
