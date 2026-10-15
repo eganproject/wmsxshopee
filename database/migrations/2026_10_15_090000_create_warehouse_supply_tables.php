@@ -15,14 +15,23 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::table('warehouses', function (Blueprint $table) {
-            $table->foreignId('supply_warehouse_id')->nullable()->after('pic_name')->constrained('warehouses')->nullOnDelete();
-            $table->unsignedTinyInteger('supply_stock_percent')->default(100)->after('supply_warehouse_id');
-        });
+        // Dijaga hasTable/hasColumn supaya bisa dijalankan ulang di atas migrasi
+        // yang sempat berhenti di tengah (MySQL tidak me-rollback DDL).
+        if (! Schema::hasColumn('warehouses', 'supply_warehouse_id')) {
+            Schema::table('warehouses', function (Blueprint $table) {
+                $table->foreignId('supply_warehouse_id')->nullable()->after('pic_name')->constrained('warehouses')->nullOnDelete();
+                $table->unsignedTinyInteger('supply_stock_percent')->default(100)->after('supply_warehouse_id');
+            });
+        }
 
-        Schema::table('product_variants', function (Blueprint $table) {
-            $table->unsignedInteger('pcs_per_carton')->nullable()->after('min_stock');
-        });
+        if (! Schema::hasColumn('product_variants', 'pcs_per_carton')) {
+            Schema::table('product_variants', function (Blueprint $table) {
+                $table->unsignedInteger('pcs_per_carton')->nullable()->after('min_stock');
+            });
+        }
+
+        // Tabel ini mungkin sudah ada tanpa unique index dari percobaan sebelumnya.
+        Schema::dropIfExists('warehouse_variant_settings');
 
         Schema::create('warehouse_variant_settings', function (Blueprint $table) {
             $table->id();
@@ -33,8 +42,12 @@ return new class extends Migration
             $table->unsignedInteger('max_qty')->nullable();
             $table->timestamps();
 
-            $table->unique(['warehouse_id', 'product_variant_id']);
+            // Nama index dipendekkan: nama otomatis melebihi batas 64 karakter MySQL.
+            $table->unique(['warehouse_id', 'product_variant_id'], 'wvs_warehouse_variant_unique');
         });
+
+        Schema::dropIfExists('warehouse_transfer_items');
+        Schema::dropIfExists('warehouse_transfers');
 
         Schema::create('warehouse_transfers', function (Blueprint $table) {
             $table->id();
