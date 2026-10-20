@@ -16,6 +16,7 @@
     </x-slot:breadcrumb>
 
     <x-page-header title="Toko Marketplace" description="Semua toko Shopee dan TikTok Shop milik sendiri yang terhubung, masing-masing dikirim dari satu gudang." icon="heroicon-o-building-storefront">
+        <x-marketplace.sync-products-button />
         @can('marketplace.view')
             <a href="{{ route('marketplace.products', array_filter(['platform' => $platform])) }}" class="btn-secondary"><x-heroicon-o-check-badge class="size-5" /> Status Produk</a>
         @endcan

@@ -505,4 +505,38 @@ class ShopeeSyncTest extends TestCase
         $this->get("/sales/orders/{$order->id}")->assertOk()->assertSee('Siap Dikirim');
         $this->get('/marketplace/shops')->assertOk()->assertSee('Sinkron');
     }
+
+    public function test_sync_products_button_pulls_catalog_matches_sku_and_pushes_stock(): void
+    {
+        $this->actingAs(User::where('username', 'superadmin')->first());
+        Http::fake([
+            '*/product/get_item_list*' => Http::response(['error' => '', 'response' => ['item' => [['item_id' => 11], ['item_id' => 33]], 'has_next_page' => false]]),
+            '*/product/get_item_base_info*' => Http::response(['error' => '', 'response' => ['item_list' => [
+                ['item_id' => 11, 'item_name' => 'Kaos Polos', 'has_model' => true],
+                ['item_id' => 33, 'item_name' => 'Kaos L Baru', 'item_sku' => 'kaos-l', 'has_model' => false],
+            ]]]),
+            '*/product/get_model_list*' => Http::response(['error' => '', 'response' => [
+                'tier_variation' => [], 'model' => [['model_id' => 101, 'model_sku' => 'KAOS-M', 'model_name' => 'M'], ['model_id' => 102, 'model_sku' => 'KAOS-L', 'model_name' => 'L']],
+            ]]),
+            '*/product/update_stock*' => Http::response(['error' => '', 'response' => []]),
+        ]);
+
+        $this->post('/marketplace/sync-products')->assertSessionHas('success');
+
+        $this->assertSame($this->kaosL->id, $this->shop->mappings()->where('item_id', 33)->value('product_variant_id'));
+        Http::assertSent(fn (Request $r) => str_contains($r->url(), 'update_stock') && $r['item_id'] === 33);
+        $this->get('/marketplace/shops')->assertOk()->assertSee('Sinkron Produk');
+        $this->get('/marketplace/products')->assertOk()->assertSee('Sinkron Produk');
+    }
+
+    public function test_sync_products_command_skips_stock_for_shop_without_warehouse(): void
+    {
+        $this->shop->update(['warehouse_id' => null]);
+        Http::fake([
+            '*/product/get_item_list*' => Http::response(['error' => '', 'response' => ['item' => [], 'has_next_page' => false]]),
+        ]);
+
+        $this->artisan('marketplace:sync-products')->expectsOutputToContain('gudang pengirim belum dipilih')->assertSuccessful();
+        Http::assertNotSent(fn (Request $r) => str_contains($r->url(), 'update_stock'));
+    }
 }

@@ -9,6 +9,7 @@
 
     <x-page-header title="Status Produk Marketplace" description="Varian dan paket Optima yang sudah atau belum terhubung ke toko Shopee dan TikTok, beserta stok terakhir yang dikirim." icon="heroicon-o-check-badge">
         <x-reports.export-button />
+        <x-marketplace.sync-products-button />
     </x-page-header>
 
     <div class="mb-4 flex flex-col gap-2 border-b border-slate-200 sm:flex-row sm:items-end sm:justify-between">

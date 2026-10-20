@@ -256,6 +256,7 @@ Route::middleware(['auth', 'active'])->group(function () {
     Route::prefix('marketplace')->name('marketplace.')->group(function () {
         Route::get('shops', [MarketplaceController::class, 'shops'])->middleware('can:marketplace.view')->name('shops');
         Route::get('products', MarketplaceProductStatusController::class)->middleware('can:marketplace.view')->name('products');
+        Route::post('sync-products', [MarketplaceController::class, 'syncProducts'])->middleware('can:marketplace.view')->name('sync-products');
         Route::get('settings', [MarketplaceController::class, 'settings'])->middleware('can:marketplace.settings')->name('settings');
     });
 
