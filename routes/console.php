@@ -24,3 +24,6 @@ Schedule::command('tiktok:refresh-tokens')->hourly()->withoutOverlapping();
 Schedule::command('tiktok:sync --only=orders')->everyFiveMinutes()->withoutOverlapping();
 Schedule::command('tiktok:sync --only=stock')->everyFifteenMinutes()->withoutOverlapping();
 Schedule::command('tiktok:sync --only=returns')->hourly()->withoutOverlapping();
+
+// Produk semua toko (Shopee & TikTok): tarik produk baru, cocokkan SKU otomatis, lalu kirim stok. Tiap jam.
+Schedule::command('marketplace:sync-products')->hourlyAt(20)->withoutOverlapping();

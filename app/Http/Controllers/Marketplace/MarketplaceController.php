@@ -8,6 +8,8 @@ use App\Models\ShopeeShop;
 use App\Models\TiktokSetting;
 use App\Models\TiktokShop;
 use App\Models\Warehouse;
+use App\Services\MarketplaceProductSync;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\View\View;
@@ -64,6 +66,24 @@ class MarketplaceController extends Controller
             'shopeeEnvironment' => $shopee->environment,
             'warehouses' => Warehouse::where('is_active', true)->orderBy('name')->get(['id', 'code', 'name']),
         ]);
+    }
+
+    /**
+     * Tombol "Sinkron Produk": tarik produk dari semua toko platform yang boleh
+     * dipetakan user ini, cocokkan SKU otomatis, lalu kirim stok ke toko yang
+     * gudangnya bisa diakses user.
+     */
+    public function syncProducts(Request $request, MarketplaceProductSync $sync): RedirectResponse
+    {
+        $user = $request->user();
+        $platforms = array_values(array_filter(MarketplaceProductSync::PLATFORMS, fn ($p) => $user->can($p.'.mapping')));
+        abort_if($platforms === [], 403, 'Anda tidak punya izin memetakan produk marketplace.');
+
+        @set_time_limit(600);
+        $results = $sync->run($platforms, fn ($shop) => $user->can($shop instanceof ShopeeShop ? 'shopee.sync' : 'tiktok.sync') && $user->canAccessWarehouse($shop->warehouse_id));
+        $failed = collect($results)->contains('ok', false);
+
+        return back()->with($failed ? 'error' : 'success', MarketplaceProductSync::summary($results));
     }
 
     public function settings(Request $request): View
