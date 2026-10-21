@@ -2,6 +2,7 @@ import './bootstrap';
 import Alpine from 'alpinejs';
 import collapse from '@alpinejs/collapse';
 import { enhance, enhanceDate, enhanceSelect, registerAlpine } from './form-controls';
+import { fixedBinsFor, spreadToFixedBins } from './fixed-bins';
 import { labelBuilder } from './labels';
 import { globalSearch } from './search';
 import { initAutoScan } from './scan';
@@ -122,7 +123,7 @@ Alpine.data('sidebarTips', () => ({
 }));
 
 window.Alpine = Alpine;
-window.Optima = { ...window.Optima, enhance, enhanceSelect, enhanceDate, toast };
+window.Optima = { ...window.Optima, enhance, enhanceSelect, enhanceDate, toast, fixedBinsFor, spreadToFixedBins };
 initUi(toast);
 initAutoScan();
 

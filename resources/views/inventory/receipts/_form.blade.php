@@ -25,15 +25,41 @@
          errors: @js($rowErrors),
          scan: '',
          scanError: '',
+         splitNote: '',
          blank() {
              // Baris baru ikut lokasi bin baris terakhir supaya tidak perlu pilih ulang.
              const last = this.items[this.items.length - 1];
              return { ...@js($blank), warehouse_location_id: last ? last.warehouse_location_id : '' };
          },
+         fixedBins(item) {
+             return window.Optima.fixedBinsFor(this.defaults, this.warehouse, item.product_variant_id);
+         },
          fillDefault(item) {
-             // Lokasi tetap SKU di gudang ini (Inventori > Lokasi Tetap SKU) menggantikan bin baris sebelumnya.
-             const hit = this.defaults.find(d => String(d[0]) === String(this.warehouse) && String(d[1]) === String(item.product_variant_id));
-             if (hit) item.warehouse_location_id = String(hit[2]);
+             // Bin utama lokasi tetap SKU di gudang ini (Inventori > Lokasi Tetap SKU) menggantikan bin baris sebelumnya.
+             const bins = this.fixedBins(item);
+             if (bins.length) item.warehouse_location_id = bins[0].id;
+             this.spread(item);
+         },
+         spread(item) {
+             // Bin utama penuh (sesuai kapasitas): kelebihan diterima dipindah ke bin cadangan.
+             if (! item.product_variant_id) return;
+             const bins = this.fixedBins(item);
+             if (bins.length < 2) return;
+             const changed = window.Optima.spreadToFixedBins(this.items, item, {
+                 bins,
+                 qtyKey: 'qty_received',
+                 locKey: 'warehouse_location_id',
+                 same: r => String(r.product_variant_id) === String(item.product_variant_id),
+                 make: (loc, qty) => ({ ...@js($blank), product_variant_id: String(item.product_variant_id), warehouse_location_id: loc, qty_received: qty }),
+                 moved: (from, to, qty) => {
+                     // Jumlah dipesan ikut dipindah supaya selisih per baris tetap benar.
+                     if (from.qty_ordered === '' || from.qty_ordered === null) return;
+                     const take = Math.min(qty, parseInt(from.qty_ordered) || 0);
+                     from.qty_ordered = (parseInt(from.qty_ordered) || 0) - take;
+                     to.qty_ordered = (parseInt(to.qty_ordered) || 0) + take;
+                 },
+             });
+             if (changed) this.splitNote = 'Bin utama penuh, sisa barang disarankan ke bin cadangan (lihat Inventori > Lokasi Tetap SKU).';
          },
          locationsFor() {
              return this.locations.filter(l => String(l.warehouse_id) === String(this.warehouse));
@@ -59,9 +85,10 @@
              if (! variant) { this.scanError = `SKU / barcode ${code} tidak ditemukan.`; return; }
              this.scanError = '';
              this.scan = '';
-             // Scan barang yang sudah ada di daftar menambah jumlah diterima 1.
-             const existing = this.items.find(i => String(i.product_variant_id) === String(variant.id));
-             if (existing) { existing.qty_received = (parseInt(existing.qty_received) || 0) + 1; return; }
+             // Scan barang yang sudah ada di daftar menambah jumlah diterima 1 (baris terakhir
+             // barang itu, yaitu bin cadangan bila bin utama sudah penuh).
+             const existing = this.items.filter(i => String(i.product_variant_id) === String(variant.id)).pop();
+             if (existing) { existing.qty_received = (parseInt(existing.qty_received) || 0) + 1; this.spread(existing); return; }
              const empty = this.items.find(i => ! i.product_variant_id);
              if (empty) { empty.product_variant_id = String(variant.id); empty.qty_received = empty.qty_received || 1; this.fillDefault(empty); return; }
              const row = { ...this.blank(), product_variant_id: String(variant.id), qty_received: 1 };
@@ -141,6 +168,8 @@
             <p class="mx-5 mt-4 flex items-center gap-1 text-sm text-rose-600"><x-heroicon-o-exclamation-triangle class="size-4" /> {{ $message }}</p>
         @enderror
 
+        <p class="mx-5 mt-4 rounded-lg bg-sky-50 px-3 py-2 text-sm text-sky-700" x-show="splitNote" x-text="splitNote" x-cloak></p>
+
         <p class="mx-5 mt-4 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-700" x-show="! warehouse" x-cloak>
             Pilih gudang tujuan dulu agar daftar lokasi bin muncul. Lokasi bin boleh dikosongkan.
         </p>
@@ -173,7 +202,7 @@
                                        :class="errors[`items.${index}.qty_ordered`] && 'form-input-error'">
                             </td>
                             <td class="px-2 py-1.5">
-                                <input type="number" min="0" step="1" class="form-input w-24 text-right" :name="`items[${index}][qty_received]`" x-model="item.qty_received"
+                                <input type="number" min="0" step="1" class="form-input w-24 text-right" :name="`items[${index}][qty_received]`" x-model="item.qty_received" @change="spread(item)"
                                        :class="errors[`items.${index}.qty_received`] && 'form-input-error'">
                                 <p class="mt-1 max-w-40 text-xs text-rose-600" x-show="errors[`items.${index}.qty_received`]" x-text="errors[`items.${index}.qty_received`]"></p>
                             </td>

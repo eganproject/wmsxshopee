@@ -122,16 +122,22 @@ class SalesOrderService
     }
 
     /**
-     * Usulan pengambilan: tiap baris diambil dari bin dengan stok bebas terbanyak
-     * dulu (supaya sesedikit mungkin bin), lalu stok "Tanpa bin".
+     * Usulan pengambilan: tiap baris diambil dari bin lokasi tetap SKU dulu
+     * (bin utama, lalu bin cadangan sesuai urutan), kemudian bin lain dengan
+     * stok bebas terbanyak dulu (supaya sesedikit mungkin bin).
      *
      * @return array<int, array<int, array{warehouse_location_id: ?int, qty: int}>> per item id
      */
     public function suggestPicks(SalesOrder $order): array
     {
         $order->loadMissing('items');
-        $free = $this->freeByLocation($order->warehouse_id, $order->items->pluck('product_variant_id')->all(), $order->id)
-            ->map(fn ($slots) => $slots->sortByDesc('qty')->all())
+        $variantIds = $order->items->pluck('product_variant_id')->unique()->values()->all();
+        $priorities = app(FixedBins::class)->priorities($order->warehouse_id, $variantIds);
+        $free = $this->freeByLocation($order->warehouse_id, $variantIds, $order->id)
+            ->map(fn ($slots, $variantId) => $slots->sortBy([
+                fn ($a, $b) => ($priorities[$variantId][$a['location_id']] ?? PHP_INT_MAX) <=> ($priorities[$variantId][$b['location_id']] ?? PHP_INT_MAX),
+                fn ($a, $b) => $b['qty'] <=> $a['qty'],
+            ])->all())
             ->all();
         $suggestion = [];
 

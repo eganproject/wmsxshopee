@@ -8,8 +8,8 @@ use App\Models\Stock;
 use App\Models\Warehouse;
 use App\Models\WarehouseLocation;
 use App\Models\WarehouseTransfer;
-use App\Models\WarehouseVariantSetting;
 use App\Rules\AccessibleRecord;
+use App\Services\FixedBins;
 use App\Services\WarehouseSupply;
 use App\Services\WarehouseTransferService;
 use App\Support\WarehouseAccess;
@@ -77,9 +77,8 @@ class WarehouseTransferController extends Controller
                 ->get(['id', 'warehouse_id', 'code', 'type', 'is_active'])
                 ->map(fn ($l) => ['id' => $l->id, 'warehouse_id' => $l->warehouse_id, 'code' => $l->code, 'active' => $l->is_active])
                 ->values(),
-            'defaults' => WarehouseVariantSetting::withoutGlobalScope('warehouse_access')->whereNotNull('default_location_id')
-                ->get(['warehouse_id', 'product_variant_id', 'default_location_id'])
-                ->map(fn ($s) => [$s->warehouse_id, $s->product_variant_id, $s->default_location_id])->values(),
+            // Lokasi tetap SKU di gudang tujuan: [gudang, varian, [[lokasi, sisa ruang], ...]] urut prioritas.
+            'defaults' => app(FixedBins::class)->forForm($destinations->pluck('id')->all()),
             'variants' => ProductVariant::query()
                 ->with('product:id,name')
                 ->where('is_active', true)
@@ -169,7 +168,8 @@ class WarehouseTransferController extends Controller
 
     /**
      * Baris awal dari saran: lokasi asal = bin dengan stok terbanyak di gudang
-     * cadangan, lokasi tujuan = lokasi tetap SKU di gudang tujuan.
+     * cadangan, lokasi tujuan = lokasi tetap SKU di gudang tujuan (bin utama
+     * sampai penuh, sisanya ke bin cadangan).
      *
      * @return list<array<string, mixed>>
      */
@@ -178,16 +178,20 @@ class WarehouseTransferController extends Controller
         $ids = $rows->pluck('variant.id')->all();
         $bins = Stock::withoutGlobalScope('warehouse_access')->where('warehouse_id', $from)->whereIn('product_variant_id', $ids)->where('qty', '>', 0)
             ->orderByDesc('qty')->get()->groupBy('product_variant_id');
-        $defaults = WarehouseVariantSetting::withoutGlobalScope('warehouse_access')->where('warehouse_id', $to)->whereIn('product_variant_id', $ids)
-            ->pluck('default_location_id', 'product_variant_id');
+        $fixed = app(FixedBins::class);
+        $targets = $fixed->for([$to], $ids);
 
-        return $rows->map(fn ($row) => [
-            'product_variant_id' => (string) $row->variant->id,
-            'from_location_id' => (string) ($bins[$row->variant->id][0]->warehouse_location_id ?? ''),
-            'to_location_id' => (string) ($defaults[$row->variant->id] ?? ''),
-            'qty' => $row->qty,
-            'notes' => $row->urgent ? 'Untuk pesanan yang menunggu' : '',
-        ])->values()->all();
+        return $rows->flatMap(function ($row) use ($bins, $fixed, $targets, $to) {
+            $split = $fixed->split($targets[$to.':'.$row->variant->id] ?? [], (int) $row->qty) ?: [['location_id' => null, 'qty' => (int) $row->qty]];
+
+            return collect($split)->map(fn ($part) => [
+                'product_variant_id' => (string) $row->variant->id,
+                'from_location_id' => (string) ($bins[$row->variant->id][0]->warehouse_location_id ?? ''),
+                'to_location_id' => (string) ($part['location_id'] ?? ''),
+                'qty' => $part['qty'],
+                'notes' => $row->urgent ? 'Untuk pesanan yang menunggu' : '',
+            ]);
+        })->values()->all();
     }
 
     /**
@@ -229,8 +233,9 @@ class WarehouseTransferController extends Controller
             'items.*.notes' => 'keterangan',
         ]);
 
-        if (collect($data['items'])->map(fn ($r) => $r['product_variant_id'].':'.($r['from_location_id'] ?? ''))->duplicates()->isNotEmpty()) {
-            throw ValidationException::withMessages(['items' => 'SKU yang sama dari lokasi asal yang sama ditulis lebih dari sekali; gabungkan jadi satu baris.']);
+        // Satu SKU boleh beberapa baris dari bin asal yang sama asal bin tujuannya beda (bin utama & cadangan).
+        if (collect($data['items'])->map(fn ($r) => $r['product_variant_id'].':'.($r['from_location_id'] ?? '').':'.($r['to_location_id'] ?? ''))->duplicates()->isNotEmpty()) {
+            throw ValidationException::withMessages(['items' => 'SKU yang sama dari lokasi asal ke lokasi tujuan yang sama ditulis lebih dari sekali; gabungkan jadi satu baris.']);
         }
 
         return $data;

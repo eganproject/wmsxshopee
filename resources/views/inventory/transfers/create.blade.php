@@ -28,6 +28,7 @@
               errors: @js($rowErrors),
               scan: '',
               scanError: '',
+              splitNote: '',
               blank() { return @js($blank) },
               variant(id) { return this.variants.find(v => String(v.id) === String(id)); },
               per(item) { return this.variant(item.product_variant_id)?.per || null; },
@@ -37,15 +38,31 @@
                   const koli = Math.floor(qty / per), pcs = qty % per;
                   return [koli ? `${koli} koli` : '', pcs ? `${pcs} pcs` : ''].filter(Boolean).join(' + ') + ` (isi ${per}/koli)`;
               },
-              addCarton(item, n) { const per = this.per(item); if (per) item.qty = Math.max(0, (parseInt(item.qty) || 0) + n * per) || ''; },
+              addCarton(item, n) { const per = this.per(item); if (per) { item.qty = Math.max(0, (parseInt(item.qty) || 0) + n * per) || ''; this.spread(item); } },
               locationOptions(warehouse, activeOnly) {
                   return this.locations.filter(l => String(l.warehouse_id) === String(warehouse) && (! activeOnly || l.active)).map(l => ({ value: l.id, text: l.code }));
               },
               get variantOptions() { return this.variants.map(v => ({ value: v.id, text: v.label })); },
+              fixedBins(item) { return window.Optima.fixedBinsFor(this.defaults, this.to, item.product_variant_id); },
               fillDefault(item) {
-                  if (item.to_location_id || ! this.to) return;
-                  const hit = this.defaults.find(d => String(d[0]) === String(this.to) && String(d[1]) === String(item.product_variant_id));
-                  if (hit) item.to_location_id = String(hit[2]);
+                  if (! this.to) return;
+                  const bins = this.fixedBins(item);
+                  if (! item.to_location_id && bins.length) item.to_location_id = bins[0].id;
+                  this.spread(item);
+              },
+              spread(item) {
+                  // Bin utama di gudang tujuan penuh (sesuai kapasitas): kelebihan dipindah ke bin cadangan.
+                  if (! item.product_variant_id || ! this.to) return;
+                  const bins = this.fixedBins(item);
+                  if (bins.length < 2) return;
+                  const changed = window.Optima.spreadToFixedBins(this.items, item, {
+                      bins,
+                      qtyKey: 'qty',
+                      locKey: 'to_location_id',
+                      same: r => String(r.product_variant_id) === String(item.product_variant_id) && String(r.from_location_id) === String(item.from_location_id),
+                      make: (loc, qty) => ({ ...this.blank(), product_variant_id: String(item.product_variant_id), from_location_id: item.from_location_id, to_location_id: loc, qty, notes: item.notes }),
+                  });
+                  if (changed) this.splitNote = 'Bin utama di gudang tujuan penuh, sisa barang disarankan ke bin cadangan (lihat Inventori > Lokasi Tetap SKU).';
               },
               addScanned() {
                   const code = this.scan.trim().toUpperCase();
@@ -89,7 +106,7 @@
             <div class="flex flex-col gap-3 border-b border-slate-100 px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                     <h2 class="flex items-center gap-2 font-semibold text-slate-900"><x-heroicon-o-cube class="size-5 text-slate-400" /> Barang</h2>
-                    <p class="mt-0.5 text-sm text-slate-500">Jumlah dalam pcs. Untuk SKU yang punya isi per koli, pakai tombol + koli. Lokasi tujuan otomatis terisi lokasi tetap SKU bila ada.</p>
+                    <p class="mt-0.5 text-sm text-slate-500">Jumlah dalam pcs. Untuk SKU yang punya isi per koli, pakai tombol + koli. Lokasi tujuan otomatis terisi bin utama lokasi tetap SKU; bila bin utama penuh, sisanya ke bin cadangan.</p>
                 </div>
                 <div class="sm:w-72">
                     <div class="relative">
@@ -103,6 +120,8 @@
             @error('items')
                 <p class="mx-6 mt-4 flex items-center gap-1 text-sm text-rose-600"><x-heroicon-o-exclamation-triangle class="size-4" /> {{ $message }}</p>
             @enderror
+
+            <p class="mx-6 mt-4 rounded-lg bg-sky-50 px-3 py-2 text-sm text-sky-700" x-show="splitNote" x-text="splitNote" x-cloak></p>
 
             <p class="mx-6 mt-4 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-700" x-show="! from || ! to" x-cloak>
                 Pilih gudang asal dan tujuan dulu agar daftar lokasi muncul.
@@ -147,7 +166,7 @@
                                 </td>
                                 <td class="px-2 py-1.5">
                                     <div class="flex items-center gap-1">
-                                        <input type="number" step="1" min="1" class="form-input w-28" :name="`items[${index}][qty]`" x-model="item.qty"
+                                        <input type="number" step="1" min="1" class="form-input w-28" :name="`items[${index}][qty]`" x-model="item.qty" @change="spread(item)"
                                                :class="errors[`items.${index}.qty`] && 'form-input-error'">
                                         <template x-if="per(item)">
                                             <div class="flex gap-1">
