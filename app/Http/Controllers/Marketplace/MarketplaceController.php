@@ -9,6 +9,7 @@ use App\Models\TiktokSetting;
 use App\Models\TiktokShop;
 use App\Models\Warehouse;
 use App\Services\MarketplaceProductSync;
+use App\Services\MarketplaceShopSync;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -84,6 +85,33 @@ class MarketplaceController extends Controller
         $failed = collect($results)->contains('ok', false);
 
         return back()->with($failed ? 'error' : 'success', MarketplaceProductSync::summary($results));
+    }
+
+    /**
+     * Tombol "Sinkron Semua" di panel Toko Terhubung (topbar): produk & SKU,
+     * pesanan, retur dan stok untuk semua toko yang boleh disinkron user.
+     */
+    public function syncAll(Request $request, MarketplaceShopSync $sync): RedirectResponse
+    {
+        @set_time_limit(900);
+        $results = $sync->syncAll($request->user());
+        $failed = collect($results)->contains('ok', false);
+
+        return back()->with($failed || $results === [] ? 'error' : 'success', MarketplaceShopSync::summary($results));
+    }
+
+    /** Tombol sinkron satu toko di panel Toko Terhubung (topbar). */
+    public function syncShop(Request $request, string $platform, int $shop, MarketplaceShopSync $sync): RedirectResponse
+    {
+        abort_unless(isset(self::PLATFORMS[$platform]), 404);
+        $model = ($platform === 'shopee' ? ShopeeShop::class : TiktokShop::class)::findOrFail($shop);
+        $user = $request->user();
+        abort_unless(MarketplaceShopSync::canSync($user, $platform, $model), 403, 'Anda tidak punya izin menyinkron toko ini.');
+
+        @set_time_limit(600);
+        $result = $sync->syncShop($platform, $model, $user->can("{$platform}.mapping"));
+
+        return back()->with($result['ok'] ? 'success' : 'error', "{$result['shop']}: ".($result['ok'] ? ucfirst($result['message']) : 'GAGAL, '.$result['message']).'.');
     }
 
     public function settings(Request $request): View

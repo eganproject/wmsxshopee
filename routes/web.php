@@ -257,6 +257,8 @@ Route::middleware(['auth', 'active'])->group(function () {
         Route::get('shops', [MarketplaceController::class, 'shops'])->middleware('can:marketplace.view')->name('shops');
         Route::get('products', MarketplaceProductStatusController::class)->middleware('can:marketplace.view')->name('products');
         Route::post('sync-products', [MarketplaceController::class, 'syncProducts'])->middleware('can:marketplace.view')->name('sync-products');
+        Route::post('sync-all', [MarketplaceController::class, 'syncAll'])->middleware('can:marketplace.view')->name('sync-all');
+        Route::post('shops/{platform}/{shop}/sync-all', [MarketplaceController::class, 'syncShop'])->whereIn('platform', ['shopee', 'tiktok'])->whereNumber('shop')->middleware('can:marketplace.view')->name('shops.sync-all');
         Route::get('settings', [MarketplaceController::class, 'settings'])->middleware('can:marketplace.settings')->name('settings');
     });
 
