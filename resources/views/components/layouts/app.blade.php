@@ -201,6 +201,10 @@
 
             <x-global-search :navigation="$navigation" />
 
+            @can('marketplace.view')
+                <x-marketplace-shops-menu />
+            @endcan
+
             <x-notification-bell />
 
             <button type="button" class="btn-icon" x-data="themeToggle" @click="cycle()" :title="labels[theme]" :aria-label="labels[theme]">

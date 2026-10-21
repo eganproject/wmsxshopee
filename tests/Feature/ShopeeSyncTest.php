@@ -539,4 +539,39 @@ class ShopeeSyncTest extends TestCase
         $this->artisan('marketplace:sync-products')->expectsOutputToContain('gudang pengirim belum dipilih')->assertSuccessful();
         Http::assertNotSent(fn (Request $r) => str_contains($r->url(), 'update_stock'));
     }
+
+    public function test_topbar_shops_menu_lists_shops_and_syncs_products_orders_and_stock(): void
+    {
+        $this->actingAs(User::where('username', 'superadmin')->first());
+        $this->fakeOrders([$this->order('T1', 'READY_TO_SHIP', [$this->line(11, 101, 1)])], [
+            '*/product/get_item_list*' => Http::response(['error' => '', 'response' => ['item' => [['item_id' => 11]], 'has_next_page' => false]]),
+            '*/product/get_item_base_info*' => Http::response(['error' => '', 'response' => ['item_list' => [['item_id' => 11, 'item_name' => 'Kaos Polos', 'has_model' => true]]]]),
+            '*/product/get_model_list*' => Http::response(['error' => '', 'response' => [
+                'tier_variation' => [], 'model' => [['model_id' => 101, 'model_sku' => 'KAOS-M', 'model_name' => 'M'], ['model_id' => 102, 'model_sku' => 'KAOS-L', 'model_name' => 'L']],
+            ]]),
+            '*/returns/get_return_list*' => Http::response(['error' => '', 'response' => ['more' => false, 'return' => []]]),
+            '*/product/update_stock*' => Http::response(['error' => '', 'response' => []]),
+        ]);
+
+        $this->get('/dashboard')->assertOk()->assertSee('Toko Terhubung')->assertSee('Toko Uji')->assertSee('Sinkron Semua');
+
+        $this->post("/marketplace/shops/shopee/{$this->shop->id}/sync-all")->assertSessionHas('success');
+        $this->assertDatabaseHas('sales_orders', ['external_number' => 'T1']);
+        $this->assertNotNull($this->shop->fresh()->last_synced_at);
+        Http::assertSent(fn (Request $r) => str_contains($r->url(), 'get_item_list'));
+        Http::assertSent(fn (Request $r) => str_contains($r->url(), 'update_stock'));
+
+        $this->post('/marketplace/sync-all')->assertSessionHas('success');
+    }
+
+    public function test_topbar_shop_sync_requires_sync_permission(): void
+    {
+        $user = User::where('username', 'superadmin')->first();
+        $this->actingAs($user);
+        $this->shop->update(['is_active' => false]);
+
+        $this->post('/marketplace/sync-all')->assertSessionHas('error');
+        $this->post('/marketplace/shops/shopee/999/sync-all')->assertNotFound();
+        $this->post('/marketplace/shops/lazada/1/sync-all')->assertNotFound();
+    }
 }
