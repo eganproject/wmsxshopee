@@ -8,9 +8,9 @@ use App\Models\ProductVariant;
 use App\Models\Supplier;
 use App\Models\Warehouse;
 use App\Models\WarehouseLocation;
-use App\Models\WarehouseVariantSetting;
 use App\Rules\AccessibleRecord;
 use App\Services\DamagedStockService;
+use App\Services\FixedBins;
 use App\Services\StockService;
 use App\Support\Activity;
 use App\Support\XlsxExport;
@@ -273,10 +273,9 @@ class GoodsReceiptController extends Controller
                 ->orderBy('name')
                 ->get(),
             'warehouses' => $warehouses,
-            // Lokasi tetap SKU per gudang: [gudang, varian, lokasi], diisi otomatis saat memilih barang.
-            'defaults' => WarehouseVariantSetting::whereIn('warehouse_id', $warehouses->pluck('id'))->whereNotNull('default_location_id')
-                ->get(['warehouse_id', 'product_variant_id', 'default_location_id'])
-                ->map(fn ($s) => [$s->warehouse_id, $s->product_variant_id, $s->default_location_id])->values(),
+            // Lokasi tetap SKU per gudang: [gudang, varian, [[lokasi, sisa ruang], ...]] urut prioritas;
+            // bin utama diisi otomatis saat memilih barang, kelebihan dibagi ke bin cadangan.
+            'defaults' => app(FixedBins::class)->forForm($warehouses->pluck('id')->all()),
             'locations' => WarehouseLocation::query()
                 ->whereIn('warehouse_id', $warehouses->pluck('id'))
                 ->where('is_active', true)

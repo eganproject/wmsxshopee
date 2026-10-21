@@ -8,7 +8,7 @@
         <span class="font-medium text-slate-700">Lokasi Tetap SKU</span>
     </x-slot:breadcrumb>
 
-    <x-page-header title="Lokasi Tetap SKU" description="Bin langganan setiap SKU per gudang (disarankan saat transfer & penerimaan), serta stok minimum/maksimum untuk saran isi ulang dari gudang cadangan." icon="heroicon-o-map-pin" />
+    <x-page-header title="Lokasi Tetap SKU" description="Bin langganan setiap SKU per gudang, bisa lebih dari satu (utama lalu cadangan), disarankan saat penerimaan & transfer dan didahulukan saat picking, serta stok minimum/maksimum untuk saran isi ulang dari gudang cadangan." icon="heroicon-o-map-pin" />
 
     <div class="card">
         <form method="GET" class="flex flex-col gap-3 border-b border-slate-100 p-4 lg:flex-row lg:items-center">
@@ -32,7 +32,8 @@
         @if (! $warehouse)
             <x-empty-state icon="heroicon-o-building-office-2" title="Belum ada gudang aktif" description="Tambahkan gudang di Master Gudang dulu." />
         @else
-            <form method="POST" action="{{ route('inventory.sku-settings.update') }}" data-dirty-guard>
+            <form method="POST" action="{{ route('inventory.sku-settings.update') }}" data-dirty-guard
+                  x-data="{ locationOptions: @js($locations->map(fn ($l) => ['value' => (string) $l->id, 'text' => $l->code.' · '.$l->typeLabel()])->values()) }">
                 @csrf
                 @method('PUT')
                 <input type="hidden" name="warehouse_id" value="{{ $warehouse->id }}">
@@ -72,13 +73,30 @@
                                         @endif
                                     </td>
                                     <td class="px-4 py-2 font-mono text-xs text-slate-500">{{ ($bins[$variant->id] ?? collect())->join(', ') ?: '—' }}</td>
-                                    <td class="px-4 py-2">
-                                        <select name="settings[{{ $variant->id }}][default_location_id]" class="form-input min-w-44" data-placeholder="Belum diatur">
-                                            <option value="">Belum diatur</option>
-                                            @foreach ($locations as $location)
-                                                <option value="{{ $location->id }}" @selected(old("settings.{$variant->id}.default_location_id", $setting?->default_location_id) == $location->id)>{{ $location->code }} · {{ $location->typeLabel() }}</option>
-                                            @endforeach
-                                        </select>
+                                    @php($fixedRows = old("settings.{$variant->id}.bins", ($fixedBins[$variant->id] ?? [])))
+                                    <td class="px-4 py-2" x-data="{ bins: @js(collect($fixedRows)->map(fn ($b) => ['location_id' => (string) ($b['location_id'] ?? ''), 'capacity' => (string) ($b['capacity'] ?? '')])->values()) }">
+                                        <template x-for="(bin, i) in bins" :key="i">
+                                            <div class="mb-1.5 flex items-center gap-1.5">
+                                                <span class="w-20 shrink-0 whitespace-nowrap text-xs font-medium" :class="i === 0 ? 'text-brand-600' : 'text-slate-500'" x-text="i === 0 ? 'Utama' : 'Cadangan ' + i"></span>
+                                                <select class="form-input min-w-40" :name="`settings[{{ $variant->id }}][bins][${i}][location_id]`" x-model="bin.location_id"
+                                                        x-tom-select="{ options: locationOptions, value: bin.location_id }" data-placeholder="Pilih bin"></select>
+                                                <input type="number" min="1" class="form-input w-24" placeholder="Kapasitas" title="Kapasitas bin (pcs). Kosong = tanpa batas."
+                                                       :name="`settings[{{ $variant->id }}][bins][${i}][capacity]`" x-model="bin.capacity">
+                                                <button type="button" class="btn-icon" title="Naikkan prioritas" x-show="i > 0" @click="bins.splice(i - 1, 2, bins[i], bins[i - 1])">
+                                                    <x-heroicon-o-arrow-up class="size-4" />
+                                                </button>
+                                                <button type="button" class="btn-icon hover:bg-rose-50 hover:text-rose-600" title="Hapus bin" @click="bins.splice(i, 1)">
+                                                    <x-heroicon-o-x-mark class="size-4" />
+                                                </button>
+                                            </div>
+                                        </template>
+                                        <button type="button" class="inline-flex items-center gap-1 text-xs font-medium text-brand-600 hover:underline" x-show="bins.length < 10"
+                                                @click="bins.push({ location_id: '', capacity: '' })">
+                                            <x-heroicon-o-plus class="size-3.5" /> <span x-text="bins.length ? 'Tambah bin cadangan' : 'Atur lokasi tetap'"></span>
+                                        </button>
+                                        @error("settings.{$variant->id}.bins")
+                                            <p class="mt-1 text-xs text-rose-600">{{ $message }}</p>
+                                        @enderror
                                     </td>
                                     <td class="px-4 py-2"><input type="number" min="0" name="settings[{{ $variant->id }}][min_qty]" value="{{ old("settings.{$variant->id}.min_qty", $setting?->min_qty) }}" class="form-input w-24"></td>
                                     <td class="px-4 py-2"><input type="number" min="0" name="settings[{{ $variant->id }}][max_qty]" value="{{ old("settings.{$variant->id}.max_qty", $setting?->max_qty) }}" class="form-input w-24"></td>
@@ -93,7 +111,7 @@
                 @if ($variants->isNotEmpty())
                     @can('inventory.create')
                         <div class="sticky bottom-0 flex items-center justify-between gap-3 border-t border-slate-200 bg-slate-50/90 px-4 py-3 backdrop-blur">
-                            <p class="text-xs text-slate-500">Hanya SKU di halaman ini yang disimpan. Min/maks dalam pcs.</p>
+                            <p class="text-xs text-slate-500">Hanya SKU di halaman ini yang disimpan. Min/maks & kapasitas dalam pcs. Penerimaan & transfer mengisi bin utama sampai penuh lalu bin cadangan; picking mengambil dari bin utama dulu.</p>
                             <button type="submit" class="btn-primary"><x-heroicon-o-check class="size-5" /> Simpan</button>
                         </div>
                     @endcan
