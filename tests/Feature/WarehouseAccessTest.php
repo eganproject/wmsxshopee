@@ -105,7 +105,7 @@ class WarehouseAccessTest extends TestCase
 
         $this->get('/master/warehouses')->assertOk()->assertSee('JKT01')->assertDontSee('BDG01');
         $this->get('/master/locations')->assertOk()->assertSee('JKT01-A01-01')->assertDontSee('BDG01-A01-01');
-        $this->get('/inventory/stocks')->assertOk()->assertSee('JKT01-A01-01')->assertDontSee('BDG01-A01-01');
+        $this->get('/inventory/stocks?view=location')->assertOk()->assertSee('JKT01-A01-01')->assertDontSee('BDG01-A01-01');
         $this->get('/inventory/receipts/create')->assertOk()->assertSee('Gudang Jakarta')->assertDontSee('Gudang Bandung');
 
         $this->assertSame([$this->jakarta->id], Warehouse::pluck('id')->all());

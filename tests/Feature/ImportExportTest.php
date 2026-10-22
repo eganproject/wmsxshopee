@@ -345,7 +345,7 @@ class ImportExportTest extends TestCase
         $user->syncWarehouseAccess(false, [$this->bandung->id]);
         $this->actingAs($user->fresh());
 
-        $rows = $this->readXlsx($this->get('/inventory/stocks?export=xlsx')->getFile()->getPathname());
+        $rows = $this->readXlsx($this->get('/inventory/stocks?view=location&export=xlsx')->getFile()->getPathname());
         $this->assertCount(2, $rows);
         $this->assertSame(['BDG01', 'Tanpa bin', 'KAOS'], array_slice($rows[1], 0, 3));
         $this->assertSame(9, $rows[1][7]);

@@ -1,3 +1,5 @@
+@php($fmt = fn ($value) => number_format((int) $value, 0, ',', '.'))
+
 <x-layouts.app title="Stok">
     <x-slot:breadcrumb>
         <x-heroicon-o-home class="size-4" />
@@ -7,16 +9,44 @@
         <span class="font-medium text-slate-700">Stok</span>
     </x-slot:breadcrumb>
 
-    <x-page-header title="Stok" description="Saldo stok saat ini per varian di setiap lokasi bin." icon="heroicon-o-archive-box">
+    <x-page-header title="Stok" description="Stok fisik, yang sudah dipesan dan yang masih tersedia per SKU, serta saldo per lokasi bin." icon="heroicon-o-archive-box">
         <x-reports.export-button />
         <x-inventory.create-menu />
     </x-page-header>
 
     <x-inventory.tabs />
 
+    @if ($mode === 'variant')
+        <div class="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <div class="card p-4">
+                <p class="text-xs text-slate-500">Fisik</p>
+                <p class="mt-1 text-xl font-semibold tabular-nums text-slate-900">{{ $fmt($totals['on_hand']) }}</p>
+                <p class="text-xs text-slate-500">{{ $fmt($totals['skus']) }} SKU ditampilkan</p>
+            </div>
+            <div class="card p-4">
+                <p class="text-xs text-slate-500">Dipesan</p>
+                <p class="mt-1 text-xl font-semibold tabular-nums text-sky-700">{{ $fmt($totals['reserved']) }}</p>
+                <p class="text-xs text-slate-500">Dicadangkan pesanan yang belum dikirim</p>
+            </div>
+            <div class="card p-4">
+                <p class="text-xs text-slate-500">Tersedia</p>
+                <p @class(['mt-1 text-xl font-semibold tabular-nums', 'text-emerald-700' => $totals['available'] > 0, 'text-rose-600' => $totals['available'] <= 0])>{{ $fmt($totals['available']) }}</p>
+                <p class="text-xs text-slate-500">Fisik − Dipesan @if ($totals['held']) · {{ $fmt($totals['held']) }} tertahan di draft @endif</p>
+            </div>
+            <a href="{{ route('inventory.stocks.index', [...request()->except(['status', 'page']), 'status' => 'short']) }}" class="card block p-4 transition hover:border-rose-200">
+                <p class="text-xs text-slate-500">SKU Kurang Stok</p>
+                <p @class(['mt-1 text-xl font-semibold tabular-nums', 'text-rose-600' => $totals['short'] > 0, 'text-slate-900' => ! $totals['short']])>{{ $fmt($totals['short']) }} SKU</p>
+                <p class="text-xs text-slate-500">Pesanan melebihi stok tersedia</p>
+            </a>
+        </div>
+    @endif
+
     <div class="card">
         <form method="GET" class="flex flex-col gap-3 border-b border-slate-100 p-4 md:flex-row md:items-center">
             <input type="hidden" name="view" value="{{ $mode }}">
+            @if ($filter)
+                <input type="hidden" name="status" value="{{ $filter }}">
+            @endif
             <div class="relative flex-1">
                 <x-heroicon-o-magnifying-glass class="pointer-events-none absolute top-1/2 left-3.5 size-5 -translate-y-1/2 text-slate-400" />
                 <input type="search" name="search" value="{{ request('search') }}" class="form-input pl-11"
@@ -30,94 +60,52 @@
             </select>
             <label class="flex items-center gap-2 text-sm whitespace-nowrap text-slate-600">
                 <input type="checkbox" name="zero" value="1" class="form-checkbox" @checked(request()->boolean('zero')) onchange="this.form.submit()">
-                Tampilkan stok 0
+                {{ $mode === 'variant' ? 'Tampilkan semua SKU' : 'Tampilkan stok 0' }}
             </label>
             <div class="flex gap-2">
                 <button type="submit" class="btn-secondary"><x-heroicon-o-funnel class="size-5" /> Filter</button>
-                @if (request()->hasAny(['search', 'warehouse', 'zero']))
+                @if (request()->hasAny(['search', 'warehouse', 'zero', 'status']))
                     <a href="{{ route('inventory.stocks.index', ['view' => $mode]) }}" class="btn-icon" title="Reset filter"><x-heroicon-o-x-mark class="size-5" /></a>
                 @endif
             </div>
         </form>
 
         <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-4 py-3">
-            <div class="inline-flex rounded-lg border border-slate-200 p-0.5 text-sm">
-                @foreach (['location' => 'Per Lokasi', 'variant' => 'Per Varian'] as $value => $label)
-                    <a href="{{ route('inventory.stocks.index', [...request()->except(['view', 'page']), 'view' => $value]) }}"
-                       @class([
-                           'rounded-md px-3 py-1.5 font-medium transition',
-                           'bg-brand-50 text-brand-700' => $mode === $value,
-                           'text-slate-600 hover:text-slate-900' => $mode !== $value,
-                       ])>{{ $label }}</a>
-                @endforeach
+            <div class="flex flex-wrap items-center gap-3">
+                <div class="inline-flex rounded-lg border border-slate-200 p-0.5 text-sm">
+                    @foreach (['variant' => 'Per SKU', 'location' => 'Per Lokasi'] as $value => $label)
+                        <a href="{{ route('inventory.stocks.index', [...request()->except(['view', 'page', 'status']), 'view' => $value]) }}"
+                           @class([
+                               'rounded-md px-3 py-1.5 font-medium transition',
+                               'bg-brand-50 text-brand-700' => $mode === $value,
+                               'text-slate-600 hover:text-slate-900' => $mode !== $value,
+                           ])>{{ $label }}</a>
+                    @endforeach
+                </div>
+                @if ($mode === 'variant')
+                    <div class="flex flex-wrap gap-1.5 text-sm">
+                        @foreach (['' => 'Semua', ...\App\Support\StockOverview::FILTERS] as $value => $label)
+                            <a href="{{ route('inventory.stocks.index', array_filter([...request()->except(['status', 'page']), 'status' => $value])) }}"
+                               @class([
+                                   'rounded-full border px-3 py-1 transition',
+                                   'border-brand-200 bg-brand-50 font-medium text-brand-700' => ($filter ?? '') === $value,
+                                   'border-slate-200 text-slate-600 hover:text-slate-900' => ($filter ?? '') !== $value,
+                               ])>{{ $label }}</a>
+                        @endforeach
+                    </div>
+                @endif
             </div>
-            <p class="text-sm text-slate-500">Total: <span class="font-semibold text-slate-900">{{ number_format($totalQty, 0, ',', '.') }}</span></p>
+            @if ($mode === 'location')
+                <p class="text-sm text-slate-500">Total: <span class="font-semibold text-slate-900">{{ $fmt($totalQty) }}</span></p>
+            @endif
         </div>
 
         <div class="overflow-x-auto">
-            <table class="min-w-full text-sm">
-                <thead class="bg-slate-50 text-left text-[13px] text-slate-500">
-                    <tr>
-                        <th class="px-5 py-3">SKU</th>
-                        <th class="px-5 py-3">Produk / Varian</th>
-                        @if ($mode === 'location')
-                            <th class="px-5 py-3">Gudang</th>
-                            <th class="px-5 py-3">Lokasi</th>
-                        @else
-                            <th class="px-5 py-3 text-center">Jumlah Lokasi</th>
-                        @endif
-                        <th class="px-5 py-3 text-right">Stok</th>
-                        <th class="px-5 py-3 text-right">Aksi</th>
-                    </tr>
-                </thead>
-                <tbody class="divide-y divide-slate-100">
-                    @forelse ($stocks as $stock)
-                        <tr class="hover:bg-slate-50/60">
-                            <td class="px-5 py-3.5 font-mono font-medium text-slate-900">{{ $stock->variant->sku }}</td>
-                            <td class="px-5 py-3.5">
-                                <p class="font-medium text-slate-900">{{ $stock->variant->product->name }}</p>
-                                @if ($stock->variant->name)
-                                    <p class="text-xs text-slate-500">{{ $stock->variant->name }}</p>
-                                @endif
-                            </td>
-                            @if ($mode === 'location')
-                                <td class="px-5 py-3.5 text-slate-600">{{ $stock->warehouse->code }}</td>
-                                <td @class(['px-5 py-3.5', 'font-mono text-slate-700' => $stock->location, 'text-slate-400' => ! $stock->location])>{{ $stock->location?->code ?? 'Tanpa bin' }}</td>
-                            @else
-                                <td class="px-5 py-3.5 text-center text-slate-600">{{ $stock->location_count }}</td>
-                            @endif
-                            <td @class(['px-5 py-3.5 text-right font-semibold tabular-nums', 'text-slate-900' => $stock->qty > 0, 'text-slate-400' => $stock->qty <= 0])>
-                                {{ number_format($stock->qty, 0, ',', '.') }}
-                                <span class="text-xs font-normal text-slate-500">{{ $stock->variant->product->unit->code }}</span>
-                                @if ($cartons = $stock->variant->cartonLabel((int) $stock->qty))
-                                    <p class="text-xs font-normal text-slate-500">{{ $cartons }}</p>
-                                @endif
-                                @if ($transit[$stock->product_variant_id] ?? 0)
-                                    <p class="text-xs font-normal text-amber-600" title="Transfer antar gudang yang belum diterima">+{{ number_format($transit[$stock->product_variant_id], 0, ',', '.') }} dalam perjalanan</p>
-                                @endif
-                            </td>
-                            <td class="px-5 py-3.5">
-                                <div class="flex items-center justify-end gap-1">
-                                    @if ($mode === 'variant')
-                                        <a href="{{ route('inventory.stocks.index', ['view' => 'location', 'search' => $stock->variant->sku, 'warehouse' => request('warehouse')]) }}" class="btn-icon" title="Lihat per lokasi">
-                                            <x-heroicon-o-map-pin class="size-5" />
-                                        </a>
-                                    @endif
-                                    <a href="{{ route('inventory.stock-card.index', array_filter([
-                                        'variant' => $stock->product_variant_id,
-                                        'warehouse' => $mode === 'location' ? $stock->warehouse_id : request('warehouse'),
-                                        'location' => $mode === 'location' ? ($stock->warehouse_location_id ?? 'none') : null,
-                                    ])) }}" class="btn-icon" title="Kartu stok">
-                                        <x-heroicon-o-document-chart-bar class="size-5" />
-                                    </a>
-                                </div>
-                            </td>
-                        </tr>
-                    @empty
-                        <x-empty-state colspan="6" icon="heroicon-o-archive-box" title="Belum ada stok" description="Stok bertambah saat Penerimaan Barang dikonfirmasi atau lewat Impor Stok Awal." />
-                    @endforelse
-                </tbody>
-            </table>
+            @if ($mode === 'variant')
+                @include('inventory.stocks.partials.by-variant')
+            @else
+                @include('inventory.stocks.partials.by-location')
+            @endif
         </div>
 
         @if ($stocks->hasPages())
