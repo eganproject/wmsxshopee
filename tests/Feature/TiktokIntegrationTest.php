@@ -388,10 +388,16 @@ class TiktokIntegrationTest extends TestCase
                 ['id' => '2001', 'seller_sku' => 'kaos-m', 'sales_attributes' => [['name' => 'Ukuran', 'value_name' => 'M']], 'inventory' => [['warehouse_id' => '7000000000000000010', 'quantity' => 3]]],
                 ['id' => '2002', 'seller_sku' => 'TIDAK-ADA'],
             ]]], 'next_page_token' => 'hal2']])
-            ->push(['code' => 0, 'data' => ['products' => [['id' => '1002', 'title' => 'Paket', 'skus' => [['id' => '2003', 'seller_sku' => 'PAKET-2']]]], 'next_page_token' => '']]),
+            ->push(['code' => 0, 'data' => ['products' => [
+                // Produk toko uji sering masih direview (PENDING); tetap ditarik.
+                ['id' => '1002', 'title' => 'Paket', 'status' => 'PENDING', 'skus' => [['id' => '2003', 'seller_sku' => 'PAKET-2']]],
+                ['id' => '1003', 'title' => 'Dihapus', 'status' => 'DELETED', 'skus' => [['id' => '2009', 'seller_sku' => 'LAMA']]],
+            ], 'next_page_token' => '']]),
         ]);
 
-        $this->post("/tiktok/shops/{$shop->id}/mappings/pull")->assertRedirect()->assertSessionHas('success');
+        $this->post("/tiktok/shops/{$shop->id}/mappings/pull")->assertRedirect()
+            ->assertSessionHas('success', fn ($message) => str_contains($message, '2 produk') && str_contains($message, '1 belum aktif'));
+        Http::assertSent(fn (Request $r) => str_contains($r->url(), '/products/search') && $r['status'] === 'ALL');
 
         $this->assertSame(3, $shop->mappings()->count());
         $m = $shop->mappings()->where('sku_id', '2001')->first();

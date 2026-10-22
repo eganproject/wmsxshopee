@@ -99,6 +99,6 @@ class TiktokSkuMappingController extends Controller
             return back()->with('error', 'Gagal menarik produk dari TikTok. '.$e->getMessage());
         }
 
-        return back()->with('success', "{$result['products']} produk ({$result['rows']} baris SKU) ditarik dari TikTok, {$result['matched']} cocok otomatis.".$this->relinkOrders());
+        return back()->with('success', "{$result['products']} produk ({$result['rows']} baris SKU) ditarik dari TikTok".($result['inactive'] ? " ({$result['inactive']} belum aktif)" : '').", {$result['matched']} cocok otomatis.".$this->relinkOrders());
     }
 }
