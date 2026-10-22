@@ -16,6 +16,7 @@ use App\Models\Unit;
 use App\Models\User;
 use App\Models\Warehouse;
 use App\Services\AlertService;
+use App\Services\MarketplaceOrderRelink;
 use App\Services\SalesOrderService;
 use App\Services\Shopee\ShopeeStockSync;
 use App\Services\StockService;
@@ -235,6 +236,92 @@ class ShopeeSyncTest extends TestCase
         $this->assertSame('confirmed', $order->status);
         $this->assertNull($order->shopee_sync_error);
         $this->assertSame(1, SalesOrder::count());
+    }
+
+    public function test_unmapped_order_is_linked_when_product_with_same_sku_is_added(): void
+    {
+        $this->fakeOrders([$this->order('B2', 'READY_TO_SHIP', [$this->line(33, 301, 2, 'TOPI-X'), $this->line(11, 101, 1)])]);
+        $this->artisan('shopee:sync --only=orders')->assertSuccessful();
+
+        $order = SalesOrder::where('external_number', 'B2')->firstOrFail();
+        $this->assertSame('draft', $order->status);
+        $this->assertSame(['TOPI-X'], $order->unmapped_skus);
+
+        // Produk dengan SKU yang sama dibuat di Optima: pesanan terhubung di akhir request.
+        $topi = Product::create(['sku' => 'TOPI', 'name' => 'Topi', 'unit_id' => Unit::where('code', 'PCS')->value('id'), 'has_variants' => false, 'is_active' => true])
+            ->variants()->create(['sku' => 'TOPI-X', 'name' => 'Topi', 'is_active' => true]);
+        app(StockService::class)->record(['type' => 'in', 'warehouse_id' => $this->warehouse->id, 'movement_date' => now()->toDateString()], [
+            ['product_variant_id' => $topi->id, 'to_location_id' => null, 'qty' => 5],
+        ]);
+        Http::swap(new Factory);
+        Http::preventStrayRequests();
+        $this->app->terminate();
+
+        $order->refresh();
+        $this->assertSame('confirmed', $order->status);
+        $this->assertNull($order->shopee_sync_error);
+        $this->assertSame($topi->id, $this->shop->mappings()->where('item_id', 33)->value('product_variant_id'));
+        $this->assertSame(2, (int) $order->items->firstWhere('product_variant_id', $topi->id)->qty);
+        $this->assertSame(1, SalesOrder::count());
+    }
+
+    public function test_new_sku_or_mapping_schedules_relink_but_unrelated_edits_do_not(): void
+    {
+        $relink = $this->mock(MarketplaceOrderRelink::class);
+        $relink->shouldReceive('queue')->times(3);
+
+        $this->kaosM->update(['name' => 'M (ganti nama)']); // tanpa ganti SKU: tidak dijadwalkan
+        $this->kaosM->update(['sku' => 'KAOS-M2']);
+        Bundle::create(['sku' => 'PAKET-3', 'name' => 'Paket 3', 'price' => 1, 'is_active' => true]);
+        $this->shop->mappings()->create(['item_id' => 44, 'model_id' => 0, 'shopee_sku' => 'X']); // belum dipetakan
+        $this->shop->mappings()->where('item_id', 44)->first()->update(['product_variant_id' => $this->kaosL->id]);
+    }
+
+    public function test_resync_button_links_order_after_mapping(): void
+    {
+        $this->actingAs(User::where('username', 'superadmin')->first());
+        $this->fakeOrders([$this->order('B3', 'READY_TO_SHIP', [$this->line(33, 301, 1, 'TOPI-Y')])]);
+        $this->artisan('shopee:sync --only=orders')->assertSuccessful();
+
+        $order = SalesOrder::where('external_number', 'B3')->firstOrFail();
+        $this->get("/sales/orders/{$order->id}")->assertOk()->assertSee('Sinkronkan ulang')->assertSee('Buka Pemetaan SKU');
+
+        $this->post("/sales/orders/{$order->id}/resync")->assertSessionHas('error', fn ($m) => str_contains($m, 'masih draft') && str_contains($m, 'TOPI-Y'));
+
+        $this->shop->mappings()->where('item_id', 33)->firstOrFail()->updateQuietly(['product_variant_id' => $this->kaosL->id]);
+        $this->post("/sales/orders/{$order->id}/resync")->assertSessionHas('success');
+
+        $this->assertSame('confirmed', $order->refresh()->status);
+        Http::assertSent(fn (Request $r) => str_contains($r->url(), 'get_order_detail') && str_contains($r['order_sn_list'], 'B3'));
+    }
+
+    public function test_resync_falls_back_to_saved_items_when_shopee_is_unreachable(): void
+    {
+        $this->actingAs(User::where('username', 'superadmin')->first());
+        $this->fakeOrders([$this->order('B4', 'READY_TO_SHIP', [$this->line(33, 301, 1, 'TOPI-Z')])]);
+        $this->artisan('shopee:sync --only=orders')->assertSuccessful();
+        $order = SalesOrder::where('external_number', 'B4')->firstOrFail();
+
+        $this->shop->mappings()->where('item_id', 33)->firstOrFail()->updateQuietly(['product_variant_id' => $this->kaosM->id]);
+        Http::swap(new Factory);
+        Http::fake(['*' => Http::response(['error' => 'error_server', 'message' => 'Sedang gangguan'], 500)]);
+
+        $this->post("/sales/orders/{$order->id}/resync")->assertSessionHas('success');
+        $this->assertSame('confirmed', $order->refresh()->status);
+    }
+
+    public function test_manually_edited_draft_is_not_relinked_automatically(): void
+    {
+        $this->fakeOrders([$this->order('B5', 'READY_TO_SHIP', [$this->line(33, 301, 1, 'TOPI-W')])]);
+        $this->artisan('shopee:sync --only=orders')->assertSuccessful();
+        $order = SalesOrder::where('external_number', 'B5')->firstOrFail();
+        $this->assertNotNull($order->unmapped_skus);
+
+        $order->update(['unmapped_skus' => null]); // seperti setelah disimpan dari form Edit
+        $this->shop->mappings()->where('item_id', 33)->firstOrFail()->update(['product_variant_id' => $this->kaosL->id]);
+        $this->app->terminate();
+
+        $this->assertSame('draft', $order->refresh()->status);
     }
 
     public function test_short_stock_keeps_draft_with_reason(): void

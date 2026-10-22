@@ -67,7 +67,7 @@ class ShopeeSkuMappingController extends Controller
             app(ShopeeCatalog::class)->autoMatch($shop);
         }
 
-        return back()->with('success', 'Baris pemetaan ditambahkan.');
+        return back()->with('success', 'Baris pemetaan ditambahkan.'.$this->relinkOrders());
     }
 
     public function update(Request $request, ShopeeShop $shop, ShopeeSkuMapping $mapping): RedirectResponse
@@ -76,7 +76,7 @@ class ShopeeSkuMappingController extends Controller
 
         $mapping->update($this->target($request->input('target')));
 
-        return back()->with('success', $mapping->isMapped() ? 'Pemetaan SKU disimpan.' : 'Pemetaan SKU dikosongkan.');
+        return back()->with('success', $mapping->isMapped() ? 'Pemetaan SKU disimpan.'.$this->relinkOrders() : 'Pemetaan SKU dikosongkan.');
     }
 
     public function destroy(ShopeeShop $shop, ShopeeSkuMapping $mapping): RedirectResponse
@@ -92,7 +92,7 @@ class ShopeeSkuMappingController extends Controller
     {
         $matched = $catalog->autoMatch($shop);
 
-        return back()->with('success', $matched ? "{$matched} baris cocok otomatis berdasarkan SKU." : 'Tidak ada SKU baru yang cocok. Petakan sisanya secara manual.');
+        return back()->with('success', ($matched ? "{$matched} baris cocok otomatis berdasarkan SKU." : 'Tidak ada SKU baru yang cocok. Petakan sisanya secara manual.').$this->relinkOrders());
     }
 
     /** Tarik daftar produk & variasi dari Shopee lalu cocokkan otomatis. */
@@ -104,7 +104,7 @@ class ShopeeSkuMappingController extends Controller
             return back()->with('error', 'Gagal menarik produk dari Shopee. '.$e->getMessage());
         }
 
-        return back()->with('success', "{$result['items']} produk ({$result['rows']} baris SKU) ditarik dari Shopee, {$result['matched']} cocok otomatis.");
+        return back()->with('success', "{$result['items']} produk ({$result['rows']} baris SKU) ditarik dari Shopee, {$result['matched']} cocok otomatis.".$this->relinkOrders());
     }
 
     /** Pilihan target pemetaan untuk Tom Select: varian gudang & paket. */

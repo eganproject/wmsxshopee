@@ -94,7 +94,7 @@ class SalesOrder extends Model
     ];
 
     /** Rincian pendapatan Shopee tidak ikut ke JSON/array (hanya untuk hak sales.income). */
-    protected $hidden = ['shopee_income', 'shopee_escrow_amount', 'tiktok_payment'];
+    protected $hidden = ['shopee_income', 'shopee_escrow_amount', 'tiktok_payment', 'marketplace_lines'];
 
     protected $fillable = [
         'number',
@@ -124,6 +124,8 @@ class SalesOrder extends Model
         'tiktok_ship_by',
         'tiktok_shipped_at',
         'tiktok_payment',
+        'marketplace_lines',
+        'unmapped_skus',
         'customer_name',
         'customer_phone',
         'shipping_address',
@@ -184,6 +186,8 @@ class SalesOrder extends Model
             'tiktok_ship_by' => 'datetime',
             'tiktok_shipped_at' => 'datetime',
             'tiktok_payment' => 'array',
+            'marketplace_lines' => 'array',
+            'unmapped_skus' => 'array',
         ];
     }
 

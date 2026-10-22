@@ -7,6 +7,7 @@ use App\Models\SalesOrder;
 use App\Models\ShopeeShop;
 use App\Models\ShopeeSkuMapping;
 use App\Services\SalesOrderService;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -76,6 +77,9 @@ class ShopeeOrderSync
             $shop->update(['orders_synced_until' => $to]);
             $from = $to;
         }
+
+        // Draft yang SKU-nya baru dipetakan sejak sinkron sebelumnya ikut diproses.
+        $stats['updated'] += $this->relinkPending($shop, $api);
 
         $this->fetchMissingTracking($shop, $api);
 
@@ -254,27 +258,111 @@ class ShopeeOrderSync
     /**
      * Isi baris dari item Shopee lewat pemetaan SKU, lalu konfirmasi (cadangkan stok).
      * Bila ada SKU belum dipetakan atau stok kurang, pesanan tetap draft dengan catatan.
+     * Item Shopee disimpan di pesanan supaya bisa dihubungkan ulang tanpa menarik dari API.
      *
      * @param  array<string, mixed>  $detail
      */
     private function fillAndConfirm(SalesOrder $order, ShopeeShop $shop, array $detail): void
     {
-        [$items, $bundles, $unmapped] = $this->lines($shop, $detail['item_list'] ?? []);
+        $itemList = $detail['item_list'] ?? [];
+        [$items, $bundles, $unmapped] = $this->lines($shop, $itemList);
+
+        DB::transaction(fn () => $this->orders->fillLines($order, $items, $bundles));
 
         if ($unmapped) {
-            DB::transaction(fn () => $this->orders->fillLines($order, $items, $bundles));
-            $order->update(['shopee_sync_error' => 'SKU Shopee belum dipetakan: '.implode(', ', $unmapped).'. Petakan di Toko Marketplace › Pemetaan SKU; pesanan diproses otomatis di sinkron berikutnya.']);
+            $order->update([
+                'marketplace_lines' => $itemList,
+                'unmapped_skus' => $unmapped,
+                'shopee_sync_error' => mb_substr('SKU Shopee belum dipetakan: '.implode(', ', $unmapped).'. Petakan di Toko Marketplace › Pemetaan SKU (atau tambahkan produknya dengan SKU yang sama); pesanan terhubung otomatis setelah itu.', 0, 500),
+            ]);
 
             return;
         }
 
-        DB::transaction(fn () => $this->orders->fillLines($order, $items, $bundles));
+        $order->update(['marketplace_lines' => $itemList, 'unmapped_skus' => null]);
 
         try {
             $this->orders->confirm($order);
             $order->refresh()->update(['shopee_sync_error' => null]);
         } catch (ValidationException $e) {
             $order->update(['shopee_sync_error' => mb_substr('Belum bisa dikonfirmasi: '.implode(' ', $e->validator->errors()->all()), 0, 500)]);
+        }
+    }
+
+    /**
+     * Draft toko ini yang tertahan karena SKU belum dipetakan.
+     *
+     * @return Builder<SalesOrder>
+     */
+    public function pendingRelink(ShopeeShop $shop): Builder
+    {
+        return SalesOrder::withoutGlobalScope('warehouse_access')
+            ->where('shopee_shop_id', $shop->id)
+            ->where('status', 'draft')
+            ->whereNotNull('unmapped_skus')
+            ->whereIn('shopee_order_status', [...self::TO_FULFIL, ...SalesOrder::SHOPEE_LEFT_WAREHOUSE]);
+    }
+
+    /**
+     * Hubungkan ulang draft yang tertahan SKU belum dipetakan (setelah pemetaan
+     * atau produk dengan SKU yang sama ditambahkan). Memakai item Shopee yang
+     * tersimpan; pesanan lama tanpa salinan item ditarik ulang dari API bila $api ada.
+     *
+     * @return int pesanan yang kini semua SKU-nya terhubung
+     */
+    public function relinkPending(ShopeeShop $shop, ?ShopeeShopApi $api = null): int
+    {
+        $orders = $this->pendingRelink($shop)->orderBy('id')->limit(200)->get();
+
+        if ($orders->isEmpty()) {
+            return 0;
+        }
+
+        app(ShopeeCatalog::class)->autoMatch($shop);
+        $linked = 0;
+
+        foreach ($orders as $order) {
+            try {
+                if ($order->marketplace_lines !== null) {
+                    $this->relink($order, $shop);
+                } elseif ($api) {
+                    $this->syncOne($shop, $order->external_number, $api);
+                } else {
+                    continue;
+                }
+            } catch (ShopeeException $e) {
+                report($e);
+
+                continue;
+            }
+
+            $linked += $order->refresh()->unmapped_skus === null ? 1 : 0;
+        }
+
+        return $linked;
+    }
+
+    /**
+     * Isi ulang baris draft dari item Shopee yang tersimpan lalu coba konfirmasi.
+     * Tanpa $force, dilewati bila SKU yang belum dipetakan masih sama (tidak ada yang berubah).
+     */
+    public function relink(SalesOrder $order, ShopeeShop $shop, bool $force = false): void
+    {
+        if ($order->status !== 'draft' || $order->marketplace_lines === null) {
+            return;
+        }
+
+        if (! $force) {
+            [, , $unmapped] = $this->lines($shop, $order->marketplace_lines);
+            if ($unmapped && $unmapped === ($order->unmapped_skus ?? [])) {
+                return;
+            }
+        }
+
+        $this->fillAndConfirm($order, $shop, ['item_list' => $order->marketplace_lines]);
+
+        if (in_array($order->shopee_order_status, SalesOrder::SHOPEE_LEFT_WAREHOUSE, true) && $order->refresh()->status !== 'shipped') {
+            $this->shipFromShopee($order);
         }
     }
 

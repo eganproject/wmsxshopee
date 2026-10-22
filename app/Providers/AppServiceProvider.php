@@ -2,7 +2,12 @@
 
 namespace App\Providers;
 
+use App\Models\Bundle;
+use App\Models\ProductVariant;
+use App\Models\ShopeeSkuMapping;
+use App\Models\TiktokSkuMapping;
 use App\Models\User;
+use App\Services\MarketplaceOrderRelink;
 use App\Support\Activity;
 use Illuminate\Auth\Events\Failed;
 use Illuminate\Auth\Events\Login;
@@ -21,7 +26,8 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        // Satu instance per request supaya penghubungan ulang pesanan hanya dijadwalkan sekali.
+        $this->app->singleton(MarketplaceOrderRelink::class);
     }
 
     /**
@@ -37,6 +43,18 @@ class AppServiceProvider extends ServiceProvider
         Gate::define('marketplace.settings', fn (User $user) => $user->canAny(['shopee.settings', 'tiktok.settings']));
 
         Carbon::setLocale(config('app.locale'));
+
+        // SKU baru / pemetaan baru: pesanan marketplace yang tertahan karena SKU
+        // belum dipetakan dihubungkan ulang otomatis di akhir request.
+        $relink = fn () => $this->app->make(MarketplaceOrderRelink::class)->queue();
+        // Baru dibuat = wasRecentlyCreated tanpa perubahan update (flag itu menempel di instance).
+        $created = fn ($model) => $model->wasRecentlyCreated && $model->getChanges() === [];
+        $skuAdded = fn ($model) => $created($model) || $model->wasChanged('sku');
+        ProductVariant::saved(fn (ProductVariant $variant) => $skuAdded($variant) ? $relink() : null);
+        Bundle::saved(fn (Bundle $bundle) => $skuAdded($bundle) ? $relink() : null);
+        $mapped = fn ($mapping) => $mapping->isMapped() && ($created($mapping) || $mapping->wasChanged(['product_variant_id', 'bundle_id']));
+        ShopeeSkuMapping::saved(fn (ShopeeSkuMapping $mapping) => $mapped($mapping) ? $relink() : null);
+        TiktokSkuMapping::saved(fn (TiktokSkuMapping $mapping) => $mapped($mapping) ? $relink() : null);
 
         Password::defaults(fn () => Password::min(8)->letters()->numbers());
 

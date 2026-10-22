@@ -7,6 +7,7 @@ use App\Models\SalesOrder;
 use App\Models\TiktokShop;
 use App\Models\TiktokSkuMapping;
 use App\Services\SalesOrderService;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -74,6 +75,9 @@ class TiktokOrderSync
             $shop->update(['orders_synced_until' => $to]);
             $from = $to;
         }
+
+        // Draft yang SKU-nya baru dipetakan sejak sinkron sebelumnya ikut diproses.
+        $stats['updated'] += $this->relinkPending($shop, $api);
 
         return array_intersect_key($stats, array_flip(['created', 'updated', 'cancelled', 'pending']));
     }
@@ -209,25 +213,111 @@ class TiktokOrderSync
     }
 
     /**
+     * Isi baris dari line_items TikTok lewat pemetaan SKU, lalu konfirmasi.
+     * line_items disimpan di pesanan supaya bisa dihubungkan ulang tanpa menarik dari API.
+     *
      * @param  array<string, mixed>  $detail
      */
     private function fillAndConfirm(SalesOrder $order, TiktokShop $shop, array $detail): void
     {
-        [$items, $bundles, $unmapped] = $this->lines($shop, $detail['line_items'] ?? []);
+        $lineItems = $detail['line_items'] ?? [];
+        [$items, $bundles, $unmapped] = $this->lines($shop, $lineItems);
 
         DB::transaction(fn () => $this->orders->fillLines($order, $items, $bundles));
 
         if ($unmapped) {
-            $order->update(['tiktok_sync_error' => mb_substr('SKU TikTok belum dipetakan: '.implode(', ', $unmapped).'. Petakan di Toko Marketplace › Pemetaan SKU; pesanan diproses otomatis di sinkron berikutnya.', 0, 500)]);
+            $order->update([
+                'marketplace_lines' => $lineItems,
+                'unmapped_skus' => $unmapped,
+                'tiktok_sync_error' => mb_substr('SKU TikTok belum dipetakan: '.implode(', ', $unmapped).'. Petakan di Toko Marketplace › Pemetaan SKU (atau tambahkan produknya dengan SKU yang sama); pesanan terhubung otomatis setelah itu.', 0, 500),
+            ]);
 
             return;
         }
+
+        $order->update(['marketplace_lines' => $lineItems, 'unmapped_skus' => null]);
 
         try {
             $this->orders->confirm($order);
             $order->refresh()->update(['tiktok_sync_error' => null]);
         } catch (ValidationException $e) {
             $order->update(['tiktok_sync_error' => mb_substr('Belum bisa dikonfirmasi: '.implode(' ', $e->validator->errors()->all()), 0, 500)]);
+        }
+    }
+
+    /**
+     * Draft toko ini yang tertahan karena SKU belum dipetakan.
+     *
+     * @return Builder<SalesOrder>
+     */
+    public function pendingRelink(TiktokShop $shop): Builder
+    {
+        return SalesOrder::withoutGlobalScope('warehouse_access')
+            ->where('tiktok_shop_id', $shop->id)
+            ->where('status', 'draft')
+            ->whereNotNull('unmapped_skus')
+            ->whereIn('tiktok_order_status', [...SalesOrder::TIKTOK_TO_FULFIL, ...SalesOrder::TIKTOK_LEFT_WAREHOUSE]);
+    }
+
+    /**
+     * Hubungkan ulang draft yang tertahan SKU belum dipetakan. Memakai line_items
+     * tersimpan; pesanan lama tanpa salinan ditarik ulang dari API bila $api ada.
+     *
+     * @return int pesanan yang kini semua SKU-nya terhubung
+     */
+    public function relinkPending(TiktokShop $shop, ?TiktokShopApi $api = null): int
+    {
+        $orders = $this->pendingRelink($shop)->orderBy('id')->limit(200)->get();
+
+        if ($orders->isEmpty()) {
+            return 0;
+        }
+
+        app(TiktokCatalog::class)->autoMatch($shop);
+        $linked = 0;
+
+        foreach ($orders as $order) {
+            try {
+                if ($order->marketplace_lines !== null) {
+                    $this->relink($order, $shop);
+                } elseif ($api) {
+                    $this->syncOne($shop, $order->external_number, $api);
+                } else {
+                    continue;
+                }
+            } catch (TiktokException $e) {
+                report($e);
+
+                continue;
+            }
+
+            $linked += $order->refresh()->unmapped_skus === null ? 1 : 0;
+        }
+
+        return $linked;
+    }
+
+    /**
+     * Isi ulang baris draft dari line_items tersimpan lalu coba konfirmasi.
+     * Tanpa $force, dilewati bila SKU yang belum dipetakan masih sama.
+     */
+    public function relink(SalesOrder $order, TiktokShop $shop, bool $force = false): void
+    {
+        if ($order->status !== 'draft' || $order->marketplace_lines === null) {
+            return;
+        }
+
+        if (! $force) {
+            [, , $unmapped] = $this->lines($shop, $order->marketplace_lines);
+            if ($unmapped && $unmapped === ($order->unmapped_skus ?? [])) {
+                return;
+            }
+        }
+
+        $this->fillAndConfirm($order, $shop, ['line_items' => $order->marketplace_lines]);
+
+        if (in_array($order->tiktok_order_status, SalesOrder::TIKTOK_LEFT_WAREHOUSE, true) && $order->refresh()->status !== 'shipped') {
+            $this->shipFromTiktok($order);
         }
     }
 

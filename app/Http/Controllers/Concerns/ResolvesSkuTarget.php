@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Concerns;
 
 use App\Models\Bundle;
 use App\Models\ProductVariant;
+use App\Services\MarketplaceOrderRelink;
 use Illuminate\Validation\ValidationException;
 
 /** Pilihan dropdown pemetaan SKU marketplace ("variant:ID" / "bundle:ID") -> kolom target. */
@@ -37,5 +38,16 @@ trait ResolvesSkuTarget
             'bundle_id' => $type === 'bundle' ? (int) $id : null,
             'match_type' => 'manual',
         ];
+    }
+
+    /**
+     * Hubungkan ulang pesanan yang tertahan karena SKU belum dipetakan, lalu
+     * kembalikan kalimat ringkas untuk pesan sukses ("" bila tidak ada).
+     */
+    protected function relinkOrders(): string
+    {
+        $linked = app(MarketplaceOrderRelink::class)->relinkAll();
+
+        return $linked ? " {$linked} pesanan yang tertahan kini terhubung dan diproses." : '';
     }
 }

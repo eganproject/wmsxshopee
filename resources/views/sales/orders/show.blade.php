@@ -19,6 +19,16 @@
     <x-page-header :title="$order->number" :description="'Pesanan '.$order->customer_name.($order->channel_name ? ' · '.$order->channel_name : '')" icon="heroicon-o-shopping-cart">
         <a href="{{ route('sales.orders.index') }}" class="btn-secondary"><x-heroicon-o-arrow-left class="size-5" /> Kembali</a>
 
+        @if (($order->shopee_shop_id || $order->tiktok_shop_id) && ! $order->hasStatus('cancelled'))
+            @can('sales.confirm')
+                <form id="resync-order" method="POST" action="{{ route('sales.orders.resync', $order) }}">@csrf</form>
+                <button type="button" class="btn-secondary"
+                        @click="$dispatch('confirm', { form: 'resync-order', title: 'Sinkronkan ulang pesanan?', message: @js($order->hasStatus('draft') ? 'Data pesanan ditarik ulang dari marketplace dan SKU dicocokkan lagi dengan produk Optima. Bila semua SKU sudah terhubung dan stok cukup, pesanan langsung dikonfirmasi (stok dicadangkan). Perubahan manual di baris draft ini akan diganti.' : 'Status, resi dan data pesanan ditarik ulang dari marketplace.'), confirmText: 'Sinkronkan', variant: 'primary' })">
+                    <x-heroicon-o-arrow-path class="size-5" /> Sinkronkan ulang
+                </button>
+            @endcan
+        @endif
+
         @if ($order->isCancellable())
             @can('sales.cancel')
                 <button type="button" class="btn-secondary hover:text-rose-600" @click="$dispatch('cancel-order')">
@@ -121,6 +131,14 @@
                 </p>
                 @if ($order->shopee_sync_error)
                     <p class="mt-0.5 font-medium">{{ $order->shopee_sync_error }}</p>
+                    @if ($order->hasStatus('draft') && $order->unmapped_skus !== null)
+                        <p class="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
+                            @can('shopee.view')
+                                <a href="{{ route('shopee.mappings.index', ['shop' => $order->shopee_shop_id, 'status' => 'unmapped']) }}" class="inline-flex items-center gap-1 font-medium underline"><x-heroicon-o-link class="size-4" /> Buka Pemetaan SKU</a>
+                            @endcan
+                            <span>Setelah SKU dipetakan, pesanan ini terhubung & dikonfirmasi otomatis. Bisa juga tekan Sinkronkan ulang.</span>
+                        </p>
+                    @endif
                 @endif
             </div>
         </div>
@@ -150,6 +168,14 @@
                 </p>
                 @if ($order->tiktok_sync_error)
                     <p class="mt-0.5 font-medium">{{ $order->tiktok_sync_error }}</p>
+                    @if ($order->hasStatus('draft') && $order->unmapped_skus !== null)
+                        <p class="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
+                            @can('tiktok.view')
+                                <a href="{{ route('tiktok.mappings.index', ['shop' => $order->tiktok_shop_id, 'status' => 'unmapped']) }}" class="inline-flex items-center gap-1 font-medium underline"><x-heroicon-o-link class="size-4" /> Buka Pemetaan SKU</a>
+                            @endcan
+                            <span>Setelah SKU dipetakan, pesanan ini terhubung & dikonfirmasi otomatis. Bisa juga tekan Sinkronkan ulang.</span>
+                        </p>
+                    @endif
                 @elseif ($order->hasStatus('confirmed', 'picked', 'packed') && ! $order->tiktokShipmentArranged())
                     <p class="mt-0.5">Atur pickup / drop off dengan tombol Atur Pengiriman (atau dari TikTok Shop Seller Center); status & resi masuk otomatis.</p>
                 @endif

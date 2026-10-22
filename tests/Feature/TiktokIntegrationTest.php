@@ -303,6 +303,30 @@ class TiktokIntegrationTest extends TestCase
         $this->assertNull($order->tiktok_sync_error);
     }
 
+    public function test_unmapped_order_is_linked_right_after_mapping_without_waiting_for_sync(): void
+    {
+        $shop = $this->shop();
+        $this->fakeSearch([$this->order('590002', 'AWAITING_SHIPMENT', [...$this->units('2999', 2, 'BARU-02'), ...$this->units('2001', 1)])]);
+        $this->artisan('tiktok:sync --only=orders')->assertSuccessful();
+
+        $order = SalesOrder::where('external_number', '590002')->firstOrFail();
+        $this->assertSame('draft', $order->status);
+        $this->assertSame(['BARU-02'], $order->unmapped_skus);
+        $this->assertCount(1, $order->items, 'SKU yang sudah dipetakan tetap masuk sebagai baris.');
+
+        $mapping = $shop->mappings()->where('sku_id', '2999')->firstOrFail();
+        $this->refake(); // tanpa respons API: penghubungan ulang memakai item yang tersimpan
+        $this->put("/tiktok/shops/{$shop->id}/mappings/{$mapping->id}", ['target' => 'variant:'.$this->kaosL->id])
+            ->assertSessionHas('success', fn ($message) => str_contains($message, '1 pesanan yang tertahan kini terhubung'));
+
+        $order->refresh();
+        $this->assertSame('confirmed', $order->status);
+        $this->assertNull($order->unmapped_skus);
+        $this->assertNull($order->tiktok_sync_error);
+        $this->assertSame(2, (int) $order->items->firstWhere('product_variant_id', $this->kaosL->id)->qty);
+        $this->assertSame(2, $this->available($this->kaosL));
+    }
+
     public function test_cancelled_and_shipped_statuses_follow_tiktok(): void
     {
         $this->shop();

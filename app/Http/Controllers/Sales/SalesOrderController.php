@@ -10,6 +10,7 @@ use App\Models\SalesOrder;
 use App\Models\Warehouse;
 use App\Models\WarehouseLocation;
 use App\Rules\AccessibleRecord;
+use App\Services\MarketplaceOrderRelink;
 use App\Services\SalesOrderService;
 use App\Services\WarehouseSupply;
 use App\Support\Activity;
@@ -147,7 +148,8 @@ class SalesOrderController extends Controller
         $data = $this->validated($request, $order);
 
         Activity::track($order, fn () => DB::transaction(function () use ($order, $data, $service) {
-            $order->update($data['header']);
+            // Diisi manual: tidak lagi dihubungkan ulang otomatis dari item marketplace.
+            $order->update([...$data['header'], 'unmapped_skus' => null]);
             $service->fillLines($order, $data['items'], $data['bundles']);
         }));
 
@@ -282,6 +284,28 @@ class SalesOrderController extends Controller
         $service->cancel($order, $data['cancel_reason'] ?? null);
 
         return redirect()->route('sales.orders.show', $order)->with('success', "Pesanan {$order->number} dibatalkan. Cadangan stok dilepas.");
+    }
+
+    /** Tombol "Sinkronkan ulang" untuk pesanan Shopee / TikTok. */
+    public function resync(SalesOrder $order, MarketplaceOrderRelink $relink): RedirectResponse
+    {
+        abort_unless($order->shopee_shop_id || $order->tiktok_shop_id, 404);
+
+        try {
+            $relink->resync($order);
+        } catch (ValidationException $e) {
+            return redirect()->route('sales.orders.show', $order)->with('error', collect($e->errors())->flatten()->first());
+        }
+
+        $order->refresh();
+        $problem = $order->shopee_sync_error ?? $order->tiktok_sync_error;
+
+        if ($order->hasStatus('draft')) {
+            return redirect()->route('sales.orders.show', $order)
+                ->with('error', "{$order->number} sudah disinkron ulang, tapi masih draft".($problem ? ': '.$problem : '.'));
+        }
+
+        return redirect()->route('sales.orders.show', $order)->with('success', "{$order->number} sudah disinkron ulang".($problem ? '. '.$problem : ' dan siap diproses gudang.'));
     }
 
     public function reopen(SalesOrder $order, SalesOrderService $service): RedirectResponse
