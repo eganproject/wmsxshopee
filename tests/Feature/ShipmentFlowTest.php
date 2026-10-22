@@ -151,6 +151,16 @@ class ShipmentFlowTest extends TestCase
         $this->get("/sales/orders/{$order->id}")->assertOk()->assertSee('Cetak Resi')->assertSee('13:00-17:00');
     }
 
+    public function test_order_list_shows_arranged_pickup_in_status_column(): void
+    {
+        $this->shopeeOrder('V1', ['shipping_method' => 'pickup', 'pickup_at' => now()->setTime(16, 0), 'shipment_arranged_at' => now()]);
+        $this->shopeeOrder('V2');
+
+        $this->get('/sales/orders')->assertOk()
+            ->assertSee('Pickup diatur')->assertSee('Jemput')->assertSee('16:00')
+            ->assertSee('Pengiriman belum diatur');
+    }
+
     public function test_unsplit_shopee_order_is_arranged_without_package_number(): void
     {
         $order = $this->shopeeOrder('S9', ['shopee_package_number' => null]);

@@ -168,14 +168,10 @@
                                 @if ($order->tracking_number)
                                     <p class="font-mono text-xs text-slate-500">{{ $order->tracking_number }}</p>
                                 @endif
-                                @if ($order->shippingMethodLabel())
-                                    <span class="mt-0.5 inline-block rounded-full bg-slate-100 px-2 py-0.5 text-[11px] text-slate-600">{{ $order->shippingMethodLabel() }}{{ $order->shipping_method === 'pickup' && $order->pickup_at ? ' · '.$order->pickup_at->format('d/m H:i') : '' }}</span>
-                                @elseif ($order->canArrangeShipment())
-                                    <span class="mt-0.5 inline-block rounded-full bg-amber-50 px-2 py-0.5 text-[11px] text-amber-700">Pengiriman belum diatur</span>
-                                @endif
                             </td>
                             <td class="px-4 py-2.5">
                                 <x-sales.status-badge :status="$order->status" />
+                                <x-sales.shipment-status :order="$order" />
                                 <x-sales.shopee-status :order="$order" />
                                 <x-sales.tiktok-status :order="$order" />
                             </td>
