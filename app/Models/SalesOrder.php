@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Models\Concerns\LogsActivity;
 use App\Models\Concerns\ScopedToWarehouse;
+use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -376,6 +377,31 @@ class SalesOrder extends Model
         }
 
         return ! $this->isShopee() || $this->shopee_order_status === 'READY_TO_SHIP';
+    }
+
+    /** Pengiriman sudah diatur, baik dari Optima maupun langsung di Seller Center marketplace. */
+    public function shipmentAlreadyArranged(): bool
+    {
+        return $this->isShipmentArranged() || $this->shopeeShipmentArranged() || $this->tiktokShipmentArranged();
+    }
+
+    /**
+     * Bisa diatur lewat tombol Atur Pickup / Drop Off massal di daftar pesanan:
+     * hanya pesanan marketplace yang pengirimannya belum diatur sama sekali.
+     */
+    public function canBulkArrangeShipment(): bool
+    {
+        return $this->isMarketplace() && $this->canArrangeShipment() && ! $this->shipmentAlreadyArranged();
+    }
+
+    /** Batas kirim dari marketplace, selama pesanan belum dikirim / batal. */
+    public function shipByDeadline(): ?CarbonInterface
+    {
+        if (! $this->hasStatus('draft', ...self::RESERVING)) {
+            return null;
+        }
+
+        return $this->shopee_ship_by ?? $this->tiktok_ship_by;
     }
 
     /** Pesanan Shopee yang pengirimannya sudah diatur (di Optima atau Seller Centre). */

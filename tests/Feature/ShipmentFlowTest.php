@@ -151,14 +151,52 @@ class ShipmentFlowTest extends TestCase
         $this->get("/sales/orders/{$order->id}")->assertOk()->assertSee('Cetak Resi')->assertSee('13:00-17:00');
     }
 
-    public function test_order_list_shows_arranged_pickup_in_status_column(): void
+    public function test_order_list_shows_arranged_pickup_in_shipping_column(): void
     {
         $this->shopeeOrder('V1', ['shipping_method' => 'pickup', 'pickup_at' => now()->setTime(16, 0), 'shipment_arranged_at' => now()]);
         $this->shopeeOrder('V2');
 
         $this->get('/sales/orders')->assertOk()
             ->assertSee('Pickup diatur')->assertSee('Jemput')->assertSee('16:00')
-            ->assertSee('Pengiriman belum diatur');
+            ->assertSee('Belum diatur');
+    }
+
+    public function test_bulk_arrange_is_only_offered_for_orders_not_yet_arranged(): void
+    {
+        $arranged = $this->shopeeOrder('W1', ['shipping_method' => 'pickup', 'pickup_at' => now()->setTime(16, 0), 'shipment_arranged_at' => now(), 'shopee_order_status' => 'PROCESSED']);
+        // Diatur di Optima, status Shopee belum tersinkron: tetap dianggap sudah diatur.
+        $stale = $this->shopeeOrder('W2', ['shipping_method' => 'pickup', 'shipment_arranged_at' => now()]);
+        $open = $this->shopeeOrder('W3');
+        $manual = $this->order();
+
+        $rows = $this->get('/sales/orders')->assertOk()->viewData('orders')->getCollection()->keyBy('id');
+
+        $this->assertFalse($rows[$arranged->id]->canBulkArrangeShipment());
+        $this->assertFalse($rows[$stale->id]->canBulkArrangeShipment());
+        $this->assertTrue($rows[$open->id]->canBulkArrangeShipment());
+        $this->assertFalse($rows[$manual->id]->canBulkArrangeShipment(), 'Pesanan manual diatur dari halaman pesanan.');
+    }
+
+    public function test_bulk_arrange_skips_orders_already_arranged(): void
+    {
+        $arranged = $this->shopeeOrder('X1', ['shipping_method' => 'pickup', 'shipment_arranged_at' => now(), 'shopee_order_status' => 'PROCESSED']);
+        Http::fake();
+
+        $this->post('/sales/orders/shipment', ['method' => 'pickup', 'orders' => [$arranged->id]])
+            ->assertSessionHas('info', fn ($message) => str_contains($message, 'sudah diatur') && str_contains($message, $arranged->number))
+            ->assertSessionMissing('shipment_failures');
+
+        Http::assertNothingSent();
+    }
+
+    public function test_order_tab_counts_follow_active_filters(): void
+    {
+        $this->shopeeOrder('Y1');
+        $this->order(['customer_name' => 'Sinta Unik']);
+
+        $counts = $this->get('/sales/orders?search=Sinta+Unik')->assertOk()->viewData('counts');
+
+        $this->assertSame(1, (int) $counts->sum());
     }
 
     public function test_unsplit_shopee_order_is_arranged_without_package_number(): void

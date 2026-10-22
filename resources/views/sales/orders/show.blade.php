@@ -301,7 +301,7 @@
         </ol>
     @endif
 
-    @if ($order->isShipmentArranged() || $order->shopeeShipmentArranged() || $order->shipment_handover_id)
+    @if ($order->shipmentAlreadyArranged() || $order->shipment_handover_id)
         <div class="card mb-6 grid gap-5 p-5 sm:grid-cols-2 lg:grid-cols-4">
             <div>
                 <p class="text-xs text-slate-500">Cara Kirim</p>
@@ -310,7 +310,7 @@
                         <x-dynamic-component :component="\App\Models\SalesOrder::SHIPPING_METHODS[$order->shipping_method]['icon']" class="size-4 text-slate-400" />
                         {{ $order->shippingMethodLabel() }}
                     @else
-                        Diatur di Shopee Seller Centre
+                        Diatur di {{ $order->isTiktok() ? 'TikTok Seller Center' : 'Shopee Seller Centre' }}
                     @endif
                 </p>
                 @if ($order->shipment_arranged_at)
@@ -329,10 +329,10 @@
                     <p class="mt-1 text-sm font-medium text-slate-900">{{ $order->dropoff_point ?? '—' }}</p>
                 @else
                     <p class="text-xs text-slate-500">Resi</p>
-                    <p class="mt-1 font-mono text-sm text-slate-900">{{ $order->tracking_number ?? 'Menunggu resi dari Shopee' }}</p>
+                    <p class="mt-1 font-mono text-sm text-slate-900">{{ $order->tracking_number ?? 'Menunggu resi dari '.($order->isTiktok() ? 'TikTok' : 'Shopee') }}</p>
                 @endif
-                @if ($order->shopee_ship_by && ! $order->hasStatus('shipped'))
-                    <p class="mt-1 text-xs text-slate-500">Batas kirim Shopee {{ $order->shopee_ship_by->format('d/m/Y H:i') }}</p>
+                @if ($deadline = $order->shipByDeadline())
+                    <p @class(['mt-1 text-xs', 'font-medium text-rose-600' => $deadline->isPast(), 'text-slate-500' => ! $deadline->isPast()])>{{ $deadline->isPast() ? 'Lewat batas kirim' : 'Batas kirim' }} {{ $order->isTiktok() ? 'TikTok' : 'Shopee' }} {{ $deadline->format('d/m/Y H:i') }}</p>
                 @endif
             </div>
             <div>
