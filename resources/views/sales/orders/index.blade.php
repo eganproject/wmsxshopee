@@ -33,6 +33,42 @@
         @endforeach
     </div>
 
+    {{-- Status kedua: status pesanan di Shopee / TikTok, label disamakan. Jumlah ikut tab status gudang di atas. --}}
+    @php($marketplaceFilter = request('mp'))
+    @php($chip = 'inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs whitespace-nowrap transition')
+    <div class="mb-4 flex flex-wrap items-center gap-1.5" aria-label="Filter status marketplace">
+        <span class="mr-1 flex items-center gap-1 text-[11px] font-medium tracking-wide text-slate-500 uppercase">
+            <x-marketplace-logo platform="shopee" class="size-3.5" /><x-marketplace-logo platform="tiktok" class="size-3.5" /> Status marketplace
+        </span>
+        <a href="{{ route('sales.orders.index', request()->except(['mp', 'page'])) }}"
+           @class([$chip, 'border-slate-900 bg-slate-900 text-white dark:border-slate-200 dark:bg-slate-200 dark:text-slate-900' => ! $marketplaceFilter, 'border-slate-200 bg-white text-slate-600 hover:border-slate-300' => $marketplaceFilter])>
+            Semua <span class="opacity-60">{{ $marketplaceCounts->sum() }}</span>
+        </a>
+        @foreach (\App\Models\SalesOrder::MARKETPLACE_STATUSES as $value => $meta)
+            @continue(! ($marketplaceCounts[$value] ?? 0) && $marketplaceFilter !== $value)
+            <a href="{{ route('sales.orders.index', [...request()->except(['mp', 'page']), 'mp' => $value]) }}"
+               @class([$chip, 'border-slate-900 bg-slate-900 text-white dark:border-slate-200 dark:bg-slate-200 dark:text-slate-900' => $marketplaceFilter === $value, 'border-slate-200 bg-white text-slate-600 hover:border-slate-300' => $marketplaceFilter !== $value])>
+                {{ $meta['label'] }} <span class="opacity-60">{{ $marketplaceCounts[$value] ?? 0 }}</span>
+            </a>
+        @endforeach
+        @if (request()->filled('shopee'))
+            {{-- Filter lama dari tautan notifikasi (?shopee=...). --}}
+            <a href="{{ route('sales.orders.index', request()->except(['shopee', 'page'])) }}" class="{{ $chip }} border-sky-200 bg-sky-50 text-sky-700" title="Hapus filter">
+                @php($legacy = ['courier_pending' => 'Belum discan kurir', 'courier_overdue' => 'Belum discan kurir > '.config('alerts.courier_scan_hours').' jam', 'shopee_ahead' => 'Dikirim di Shopee, belum di gudang'])
+                Shopee: {{ $legacy[request('shopee')] ?? (\App\Models\SalesOrder::SHOPEE_STATUSES[request('shopee')]['label'] ?? request('shopee')) }}
+                <x-heroicon-o-x-mark class="size-3.5" />
+            </a>
+        @endif
+        <a href="{{ route('sales.orders.index', [...request()->except(['mp', 'page']), 'mp' => $marketplaceFilter === 'out_of_sync' ? null : 'out_of_sync']) }}"
+           title="Status gudang dan status marketplace bertentangan"
+           @class([$chip, 'ml-auto font-medium',
+               'border-rose-600 bg-rose-600 text-white dark:border-rose-700 dark:bg-rose-700' => $marketplaceFilter === 'out_of_sync',
+               'border-rose-200 bg-rose-50 text-rose-700 hover:border-rose-300' => $marketplaceFilter !== 'out_of_sync' && $outOfSyncCount,
+               'border-slate-200 bg-white text-slate-400' => $marketplaceFilter !== 'out_of_sync' && ! $outOfSyncCount])>
+            <x-heroicon-o-exclamation-triangle class="size-3.5" /> Tidak sinkron <span class="opacity-70">{{ $outOfSyncCount }}</span>
+        </a>
+    </div>
+
     @foreach (['shipment_failures' => 'belum bisa diatur pengirimannya', 'pick_failures' => 'belum bisa ditandai Sedang Diambil'] as $key => $title)
         @if ($failures = session($key))
             <div class="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
@@ -62,9 +98,11 @@
             },
         }">
         <form method="GET" class="flex flex-col gap-3 border-b border-slate-100 p-4 lg:flex-row lg:flex-wrap lg:items-center">
-            @if ($statusFilter)
-                <input type="hidden" name="status" value="{{ $statusFilter }}">
-            @endif
+            @foreach (['status', 'mp', 'shopee'] as $keep)
+                @if (request()->filled($keep))
+                    <input type="hidden" name="{{ $keep }}" value="{{ request($keep) }}">
+                @endif
+            @endforeach
             <div class="relative flex-1 lg:min-w-72">
                 <x-heroicon-o-magnifying-glass class="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-slate-400" />
                 <input type="search" name="search" value="{{ request('search') }}" placeholder="Cari no. SO, no. marketplace, pembeli, resi atau SKU..." class="form-input pl-8">
@@ -88,19 +126,6 @@
                     <option value="{{ $value }}" @selected(request('shipment') === $value)>{{ $meta['label'] }}</option>
                 @endforeach
             </select>
-            <select name="shopee" class="form-input lg:w-52" onchange="this.form.submit()">
-                <option value="">Semua status Shopee</option>
-                <optgroup label="Perlu dicek">
-                    <option value="courier_pending" @selected(request('shopee') === 'courier_pending')>Sudah serah terima, belum discan kurir</option>
-                    <option value="courier_overdue" @selected(request('shopee') === 'courier_overdue')>Belum discan kurir &gt; {{ config('alerts.courier_scan_hours') }} jam</option>
-                    <option value="shopee_ahead" @selected(request('shopee') === 'shopee_ahead')>Dikirim di Shopee, belum di gudang</option>
-                </optgroup>
-                <optgroup label="Status di Shopee">
-                    @foreach (\App\Models\SalesOrder::SHOPEE_STATUSES as $value => $meta)
-                        <option value="{{ $value }}" @selected(request('shopee') === $value)>{{ $meta['label'] }}</option>
-                    @endforeach
-                </optgroup>
-            </select>
             <div class="flex items-center gap-2">
                 <input type="date" name="from" value="{{ request('from') }}" class="form-input lg:w-40" title="Dari tanggal" aria-label="Dari tanggal">
                 <span class="text-sm text-slate-500">s/d</span>
@@ -108,8 +133,8 @@
             </div>
             <div class="flex gap-2">
                 <button type="submit" class="btn-secondary"><x-heroicon-o-funnel class="size-5" /> Filter</button>
-                @if (request()->hasAny(['search', 'channel', 'warehouse', 'shipment', 'shopee', 'from', 'to']))
-                    <a href="{{ route('sales.orders.index', request()->only('status')) }}" class="btn-icon" title="Reset filter"><x-heroicon-o-x-mark class="size-5" /></a>
+                @if (request()->hasAny(['search', 'channel', 'warehouse', 'shipment', 'from', 'to']))
+                    <a href="{{ route('sales.orders.index', request()->only(['status', 'mp', 'shopee'])) }}" class="btn-icon" title="Reset filter"><x-heroicon-o-x-mark class="size-5" /></a>
                 @endif
             </div>
         </form>
@@ -172,11 +197,12 @@
                             </th>
                         @endcan
                         <th class="h-8 px-3 py-0 font-normal">Pesanan</th>
-                        <th class="h-8 px-3 py-0 font-normal">Saluran / Marketplace</th>
+                        <th class="h-8 px-3 py-0 font-normal">Saluran</th>
                         <th class="h-8 px-3 py-0 font-normal">Pembeli / Gudang</th>
                         <th class="h-8 px-3 py-0 font-normal">Barang Dipesan</th>
                         <th class="h-8 px-3 py-0 font-normal">Pengiriman</th>
-                        <th class="h-8 px-3 py-0 font-normal">Status</th>
+                        <th class="h-8 px-3 py-0 font-normal">Status Gudang</th>
+                        <th class="h-8 px-3 py-0 font-normal">Status Marketplace</th>
                         <th class="h-8 px-3 py-0 text-right font-normal">Aksi</th>
                     </tr>
                 </thead>
@@ -185,7 +211,8 @@
                         @php($syncError = $order->shopee_sync_error ?? $order->tiktok_sync_error)
                         @php($unmapped = $order->hasStatus('draft') && $order->unmapped_skus !== null)
                         @php($deadline = $order->shipByDeadline())
-                        <tr class="align-top hover:bg-slate-50/60" :class="selected.includes({{ $order->id }}) && 'bg-sky-50/60'">
+                        @php($syncIssue = $order->syncIssue())
+                        <tr @class(['align-top', 'bg-rose-50/40 hover:bg-rose-50/70' => $syncIssue, 'hover:bg-slate-50/60' => ! $syncIssue]) :class="selected.includes({{ $order->id }}) && 'bg-sky-50/60'">
                             @can('sales.fulfill')
                                 <td class="py-2.5 pl-4"><input type="checkbox" value="{{ $order->id }}" x-model.number="selected" aria-label="Pilih {{ $order->number }}"></td>
                             @endcan
@@ -195,12 +222,13 @@
                             </td>
                             <td class="max-w-44 px-3 py-2.5">
                                 {{-- Nama toko marketplace bisa sangat panjang tanpa spasi: potong supaya tidak menimpa kolom Pembeli. --}}
-                                <p class="max-w-44 truncate text-slate-700" title="{{ $order->channel_name ?? 'Manual' }}">{{ $order->channel_name ?? 'Manual' }}</p>
+                                <p class="flex max-w-44 items-center gap-1.5 text-slate-700" title="{{ $order->channel_name ?? 'Manual' }}">
+                                    <x-marketplace-logo :platform="$order->marketplacePlatform()" class="size-4" />
+                                    <span class="truncate">{{ $order->channel_name ?? 'Manual' }}</span>
+                                </p>
                                 @if ($order->external_number)
                                     <p class="max-w-44 truncate font-mono text-xs text-slate-500" title="{{ $order->external_number }}">{{ $order->external_number }}</p>
                                 @endif
-                                <x-sales.shopee-status :order="$order" />
-                                <x-sales.tiktok-status :order="$order" />
                                 @if ($syncError)
                                     <a href="{{ route('sales.orders.show', $order) }}{{ $unmapped ? '#sku-mapping' : '' }}"
                                        class="mt-1 inline-flex items-center gap-1 text-xs font-medium text-amber-700 hover:underline"
@@ -241,6 +269,9 @@
                                 <x-sales.status-badge :status="$order->status" />
                             </td>
                             <td class="px-3 py-2.5">
+                                <x-sales.marketplace-status :order="$order" :issue="$syncIssue" class="max-w-52" />
+                            </td>
+                            <td class="px-3 py-2.5">
                                 <div class="flex justify-end gap-0.5">
                                     @if ($order->isEditable())
                                         @can('sales.create')
@@ -268,7 +299,7 @@
                             </td>
                         </tr>
                     @empty
-                        <x-empty-state :colspan="auth()->user()->can('sales.fulfill') ? 8 : 7" icon="heroicon-o-shopping-cart" title="Belum ada pesanan" description="Input pesanan manual atau impor dari file Excel / CSV.">
+                        <x-empty-state :colspan="auth()->user()->can('sales.fulfill') ? 9 : 8" icon="heroicon-o-shopping-cart" title="Belum ada pesanan" description="Input pesanan manual atau impor dari file Excel / CSV.">
                             @can('sales.create')
                                 <a href="{{ route('sales.orders.create') }}" class="btn-primary"><x-heroicon-o-plus class="size-5" /> Buat Pesanan</a>
                             @endcan

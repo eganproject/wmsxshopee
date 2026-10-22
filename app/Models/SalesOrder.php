@@ -59,6 +59,23 @@ class SalesOrder extends Model
         'CANCELLED' => ['label' => 'Batal', 'color' => 'rose'],
     ];
 
+    /**
+     * Status marketplace yang disamakan untuk Shopee & TikTok, supaya bisa difilter bersama.
+     * Kode asli tetap disimpan di shopee_order_status / tiktok_order_status.
+     */
+    public const MARKETPLACE_STATUSES = [
+        'unpaid' => ['label' => 'Belum Bayar', 'color' => 'slate', 'shopee' => ['UNPAID'], 'tiktok' => ['UNPAID']],
+        'on_hold' => ['label' => 'Ditahan', 'color' => 'slate', 'shopee' => [], 'tiktok' => ['ON_HOLD']],
+        'to_ship' => ['label' => 'Perlu Dikirim', 'color' => 'sky', 'shopee' => ['READY_TO_SHIP'], 'tiktok' => ['AWAITING_SHIPMENT', 'PARTIALLY_SHIPPING']],
+        'awaiting_courier' => ['label' => 'Menunggu Kurir', 'color' => 'violet', 'shopee' => ['PROCESSED', 'RETRY_SHIP'], 'tiktok' => ['AWAITING_COLLECTION']],
+        'in_transit' => ['label' => 'Dalam Pengiriman', 'color' => 'emerald', 'shopee' => ['SHIPPED'], 'tiktok' => ['IN_TRANSIT']],
+        'delivered' => ['label' => 'Sampai di Pembeli', 'color' => 'emerald', 'shopee' => ['TO_CONFIRM_RECEIVE'], 'tiktok' => ['DELIVERED']],
+        'completed' => ['label' => 'Selesai', 'color' => 'emerald', 'shopee' => ['COMPLETED'], 'tiktok' => ['COMPLETED']],
+        'cancel_requested' => ['label' => 'Pengajuan Batal', 'color' => 'amber', 'shopee' => ['IN_CANCEL'], 'tiktok' => []],
+        'cancelled' => ['label' => 'Batal', 'color' => 'rose', 'shopee' => ['CANCELLED'], 'tiktok' => ['CANCELLED']],
+        'returned' => ['label' => 'Retur', 'color' => 'rose', 'shopee' => ['TO_RETURN'], 'tiktok' => []],
+    ];
+
     /** Status TikTok yang berarti pesanan harus disiapkan gudang. */
     public const TIKTOK_TO_FULFIL = ['AWAITING_SHIPMENT', 'PARTIALLY_SHIPPING', 'AWAITING_COLLECTION'];
 
@@ -439,6 +456,147 @@ class SalesOrder extends Model
     public function courierScanOverdue(): bool
     {
         return $this->awaitingCourierScan() && $this->shipped_at?->lte(now()->subHours((int) config('alerts.courier_scan_hours', 24)));
+    }
+
+    /**
+     * Kunci status marketplace terpadu (lihat MARKETPLACE_STATUSES) dari kode Shopee / TikTok.
+     * Pengajuan batal TikTok disimpan sebagai flag terpisah, jadi diutamakan di sini.
+     */
+    public static function marketplaceStatusKey(?string $shopee, ?string $tiktok, bool $tiktokCancelRequested = false): ?string
+    {
+        if ($tiktok && $tiktokCancelRequested && $tiktok !== 'CANCELLED') {
+            return 'cancel_requested';
+        }
+
+        foreach (self::MARKETPLACE_STATUSES as $key => $meta) {
+            if (($shopee && in_array($shopee, $meta['shopee'], true)) || ($tiktok && in_array($tiktok, $meta['tiktok'], true))) {
+                return $key;
+            }
+        }
+
+        return null;
+    }
+
+    public function marketplaceStatus(): ?string
+    {
+        return self::marketplaceStatusKey($this->shopee_order_status, $this->tiktok_order_status, (bool) $this->tiktok_cancel_requested);
+    }
+
+    public function marketplaceStatusLabel(): ?string
+    {
+        return ($key = $this->marketplaceStatus()) ? self::MARKETPLACE_STATUSES[$key]['label'] : $this->marketplaceRawStatus();
+    }
+
+    /** Kode status asli dari marketplace (READY_TO_SHIP, AWAITING_COLLECTION, ...). */
+    public function marketplaceRawStatus(): ?string
+    {
+        return $this->shopee_order_status ?? $this->tiktok_order_status;
+    }
+
+    public function marketplacePlatform(): ?string
+    {
+        return $this->isShopee() ? 'shopee' : ($this->isTiktok() ? 'tiktok' : null);
+    }
+
+    public function marketplaceSyncedAt(): ?CarbonInterface
+    {
+        return $this->isShopee() ? $this->shopee_synced_at : ($this->isTiktok() ? $this->tiktok_synced_at : null);
+    }
+
+    /**
+     * Filter status marketplace terpadu, berlaku untuk pesanan Shopee dan TikTok sekaligus.
+     *
+     * @param  Builder<SalesOrder>  $query
+     */
+    public function scopeWhereMarketplaceStatus(Builder $query, string $key): void
+    {
+        $meta = self::MARKETPLACE_STATUSES[$key] ?? null;
+        if (! $meta) {
+            return;
+        }
+
+        $query->where(function ($q) use ($key, $meta) {
+            $q->whereRaw('1 = 0');
+            if ($meta['shopee']) {
+                $q->orWhere(fn ($s) => $s->whereNotNull('shopee_shop_id')->whereIn('shopee_order_status', $meta['shopee']));
+            }
+            if ($key === 'cancel_requested') {
+                $q->orWhere(fn ($t) => $t->whereNotNull('tiktok_shop_id')->where('tiktok_cancel_requested', true)->where('tiktok_order_status', '!=', 'CANCELLED'));
+            } elseif ($meta['tiktok']) {
+                $q->orWhere(fn ($t) => $t->whereNotNull('tiktok_shop_id')->whereIn('tiktok_order_status', $meta['tiktok'])
+                    ->when($key !== 'cancelled', fn ($t) => $t->where('tiktok_cancel_requested', false)));
+            }
+        });
+    }
+
+    /** Sudah diserahkan di gudang, tapi kurir TikTok belum scan paket. */
+    public function tiktokAwaitingCourierScan(): bool
+    {
+        return $this->isTiktok() && $this->status === 'shipped' && $this->tiktok_shipped_at === null
+            && in_array($this->tiktok_order_status, ['AWAITING_SHIPMENT', 'AWAITING_COLLECTION'], true);
+    }
+
+    /**
+     * Alasan status gudang dan status marketplace tidak cocok, atau null bila sinkron.
+     * Kondisinya sama dengan scopeOutOfSync().
+     */
+    public function syncIssue(): ?string
+    {
+        if (! $this->isMarketplace()) {
+            return null;
+        }
+
+        $platform = $this->isShopee() ? 'Shopee' : 'TikTok';
+        $open = in_array($this->status, ['draft', ...self::RESERVING], true);
+        $key = $this->marketplaceStatus();
+
+        if ($open && $key === 'cancel_requested') {
+            return 'Pembeli minta batal, jangan dikemas';
+        }
+        if ($open && $key === 'cancelled') {
+            return "Batal di {$platform}, belum dibatalkan di gudang";
+        }
+        if ($this->shopeeAhead() || $this->tiktokAhead()) {
+            return "Sudah dikirim di {$platform}, belum di gudang";
+        }
+        if ($this->status === 'cancelled' && in_array($key, ['to_ship', 'awaiting_courier'], true)) {
+            return "Batal di gudang, masih aktif di {$platform}";
+        }
+        $overdue = now()->subHours((int) config('alerts.courier_scan_hours', 24));
+        if (($this->awaitingCourierScan() || $this->tiktokAwaitingCourierScan()) && $this->shipped_at?->lte($overdue)) {
+            return 'Sudah serah terima, belum discan kurir > '.config('alerts.courier_scan_hours', 24).' jam';
+        }
+
+        return null;
+    }
+
+    /**
+     * Pesanan yang status gudang dan status marketplace-nya bertentangan.
+     *
+     * @param  Builder<SalesOrder>  $query
+     */
+    public function scopeOutOfSync(Builder $query): void
+    {
+        $open = ['draft', ...self::RESERVING];
+        $overdue = now()->subHours((int) config('alerts.courier_scan_hours', 24));
+        $active = [...self::MARKETPLACE_STATUSES['to_ship']['shopee'], ...self::MARKETPLACE_STATUSES['awaiting_courier']['shopee']];
+        $tiktokActive = [...self::MARKETPLACE_STATUSES['to_ship']['tiktok'], ...self::MARKETPLACE_STATUSES['awaiting_courier']['tiktok']];
+
+        $query->where(fn ($q) => $q
+            // Batal / pengajuan batal / sudah dikirim di marketplace, gudang masih memproses.
+            ->orWhere(fn ($o) => $o->whereIn('status', $open)->where(fn ($m) => $m
+                ->orWhere(fn ($s) => $s->whereNotNull('shopee_shop_id')->whereIn('shopee_order_status', ['IN_CANCEL', 'CANCELLED', ...self::SHOPEE_LEFT_WAREHOUSE]))
+                ->orWhere(fn ($t) => $t->whereNotNull('tiktok_shop_id')->where(fn ($x) => $x
+                    ->where('tiktok_cancel_requested', true)
+                    ->orWhereIn('tiktok_order_status', ['CANCELLED', ...self::TIKTOK_LEFT_WAREHOUSE])))))
+            // Dibatalkan di gudang, tapi di marketplace masih harus dikirim.
+            ->orWhere(fn ($o) => $o->where('status', 'cancelled')->where(fn ($m) => $m
+                ->orWhere(fn ($s) => $s->whereNotNull('shopee_shop_id')->whereIn('shopee_order_status', $active))
+                ->orWhere(fn ($t) => $t->whereNotNull('tiktok_shop_id')->whereIn('tiktok_order_status', $tiktokActive)->where('tiktok_cancel_requested', false))))
+            // Sudah serah terima, kurir belum scan terlalu lama.
+            ->orWhere(fn ($o) => $o->where('status', 'shipped')->where('shipped_at', '<=', $overdue)->where(fn ($m) => $m
+                ->orWhere(fn ($s) => $s->whereNotNull('shopee_shop_id')->whereNull('shopee_shipped_at')->whereIn('shopee_order_status', self::SHOPEE_AWAITING_COURIER))
+                ->orWhere(fn ($t) => $t->whereNotNull('tiktok_shop_id')->whereNull('tiktok_shipped_at')->whereIn('tiktok_order_status', ['AWAITING_SHIPMENT', 'AWAITING_COLLECTION'])))));
     }
 
     /** Shopee sudah mengirim paket, tapi di Optima belum Dikirim (pengiriman otomatis gagal). */

@@ -282,7 +282,7 @@ class TiktokIntegrationTest extends TestCase
 
         $this->get("/sales/orders/{$order->id}")->assertOk()->assertSee('Pesanan TikTok')->assertSee('Perlu Dikirim')
             ->assertSee('Rincian Pembayaran TikTok')->assertSee('Rp 154.000');
-        $this->get('/sales/orders')->assertOk()->assertSee('TikTok: Perlu Dikirim');
+        $this->get('/sales/orders')->assertOk()->assertSee('Perlu Dikirim')->assertSee('AWAITING_SHIPMENT');
     }
 
     public function test_unmapped_sku_keeps_order_draft_until_mapped(): void
