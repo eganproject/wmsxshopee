@@ -62,7 +62,7 @@ class TiktokSkuMappingController extends Controller
             app(TiktokCatalog::class)->autoMatch($shop);
         }
 
-        return back()->with('success', 'Baris pemetaan ditambahkan.');
+        return back()->with('success', 'Baris pemetaan ditambahkan.'.$this->relinkOrders());
     }
 
     public function update(Request $request, TiktokShop $shop, TiktokSkuMapping $mapping): RedirectResponse
@@ -71,7 +71,7 @@ class TiktokSkuMappingController extends Controller
 
         $mapping->update($this->target($request->input('target')));
 
-        return back()->with('success', $mapping->isMapped() ? 'Pemetaan SKU disimpan.' : 'Pemetaan SKU dikosongkan.');
+        return back()->with('success', $mapping->isMapped() ? 'Pemetaan SKU disimpan.'.$this->relinkOrders() : 'Pemetaan SKU dikosongkan.');
     }
 
     public function destroy(TiktokShop $shop, TiktokSkuMapping $mapping): RedirectResponse
@@ -87,7 +87,7 @@ class TiktokSkuMappingController extends Controller
     {
         $matched = $catalog->autoMatch($shop);
 
-        return back()->with('success', $matched ? "{$matched} baris cocok otomatis berdasarkan SKU." : 'Tidak ada SKU baru yang cocok. Petakan sisanya secara manual.');
+        return back()->with('success', ($matched ? "{$matched} baris cocok otomatis berdasarkan SKU." : 'Tidak ada SKU baru yang cocok. Petakan sisanya secara manual.').$this->relinkOrders());
     }
 
     /** Tarik daftar produk & SKU dari TikTok lalu cocokkan otomatis. */
@@ -99,6 +99,6 @@ class TiktokSkuMappingController extends Controller
             return back()->with('error', 'Gagal menarik produk dari TikTok. '.$e->getMessage());
         }
 
-        return back()->with('success', "{$result['products']} produk ({$result['rows']} baris SKU) ditarik dari TikTok, {$result['matched']} cocok otomatis.");
+        return back()->with('success', "{$result['products']} produk ({$result['rows']} baris SKU) ditarik dari TikTok, {$result['matched']} cocok otomatis.".$this->relinkOrders());
     }
 }
