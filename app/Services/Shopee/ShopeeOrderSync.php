@@ -107,7 +107,9 @@ class ShopeeOrderSync
         $order = $this->find($shop, $orderSn);
 
         if ($order && $order->status !== 'cancelled' && filled($trackingNumber)) {
-            $order->update(['tracking_number' => $trackingNumber, 'shopee_package_number' => $packageNumber ?? $order->shopee_package_number]);
+            // package_number dari push tidak disimpan: hanya pesanan split yang memakainya,
+            // dan nomor paketnya sudah tercatat dari detail pesanan.
+            $order->update(['tracking_number' => $trackingNumber]);
         }
     }
 
@@ -136,7 +138,7 @@ class ShopeeOrderSync
         $order->fill([
             'shopee_order_status' => $status,
             'shopee_synced_at' => now(),
-            'shopee_package_number' => $detail['package_list'][0]['package_number'] ?? $order->shopee_package_number,
+            'shopee_package_number' => ShopeePackage::fromDetail($detail),
             'shopee_ship_by' => $this->shipBy($detail) ?? $order->shopee_ship_by,
         ]);
 
@@ -234,7 +236,7 @@ class ShopeeOrderSync
             'external_number' => (string) $detail['order_sn'],
             'shopee_shop_id' => $shop->id,
             'shopee_order_status' => $detail['order_status'],
-            'shopee_package_number' => $package['package_number'] ?? null,
+            'shopee_package_number' => ShopeePackage::fromDetail($detail),
             'shopee_synced_at' => now(),
             'shopee_ship_by' => $this->shipBy($detail),
             'customer_name' => mb_substr($address['name'] ?? $detail['buyer_username'] ?? 'Pembeli Shopee', 0, 150),
@@ -419,7 +421,7 @@ class ShopeeOrderSync
     {
         return $api->get('/api/v2/order/get_order_detail', [
             'order_sn_list' => implode(',', $orderSns),
-            'response_optional_fields' => 'buyer_username,recipient_address,item_list,shipping_carrier,package_list,cancel_reason,estimated_shipping_fee,actual_shipping_fee,message_to_seller',
+            'response_optional_fields' => 'buyer_username,recipient_address,item_list,shipping_carrier,package_list,split_up,cancel_reason,estimated_shipping_fee,actual_shipping_fee,message_to_seller',
         ])['response']['order_list'] ?? [];
     }
 
@@ -439,9 +441,9 @@ class ShopeeOrderSync
     private function fetchTracking(SalesOrder $order, ShopeeShopApi $api): void
     {
         try {
-            $response = $api->get('/api/v2/logistics/get_tracking_number', array_filter([
+            $response = ShopeePackage::call($order, fn (array $package) => $api->get('/api/v2/logistics/get_tracking_number', [
                 'order_sn' => $order->external_number,
-                'package_number' => $order->shopee_package_number,
+                ...$package,
             ]))['response'] ?? [];
         } catch (ShopeeException) {
             return; // Resi belum terbit; dicoba lagi di sinkron berikutnya.

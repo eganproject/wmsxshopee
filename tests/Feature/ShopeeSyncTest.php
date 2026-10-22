@@ -136,12 +136,24 @@ class ShopeeSyncTest extends TestCase
         $this->assertCount(1, $order->bundles);
         $this->assertSame(10 - 3, $this->available($this->kaosM));
         $this->assertSame(4 - 1, $this->available($this->kaosL));
+        $this->assertNull($order->shopee_package_number, 'Pesanan yang tidak dipecah tidak menyimpan package_number.');
         $this->assertSame(1, SalesOrder::count(), 'Pesanan belum bayar / sudah selesai tidak dibuat.');
         $this->assertNotNull($this->shop->fresh()->orders_synced_until);
 
         // Sinkron ulang tidak menggandakan pesanan.
         $this->artisan('shopee:sync --only=orders')->assertSuccessful();
         $this->assertSame(1, SalesOrder::count());
+    }
+
+    public function test_split_order_keeps_its_package_number(): void
+    {
+        $this->fakeOrders([
+            $this->order('A9', 'READY_TO_SHIP', [$this->line(11, 101, 1)], ['split_up' => true, 'package_list' => [['package_number' => 'PKG-A9-1'], ['package_number' => 'PKG-A9-2']]]),
+        ]);
+
+        $this->artisan('shopee:sync --only=orders')->assertSuccessful();
+
+        $this->assertSame('PKG-A9-1', SalesOrder::where('external_number', 'A9')->value('shopee_package_number'));
     }
 
     public function test_income_breakdown_is_stored_and_finalised_when_completed(): void
@@ -267,7 +279,7 @@ class ShopeeSyncTest extends TestCase
         $this->assertStringContainsString('BUYER_REQUEST', $d1->cancel_reason);
         $this->assertSame(9, $this->available($this->kaosM));
         $this->assertSame('SPXID001', SalesOrder::where('external_number', 'D2')->value('tracking_number'));
-        Http::assertSent(fn (Request $r) => str_contains($r->url(), 'get_tracking_number') && $r['order_sn'] === 'D2' && $r['package_number'] === 'PKG-D2');
+        Http::assertSent(fn (Request $r) => str_contains($r->url(), 'get_tracking_number') && $r['order_sn'] === 'D2' && ! isset($r['package_number']));
     }
 
     private function resync(array $orders): void

@@ -151,6 +151,39 @@ class ShipmentFlowTest extends TestCase
         $this->get("/sales/orders/{$order->id}")->assertOk()->assertSee('Cetak Resi')->assertSee('13:00-17:00');
     }
 
+    public function test_unsplit_shopee_order_is_arranged_without_package_number(): void
+    {
+        $order = $this->shopeeOrder('S9', ['shopee_package_number' => null]);
+        $this->fakeLogistics(['pickup' => ['address_id', 'pickup_time_id']]);
+
+        $this->post("/sales/orders/{$order->id}/shipment", ['method' => 'pickup', 'address_id' => 2, 'pickup_time_id' => 'slot-b2'])
+            ->assertSessionHasNoErrors();
+
+        Http::assertSent(fn (Request $r) => str_contains($r->url(), 'ship_order') && $r['order_sn'] === 'S9' && ! isset($r['package_number']));
+        Http::assertNotSent(fn (Request $r) => str_contains($r->url(), 'logistics/') && isset($r['package_number']));
+        $this->assertSame('PROCESSED', $order->fresh()->shopee_order_status);
+    }
+
+    public function test_stale_package_number_is_dropped_when_shopee_says_order_is_unsplit(): void
+    {
+        $order = $this->shopeeOrder('S8');
+        $unsplit = ['error' => 'logistics.ship_order_not_need_pacakge_number', 'message' => "Please don't request with package_number for this unsplit order."];
+        Http::fake(fn (Request $r) => match (true) {
+            isset($r['package_number']) => Http::response($unsplit),
+            str_contains($r->url(), 'get_shipping_parameter') => Http::response($this->shippingParameter(['pickup' => ['address_id', 'pickup_time_id']])),
+            str_contains($r->url(), 'get_tracking_number') => Http::response(['error' => '', 'response' => ['tracking_number' => 'SPXID888']]),
+            default => Http::response(['error' => '', 'response' => []]),
+        });
+
+        $this->post("/sales/orders/{$order->id}/shipment", ['method' => 'pickup', 'address_id' => 2, 'pickup_time_id' => 'slot-b2'])
+            ->assertSessionHasNoErrors();
+
+        Http::assertSent(fn (Request $r) => str_contains($r->url(), 'ship_order') && ! isset($r['package_number']));
+        $order->refresh();
+        $this->assertNull($order->shopee_package_number);
+        $this->assertSame(['PROCESSED', 'SPXID888'], [$order->shopee_order_status, $order->tracking_number]);
+    }
+
     public function test_shopee_dropoff_requires_branch_when_courier_asks_for_it(): void
     {
         $order = $this->shopeeOrder('S2');

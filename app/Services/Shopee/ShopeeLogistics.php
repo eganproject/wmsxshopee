@@ -39,9 +39,10 @@ class ShopeeLogistics
     {
         $this->ensureShopee($order);
 
-        $response = $this->api($order)->get('/api/v2/logistics/get_shipping_parameter', array_filter([
+        $api = $this->api($order);
+        $response = ShopeePackage::call($order, fn (array $package) => $api->get('/api/v2/logistics/get_shipping_parameter', [
             'order_sn' => $order->external_number,
-            'package_number' => $order->shopee_package_number,
+            ...$package,
         ]))['response'] ?? [];
 
         $needed = $response['info_needed'] ?? [];
@@ -159,11 +160,11 @@ class ShopeeLogistics
         }
 
         $api = $this->api($order);
-        $api->post('/api/v2/logistics/ship_order', array_filter([
+        ShopeePackage::call($order, fn (array $package) => $api->post('/api/v2/logistics/ship_order', [
             'order_sn' => $order->external_number,
-            'package_number' => $order->shopee_package_number,
+            ...$package,
             $method => $payload === [] ? new \stdClass : $payload,
-        ], fn ($value) => $value !== null));
+        ]));
 
         $order->update([
             ...$record,
@@ -280,9 +281,9 @@ class ShopeeLogistics
     public function fetchTracking(SalesOrder $order, ShopeeShopApi $api): bool
     {
         try {
-            $tracking = $api->get('/api/v2/logistics/get_tracking_number', array_filter([
+            $tracking = ShopeePackage::call($order, fn (array $package) => $api->get('/api/v2/logistics/get_tracking_number', [
                 'order_sn' => $order->external_number,
-                'package_number' => $order->shopee_package_number,
+                ...$package,
             ]))['response']['tracking_number'] ?? null;
         } catch (ShopeeException) {
             return false; // Resi belum terbit; diambil lagi saat sinkron berikutnya.
