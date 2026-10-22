@@ -96,7 +96,7 @@ class MarketplaceProductSync
                 $sent = $stock['models'] ?? 0;
             } else {
                 $pulled = $this->tiktokCatalog->pull($shop);
-                $message = "{$pulled['products']} produk ({$pulled['rows']} SKU) ditarik, {$pulled['matched']} cocok otomatis";
+                $message = "{$pulled['products']} produk ({$pulled['rows']} SKU) ditarik".($pulled['inactive'] ? " ({$pulled['inactive']} belum aktif di TikTok)" : '').", {$pulled['matched']} cocok otomatis";
                 $stock = $pushStock && $shop->isSyncable() ? $this->tiktokStock->push($shop) : null;
                 $sent = $stock['skus'] ?? 0;
             }

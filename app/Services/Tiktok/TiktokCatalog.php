@@ -10,27 +10,42 @@ use App\Models\TiktokSkuMapping;
 /**
  * Daftar produk & SKU toko TikTok untuk pemetaan SKU.
  *
- *   POST /product/202309/products/search  -> produk aktif beserta skus[] (maks 100 per halaman)
+ *   POST /product/202309/products/search  -> produk beserta skus[] (maks 100 per halaman)
+ *
+ * Semua status ditarik (bukan hanya ACTIVATE): produk baru di toko, terutama
+ * toko uji, sering masih PENDING (direview) atau DRAFT, dan pesanan / stok
+ * tetap perlu dipetakan. Hanya produk yang sudah dihapus yang dilewati.
  *
  * Satu baris pemetaan = satu sku_id. Produk tanpa variasi tetap punya satu SKU.
  */
 class TiktokCatalog
 {
+    /** Status produk yang tidak ikut ditarik. */
+    private const SKIPPED_STATUSES = ['DELETED'];
+
     /**
-     * @return array{products: int, rows: int, matched: int}
+     * @return array{products: int, rows: int, matched: int, inactive: int}
      */
     public function pull(TiktokShop $shop, ?TiktokShopApi $api = null): array
     {
         $api ??= TiktokShopApi::for($shop);
         $products = 0;
         $rows = 0;
+        $inactive = 0;
         $pageToken = null;
 
         do {
-            $page = $api->post('/product/products/search', ['status' => 'ACTIVATE'], array_filter(['page_size' => 100, 'page_token' => $pageToken]));
+            $page = $api->post('/product/products/search', ['status' => 'ALL'], array_filter(['page_size' => 100, 'page_token' => $pageToken]));
 
             foreach ($page['products'] ?? [] as $product) {
+                $status = (string) ($product['status'] ?? '');
+
+                if (in_array($status, self::SKIPPED_STATUSES, true)) {
+                    continue;
+                }
+
                 $products++;
+                $inactive += $status !== '' && $status !== 'ACTIVATE' ? 1 : 0;
 
                 foreach ($product['skus'] ?? [] as $sku) {
                     $this->upsert($shop, $product, $sku);
@@ -48,7 +63,7 @@ class TiktokCatalog
 
         $shop->update(['last_synced_at' => now()]);
 
-        return ['products' => $products, 'rows' => $rows, 'matched' => $this->autoMatch($shop)];
+        return ['products' => $products, 'rows' => $rows, 'matched' => $this->autoMatch($shop), 'inactive' => $inactive];
     }
 
     /** Cocokkan baris yang belum terpetakan dengan SKU varian / paket yang sama persis. */

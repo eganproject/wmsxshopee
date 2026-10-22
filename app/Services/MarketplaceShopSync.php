@@ -96,7 +96,7 @@ class MarketplaceShopSync
         try {
             if ($pullProducts) {
                 $pulled = $platform === 'shopee' ? $this->shopeeCatalog->pull($shop) : $this->tiktokCatalog->pull($shop);
-                $parts[] = 'produk: '.($pulled['items'] ?? $pulled['products']).' ('.$pulled['rows'].' SKU), '.$pulled['matched'].' cocok otomatis';
+                $parts[] = 'produk: '.($pulled['items'] ?? $pulled['products']).' ('.$pulled['rows'].' SKU)'.(($pulled['inactive'] ?? 0) ? ", {$pulled['inactive']} belum aktif di TikTok" : '').', '.$pulled['matched'].' cocok otomatis';
             }
 
             if ($shop->isSyncable()) {
