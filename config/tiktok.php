@@ -38,6 +38,10 @@ return [
     // Batas waktu request ke TikTok (detik).
     'timeout' => (int) env('TIKTOK_TIMEOUT', 20),
 
+    // Gangguan sementara (batas panggilan, server sibuk, putus koneksi saat GET) diulang
+    // sebanyak ini dengan jeda bertahap sebelum dianggap gagal.
+    'retries' => (int) env('TIKTOK_RETRIES', 2),
+
     // Ukuran label resi PDF dari TikTok: A6 (thermal 100x150) atau A5.
     'label_size' => env('TIKTOK_LABEL_SIZE', 'A6'),
 

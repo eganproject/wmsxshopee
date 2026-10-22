@@ -24,7 +24,7 @@ class TiktokShopApi
      */
     public function get(string $path, array $query = []): array
     {
-        return $this->client->request('GET', $path, $this->token(), $this->shop->shop_cipher, $query);
+        return $this->withToken(fn (string $token) => $this->client->request('GET', $path, $token, $this->shop->shop_cipher, $query));
     }
 
     /**
@@ -34,7 +34,31 @@ class TiktokShopApi
      */
     public function post(string $path, array $body = [], array $query = []): array
     {
-        return $this->client->request('POST', $path, $this->token(), $this->shop->shop_cipher, $query, $body);
+        return $this->withToken(fn (string $token) => $this->client->request('POST', $path, $token, $this->shop->shop_cipher, $query, $body));
+    }
+
+    /**
+     * Jalankan panggilan dengan access token segar. Bila TikTok menolak tokennya,
+     * token diperbarui sekali lalu panggilan diulang.
+     *
+     * @template T
+     *
+     * @param  callable(string): T  $call
+     * @return T
+     */
+    private function withToken(callable $call): mixed
+    {
+        try {
+            return $call($this->token());
+        } catch (TiktokException $e) {
+            if (! $e->invalidAccessToken()) {
+                throw $e;
+            }
+
+            $this->auth->refresh($this->shop, $this->client);
+
+            return $call($this->shop->access_token);
+        }
     }
 
     private function token(): string

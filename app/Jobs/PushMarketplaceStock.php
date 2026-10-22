@@ -2,6 +2,7 @@
 
 namespace App\Jobs;
 
+use App\Models\MarketplaceSyncLog;
 use App\Services\MarketplaceStockPush;
 use Illuminate\Contracts\Queue\ShouldBeUniqueUntilProcessing;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -22,6 +23,6 @@ class PushMarketplaceStock implements ShouldBeUniqueUntilProcessing, ShouldQueue
 
     public function handle(MarketplaceStockPush $push): void
     {
-        $push->run(onlyChanged: true);
+        MarketplaceSyncLog::as('otomatis', fn () => $push->run(onlyChanged: true));
     }
 }

@@ -2,6 +2,7 @@
 
 namespace App\Services\Shopee;
 
+use App\Models\MarketplaceSyncLog;
 use App\Models\ShopeeShop;
 
 /** Sinkron lengkap satu toko: pesanan & resi, retur, lalu stok. */
@@ -25,6 +26,19 @@ class ShopeeSync
             throw new ShopeeException("Toko {$shop->displayName()} belum bisa disinkron: pastikan terhubung, aktif dan punya gudang pengirim.");
         }
 
+        return MarketplaceSyncLog::track('shopee', $shop, implode(',', $parts), fn () => $this->runParts($shop, $parts), function (array $result) {
+            $failed = count($result['stock']['failed'] ?? []);
+
+            return [$failed ? 'failed' : 'success', static::summary($result)];
+        });
+    }
+
+    /**
+     * @param  list<string>  $parts
+     * @return array<string, array<string, mixed>>
+     */
+    private function runParts(ShopeeShop $shop, array $parts): array
+    {
         $api = ShopeeShopApi::for($shop);
         $result = [];
 

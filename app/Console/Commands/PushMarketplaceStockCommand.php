@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Models\MarketplaceSyncLog;
 use App\Services\MarketplaceStockPush;
 use Illuminate\Console\Command;
 
@@ -13,7 +14,7 @@ class PushMarketplaceStockCommand extends Command
 
     public function handle(MarketplaceStockPush $push): int
     {
-        $results = $push->run(onlyChanged: ! $this->option('all'));
+        $results = MarketplaceSyncLog::as('jadwal', fn () => $push->run(onlyChanged: ! $this->option('all')));
         $failed = false;
 
         foreach ($results as $row) {

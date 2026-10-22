@@ -2,6 +2,8 @@
 
 namespace App\Console\Commands;
 
+use App\Jobs\SyncMarketplaceShop;
+use App\Models\MarketplaceSyncLog;
 use App\Models\ShopeeShop;
 use App\Services\Shopee\ShopeeException;
 use App\Services\Shopee\ShopeeSync;
@@ -12,6 +14,7 @@ class SyncShopee extends Command
 {
     protected $signature = 'shopee:sync
         {--only=* : Bagian yang disinkron: orders, returns, stock (default semua)}
+        {--queue : Masukkan ke antrean, satu job per toko (dipakai penjadwal)}
         {--shop= : ID toko Shopee (shop_id) tertentu}';
 
     protected $description = 'Tarik pesanan & retur Shopee lalu kirim stok tersedia ke Shopee';
@@ -24,9 +27,18 @@ class SyncShopee extends Command
             ->get();
         $failed = 0;
 
+        if ($this->option('queue')) {
+            foreach ($shops as $shop) {
+                SyncMarketplaceShop::dispatch('shopee', $shop->id, $parts);
+            }
+            $this->info($shops->count().' toko dimasukkan ke antrean.');
+
+            return self::SUCCESS;
+        }
+
         foreach ($shops as $shop) {
             try {
-                $this->line($shop->displayName().': '.ShopeeSync::summary($sync->run($shop, $parts)));
+                $this->line($shop->displayName().': '.ShopeeSync::summary(MarketplaceSyncLog::as('jadwal', fn () => $sync->run($shop, $parts))));
             } catch (ShopeeException $e) {
                 $failed++;
                 $this->error("{$shop->displayName()}: {$e->getMessage()}");

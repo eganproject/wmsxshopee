@@ -13,7 +13,8 @@ use Illuminate\Support\Facades\Log;
 
 /**
  * Push Mechanism Shopee: Shopee mengirim POST ke URL ini saat status pesanan
- * berubah (code 3), resi terbit (code 4) atau otorisasi toko dicabut (code 2).
+ * berubah (code 3), resi terbit (code 4), otorisasi toko dicabut (code 2) atau
+ * otorisasi akan berakhir (code 12).
  * Tanda tangan di header Authorization = HMAC-SHA256(key, url + "|" + body), dengan key =
  * Live Push Partner Key dari menu Push Mechanism (app lama: partner key app).
  * Push disimpan di marketplace_webhook_events lalu diproses job antrean
@@ -33,6 +34,11 @@ class ShopeeWebhookController extends Controller
         $shop = $shops->first(fn (ShopeeShop $shop) => $this->verified($request, $shop->environment));
         $code = (int) ($payload['code'] ?? 0);
         $data = $payload['data'] ?? [];
+
+        // Otorisasi app akan berakhir: berlaku untuk akun partner, bisa tanpa shop_id.
+        if ($code === 12) {
+            return $this->authorizationExpiry($request, $shop, $payload);
+        }
 
         // Push untuk toko tak dikenal / tanda tangan salah diabaikan; Shopee tetap diberi 200
         // supaya tidak mengulang terus. Verifikasi URL push dari console tanpa shop_id juga 200.
@@ -61,6 +67,24 @@ class ShopeeWebhookController extends Controller
             $event = MarketplaceWebhookEvent::record('shopee', $shop, $code, $orderSn, $payload, $request->getContent());
             $event && $this->dispatchEvent($event);
         }
+
+        return response()->noContent(200);
+    }
+
+    /** Code 12: perbarui batas otorisasi semua toko supaya peringatannya muncul di Notifikasi. */
+    private function authorizationExpiry(Request $request, ?ShopeeShop $shop, array $payload): Response
+    {
+        $verified = $shop || collect(array_keys(ShopeeSetting::ENVIRONMENTS))->contains(fn (string $environment) => $this->verified($request, $environment));
+
+        if (! $verified) {
+            $this->remember('Push ditolak: tanda tangan tidak cocok. Isi Live Push Partner Key dari menu Push Mechanism di console Shopee.');
+
+            return response()->noContent(200);
+        }
+
+        $this->remember('Push diterima: otorisasi Shopee akan segera berakhir. Hubungkan ulang toko sebelum batasnya.');
+        $event = MarketplaceWebhookEvent::record('shopee', $shop, 12, null, $payload, $request->getContent());
+        $event && $this->dispatchEvent($event);
 
         return response()->noContent(200);
     }

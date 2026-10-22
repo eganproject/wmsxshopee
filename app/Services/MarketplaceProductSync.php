@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\MarketplaceSyncLog;
 use App\Models\ShopeeShop;
 use App\Models\TiktokShop;
 use App\Services\Shopee\ShopeeCatalog;
@@ -84,22 +85,26 @@ class MarketplaceProductSync
     }
 
     /** @return array{platform: string, shop: string, ok: bool, message: string} */
-    private function syncShop(string $platform, ShopeeShop|TiktokShop $shop, bool $pushStock): array
+    public function syncShop(string $platform, ShopeeShop|TiktokShop $shop, bool $pushStock = true): array
     {
         $label = ($platform === 'shopee' ? 'Shopee' : 'TikTok').' · '.$shop->displayName();
 
         try {
-            if ($platform === 'shopee') {
-                $pulled = $this->shopeeCatalog->pull($shop);
-                $message = "{$pulled['items']} produk ({$pulled['rows']} SKU) ditarik, {$pulled['matched']} cocok otomatis";
-                $stock = $pushStock && $shop->isSyncable() ? $this->shopeeStock->push($shop) : null;
-                $sent = $stock['models'] ?? 0;
-            } else {
-                $pulled = $this->tiktokCatalog->pull($shop);
-                $message = "{$pulled['products']} produk ({$pulled['rows']} SKU) ditarik".($pulled['inactive'] ? " ({$pulled['inactive']} belum aktif di TikTok)" : '').", {$pulled['matched']} cocok otomatis";
-                $stock = $pushStock && $shop->isSyncable() ? $this->tiktokStock->push($shop) : null;
-                $sent = $stock['skus'] ?? 0;
-            }
+            [$message, $stock, $sent] = MarketplaceSyncLog::track($platform, $shop, 'products', function () use ($platform, $shop, $pushStock) {
+                if ($platform === 'shopee') {
+                    $pulled = $this->shopeeCatalog->pull($shop);
+                    $message = "{$pulled['items']} produk ({$pulled['rows']} SKU) ditarik, {$pulled['matched']} cocok otomatis";
+                    $stock = $pushStock && $shop->isSyncable() ? $this->shopeeStock->push($shop) : null;
+                    $sent = $stock['models'] ?? 0;
+                } else {
+                    $pulled = $this->tiktokCatalog->pull($shop);
+                    $message = "{$pulled['products']} produk ({$pulled['rows']} SKU) ditarik".($pulled['inactive'] ? " ({$pulled['inactive']} belum aktif di TikTok)" : '').", {$pulled['matched']} cocok otomatis";
+                    $stock = $pushStock && $shop->isSyncable() ? $this->tiktokStock->push($shop) : null;
+                    $sent = $stock['skus'] ?? 0;
+                }
+
+                return [$message, $stock, $sent];
+            }, fn (array $result) => [($result[1]['failed'] ?? []) ? 'failed' : 'success', $result[0].($result[1] !== null ? "; stok {$result[2]} SKU dikirim".(($result[1]['failed'] ?? []) ? ', '.count($result[1]['failed']).' gagal' : '') : '')]);
         } catch (ShopeeException|TiktokException $e) {
             $shop->update(['last_error' => mb_substr($e->getMessage(), 0, 500), 'status' => $e->needsReauthorization() ? 'expired' : $shop->status]);
             Log::warning('Sinkron produk marketplace gagal', ['platform' => $platform, 'shop_id' => $shop->shop_id, 'error' => $e->getMessage()]);

@@ -10,6 +10,7 @@ use App\Models\ShopeeShop;
  *   code 2  otorisasi toko dicabut -> pastikan lewat get_shop_info, lalu tandai perlu otorisasi ulang
  *   code 3  status pesanan berubah -> sinkron pesanan itu
  *   code 4  resi terbit            -> simpan resi
+ *   code 12 otorisasi akan berakhir -> perbarui batas otorisasi semua toko (muncul di Notifikasi)
  * Error dilempar supaya job mengulang.
  */
 class ShopeeWebhookHandler
@@ -19,6 +20,12 @@ class ShopeeWebhookHandler
     /** @return bool false bila push tidak perlu diproses */
     public function handle(MarketplaceWebhookEvent $event): bool
     {
+        if ($event->event_type === 12) {
+            $this->refreshAuthorizationExpiry();
+
+            return true;
+        }
+
         $shop = ShopeeShop::find($event->shop_ref);
         $data = $event->payload['data'] ?? [];
 
@@ -48,5 +55,17 @@ class ShopeeWebhookHandler
             : $this->orders->syncOne($shop, $event->order_id);
 
         return true;
+    }
+
+    /** Ambil ulang batas otorisasi (expire_time) semua toko yang terhubung. */
+    private function refreshAuthorizationExpiry(): void
+    {
+        foreach (ShopeeShop::where('status', 'connected')->where('is_active', true)->get() as $shop) {
+            try {
+                $this->auth->syncShopInfo(ShopeeClient::make($shop->environment), $shop);
+            } catch (ShopeeException $e) {
+                $shop->update(['last_error' => mb_substr($e->getMessage(), 0, 500)]);
+            }
+        }
     }
 }
