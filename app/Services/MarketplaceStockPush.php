@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Jobs\PushMarketplaceStock;
+use App\Models\MarketplaceSyncLog;
 use App\Models\ShopeeShop;
 use App\Models\TiktokShop;
 use App\Services\Shopee\ShopeeException;
@@ -63,9 +64,20 @@ class MarketplaceStockPush
             $name = ($shop instanceof ShopeeShop ? 'Shopee ' : 'TikTok ').$shop->displayName();
 
             try {
-                $result = $shop instanceof ShopeeShop
-                    ? $this->shopee->push($shop, onlyChanged: $onlyChanged)
-                    : $this->tiktok->push($shop, onlyChanged: $onlyChanged);
+                $result = MarketplaceSyncLog::track(
+                    $shop instanceof ShopeeShop ? 'shopee' : 'tiktok',
+                    $shop,
+                    $onlyChanged ? 'stock-changed' : 'stock',
+                    fn () => $shop instanceof ShopeeShop
+                        ? $this->shopee->push($shop, onlyChanged: $onlyChanged)
+                        : $this->tiktok->push($shop, onlyChanged: $onlyChanged),
+                    // Kirim perubahan yang tidak menemukan SKU berubah tidak perlu dicatat.
+                    fn (array $result) => match (true) {
+                        $result['failed'] !== [] => ['failed', ($result['models'] ?? $result['skus']).' SKU dikirim, '.count($result['failed']).' gagal: '.implode('; ', array_slice($result['failed'], 0, 3))],
+                        ($result['models'] ?? $result['skus']) === 0 && $onlyChanged => null,
+                        default => 'Stok '.($result['models'] ?? $result['skus']).' SKU dikirim',
+                    },
+                );
 
                 $results[] = ['shop' => $name, 'sent' => $result['models'] ?? $result['skus'] ?? 0, 'failed' => $result['failed']];
             } catch (ShopeeException|TiktokException $e) {

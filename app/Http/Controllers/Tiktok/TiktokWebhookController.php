@@ -19,6 +19,7 @@ use Illuminate\Http\Response;
  *   type 4  PACKAGE_UPDATE                      -> sinkron pesanan (resi / paket berubah)
  *   type 11 CANCELLATION_STATUS_CHANGE          -> sinkron pesanan (pengajuan batal)
  *   type 2 / 12 REVERSE / RETURN_STATUS_CHANGE  -> sinkron retur pesanan itu
+ *   type 5 / 15 / 16 PRODUCT_STATUS / INFORMATION_CHANGE / CREATION -> tarik ulang produk toko
  *   type 6  SELLER_DEAUTHORIZATION              -> toko ditandai perlu otorisasi ulang
  *   type 7  UPCOMING_AUTHORIZATION_EXPIRATION   -> peringatan di daftar toko
  * Webhook pesanan & retur disimpan di marketplace_webhook_events lalu diproses
@@ -62,7 +63,10 @@ class TiktokWebhookController extends Controller
         $orderId = (string) ($data['order_id'] ?? '');
 
         // Simpan dulu, proses lewat antrean (diulang otomatis bila gagal). Webhook dobel diabaikan.
-        if ($orderId !== '' && in_array($type, [...TiktokWebhookHandler::ORDER_EVENTS, ...TiktokWebhookHandler::RETURN_EVENTS], true)) {
+        $wanted = ($orderId !== '' && in_array($type, [...TiktokWebhookHandler::ORDER_EVENTS, ...TiktokWebhookHandler::RETURN_EVENTS], true))
+            || TiktokWebhookHandler::isProductEvent($type, $data);
+
+        if ($wanted) {
             $event = MarketplaceWebhookEvent::record('tiktok', $shop, $type, $orderId, $payload, $request->getContent());
             $event && $this->dispatchEvent($event);
         }

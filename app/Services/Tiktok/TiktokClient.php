@@ -5,6 +5,7 @@ namespace App\Services\Tiktok;
 use App\Models\TiktokSetting;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Sleep;
 
 /**
  * Klien HTTP TikTok Shop Open API (versi 202309) dengan tanda tangan HMAC-SHA256.
@@ -133,19 +134,57 @@ class TiktokClient
         ], fn ($value) => $value !== null && $value !== '');
         $query['sign'] = $this->sign($path, $query, $json);
 
+        $url = rtrim(config('tiktok.hosts.api'), '/').$path.'?'.http_build_query($query);
+        $attempt = 0;
+
+        while (true) {
+            try {
+                return $this->sendOnce($method, $url, $accessToken, $json);
+            } catch (TiktokException $e) {
+                $wait = $this->retryable($e, $method);
+
+                if ($wait === null || ++$attempt > max(0, (int) config('tiktok.retries', 2))) {
+                    throw $e;
+                }
+
+                Sleep::for($wait * $attempt)->milliseconds();
+            }
+        }
+    }
+
+    /** @return array<string, mixed> */
+    private function sendOnce(string $method, string $url, ?string $accessToken, string $json): array
+    {
         $request = Http::acceptJson()->timeout(config('tiktok.timeout'))
             ->withHeaders(array_filter(['x-tts-access-token' => $accessToken]));
-        $url = rtrim(config('tiktok.hosts.api'), '/').$path.'?'.http_build_query($query);
 
         try {
             $response = $method === 'GET'
                 ? $request->get($url)
                 : $request->withBody($json, 'application/json')->send($method, $url);
         } catch (ConnectionException $e) {
-            throw new TiktokException('Tidak bisa terhubung ke TikTok: '.$e->getMessage());
+            throw new TiktokException('Tidak bisa terhubung ke TikTok: '.$e->getMessage(), connectionFailed: true);
         }
 
         return $this->unwrap($response->json() ?? [], $response->status());
+    }
+
+    /**
+     * Jeda (ms) sebelum mengulang, atau null bila tidak boleh diulang. Batas panggilan
+     * (HTTP 429) berarti request belum diproses, jadi aman diulang untuk semua metode.
+     * Putus koneksi / HTTP 5xx hanya diulang untuk GET: POST bisa saja sudah diproses.
+     */
+    private function retryable(TiktokException $e, string $method): ?int
+    {
+        if ($e->httpStatus === 429 || str_contains(strtolower($e->getMessage()), 'too many request')) {
+            return 2000;
+        }
+
+        if ($method === 'GET' && ($e->connectionFailed || $e->httpStatus >= 500)) {
+            return 1000;
+        }
+
+        return null;
     }
 
     public function versioned(string $path): string
@@ -166,7 +205,7 @@ class TiktokClient
     private function unwrap(array $json, int $status): array
     {
         if (! array_key_exists('code', $json)) {
-            throw new TiktokException("TikTok membalas HTTP {$status} tanpa isi yang dikenali.");
+            throw new TiktokException("TikTok membalas HTTP {$status} tanpa isi yang dikenali.", httpStatus: $status);
         }
 
         if ((int) $json['code'] !== 0) {
@@ -174,6 +213,7 @@ class TiktokClient
                 'TikTok: '.($json['message'] ?? 'error').' ('.$json['code'].')',
                 (int) $json['code'],
                 $json['request_id'] ?? null,
+                $status,
             );
         }
 

@@ -33,6 +33,10 @@ return [
     // Batas waktu request ke Shopee (detik).
     'timeout' => (int) env('SHOPEE_TIMEOUT', 20),
 
+    // Gangguan sementara (batas panggilan, server sibuk, putus koneksi saat GET) diulang
+    // sebanyak ini dengan jeda bertahap sebelum dianggap gagal.
+    'retries' => (int) env('SHOPEE_RETRIES', 2),
+
     // Jenis label resi yang dipilih bila tersedia: THERMAL_AIR_WAYBILL (printer
     // thermal 100x150) atau NORMAL_AIR_WAYBILL (kertas A4/A6).
     'label_type' => env('SHOPEE_LABEL_TYPE', 'THERMAL_AIR_WAYBILL'),

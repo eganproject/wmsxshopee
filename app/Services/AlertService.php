@@ -4,10 +4,14 @@ namespace App\Services;
 
 use App\Models\Bundle;
 use App\Models\GoodsReceipt;
+use App\Models\MarketplaceWebhookEvent;
 use App\Models\SalesOrder;
+use App\Models\ShopeeShop;
+use App\Models\TiktokShop;
 use App\Models\User;
 use App\Models\Warehouse;
 use App\Support\StockLevels;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
 
@@ -154,6 +158,20 @@ class AlertService
             ];
         }
 
+        if ($user->can('marketplace.view')) {
+            $issues = $this->marketplaceIssues();
+
+            $groups['marketplace'] = [
+                'key' => 'marketplace',
+                'label' => 'Koneksi marketplace',
+                'hint' => 'Toko perlu otorisasi ulang, sinkron terhenti, stok gagal terkirim atau push gagal diproses',
+                'count' => $issues->count(),
+                'icon' => 'heroicon-o-signal-slash',
+                'tone' => $issues->contains('severe', true) ? 'rose' : 'amber',
+                'items' => $issues->take($limit ?: 0)->values(),
+            ];
+        }
+
         if ($user->can('receipts.view')) {
             $days = (int) config('alerts.draft_receipt_days', 2);
             $receipts = GoodsReceipt::query()
@@ -172,6 +190,69 @@ class AlertService
         }
 
         return $groups;
+    }
+
+    /**
+     * Masalah koneksi per toko Shopee & TikTok yang aktif.
+     *
+     * @return Collection<int, object{platform: string, shop: string, problem: string, since: ?Carbon, severe: bool, url: string}>
+     */
+    public function marketplaceIssues(): Collection
+    {
+        $stale = now()->subMinutes((int) config('alerts.marketplace.stale_sync_minutes', 30));
+        $authLimit = now()->addDays((int) config('alerts.marketplace.authorization_days', 14));
+        $issues = collect();
+        $add = fn (string $platform, $shop, string $problem, $since, bool $severe, ?string $url = null) => $issues->push((object) [
+            'platform' => $platform,
+            'shop' => ($platform === 'shopee' ? 'Shopee' : 'TikTok').' · '.$shop->displayName(),
+            'problem' => $problem,
+            'since' => $since,
+            'severe' => $severe,
+            'url' => $url ?? route('marketplace.sync-logs', ['shop' => "{$platform}-{$shop->id}"]),
+        ]);
+
+        foreach (['shopee' => ShopeeShop::class, 'tiktok' => TiktokShop::class] as $platform => $model) {
+            $shops = $model::where('is_active', true)->whereIn('status', ['connected', 'expired'])
+                ->withCount(['mappings as failed_stock' => fn ($q) => $q->whereNotNull('stock_error')])
+                ->get();
+
+            foreach ($shops as $shop) {
+                if ($shop->status === 'expired') {
+                    $add($platform, $shop, 'Perlu otorisasi ulang'.($shop->last_error ? ': '.$shop->last_error : ''), $shop->updated_at, true, route('marketplace.shops', ['platform' => $platform]));
+
+                    continue;
+                }
+
+                $authEnds = $platform === 'shopee' ? $shop->authorization_expires_at : $shop->refresh_token_expires_at;
+                if ($authEnds && $authEnds->lt($authLimit)) {
+                    $add($platform, $shop, 'Otorisasi berakhir '.$authEnds->translatedFormat('d M Y').'. Hubungkan ulang toko sebelum tanggal itu.', $authEnds, $authEnds->lt(now()->addDays(3)), route('marketplace.shops', ['platform' => $platform]));
+                }
+
+                if ($shop->isSyncable() && ($shop->last_synced_at ?? $shop->connected_at)?->lt($stale)) {
+                    $add($platform, $shop, 'Sinkron pesanan terhenti'.($shop->last_error ? ': '.$shop->last_error : ''), $shop->last_synced_at, true);
+                }
+
+                if ($shop->failed_stock > 0) {
+                    $add($platform, $shop, "{$shop->failed_stock} SKU gagal dikirim stoknya", null, false, route('marketplace.products', ['status' => 'error', 'shop' => "{$platform}-{$shop->id}"]));
+                }
+            }
+        }
+
+        $pushes = MarketplaceWebhookEvent::where('status', 'failed')->where('created_at', '>=', now()->subDay())
+            ->selectRaw('platform, COUNT(*) as total, MAX(updated_at) as last_at')->groupBy('platform')->get();
+
+        foreach ($pushes as $row) {
+            $issues->push((object) [
+                'platform' => $row->platform,
+                'shop' => $row->platform === 'shopee' ? 'Push Shopee' : 'Webhook TikTok',
+                'problem' => "{$row->total} push gagal diproses dalam 24 jam terakhir (sinkron terjadwal tetap menutupnya)",
+                'since' => $row->last_at ? Carbon::parse($row->last_at) : null,
+                'severe' => false,
+                'url' => route('marketplace.sync-logs', ['tab' => 'push', 'status' => 'failed']),
+            ]);
+        }
+
+        return $issues->sortByDesc('severe')->values();
     }
 
     /**

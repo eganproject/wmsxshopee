@@ -141,6 +141,6 @@
     </div>
 
     <p class="mt-4 text-xs text-slate-500">
-        SKU dihubungkan di Toko Marketplace › Pemetaan SKU tiap toko. Stok dikirim otomatis tiap 15 menit; SKU yang belum terhubung tidak ikut dikirim dan pesanannya tertahan sebagai draft.
+        SKU dihubungkan di Toko Marketplace › Pemetaan SKU tiap toko. Stok dikirim otomatis begitu berubah (dan semua SKU tiap 30 menit); SKU yang belum terhubung tidak ikut dikirim dan pesanannya tertahan sebagai draft.
     </p>
 </x-layouts.app>

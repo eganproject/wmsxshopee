@@ -86,6 +86,9 @@
                         @case('draft_receipts')
                             <a href="{{ route('inventory.receipts.index', ['status' => 'draft']) }}" class="text-sm text-slate-600 hover:text-slate-900">Lihat penerimaan</a>
                             @break
+                        @case('marketplace')
+                            <a href="{{ route('marketplace.sync-logs') }}" class="text-sm text-slate-600 hover:text-slate-900">Riwayat sinkron</a>
+                            @break
                     @endswitch
                 </div>
 
@@ -145,6 +148,15 @@
                                         <p class="text-xs font-medium text-slate-700">{{ \App\Models\SalesOrder::STATUSES[$item->status]['label'] ?? $item->status }}</p>
                                         <p class="text-xs text-slate-500" title="{{ $since?->translatedFormat('d M Y H:i') }}">{{ $since?->diffForHumans() }}</p>
                                     </div>
+                                    @break
+                                @case('marketplace')
+                                    <div class="min-w-0 flex-1">
+                                        <a href="{{ $item->url }}" class="text-sm font-medium text-slate-900 hover:text-brand-600">{{ $item->shop }}</a>
+                                        <p @class(['text-xs', 'text-rose-600' => $item->severe, 'text-slate-500' => ! $item->severe])>{{ $item->problem }}</p>
+                                    </div>
+                                    @if ($item->since)
+                                        <p class="shrink-0 text-xs text-slate-500" title="{{ $item->since->translatedFormat('d M Y H:i') }}">{{ $item->since->diffForHumans() }}</p>
+                                    @endif
                                     @break
                                 @case('draft_receipts')
                                     <div class="min-w-0 flex-1">

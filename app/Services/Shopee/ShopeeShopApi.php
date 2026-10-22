@@ -24,7 +24,7 @@ class ShopeeShopApi
      */
     public function get(string $path, array $query = []): array
     {
-        return $this->client->shopRequest('GET', $path, $this->shop->shop_id, $this->auth->freshAccessToken($this->shop, $this->client), $query);
+        return $this->withToken(fn (string $token) => $this->client->shopRequest('GET', $path, $this->shop->shop_id, $token, $query));
     }
 
     /**
@@ -33,7 +33,7 @@ class ShopeeShopApi
      */
     public function post(string $path, array $body = []): array
     {
-        return $this->client->shopRequest('POST', $path, $this->shop->shop_id, $this->auth->freshAccessToken($this->shop, $this->client), body: $body);
+        return $this->withToken(fn (string $token) => $this->client->shopRequest('POST', $path, $this->shop->shop_id, $token, body: $body));
     }
 
     /**
@@ -41,6 +41,30 @@ class ShopeeShopApi
      */
     public function download(string $path, array $body = []): string
     {
-        return $this->client->shopDownload($path, $this->shop->shop_id, $this->auth->freshAccessToken($this->shop, $this->client), $body);
+        return $this->withToken(fn (string $token) => $this->client->shopDownload($path, $this->shop->shop_id, $token, $body));
+    }
+
+    /**
+     * Jalankan panggilan dengan access token segar. Bila Shopee menolak tokennya
+     * (cth. sudah diganti proses lain), token diperbarui sekali lalu panggilan diulang.
+     *
+     * @template T
+     *
+     * @param  callable(string): T  $call
+     * @return T
+     */
+    private function withToken(callable $call): mixed
+    {
+        try {
+            return $call($this->auth->freshAccessToken($this->shop, $this->client));
+        } catch (ShopeeException $e) {
+            if (! $e->invalidAccessToken()) {
+                throw $e;
+            }
+
+            $this->auth->refresh($this->shop, $this->client);
+
+            return $call($this->shop->access_token);
+        }
     }
 }

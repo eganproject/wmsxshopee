@@ -2,6 +2,7 @@
 
 namespace App\Services\Tiktok;
 
+use App\Models\MarketplaceSyncLog;
 use App\Models\TiktokShop;
 
 /** Sinkron lengkap satu toko TikTok: pesanan, retur, lalu stok. */
@@ -25,6 +26,19 @@ class TiktokSync
             throw new TiktokException("Toko {$shop->displayName()} belum bisa disinkron: pastikan terhubung, aktif dan punya gudang pengirim.");
         }
 
+        return MarketplaceSyncLog::track('tiktok', $shop, implode(',', $parts), fn () => $this->runParts($shop, $parts), function (array $result) {
+            $failed = count($result['stock']['failed'] ?? []);
+
+            return [$failed ? 'failed' : 'success', static::summary($result)];
+        });
+    }
+
+    /**
+     * @param  list<string>  $parts
+     * @return array<string, array<string, mixed>>
+     */
+    private function runParts(TiktokShop $shop, array $parts): array
+    {
         $api = TiktokShopApi::for($shop);
         $result = [];
 

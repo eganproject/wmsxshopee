@@ -25,6 +25,14 @@ return [
         'cover_days' => (int) env('REORDER_COVER_DAYS', 30),
     ],
 
+    'marketplace' => [
+        // Toko yang sinkron pesanannya terakhir berhasil lebih dari N menit lalu dianggap terhenti.
+        'stale_sync_minutes' => (int) env('ALERT_MARKETPLACE_STALE_MINUTES', 30),
+
+        // Peringatan otorisasi toko yang akan berakhir dalam N hari.
+        'authorization_days' => (int) env('ALERT_MARKETPLACE_AUTH_DAYS', 14),
+    ],
+
     // Lama ringkasan lonceng disimpan di cache (detik) supaya tidak menghitung ulang tiap halaman.
     'cache_seconds' => (int) env('ALERT_CACHE_SECONDS', 60),
 ];

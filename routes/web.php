@@ -20,6 +20,7 @@ use App\Http\Controllers\Inventory\WarehouseVariantSettingController;
 use App\Http\Controllers\LabelController;
 use App\Http\Controllers\Marketplace\MarketplaceController;
 use App\Http\Controllers\Marketplace\MarketplaceProductStatusController;
+use App\Http\Controllers\Marketplace\MarketplaceSyncLogController;
 use App\Http\Controllers\Master\BundleController;
 use App\Http\Controllers\Master\CourierController;
 use App\Http\Controllers\Master\LocationController;
@@ -264,6 +265,9 @@ Route::middleware(['auth', 'active'])->group(function () {
         Route::post('sync-products', [MarketplaceController::class, 'syncProducts'])->middleware('can:marketplace.view')->name('sync-products');
         Route::post('sync-all', [MarketplaceController::class, 'syncAll'])->middleware('can:marketplace.view')->name('sync-all');
         Route::post('shops/{platform}/{shop}/sync-all', [MarketplaceController::class, 'syncShop'])->whereIn('platform', ['shopee', 'tiktok'])->whereNumber('shop')->middleware('can:marketplace.view')->name('shops.sync-all');
+        Route::get('sync-logs', [MarketplaceSyncLogController::class, 'index'])->middleware('can:marketplace.view')->name('sync-logs');
+        Route::post('sync-logs/retry-stock', [MarketplaceSyncLogController::class, 'retryStock'])->middleware('can:marketplace.view')->name('sync-logs.retry-stock');
+        Route::post('sync-logs/retry-push', [MarketplaceSyncLogController::class, 'retryPush'])->middleware('can:marketplace.view')->name('sync-logs.retry-push');
         Route::get('settings', [MarketplaceController::class, 'settings'])->middleware('can:marketplace.settings')->name('settings');
     });
 

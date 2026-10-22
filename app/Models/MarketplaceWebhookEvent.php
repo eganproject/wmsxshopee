@@ -43,14 +43,24 @@ class MarketplaceWebhookEvent extends Model
      *
      * @param  array<string, mixed>  $payload
      */
-    public static function record(string $platform, Model $shop, int $type, ?string $orderId, array $payload, string $rawBody): ?self
+    public static function record(string $platform, ?Model $shop, int $type, ?string $orderId, array $payload, string $rawBody): ?self
     {
         $event = static::createOrFirst(
             ['platform' => $platform, 'fingerprint' => sha1($rawBody)],
-            ['shop_id' => (string) $shop->shop_id, 'shop_ref' => $shop->getKey(), 'event_type' => $type, 'order_id' => $orderId ?: null, 'payload' => $payload, 'status' => 'pending'],
+            ['shop_id' => (string) ($shop?->shop_id ?? ''), 'shop_ref' => $shop?->getKey(), 'event_type' => $type, 'order_id' => $orderId ?: null, 'payload' => $payload, 'status' => 'pending'],
         );
 
         return $event->wasRecentlyCreated ? $event : null;
+    }
+
+    /** Nama jenis push untuk ditampilkan. */
+    public static function label(string $platform, int $type): string
+    {
+        $labels = $platform === 'shopee'
+            ? [2 => 'Otorisasi dicabut', 3 => 'Status pesanan', 4 => 'Resi terbit', 12 => 'Otorisasi akan berakhir']
+            : [1 => 'Status pesanan', 2 => 'Retur / refund', 3 => 'Alamat diubah', 4 => 'Paket diperbarui', 5 => 'Status produk', 11 => 'Pembatalan', 12 => 'Status retur', 15 => 'Info produk', 16 => 'Produk baru'];
+
+        return $labels[$type] ?? "Jenis {$type}";
     }
 
     public function prunable(): Builder

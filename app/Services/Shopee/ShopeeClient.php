@@ -5,6 +5,7 @@ namespace App\Services\Shopee;
 use App\Models\ShopeeSetting;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Sleep;
 
 /**
  * Klien HTTP Shopee Open Platform v2 dengan tanda tangan HMAC-SHA256.
@@ -151,11 +152,58 @@ class ShopeeClient
     }
 
     /**
+     * Kirim request; gangguan sementara diulang otomatis (lihat retryable()).
+     *
      * @param  array<string, mixed>  $query
      * @param  array<string, mixed>  $body
      * @return array<string, mixed>
      */
     private function send(string $method, string $path, array $query, array $body): array
+    {
+        $attempt = 0;
+
+        while (true) {
+            try {
+                return $this->sendOnce($method, $path, $query, $body);
+            } catch (ShopeeException $e) {
+                $wait = $this->retryable($e, $method);
+
+                if ($wait === null || ++$attempt > max(0, (int) config('shopee.retries', 2))) {
+                    throw $e;
+                }
+
+                Sleep::for($wait * $attempt)->milliseconds();
+            }
+        }
+    }
+
+    /**
+     * Jeda (ms) sebelum mengulang, atau null bila tidak boleh diulang. Batas panggilan &
+     * server sibuk berarti request belum diproses, jadi aman diulang untuk GET maupun POST.
+     * Putus koneksi / HTTP 5xx hanya diulang untuk GET: POST (cth. atur pengiriman) bisa
+     * saja sudah diproses Shopee.
+     */
+    private function retryable(ShopeeException $e, string $method): ?int
+    {
+        $error = (string) $e->shopeeError;
+
+        if ($e->httpStatus === 429 || str_contains($error, 'too_many') || str_contains($error, 'busy') || $error === 'error_rate_limit') {
+            return 2000;
+        }
+
+        if (strtoupper($method) === 'GET' && ($e->connectionFailed || $e->httpStatus >= 500 || in_array($error, ['error_server', 'error_inner', 'error_network', 'error_system'], true))) {
+            return 1000;
+        }
+
+        return null;
+    }
+
+    /**
+     * @param  array<string, mixed>  $query
+     * @param  array<string, mixed>  $body
+     * @return array<string, mixed>
+     */
+    private function sendOnce(string $method, string $path, array $query, array $body): array
     {
         $url = $this->host().$path.'?'.http_build_query($query);
         $request = Http::acceptJson()->timeout(config('shopee.timeout'));
@@ -165,7 +213,7 @@ class ShopeeClient
                 ? $request->get($url)
                 : $request->asJson()->post($url, $body);
         } catch (ConnectionException $e) {
-            throw new ShopeeException('Tidak bisa terhubung ke Shopee: '.$e->getMessage());
+            throw new ShopeeException('Tidak bisa terhubung ke Shopee: '.$e->getMessage(), connectionFailed: true);
         }
 
         $json = $response->json() ?? [];
@@ -173,11 +221,11 @@ class ShopeeClient
         if (filled($json['error'] ?? null)) {
             [$message, $error] = $this->errorDetail($json);
 
-            throw new ShopeeException($message, $error, $json['request_id'] ?? null);
+            throw new ShopeeException($message, $error, $json['request_id'] ?? null, $response->status());
         }
 
         if ($response->failed()) {
-            throw new ShopeeException("Shopee membalas HTTP {$response->status()}.");
+            throw new ShopeeException("Shopee membalas HTTP {$response->status()}.", httpStatus: $response->status());
         }
 
         return $json;
