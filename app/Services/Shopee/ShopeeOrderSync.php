@@ -10,6 +10,7 @@ use App\Services\SalesOrderService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -124,6 +125,16 @@ class ShopeeOrderSync
      * @return string created | updated | cancelled | pending | skipped
      */
     public function apply(ShopeeShop $shop, array $detail): string
+    {
+        // Satu pesanan diproses satu per satu: webhook & sinkron terjadwal bisa datang bersamaan.
+        return Cache::lock('shopee:order:'.$shop->id.':'.(string) $detail['order_sn'], 120)
+            ->block(60, fn () => $this->applyLocked($shop, $detail));
+    }
+
+    /**
+     * @param  array<string, mixed>  $detail
+     */
+    private function applyLocked(ShopeeShop $shop, array $detail): string
     {
         $orderSn = (string) $detail['order_sn'];
         $status = (string) ($detail['order_status'] ?? '');

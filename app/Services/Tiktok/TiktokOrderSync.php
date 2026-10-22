@@ -10,6 +10,7 @@ use App\Services\SalesOrderService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -101,6 +102,16 @@ class TiktokOrderSync
      * @return string created | updated | cancelled | pending | skipped
      */
     public function apply(TiktokShop $shop, array $detail): string
+    {
+        // Satu pesanan diproses satu per satu: webhook & sinkron terjadwal bisa datang bersamaan.
+        return Cache::lock('tiktok:order:'.$shop->id.':'.(string) $detail['id'], 120)
+            ->block(60, fn () => $this->applyLocked($shop, $detail));
+    }
+
+    /**
+     * @param  array<string, mixed>  $detail
+     */
+    private function applyLocked(TiktokShop $shop, array $detail): string
     {
         $orderId = (string) $detail['id'];
         $status = (string) ($detail['status'] ?? '');

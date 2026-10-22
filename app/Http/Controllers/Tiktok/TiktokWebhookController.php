@@ -2,15 +2,14 @@
 
 namespace App\Http\Controllers\Tiktok;
 
+use App\Http\Controllers\Concerns\QueuesWebhookEvents;
 use App\Http\Controllers\Controller;
+use App\Models\MarketplaceWebhookEvent;
 use App\Models\TiktokShop;
 use App\Services\Tiktok\TiktokClient;
-use App\Services\Tiktok\TiktokException;
-use App\Services\Tiktok\TiktokOrderSync;
-use App\Services\Tiktok\TiktokReturnSync;
+use App\Services\Tiktok\TiktokWebhookHandler;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
-use Illuminate\Support\Facades\Log;
 
 /**
  * Webhook TikTok Shop. Header Authorization = HMAC-SHA256(app_secret, app_key + body).
@@ -22,11 +21,15 @@ use Illuminate\Support\Facades\Log;
  *   type 2 / 12 REVERSE / RETURN_STATUS_CHANGE  -> sinkron retur pesanan itu
  *   type 6  SELLER_DEAUTHORIZATION              -> toko ditandai perlu otorisasi ulang
  *   type 7  UPCOMING_AUTHORIZATION_EXPIRATION   -> peringatan di daftar toko
+ * Webhook pesanan & retur disimpan di marketplace_webhook_events lalu diproses
+ * job antrean (ProcessMarketplaceWebhook -> TiktokWebhookHandler).
  * Daftarkan URL ini di Partner Center › App › Manage Webhooks bila Optima bisa
  * diakses dari internet (HTTPS publik); tanpa itu sinkron terjadwal tetap berjalan.
  */
 class TiktokWebhookController extends Controller
 {
+    use QueuesWebhookEvents;
+
     public function __invoke(Request $request): Response
     {
         if (! TiktokClient::make()->verifyWebhook((string) $request->header('Authorization'), $request->getContent())) {
@@ -58,18 +61,10 @@ class TiktokWebhookController extends Controller
 
         $orderId = (string) ($data['order_id'] ?? '');
 
-        if ($orderId !== '' && in_array($type, [1, 2, 3, 4, 11, 12], true) && $shop->isSyncable()) {
-            $returns = in_array($type, [2, 12], true);
-
-            dispatch(function () use ($shop, $orderId, $returns) {
-                try {
-                    $returns
-                        ? app(TiktokReturnSync::class)->syncOrder($shop, $orderId)
-                        : app(TiktokOrderSync::class)->syncOne($shop, $orderId);
-                } catch (TiktokException $e) {
-                    Log::warning('Webhook TikTok gagal diproses', ['shop_id' => $shop->shop_id, 'order_id' => $orderId, 'error' => $e->getMessage()]);
-                }
-            })->afterResponse();
+        // Simpan dulu, proses lewat antrean (diulang otomatis bila gagal). Webhook dobel diabaikan.
+        if ($orderId !== '' && in_array($type, [...TiktokWebhookHandler::ORDER_EVENTS, ...TiktokWebhookHandler::RETURN_EVENTS], true)) {
+            $event = MarketplaceWebhookEvent::record('tiktok', $shop, $type, $orderId, $payload, $request->getContent());
+            $event && $this->dispatchEvent($event);
         }
 
         return response()->noContent(200);
