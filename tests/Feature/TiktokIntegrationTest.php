@@ -196,7 +196,7 @@ class TiktokIntegrationTest extends TestCase
         Http::fake([
             'auth.tiktok-shops.com/api/v2/token/get*' => Http::response(['code' => 0, 'message' => 'success', 'data' => [
                 'access_token' => 'akses-1', 'access_token_expire_in' => now()->addDays(7)->getTimestamp(),
-                'refresh_token' => 'refresh-1', 'refresh_token_expire_in' => now()->addDays(60)->getTimestamp(),
+                'refresh_token' => 'refresh-1', 'refresh_token_expire_in' => 4914729878, // ± 2125, otorisasi Unlimited
                 'open_id' => 'open-9', 'seller_name' => 'Optima', 'seller_base_region' => 'ID',
             ]]),
             '*/authorization/202309/shops*' => Http::response(['code' => 0, 'message' => 'Success', 'data' => ['shops' => [
@@ -212,6 +212,7 @@ class TiktokIntegrationTest extends TestCase
         $this->assertSame(['Optima Official', 'ROW_a', 'open-9', $this->warehouse->id, 'connected'], [$shop->shop_name, $shop->shop_cipher, $shop->open_id, $shop->warehouse_id, $shop->status]);
         $this->assertSame('refresh-1', $shop->refresh_token);
         $this->assertTrue($shop->access_token_expires_at->between(now()->addDays(6), now()->addDays(8)));
+        $this->assertSame('2037-12-31', $shop->refresh_token_expires_at->toDateString());
         $this->assertNotSame('akses-1', DB::table('tiktok_shops')->value('access_token'));
 
         Http::assertSent(fn (Request $r) => str_contains($r->url(), '/api/v2/token/get') && $r['auth_code'] === 'kode123' && $r['grant_type'] === 'authorized_code' && $r['app_key'] === 'appkey123');
