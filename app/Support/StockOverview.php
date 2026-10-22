@@ -19,7 +19,7 @@ class StockOverview
     /** Fisik di semua bin gudang terpilih. */
     public const ON_HAND = 'COALESCE(on_hand.qty, 0)';
 
-    /** Cadangan pesanan Dikonfirmasi + Sudah Diambil + Dikemas. */
+    /** Cadangan pesanan Dikonfirmasi + Sedang Diambil + Dikemas. */
     public const RESERVED = '(COALESCE(reserved.waiting, 0) + COALESCE(reserved.picked, 0))';
 
     public const AVAILABLE = '(COALESCE(on_hand.qty, 0) - COALESCE(reserved.waiting, 0) - COALESCE(reserved.picked, 0))';
@@ -138,7 +138,7 @@ class StockOverview
         return DB::table('sales_order_picks')
             ->join('sales_order_items', 'sales_order_items.id', '=', 'sales_order_picks.sales_order_item_id')
             ->join('sales_orders', 'sales_orders.id', '=', 'sales_order_items.sales_order_id')
-            ->whereIn('sales_orders.status', ['picked', 'packed'])
+            ->whereIn('sales_orders.status', ['picking', 'packed'])
             ->when($warehouseId, fn ($q) => $q->where('sales_orders.warehouse_id', $warehouseId))
             ->when($accessible !== null, fn ($q) => $q->whereIn('sales_orders.warehouse_id', $accessible))
             ->groupBy('sales_order_items.product_variant_id', 'sales_orders.warehouse_id', 'sales_order_picks.warehouse_location_id')

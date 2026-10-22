@@ -405,7 +405,7 @@ class ShipmentFlowTest extends TestCase
 
         $this->post("/sales/qc/{$order->id}", ['scanned' => [$this->kaosM->id => 2, $this->kaosL->id => 1]])->assertSessionHasErrors('scan');
         $this->post("/sales/qc/{$order->id}", ['scanned' => [$this->kaosM->id => 3, $this->kaosL->id => 1, 999 => 1]])->assertSessionHasErrors('scan');
-        $this->assertSame('picked', $order->fresh()->status);
+        $this->assertSame('picking', $order->fresh()->status);
 
         $this->post("/sales/qc/{$order->id}", ['scanned' => [$this->kaosM->id => 3, $this->kaosL->id => 1]])->assertSessionHasNoErrors();
         $this->assertSame(['packed', $this->admin->id], [$order->fresh()->status, $order->fresh()->qc_checked_by]);

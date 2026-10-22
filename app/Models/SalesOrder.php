@@ -20,7 +20,7 @@ class SalesOrder extends Model
     public const STATUSES = [
         'draft' => ['label' => 'Draft', 'icon' => 'heroicon-o-document', 'color' => 'slate'],
         'confirmed' => ['label' => 'Dikonfirmasi', 'icon' => 'heroicon-o-check-badge', 'color' => 'sky'],
-        'picked' => ['label' => 'Sudah Diambil', 'icon' => 'heroicon-o-hand-raised', 'color' => 'violet'],
+        'picking' => ['label' => 'Sedang Diambil', 'icon' => 'heroicon-o-hand-raised', 'color' => 'violet'],
         'packed' => ['label' => 'Sudah Dikemas', 'icon' => 'heroicon-o-archive-box', 'color' => 'amber'],
         'shipped' => ['label' => 'Dikirim', 'icon' => 'heroicon-o-truck', 'color' => 'emerald'],
         'cancelled' => ['label' => 'Batal', 'icon' => 'heroicon-o-x-circle', 'color' => 'rose'],
@@ -66,7 +66,7 @@ class SalesOrder extends Model
     public const TIKTOK_LEFT_WAREHOUSE = ['IN_TRANSIT', 'DELIVERED', 'COMPLETED'];
 
     /** Status yang menahan (mencadangkan) stok di gudang. */
-    public const RESERVING = ['confirmed', 'picked', 'packed'];
+    public const RESERVING = ['confirmed', 'picking', 'packed'];
 
     /** Cara paket diserahkan ke kurir. */
     public const SHIPPING_METHODS = [
@@ -154,7 +154,7 @@ class SalesOrder extends Model
         'stock_movement_id',
         'created_by',
         'confirmed_at',
-        'picked_at',
+        'picking_at',
         'packed_at',
         'shipped_at',
         'cancelled_at',
@@ -167,7 +167,7 @@ class SalesOrder extends Model
             'shipping_fee' => 'decimal:2',
             'discount' => 'decimal:2',
             'confirmed_at' => 'datetime',
-            'picked_at' => 'datetime',
+            'picking_at' => 'datetime',
             'packed_at' => 'datetime',
             'shipped_at' => 'datetime',
             'cancelled_at' => 'datetime',
@@ -390,7 +390,7 @@ class SalesOrder extends Model
     }
 
     /**
-     * Bisa ditandai Sudah Diambil lewat aksi massal: status Dikonfirmasi dan tidak sedang
+     * Bisa ditandai Sedang Diambil lewat aksi massal: status Dikonfirmasi dan tidak sedang
      * dibatalkan di marketplace. Stok per bin dicek ulang saat diproses.
      */
     public function canBulkPick(): bool

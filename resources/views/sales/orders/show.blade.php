@@ -1,10 +1,10 @@
 @php
     $money = fn ($value) => 'Rp '.number_format((float) $value, 0, ',', '.');
     $subtotal = $order->subtotal();
-    $steps = ['draft' => 'Draft', 'confirmed' => 'Dikonfirmasi', 'picked' => 'Diambil', 'packed' => 'Dikemas', 'shipped' => 'Dikirim'];
+    $steps = ['draft' => 'Draft', 'confirmed' => 'Dikonfirmasi', 'picking' => 'Sedang Diambil', 'packed' => 'Dikemas', 'shipped' => 'Dikirim'];
     $stepKeys = array_keys($steps);
     $current = array_search($order->status, $stepKeys, true);
-    $showPicks = $order->hasStatus('picked', 'packed', 'shipped') || ($order->hasStatus('cancelled') && $order->items->contains(fn ($item) => $item->picks->isNotEmpty()));
+    $showPicks = $order->hasStatus('picking', 'packed', 'shipped') || ($order->hasStatus('cancelled') && $order->items->contains(fn ($item) => $item->picks->isNotEmpty()));
 @endphp
 
 <x-layouts.app :title="$order->number">
@@ -79,7 +79,7 @@
             @endif
             @if ($order->hasStatus('confirmed'))
                 <a href="{{ route('sales.orders.picking', $order) }}" class="btn-primary"><x-heroicon-o-hand-raised class="size-5" /> Picking</a>
-            @elseif ($order->hasStatus('picked'))
+            @elseif ($order->hasStatus('picking'))
                 @can('sales.skip_scan')
                     <form id="pack-order" method="POST" action="{{ route('sales.orders.pack', $order) }}">@csrf</form>
                     <button type="button" class="btn-secondary"
@@ -182,7 +182,7 @@
                             <span>Setelah SKU dipetakan, pesanan ini terhubung & dikonfirmasi otomatis. Bisa juga tekan Sinkronkan ulang.</span>
                         </p>
                     @endif
-                @elseif ($order->hasStatus('confirmed', 'picked', 'packed') && ! $order->tiktokShipmentArranged())
+                @elseif ($order->hasStatus('confirmed', 'picking', 'packed') && ! $order->tiktokShipmentArranged())
                     <p class="mt-0.5">Atur pickup / drop off dengan tombol Atur Pengiriman (atau dari TikTok Shop Seller Center); status & resi masuk otomatis.</p>
                 @endif
             </div>
@@ -414,7 +414,7 @@
         <div>
             <p class="text-xs text-slate-500">Riwayat</p>
             <div class="mt-1 space-y-0.5 text-xs text-slate-600">
-                @foreach (['confirmed_at' => 'Dikonfirmasi', 'picked_at' => 'Diambil', 'packed_at' => 'Dikemas', 'shipped_at' => 'Dikirim'] as $field => $label)
+                @foreach (['confirmed_at' => 'Dikonfirmasi', 'picking_at' => 'Sedang Diambil', 'packed_at' => 'Dikemas', 'shipped_at' => 'Dikirim'] as $field => $label)
                     @if ($order->{$field})
                         <p>{{ $label }} · {{ $order->{$field}->format('d/m/Y H:i') }}</p>
                     @endif
@@ -575,10 +575,10 @@
 
     <p class="mt-4 flex items-center gap-1.5 text-xs text-slate-500">
         <x-heroicon-o-information-circle class="size-4" />
-        @if ($order->isSelfPickup() && $order->hasStatus('confirmed', 'picked', 'packed', 'shipped'))
+        @if ($order->isSelfPickup() && $order->hasStatus('confirmed', 'picking', 'packed', 'shipped'))
             @switch($order->status)
                 @case('confirmed') Stok sudah dicadangkan. Diambil pembeli: tidak perlu atur pengiriman atau resi. Cetak picking list lalu klik Picking. @break
-                @case('picked') Barang sudah diambil dari bin. Cek barang lewat QC Scan (scan nomor SO lalu tiap barang) sebelum diserahkan. @break
+                @case('picking') Barang sudah diambil dari bin. Cek barang lewat QC Scan (scan nomor SO lalu tiap barang) sebelum diserahkan. @break
                 @case('packed') Barang siap. Klik Serahkan ke Pembeli saat pembeli mengambil; stok keluar dari gudang. @break
                 @default Barang sudah diserahkan ke pembeli dan stok sudah keluar lewat mutasi Barang Keluar.
             @endswitch
@@ -586,7 +586,7 @@
         @switch($order->status)
             @case('draft') Stok belum dicadangkan. Klik Konfirmasi bila barang siap diproses. @break
             @case('confirmed') Stok sudah dicadangkan. Atur pengiriman (pickup / drop off) dan cetak resi, lalu cetak picking list dan klik Picking. @break
-            @case('picked') Barang sudah diambil dari bin. Lakukan QC Scan: scan resi lalu scan tiap barang sebelum paket ditutup. @break
+            @case('picking') Barang sudah diambil dari bin. Lakukan QC Scan: scan resi lalu scan tiap barang sebelum paket ditutup. @break
             @case('packed') Paket lolos QC. Scan resinya di Serah Terima saat diserahkan ke kurir; stok keluar dari gudang. @break
             @case('shipped') Pesanan sudah dikirim dan stok sudah keluar lewat mutasi Barang Keluar. @break
             @default Pesanan dibatalkan; cadangan stok sudah dilepas.

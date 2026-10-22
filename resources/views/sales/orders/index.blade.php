@@ -33,7 +33,7 @@
         @endforeach
     </div>
 
-    @foreach (['shipment_failures' => 'belum bisa diatur pengirimannya', 'pick_failures' => 'belum bisa ditandai Sudah Diambil'] as $key => $title)
+    @foreach (['shipment_failures' => 'belum bisa diatur pengirimannya', 'pick_failures' => 'belum bisa ditandai Sedang Diambil'] as $key => $title)
         @if ($failures = session($key))
             <div class="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
                 <p class="flex items-center gap-1.5 font-medium"><x-heroicon-o-exclamation-triangle class="size-4" /> {{ count($failures) }} pesanan {{ $title }}</p>
@@ -145,10 +145,10 @@
                                 <button type="submit" class="btn-primary"><x-heroicon-o-printer class="size-5" /> Cetak Resi <span class="opacity-75" x-text="'(' + count('label') + ')'"></span></button>
                             </form>
                             <form method="POST" action="{{ route('sales.orders.pick.bulk') }}" x-show="count('pick')"
-                                  data-confirm-title="Tandai Sudah Diambil?" :data-confirm="count('pick') + ' pesanan Dikonfirmasi ditandai Sudah Diambil dengan bin usulan otomatis (bin lokasi tetap dulu), sama seperti isian awal di halaman Picking. Pastikan barang sudah diambil sesuai picking list. Pesanan yang stok binnya kurang dilewati.'" data-confirm-text="Tandai Diambil">
+                                  data-confirm-title="Tandai Sedang Diambil?" :data-confirm="count('pick') + ' pesanan Dikonfirmasi ditandai Sedang Diambil dengan bin usulan otomatis (bin lokasi tetap dulu), sama seperti isian awal di halaman Picking. Pastikan barang sudah diambil sesuai picking list. Pesanan yang stok binnya kurang dilewati.'" data-confirm-text="Tandai Sedang Diambil">
                                 @csrf
                                 <template x-for="id in ids('pick')" :key="id"><input type="hidden" name="orders[]" :value="id"></template>
-                                <button type="submit" class="btn-secondary"><x-heroicon-o-hand-raised class="size-5" /> Tandai Diambil <span class="text-slate-500" x-text="'(' + count('pick') + ')'"></span></button>
+                                <button type="submit" class="btn-secondary"><x-heroicon-o-hand-raised class="size-5" /> Tandai Sedang Diambil <span class="text-slate-500" x-text="'(' + count('pick') + ')'"></span></button>
                             </form>
                             <p class="text-xs text-slate-500" x-show="! count('arrange') && ! count('label') && ! count('pick')">Tidak ada aksi untuk pesanan terpilih.</p>
                         </div>
@@ -194,9 +194,10 @@
                                 <p class="text-xs text-slate-500">{{ $order->order_date->format('d/m/Y') }}</p>
                             </td>
                             <td class="max-w-44 px-3 py-2.5">
-                                <p class="text-slate-700">{{ $order->channel_name ?? 'Manual' }}</p>
+                                {{-- Nama toko marketplace bisa sangat panjang tanpa spasi: potong supaya tidak menimpa kolom Pembeli. --}}
+                                <p class="max-w-44 truncate text-slate-700" title="{{ $order->channel_name ?? 'Manual' }}">{{ $order->channel_name ?? 'Manual' }}</p>
                                 @if ($order->external_number)
-                                    <p class="font-mono text-xs text-slate-500">{{ $order->external_number }}</p>
+                                    <p class="max-w-44 truncate font-mono text-xs text-slate-500" title="{{ $order->external_number }}">{{ $order->external_number }}</p>
                                 @endif
                                 <x-sales.shopee-status :order="$order" />
                                 <x-sales.tiktok-status :order="$order" />
