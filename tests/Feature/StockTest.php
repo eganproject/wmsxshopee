@@ -96,7 +96,7 @@ class StockTest extends TestCase
         $this->stock('in', [['product_variant_id' => $this->variant->id, 'to_location_id' => $this->binA->id, 'qty' => 5]]);
         $movement = StockMovement::first();
 
-        $this->get('/inventory/stocks')->assertOk()->assertSee('KAOS-M')->assertSee('A01-01-01');
+        $this->get('/inventory/stocks?view=location')->assertOk()->assertSee('KAOS-M')->assertSee('A01-01-01');
         $this->get('/inventory/stocks?view=variant')->assertOk()->assertSee('KAOS-M');
         $this->get('/inventory/stock-card')->assertOk();
         $this->get("/inventory/stock-card?variant={$this->variant->id}")->assertOk()->assertSee($movement->number);
@@ -294,16 +294,16 @@ class StockTest extends TestCase
             ['product_variant_id' => $this->variant->id, 'to_location_id' => $this->binB->id, 'qty' => 6],
         ]);
 
-        $byLocation = $this->get('/inventory/stocks')->viewData('stocks');
+        $byLocation = $this->get('/inventory/stocks?view=location')->viewData('stocks');
         $this->assertCount(2, $byLocation);
 
         $response = $this->get('/inventory/stocks?view=variant&search=8991001');
         $byVariant = $response->viewData('stocks');
         $this->assertCount(1, $byVariant);
-        $this->assertSame(10, (int) $byVariant->first()->qty);
-        $this->assertSame(10, $response->viewData('totalQty'));
+        $this->assertSame(10, (int) $byVariant->first()->on_hand);
+        $this->assertSame(10, $response->viewData('totals')['on_hand']);
 
-        $this->get('/inventory/stocks?search=A01-01-02')->assertSee('A01-01-02')->assertDontSee('A01-01-01');
+        $this->get('/inventory/stocks?view=location&search=A01-01-02')->assertSee('A01-01-02')->assertDontSee('A01-01-01');
     }
 
     public function test_location_and_variant_with_stock_history_cannot_be_deleted(): void
@@ -355,7 +355,7 @@ class StockTest extends TestCase
         $this->assertSame(6, $this->qty($this->binA));
         $this->assertSame(5, StockLedger::whereNull('warehouse_location_id')->count());
 
-        $this->get('/inventory/stocks')->assertOk()->assertSee('Tanpa bin');
+        $this->get('/inventory/stocks?view=location')->assertOk()->assertSee('Tanpa bin');
         $this->get("/inventory/stock-card?variant={$this->variant->id}&location=none")->assertOk()->assertSee('Tanpa bin');
         $this->get('/inventory/movements/'.StockMovement::where('type', 'out')->value('id'))->assertOk()->assertSee('Tanpa bin');
     }
