@@ -12,6 +12,7 @@ use App\Services\Tiktok\TiktokLogistics;
 use App\Support\Activity;
 use App\Support\Barcode;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -19,6 +20,8 @@ use Illuminate\Support\Facades\Date;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
+use Picqer\Barcode\Types\TypeCode128;
+use Throwable;
 
 /**
  * Atur pengiriman (pickup / drop off) dan cetak label resi.
@@ -227,19 +230,110 @@ class ShipmentController extends Controller
             'orders.*' => ['integer'],
         ], ['orders.required' => 'Pilih pesanan yang labelnya akan dicetak.', 'orders.max' => 'Maksimal :max label sekali cetak.']);
 
-        $orders = SalesOrder::whereKey($data['orders'])->orderBy('id')->get();
+        $orders = SalesOrder::with(['shopeeShop', 'tiktokShop'])->whereKey($data['orders'])->orderBy('id')->get();
 
-        // Label TikTok berupa PDF per paket dari TikTok: satu pesanan dicetak langsung,
-        // lebih dari satu dicetak dari halaman pesanan masing-masing.
-        if ($orders->contains->isTiktok()) {
-            if ($orders->count() === 1) {
-                return $this->label($orders->first(), $logistics, $tiktok);
-            }
-
-            return back()->with('error', 'Label TikTok dicetak per pesanan (tombol Cetak Label di halaman pesanan). Pilih pesanan Shopee atau manual saja untuk cetak massal.');
+        if ($orders->count() === 1) {
+            return $this->label($orders->first(), $logistics, $tiktok);
         }
 
-        return $this->labels($orders, $logistics);
+        // Label Shopee satu toko atau label manual saja: dicetak langsung seperti biasa.
+        $shopeeShops = $orders->filter->isShopee()->pluck('shopee_shop_id')->unique();
+        $onlyShopee = $orders->every->isShopee() && $shopeeShops->count() === 1;
+        if ($onlyShopee || $orders->every(fn (SalesOrder $order) => ! $order->isMarketplace())) {
+            return $this->labels($orders, $logistics);
+        }
+
+        return $this->batch($orders);
+    }
+
+    /**
+     * Cetak gabungan: label Shopee (per toko), TikTok (per paket) dan manual diunduh
+     * bagian demi bagian oleh browser lalu disatukan jadi satu PDF siap cetak.
+     *
+     * @param  EloquentCollection<int, SalesOrder>  $orders
+     */
+    private function batch(EloquentCollection $orders): View|RedirectResponse
+    {
+        $printable = $orders->filter->hasShippingLabel();
+        $skipped = $orders->diff($printable);
+
+        if ($printable->isEmpty()) {
+            return back()->with('error', 'Label resi tersedia setelah pengiriman diatur.');
+        }
+
+        $parts = collect();
+        foreach ($printable->filter->isShopee()->groupBy('shopee_shop_id') as $shopOrders) {
+            $parts->push([
+                'type' => 'shopee',
+                'title' => 'Shopee · '.($shopOrders->first()->shopeeShop?->displayName() ?? 'Toko'),
+                'numbers' => $shopOrders->pluck('number')->all(),
+                'url' => route('sales.orders.shipping-labels.part', ['orders' => $shopOrders->modelKeys()]),
+            ]);
+        }
+        foreach ($printable->filter->isTiktok() as $order) {
+            $parts->push([
+                'type' => 'tiktok',
+                'title' => 'TikTok · '.($order->tiktokShop?->displayName() ?? 'Toko'),
+                'numbers' => [$order->number],
+                'url' => route('sales.orders.shipping-labels.part', ['orders' => [$order->id]]),
+            ]);
+        }
+        $manual = $printable->reject->isMarketplace();
+        if ($manual->isNotEmpty()) {
+            $parts->push([
+                'type' => 'manual',
+                'title' => 'Pesanan manual',
+                'numbers' => $manual->pluck('number')->all(),
+                'url' => route('sales.orders.shipping-labels.part', ['orders' => $manual->modelKeys()]),
+            ]);
+        }
+
+        return view('sales.orders.shipping-label-batch', [
+            'parts' => $parts,
+            'skipped' => $skipped->pluck('number'),
+        ]);
+    }
+
+    /**
+     * Satu bagian cetak gabungan dalam bentuk PDF: pesanan Shopee dari satu toko,
+     * atau satu pesanan TikTok. Pesanan manual dibalas data label (JSON) untuk
+     * digambar di browser. Gagal dibalas JSON 422 berisi alasannya.
+     */
+    public function labelPart(Request $request, ShopeeLogistics $logistics, TiktokLogistics $tiktok): Response|JsonResponse
+    {
+        $data = $request->validate([
+            'orders' => ['required', 'array', 'max:'.ShopeeLogistics::MAX_DOCUMENTS],
+            'orders.*' => ['integer'],
+        ]);
+
+        $orders = SalesOrder::with(['shopeeShop', 'tiktokShop', 'warehouse', 'courier', 'items.variant'])->whereKey($data['orders'])->orderBy('id')->get();
+        $fail = fn (string $message) => response()->json(['message' => $message], 422);
+
+        if ($orders->isEmpty()) {
+            return $fail('Pesanan tidak ditemukan.');
+        }
+        if ($orders->contains(fn (SalesOrder $order) => ! $order->hasShippingLabel())) {
+            return $fail('Label resi tersedia setelah pengiriman diatur.');
+        }
+
+        try {
+            if ($orders->every->isTiktok() && $orders->count() === 1) {
+                $pdf = $tiktok->label($orders->first());
+            } elseif ($orders->every->isShopee()) {
+                $pdf = $logistics->label($orders);
+            } elseif ($orders->every(fn (SalesOrder $order) => ! $order->isMarketplace())) {
+                // Label manual digambar di browser dari data ini (PDF-nya dibuat di sisi klien).
+                $orders->each->update(['shipping_label_printed_at' => now()]);
+
+                return response()->json(['labels' => $orders->map(fn (SalesOrder $order) => $this->manualLabelData($order))->values()]);
+            } else {
+                return $fail('Bagian cetak tidak valid.');
+            }
+        } catch (ShopeeException|TiktokException|ValidationException $e) {
+            return $fail($e instanceof ValidationException ? collect($e->errors())->flatten()->first() : $e->getMessage());
+        }
+
+        return response($pdf, 200, ['Content-Type' => 'application/pdf']);
     }
 
     /** @param EloquentCollection<int, SalesOrder> $orders */
@@ -281,5 +375,53 @@ class ShipmentController extends Controller
             'Content-Type' => 'application/pdf',
             'Content-Disposition' => 'inline; filename="'.$name.'.pdf"',
         ]);
+    }
+
+    /** @return array<string, mixed> */
+    private function manualLabelData(SalesOrder $order): array
+    {
+        $warehouse = $order->warehouse;
+
+        $bars = [];
+        if ($order->tracking_number) {
+            try {
+                $x = 0;
+                foreach ((new TypeCode128)->getBarcode($order->tracking_number)->getBars() as $bar) {
+                    if ($bar->isBar() && $bar->getWidth() > 0) {
+                        $bars[] = [$x, $bar->getWidth()];
+                    }
+                    $x += $bar->getWidth();
+                }
+                $bars = ['width' => $x, 'bars' => $bars];
+            } catch (Throwable) {
+                $bars = [];
+            }
+        }
+
+        [$infoCaption, $info] = match ($order->shipping_method) {
+            'pickup' => ['Jadwal Pickup', $order->pickup_slot ?? $order->pickup_at?->format('d/m/Y H:i') ?? '-'],
+            'dropoff' => ['Drop Off', $order->dropoff_point ?? '-'],
+            default => ['Saluran', $order->channel_name ?? '-'],
+        };
+
+        return [
+            'courier' => $order->courier?->name ?? 'KURIR',
+            'service' => $order->courier_service,
+            'method' => $order->shippingMethodLabel(),
+            'tracking' => $order->tracking_number,
+            'barcode' => $bars ?: null,
+            'customer' => $order->customer_name,
+            'phone' => $order->customer_phone,
+            'address' => $order->shipping_address,
+            'sender' => trim($warehouse?->name.($warehouse?->phone ? ' · '.$warehouse->phone : '')),
+            'sender_address' => collect([$warehouse?->address, $warehouse?->city])->filter()->implode(', '),
+            'number' => $order->number,
+            'external_number' => $order->external_number,
+            'info_caption' => $infoCaption,
+            'info' => $info,
+            'qty' => (int) $order->items->sum('qty'),
+            'items' => $order->items->take(8)->map(fn ($item) => ['sku' => $item->variant?->sku, 'qty' => (int) $item->qty])->values(),
+            'more_items' => max(0, $order->items->count() - 8),
+        ];
     }
 }

@@ -17,6 +17,7 @@
         "@alpinejs/collapse": "^3.17.4",
         "alpinejs": "^3.17.4",
         "flatpickr": "^4.6.13",
+        "pdf-lib": "^1.17.1",
         "tom-select": "^2.6.2"
     }
 }

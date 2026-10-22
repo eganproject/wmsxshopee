@@ -484,6 +484,27 @@ class TiktokIntegrationTest extends TestCase
         $this->assertNotNull($order->fresh()->shipping_label_printed_at);
     }
 
+    public function test_several_tiktok_labels_are_printed_together(): void
+    {
+        $this->shop();
+        $first = $this->syncedOrder('660001');
+        $second = $this->syncedOrder('660002');
+        SalesOrder::whereKey([$first->id, $second->id])->update(['tiktok_order_status' => 'AWAITING_COLLECTION', 'tracking_number' => 'JX1']);
+
+        Http::fake([
+            '*/fulfillment/202309/packages/*/shipping_documents*' => Http::response(['code' => 0, 'data' => ['doc_url' => 'https://files.tiktok.test/label.pdf']]),
+            '*files.tiktok.test/*' => Http::response('%PDF-1.4 label', 200, ['Content-Type' => 'application/pdf']),
+        ]);
+
+        $page = $this->get('/sales/orders/shipping-labels?'.http_build_query(['orders' => [$first->id, $second->id]]))
+            ->assertOk()->assertSee('Cetak Resi Gabungan')->assertDontSee('dicetak per pesanan');
+        $parts = $page->viewData('parts');
+        $this->assertSame(['tiktok', 'tiktok'], $parts->pluck('type')->all());
+
+        $this->get($parts[1]['url'])->assertOk()->assertHeader('Content-Type', 'application/pdf');
+        $this->assertNotNull($second->fresh()->shipping_label_printed_at);
+    }
+
     public function test_bulk_dropoff_arranges_tiktok_orders(): void
     {
         $this->shop();

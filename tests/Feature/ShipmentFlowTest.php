@@ -342,6 +342,36 @@ class ShipmentFlowTest extends TestCase
         Http::assertNotSent(fn (Request $r) => str_contains($r->url(), 'shipping_document'));
     }
 
+    public function test_mixed_shopee_and_manual_labels_are_printed_together(): void
+    {
+        $shopee = $this->shopeeOrder('M1', ['shopee_order_status' => 'PROCESSED', 'tracking_number' => 'SPXID001']);
+        $manual = $this->order(['shipping_method' => 'dropoff', 'dropoff_point' => 'JNE Kemang', 'tracking_number' => 'JNE777']);
+        $draft = $this->order();
+        $draft->update(['status' => 'draft']);
+        Http::fake([
+            '*/logistics/get_shipping_document_parameter*' => Http::response(['error' => '', 'response' => ['result_list' => [['order_sn' => 'M1', 'suggest_shipping_document_type' => 'THERMAL_AIR_WAYBILL']]]]),
+            '*/logistics/create_shipping_document*' => Http::response(['error' => '', 'response' => ['result_list' => [['order_sn' => 'M1']]]]),
+            '*/logistics/get_shipping_document_result*' => Http::response(['error' => '', 'response' => ['result_list' => [['order_sn' => 'M1', 'status' => 'READY']]]]),
+            '*/logistics/download_shipping_document*' => Http::response('%PDF-1.4 label', 200, ['Content-Type' => 'application/pdf']),
+        ]);
+
+        $page = $this->get('/sales/orders/shipping-labels?'.http_build_query(['orders' => [$shopee->id, $manual->id, $draft->id]]))
+            ->assertOk()->assertSee('Cetak Resi Gabungan')->assertSee('Shopee · Toko Uji')->assertSee('Pesanan manual')
+            ->assertSee('Dilewati karena pengiriman belum diatur: '.$draft->number);
+        $parts = $page->viewData('parts');
+        $this->assertCount(2, $parts);
+
+        $this->get($parts[0]['url'])->assertOk()->assertHeader('Content-Type', 'application/pdf')->assertSee('%PDF-1.4 label', false);
+        $this->getJson($parts[1]['url'])->assertOk()
+            ->assertJsonPath('labels.0.tracking', 'JNE777')->assertJsonPath('labels.0.info', 'JNE Kemang')->assertJsonPath('labels.0.items.0.sku', 'KAOS-M')
+            ->assertJsonStructure(['labels' => [['barcode' => ['width', 'bars']]]]);
+        $this->assertNotNull($manual->fresh()->shipping_label_printed_at);
+
+        // Bagian yang gagal dibalas alasannya supaya ditampilkan di halaman cetak.
+        $this->getJson(route('sales.orders.shipping-labels.part', ['orders' => [$draft->id]]))->assertStatus(422)->assertJsonPath('message', 'Label resi tersedia setelah pengiriman diatur.');
+        $this->getJson(route('sales.orders.shipping-labels.part', ['orders' => [$shopee->id, $manual->id]]))->assertStatus(422);
+    }
+
     public function test_manual_order_records_pickup_or_dropoff_and_prints_own_label(): void
     {
         $order = $this->order();
