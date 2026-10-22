@@ -16,7 +16,8 @@ use Illuminate\Support\Facades\Log;
 /**
  * Push Mechanism Shopee: Shopee mengirim POST ke URL ini saat status pesanan
  * berubah (code 3), resi terbit (code 4) atau otorisasi toko dicabut (code 2).
- * Tanda tangan di header Authorization = HMAC-SHA256(partner_key, url + "|" + body).
+ * Tanda tangan di header Authorization = HMAC-SHA256(key, url + "|" + body), dengan key =
+ * Live Push Partner Key dari menu Push Mechanism (app lama: partner key app).
  * Daftarkan URL ini di console app Shopee (Push Mechanism) bila Optima bisa
  * diakses dari internet; tanpa itu sinkron terjadwal tetap berjalan.
  */
@@ -25,17 +26,31 @@ class ShopeeWebhookController extends Controller
     public function __invoke(Request $request): Response
     {
         $payload = $request->json()->all();
-        $shops = ShopeeShop::where('shop_id', (int) ($payload['shop_id'] ?? $payload['data']['shop_id'] ?? 0))->get();
+        $shopId = (int) ($payload['shop_id'] ?? $payload['data']['shop_id'] ?? 0);
+        $shops = ShopeeShop::where('shop_id', $shopId)->get();
         $shop = $shops->first(fn (ShopeeShop $shop) => $this->verified($request, $shop->environment));
+        $code = (int) ($payload['code'] ?? 0);
+        $data = $payload['data'] ?? [];
 
         // Push untuk toko tak dikenal / tanda tangan salah diabaikan; Shopee tetap diberi 200
         // supaya tidak mengulang terus. Verifikasi URL push dari console tanpa shop_id juga 200.
         if (! $shop) {
+            if ($shopId) {
+                $reason = $shops->isEmpty()
+                    ? "Push ditolak: toko Shopee #{$shopId} belum terhubung di Optima."
+                    : 'Push ditolak: tanda tangan tidak cocok. Isi Live Push Partner Key dari menu Push Mechanism di console Shopee.';
+                $this->remember($reason);
+                Log::warning('Shopee push ditolak', ['shop_id' => $shopId, 'code' => $code, 'reason' => $reason, 'url' => $request->fullUrl()]);
+            }
+
             return response()->noContent(200);
         }
 
-        $code = (int) ($payload['code'] ?? 0);
-        $data = $payload['data'] ?? [];
+        $this->remember(match (true) {
+            $code === 2 => "Push diterima: otorisasi toko {$shop->displayName()} dicabut.",
+            ! $shop->isSyncable() => "Push diterima untuk {$shop->displayName()}, tapi toko belum bisa disinkron (cek status, aktif & gudang pengirim).",
+            default => "Push diterima untuk {$shop->displayName()} (code {$code}).",
+        });
 
         // Otorisasi dicabut: pastikan lewat get_shop_info dulu, baru tandai perlu otorisasi ulang.
         if ($code === 2) {
@@ -72,25 +87,38 @@ class ShopeeWebhookController extends Controller
 
     private function verified(Request $request, string $environment): bool
     {
-        $key = ShopeeSetting::current()->partnerKey($environment);
-        $signature = (string) $request->header('Authorization');
+        $setting = ShopeeSetting::current();
+        $keys = $setting->pushSigningKeys($environment);
+        $signature = strtolower(trim((string) $request->header('Authorization')));
 
-        if (blank($key) || $signature === '') {
+        if (! $keys || $signature === '') {
             return false;
         }
 
-        $setting = ShopeeSetting::current();
+        // Shopee menandatangani URL yang didaftarkan di console. Di belakang proxy / Cloudflare
+        // Laravel bisa melihat http:// padahal yang didaftarkan https://, jadi coba keduanya.
+        $full = $request->fullUrl();
         $urls = array_unique(array_filter([
-            $request->fullUrl(),
-            $setting->redirect_base_url ? rtrim($setting->redirect_base_url, '/').route('shopee.webhook', absolute: false) : null,
+            $full,
+            preg_replace('#^http://#', 'https://', $full),
+            preg_replace('#^https://#', 'http://', $full),
+            $setting->webhookUrl(),
         ]));
 
-        foreach ($urls as $url) {
-            if (hash_equals(hash_hmac('sha256', $url.'|'.$request->getContent(), $key), $signature)) {
-                return true;
+        foreach ($keys as $key) {
+            foreach ($urls as $url) {
+                if (hash_equals(hash_hmac('sha256', $url.'|'.$request->getContent(), $key), $signature)) {
+                    return true;
+                }
             }
         }
 
         return false;
+    }
+
+    /** Catat push terakhir supaya terlihat di Pengaturan Shopee. */
+    private function remember(string $result): void
+    {
+        ShopeeSetting::query()->first()?->forceFill(['last_push_at' => now(), 'last_push_result' => mb_substr($result, 0, 255)])->saveQuietly();
     }
 }

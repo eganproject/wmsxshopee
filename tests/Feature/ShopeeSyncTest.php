@@ -625,6 +625,28 @@ class ShopeeSyncTest extends TestCase
         $this->assertSame('JNT123', SalesOrder::where('external_number', 'G1')->value('tracking_number'));
     }
 
+    public function test_webhook_accepts_live_push_partner_key_and_records_rejections(): void
+    {
+        $this->fakeOrders([$this->order('P1', 'READY_TO_SHIP', [$this->line(11, 101, 1)])]);
+        ShopeeSetting::current()->update(['test_push_key' => 'kunci-push']);
+        $body = json_encode(['shop_id' => 555, 'code' => 3, 'timestamp' => now()->getTimestamp(), 'data' => ['ordersn' => 'P1', 'status' => 'READY_TO_SHIP']]);
+        $url = route('shopee.webhook');
+
+        $this->call('POST', $url, [], [], [], ['CONTENT_TYPE' => 'application/json', 'HTTP_AUTHORIZATION' => 'palsu'], $body)->assertOk();
+        $this->assertStringContainsString('tanda tangan tidak cocok', ShopeeSetting::current()->last_push_result);
+        $this->assertSame(0, SalesOrder::count());
+
+        // Shopee menandatangani URL https yang didaftarkan walau Laravel melihat http.
+        $signature = hash_hmac('sha256', preg_replace('#^http://#', 'https://', $url).'|'.$body, 'kunci-push');
+        $this->call('POST', $url, [], [], [], ['CONTENT_TYPE' => 'application/json', 'HTTP_AUTHORIZATION' => $signature], $body)->assertOk();
+        $this->assertSame('confirmed', SalesOrder::where('external_number', 'P1')->value('status'));
+        $this->assertStringStartsWith('Push diterima', ShopeeSetting::current()->last_push_result);
+
+        $other = json_encode(['shop_id' => 999, 'code' => 3, 'data' => ['ordersn' => 'X']]);
+        $this->call('POST', $url, [], [], [], ['CONTENT_TYPE' => 'application/json', 'HTTP_AUTHORIZATION' => 'x'], $other)->assertOk();
+        $this->assertStringContainsString('#999 belum terhubung', ShopeeSetting::current()->last_push_result);
+    }
+
     public function test_deauthorization_push_marks_shop_after_confirming(): void
     {
         Http::fake(['*/api/v2/shop/get_shop_info*' => Http::response(['error' => 'error_auth', 'message' => 'Invalid access_token'])]);
