@@ -18,10 +18,14 @@ class ShopeeSetting extends Model
         'test_partner_key',
         'live_partner_id',
         'live_partner_key',
+        'test_push_key',
+        'live_push_key',
         'redirect_base_url',
+        'last_push_at',
+        'last_push_result',
     ];
 
-    protected $hidden = ['test_partner_key', 'live_partner_key'];
+    protected $hidden = ['test_partner_key', 'live_partner_key', 'test_push_key', 'live_push_key'];
 
     protected function casts(): array
     {
@@ -30,6 +34,9 @@ class ShopeeSetting extends Model
             'live_partner_id' => 'integer',
             'test_partner_key' => 'encrypted',
             'live_partner_key' => 'encrypted',
+            'test_push_key' => 'encrypted',
+            'live_push_key' => 'encrypted',
+            'last_push_at' => 'datetime',
         ];
     }
 
@@ -46,6 +53,23 @@ class ShopeeSetting extends Model
     public function partnerKey(?string $environment = null): ?string
     {
         return $this->{($environment ?? $this->environment).'_partner_key'};
+    }
+
+    /** Live Push Partner Key (menu Push Mechanism di console Shopee). */
+    public function pushKey(?string $environment = null): ?string
+    {
+        return $this->{($environment ?? $this->environment).'_push_key'};
+    }
+
+    /**
+     * Key yang mungkin dipakai Shopee untuk menandatangani push: Live Push
+     * Partner Key bila diisi, lalu partner key app (app lama memakai key ini).
+     *
+     * @return list<string>
+     */
+    public function pushSigningKeys(string $environment): array
+    {
+        return array_values(array_unique(array_filter([$this->pushKey($environment), $this->partnerKey($environment)], 'filled')));
     }
 
     public function isConfigured(?string $environment = null): bool

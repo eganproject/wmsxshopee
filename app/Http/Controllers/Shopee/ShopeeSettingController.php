@@ -19,6 +19,8 @@ class ShopeeSettingController extends Controller
             'test_partner_key' => ['nullable', 'string', 'max:255'],
             'live_partner_id' => ['nullable', 'integer', 'min:1'],
             'live_partner_key' => ['nullable', 'string', 'max:255'],
+            'test_push_key' => ['nullable', 'string', 'max:255'],
+            'live_push_key' => ['nullable', 'string', 'max:255'],
             'redirect_base_url' => ['nullable', 'url:http,https', 'max:255'],
         ], [], [
             'environment' => 'mode',
@@ -26,13 +28,15 @@ class ShopeeSettingController extends Controller
             'test_partner_key' => 'Partner Key test',
             'live_partner_id' => 'Partner ID live',
             'live_partner_key' => 'Partner Key live',
+            'test_push_key' => 'Live Push Partner Key test',
+            'live_push_key' => 'Live Push Partner Key live',
             'redirect_base_url' => 'domain redirect',
         ]);
 
         $setting = ShopeeSetting::current();
 
-        // Partner key tidak pernah ditampilkan lagi: kosong berarti tetap pakai yang tersimpan.
-        foreach (['test_partner_key', 'live_partner_key'] as $key) {
+        // Partner key & push key tidak pernah ditampilkan lagi: kosong berarti tetap pakai yang tersimpan.
+        foreach (['test_partner_key', 'live_partner_key', 'test_push_key', 'live_push_key'] as $key) {
             if (blank($data[$key] ?? null) && ! $request->boolean("clear_{$key}")) {
                 unset($data[$key]);
             }

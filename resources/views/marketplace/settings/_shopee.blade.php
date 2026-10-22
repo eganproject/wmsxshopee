@@ -49,6 +49,16 @@
                             </label>
                         @endif
                     </div>
+                    <div class="sm:col-span-2">
+                        <x-input name="{{ $env }}_push_key" type="password" label="Live Push Partner Key" icon="heroicon-o-bell-alert" autocomplete="new-password"
+                                 :placeholder="$shopee->{$env.'_push_key'} ? '•••••••• (tersimpan)' : 'Tempel Live Push Partner Key'"
+                                 hint="Dari menu Push Mechanism di console app Shopee (beda dengan Partner Key). Wajib agar pesanan masuk seketika lewat Live Push." />
+                        @if ($shopee->{$env.'_push_key'})
+                            <label class="mt-1.5 flex items-center gap-2 text-xs text-slate-500">
+                                <input type="checkbox" name="clear_{{ $env }}_push_key" value="1"> Hapus key yang tersimpan
+                            </label>
+                        @endif
+                    </div>
                 </div>
             </div>
         @endforeach
@@ -69,7 +79,14 @@
                         </div>
                     </div>
                 @endforeach
-                <p class="text-xs text-slate-400">Daftarkan domain Redirect URL sebagai Redirect URL Domain di console app Shopee Open Platform. Live Push URL diisi di menu Push Mechanism (centang order status &amp; tracking number) bila Optima bisa diakses dari internet; tanpa itu sinkron terjadwal tiap 5 menit tetap berjalan.</p>
+                <div class="rounded-md border px-3 py-2 text-xs {{ $shopee->last_push_at ? (str_starts_with((string) $shopee->last_push_result, 'Push diterima') ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-amber-200 bg-amber-50 text-amber-800') : 'border-slate-200 bg-slate-50 text-slate-500' }}">
+                    @if ($shopee->last_push_at)
+                        <span class="font-medium">Push terakhir {{ $shopee->last_push_at->diffForHumans() }}</span> ({{ $shopee->last_push_at->format('d/m/Y H:i') }}): {{ $shopee->last_push_result }}
+                    @else
+                        Belum ada push dari Shopee yang sampai ke Optima. Pastikan Live Push URL di atas didaftarkan di Push Mechanism dan bisa diakses dari internet.
+                    @endif
+                </div>
+                <p class="text-xs text-slate-400">Daftarkan domain Redirect URL sebagai Redirect URL Domain di console app Shopee Open Platform. Live Push URL diisi di menu Push Mechanism (centang order status &amp; tracking number), lalu salin Live Push Partner Key di halaman itu ke kolom di atas bila Optima bisa diakses dari internet; tanpa itu sinkron terjadwal tiap 5 menit tetap berjalan.</p>
                 <x-input name="redirect_base_url" label="Domain redirect (opsional)" icon="heroicon-o-globe-alt" :value="$shopee->redirect_base_url"
                          placeholder="cth. https://optima.tokosaya.com"
                          hint="Isi bila domain yang didaftarkan di Shopee berbeda dengan alamat Optima saat ini, cth. domain publik atau tunnel. Kosong = {{ url('/') }}." />
