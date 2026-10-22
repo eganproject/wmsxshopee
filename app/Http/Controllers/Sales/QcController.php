@@ -18,8 +18,8 @@ class QcController extends Controller
         $queue = SalesOrder::query()
             ->with(['warehouse', 'courier'])
             ->withSum('items', 'qty')
-            ->where('status', 'picked')
-            ->oldest('picked_at')
+            ->where('status', 'picking')
+            ->oldest('picking_at')
             ->limit(50)
             ->get();
 
@@ -36,8 +36,8 @@ class QcController extends Controller
             return back()->with('error', "Resi / pesanan \"{$code}\" tidak ditemukan.");
         }
 
-        if (! $order->hasStatus('picked')) {
-            return back()->with('error', "{$order->number} berstatus {$order->statusLabel()}. QC hanya untuk pesanan yang Sudah Diambil (picking selesai).");
+        if (! $order->hasStatus('picking')) {
+            return back()->with('error', "{$order->number} berstatus {$order->statusLabel()}. QC hanya untuk pesanan yang Sedang Diambil (picking selesai).");
         }
 
         return redirect()->route('sales.qc.show', $order);
@@ -45,7 +45,7 @@ class QcController extends Controller
 
     public function show(SalesOrder $order, FulfillmentScan $scan): View|RedirectResponse
     {
-        if (! $order->hasStatus('picked')) {
+        if (! $order->hasStatus('picking')) {
             return redirect()->route('sales.qc.index')->with('error', "{$order->number} berstatus {$order->statusLabel()}, tidak perlu QC.");
         }
 

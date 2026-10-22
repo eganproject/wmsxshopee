@@ -175,7 +175,7 @@ class WarehouseSupplyTest extends TestCase
 
         $this->assertTrue($service->shortage($order->fresh())->isEmpty());
         $service->pick($order->fresh(), [$order->items->first()->id => [['warehouse_location_id' => $this->bin->id, 'qty' => 20]]]);
-        $this->assertSame('picked', $order->fresh()->status);
+        $this->assertSame('picking', $order->fresh()->status);
     }
 
     public function test_order_beyond_combined_stock_is_rejected(): void

@@ -14,7 +14,7 @@
             <th class="px-5 py-3">SKU</th>
             <th class="px-5 py-3">Produk / Varian</th>
             <th class="px-5 py-3 text-right" title="Barang di rak, termasuk yang sudah diambil tapi belum dikirim">Fisik</th>
-            <th class="px-5 py-3 text-right" title="Dicadangkan pesanan Dikonfirmasi, Sudah Diambil dan Dikemas">Dipesan</th>
+            <th class="px-5 py-3 text-right" title="Dicadangkan pesanan Dikonfirmasi, Sedang Diambil dan Dikemas">Dipesan</th>
             <th class="px-5 py-3 text-right" title="Fisik dikurangi Dipesan">Tersedia</th>
             <th class="px-5 py-3 text-right" title="Qty di pesanan Draft yang belum mencadangkan stok, mis. gagal dikonfirmasi karena stok kurang">Tertahan</th>
             @if ($showSellable)

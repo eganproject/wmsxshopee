@@ -4,7 +4,7 @@
     $classes = [
         'draft' => 'bg-slate-100 text-slate-600',
         'confirmed' => 'bg-sky-50 text-sky-700',
-        'picked' => 'bg-violet-50 text-violet-700',
+        'picking' => 'bg-violet-50 text-violet-700',
         'packed' => 'bg-amber-50 text-amber-700',
         'shipped' => 'bg-emerald-50 text-emerald-700',
         'cancelled' => 'bg-rose-50 text-rose-700',

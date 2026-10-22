@@ -12,7 +12,7 @@ use Illuminate\Validation\ValidationException;
  * Proses berbasis scan di gudang:
  *
  *   QC kemas     : scan resi / no. SO -> scan barcode atau SKU tiap barang. Bila semua
- *                  jumlah cocok, pesanan Sudah Diambil -> Sudah Dikemas.
+ *                  jumlah cocok, pesanan Sedang Diambil -> Sudah Dikemas.
  *   Serah terima : scan resi / no. pesanan saat diserahkan ke kurir / cabang drop off.
  *                  Tiap scan langsung mengirim pesanan (stok keluar) dan otomatis masuk
  *                  manifest harian gudang & kurirnya.

@@ -29,8 +29,13 @@ use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class SalesOrderController extends Controller
 {
-    public function index(Request $request): View|BinaryFileResponse
+    public function index(Request $request): View|BinaryFileResponse|RedirectResponse
     {
+        // Tautan lama sebelum status "Sudah Diambil" berganti nama jadi "Sedang Diambil".
+        if ($request->input('status') === 'picked') {
+            return redirect()->route('sales.orders.index', ['status' => 'picking', ...$request->except('status')]);
+        }
+
         $query = $this->filtered($request)
             ->with(['warehouse', 'courier', 'looseItems.variant.product', 'bundles.bundle'])
             ->withSum('items', 'qty')
@@ -206,7 +211,7 @@ class SalesOrderController extends Controller
     }
 
     /**
-     * Tandai banyak pesanan Sudah Diambil dari daftar pesanan, memakai bin usulan
+     * Tandai banyak pesanan Sedang Diambil dari daftar pesanan, memakai bin usulan
      * otomatis seperti di halaman Picking. Tiap pesanan diproses dalam transaksinya
      * sendiri: yang gagal (stok bin kurang, status berubah, dibatalkan di marketplace)
      * dilewati dan dilaporkan tanpa membatalkan pesanan lain.
@@ -216,7 +221,7 @@ class SalesOrderController extends Controller
         $data = $request->validate([
             'orders' => ['required', 'array', 'max:100'],
             'orders.*' => ['integer', 'distinct'],
-        ], ['orders.required' => 'Pilih pesanan yang akan ditandai sudah diambil.', 'orders.max' => 'Maksimal :max pesanan sekali proses.']);
+        ], ['orders.required' => 'Pilih pesanan yang akan ditandai Sedang Diambil.', 'orders.max' => 'Maksimal :max pesanan sekali proses.']);
 
         // Scope gudang: pesanan di gudang yang tidak bisa diakses user tidak ikut terambil.
         $orders = SalesOrder::whereKey($data['orders'])->orderBy('id')->get();
@@ -247,7 +252,7 @@ class SalesOrderController extends Controller
 
         $messages = [];
         if ($picked) {
-            $messages[] = count($picked).' pesanan ditandai Sudah Diambil. Lanjut kemas barangnya.';
+            $messages[] = count($picked).' pesanan ditandai Sedang Diambil. Lanjut kemas barangnya.';
         }
         if ($skipped) {
             $messages[] = count($skipped).' pesanan dilewati karena tidak berstatus Dikonfirmasi ('.implode(', ', $skipped).').';
@@ -261,7 +266,7 @@ class SalesOrderController extends Controller
             ! $failed => 'info',
             default => 'error',
         };
-        $redirect = back()->with($type, implode(' ', $messages) ?: count($failed).' pesanan belum bisa ditandai Sudah Diambil.');
+        $redirect = back()->with($type, implode(' ', $messages) ?: count($failed).' pesanan belum bisa ditandai Sedang Diambil.');
 
         if ($failed) {
             $redirect->with('pick_failures', $failed);

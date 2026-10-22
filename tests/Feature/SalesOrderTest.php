@@ -112,7 +112,7 @@ class SalesOrderTest extends TestCase
             $itemM->id => [['warehouse_location_id' => $this->binA->id, 'qty' => 6], ['warehouse_location_id' => $this->binB->id, 'qty' => 2]],
             $itemL->id => [['warehouse_location_id' => '', 'qty' => 2]],
         ]])->assertSessionHasNoErrors();
-        $this->assertSame('picked', $order->fresh()->status);
+        $this->assertSame('picking', $order->fresh()->status);
 
         $this->post("/sales/orders/{$order->id}/pack")->assertSessionHasNoErrors();
         $this->post("/sales/orders/{$order->id}/ship", ['courier_id' => Courier::first()->id, 'tracking_number' => 'JNE123'])->assertSessionHasNoErrors();
@@ -310,16 +310,20 @@ class SalesOrderTest extends TestCase
         $this->post('/sales/orders', $this->payload(['external_number' => 'ORD-3', 'items' => [['product_variant_id' => $this->variant->id, 'qty' => 1]]]));
         [$first, $second, $draft] = SalesOrder::orderBy('id')->with('items')->get()->all();
 
-        $this->get('/sales/orders')->assertOk()->assertSee('Tandai Diambil');
+        $this->get('/sales/orders')->assertOk()->assertSee('Tandai Sedang Diambil');
 
         $this->from('/sales/orders')->post('/sales/orders/pick', ['orders' => [$first->id, $second->id, $draft->id]])
             ->assertRedirect('/sales/orders')
-            ->assertSessionHas('success', fn ($message) => str_contains($message, '2 pesanan ditandai Sudah Diambil') && str_contains($message, $draft->number));
+            ->assertSessionHas('success', fn ($message) => str_contains($message, '2 pesanan ditandai Sedang Diambil') && str_contains($message, $draft->number));
 
-        $this->assertSame('picked', $first->fresh()->status);
-        $this->assertSame('picked', $second->fresh()->status);
+        $this->assertSame('picking', $first->fresh()->status);
+        $this->assertSame('picking', $second->fresh()->status);
         $this->assertSame('draft', $draft->fresh()->status);
-        $this->assertNotNull($first->fresh()->picked_at);
+        $this->assertNotNull($first->fresh()->picking_at);
+
+        // Tab dan badge memakai nama Sedang Diambil; tautan lama ?status=picked diarahkan ke status baru.
+        $this->get('/sales/orders?status=picking')->assertOk()->assertSee('Sedang Diambil')->assertDontSee('Sudah Diambil')->assertSee($first->number);
+        $this->get('/sales/orders?status=picked&warehouse='.$this->warehouse->id)->assertRedirect('/sales/orders?status=picking&warehouse='.$this->warehouse->id);
 
         // Pesanan pertama ambil 5 dari bin A (terbanyak); bin A tinggal 1 bebas, jadi pesanan kedua ambil 4 dari bin B.
         $picks = fn (SalesOrder $order) => $order->items()->with('picks')->get()->flatMap->picks
@@ -347,12 +351,12 @@ class SalesOrderTest extends TestCase
             ->assertSessionHas('pick_failures', fn ($failures) => array_keys($failures) === [$short->number, $cancelling->number]
                 && str_contains($failures[$short->number], 'KAOS-L') && str_contains($failures[$cancelling->number], 'pembatalan'));
 
-        $this->assertSame('picked', $ok->fresh()->status);
+        $this->assertSame('picking', $ok->fresh()->status);
         $this->assertSame('confirmed', $short->fresh()->status);
         $this->assertSame('confirmed', $cancelling->fresh()->status);
         $this->assertSame(0, $short->items()->withCount('picks')->get()->sum('picks_count'));
 
-        $this->get('/sales/orders')->assertSee('2 pesanan belum bisa ditandai Sudah Diambil');
+        $this->get('/sales/orders')->assertSee('2 pesanan belum bisa ditandai Sedang Diambil');
 
         // Semua gagal: pesan error, bukan sukses.
         $this->from('/sales/orders')->post('/sales/orders/pick', ['orders' => [$short->id]])->assertSessionHas('error');

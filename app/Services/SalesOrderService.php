@@ -167,7 +167,7 @@ class SalesOrderService
     }
 
     /**
-     * Dikonfirmasi -> Sudah Diambil. Simpan dari bin mana tiap baris diambil.
+     * Dikonfirmasi -> Sedang Diambil. Simpan dari bin mana tiap baris diambil.
      *
      * @param  array<int, array<int, array{warehouse_location_id: ?int, qty: int}>>  $picks  per item id
      *
@@ -222,12 +222,12 @@ class SalesOrderService
                 ])->values()->all());
             }
 
-            $order->update(['status' => 'picked', 'picked_at' => now()]);
+            $order->update(['status' => 'picking', 'picking_at' => now()]);
         });
     }
 
     /**
-     * Dikonfirmasi -> Sudah Diambil memakai bin usulan otomatis (dipakai aksi massal
+     * Dikonfirmasi -> Sedang Diambil memakai bin usulan otomatis (dipakai aksi massal
      * di daftar pesanan). Usulan dihitung ulang setelah pesanan & varian dikunci,
      * supaya pesanan lain yang diproses bersamaan tidak memakai stok bin yang sama.
      * Validasinya sama dengan picking satu pesanan.
@@ -245,11 +245,11 @@ class SalesOrderService
         });
     }
 
-    /** Sudah Diambil -> Sudah Dikemas. */
+    /** Sedang Diambil -> Sudah Dikemas. */
     public function pack(SalesOrder $order): void
     {
         DB::transaction(function () use ($order) {
-            $this->lock($order, ['picked'])->update(['status' => 'packed', 'packed_at' => now()]);
+            $this->lock($order, ['picking'])->update(['status' => 'packed', 'packed_at' => now()]);
         });
     }
 
@@ -302,7 +302,7 @@ class SalesOrderService
             if ($order->fresh()->hasStatus('confirmed')) {
                 $this->pick($order, $this->suggestPicks($order->fresh()));
             }
-            if ($order->fresh()->hasStatus('picked')) {
+            if ($order->fresh()->hasStatus('picking')) {
                 $this->pack($order);
             }
 
@@ -328,7 +328,7 @@ class SalesOrderService
         DB::transaction(function () use ($order) {
             $order = $this->lock($order, SalesOrder::RESERVING);
             SalesOrderPick::whereIn('sales_order_item_id', $order->items()->pluck('id'))->delete();
-            $order->update(['status' => 'draft', 'confirmed_at' => null, 'picked_at' => null, 'packed_at' => null]);
+            $order->update(['status' => 'draft', 'confirmed_at' => null, 'picking_at' => null, 'packed_at' => null]);
         });
     }
 
@@ -418,7 +418,7 @@ class SalesOrderService
             ->join('sales_order_items', 'sales_order_items.id', '=', 'sales_order_picks.sales_order_item_id')
             ->join('sales_orders', 'sales_orders.id', '=', 'sales_order_items.sales_order_id')
             ->where('sales_orders.warehouse_id', $warehouseId)
-            ->whereIn('sales_orders.status', ['picked', 'packed'])
+            ->whereIn('sales_orders.status', ['picking', 'packed'])
             ->when($exceptOrderId, fn ($q) => $q->where('sales_orders.id', '!=', $exceptOrderId))
             ->whereIn('sales_order_items.product_variant_id', $variantIds)
             ->groupBy('sales_order_items.product_variant_id', 'sales_order_picks.warehouse_location_id')
