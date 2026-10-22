@@ -223,6 +223,7 @@ Route::middleware(['auth', 'active'])->group(function () {
         Route::post('handovers/scan', [HandoverController::class, 'scan'])->middleware('can:sales.fulfill')->name('handovers.scan');
         Route::get('handovers/{handover}', [HandoverController::class, 'show'])->middleware('can:sales.fulfill')->name('handovers.show');
         Route::get('handovers/{handover}/manifest', [HandoverController::class, 'manifest'])->middleware('can:sales.fulfill')->name('handovers.manifest');
+        Route::post('orders/pick', [SalesOrderController::class, 'bulkPick'])->middleware('can:sales.fulfill')->name('orders.pick.bulk');
         Route::post('orders/shipment', [ShipmentController::class, 'bulk'])->middleware('can:sales.fulfill')->name('orders.shipment.bulk');
         Route::get('orders/shipping-labels', [ShipmentController::class, 'bulkLabel'])->middleware('can:sales.fulfill')->name('orders.shipping-labels');
         Route::get('orders/shipping-labels/part', [ShipmentController::class, 'labelPart'])->middleware('can:sales.fulfill')->name('orders.shipping-labels.part');

@@ -379,6 +379,25 @@ class SalesOrder extends Model
         return ! $this->isShopee() || $this->shopee_order_status === 'READY_TO_SHIP';
     }
 
+    /** Pembeli mengajukan / sudah membatalkan di marketplace, tapi di Optima belum dibatalkan. */
+    public function marketplaceCancelPending(): bool
+    {
+        if ($this->isShopee()) {
+            return in_array($this->shopee_order_status, ['IN_CANCEL', 'CANCELLED'], true);
+        }
+
+        return $this->isTiktok() && ($this->tiktok_cancel_requested || $this->tiktok_order_status === 'CANCELLED');
+    }
+
+    /**
+     * Bisa ditandai Sudah Diambil lewat aksi massal: status Dikonfirmasi dan tidak sedang
+     * dibatalkan di marketplace. Stok per bin dicek ulang saat diproses.
+     */
+    public function canBulkPick(): bool
+    {
+        return $this->hasStatus('confirmed') && ! $this->marketplaceCancelPending();
+    }
+
     /** Pengiriman sudah diatur, baik dari Optima maupun langsung di Seller Center marketplace. */
     public function shipmentAlreadyArranged(): bool
     {

@@ -33,16 +33,18 @@
         @endforeach
     </div>
 
-    @if ($failures = session('shipment_failures'))
-        <div class="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-            <p class="flex items-center gap-1.5 font-medium"><x-heroicon-o-exclamation-triangle class="size-4" /> {{ count($failures) }} pesanan belum bisa diatur</p>
-            <ul class="mt-1 space-y-0.5 pl-6">
-                @foreach ($failures as $number => $reason)
-                    <li class="list-disc"><span class="font-mono">{{ $number }}</span>: {{ $reason }}</li>
-                @endforeach
-            </ul>
-        </div>
-    @endif
+    @foreach (['shipment_failures' => 'belum bisa diatur pengirimannya', 'pick_failures' => 'belum bisa ditandai Sudah Diambil'] as $key => $title)
+        @if ($failures = session($key))
+            <div class="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                <p class="flex items-center gap-1.5 font-medium"><x-heroicon-o-exclamation-triangle class="size-4" /> {{ count($failures) }} pesanan {{ $title }}</p>
+                <ul class="mt-1 space-y-0.5 pl-6">
+                    @foreach ($failures as $number => $reason)
+                        <li class="list-disc"><span class="font-mono">{{ $number }}</span>: {{ $reason }}</li>
+                    @endforeach
+                </ul>
+            </div>
+        @endif
+    @endforeach
 
     <div class="card" x-data="{
             selected: [],
@@ -142,7 +144,13 @@
                                 <template x-for="id in ids('label')" :key="id"><input type="hidden" name="orders[]" :value="id"></template>
                                 <button type="submit" class="btn-primary"><x-heroicon-o-printer class="size-5" /> Cetak Resi <span class="opacity-75" x-text="'(' + count('label') + ')'"></span></button>
                             </form>
-                            <p class="text-xs text-slate-500" x-show="! count('arrange') && ! count('label')">Tidak ada aksi untuk pesanan terpilih.</p>
+                            <form method="POST" action="{{ route('sales.orders.pick.bulk') }}" x-show="count('pick')"
+                                  data-confirm-title="Tandai Sudah Diambil?" :data-confirm="count('pick') + ' pesanan Dikonfirmasi ditandai Sudah Diambil dengan bin usulan otomatis (bin lokasi tetap dulu), sama seperti isian awal di halaman Picking. Pastikan barang sudah diambil sesuai picking list. Pesanan yang stok binnya kurang dilewati.'" data-confirm-text="Tandai Diambil">
+                                @csrf
+                                <template x-for="id in ids('pick')" :key="id"><input type="hidden" name="orders[]" :value="id"></template>
+                                <button type="submit" class="btn-secondary"><x-heroicon-o-hand-raised class="size-5" /> Tandai Diambil <span class="text-slate-500" x-text="'(' + count('pick') + ')'"></span></button>
+                            </form>
+                            <p class="text-xs text-slate-500" x-show="! count('arrange') && ! count('label') && ! count('pick')">Tidak ada aksi untuk pesanan terpilih.</p>
                         </div>
                         <button type="button" class="btn-secondary ml-auto" title="Batal pilih (Esc)" @click="selected = []"><x-heroicon-o-x-mark class="size-5" /> Batal</button>
                     </div>

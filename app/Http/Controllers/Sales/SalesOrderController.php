@@ -68,6 +68,7 @@ class SalesOrderController extends Controller
                 'arranged' => $order->shipmentAlreadyArranged(),
                 'manual' => ! $order->isMarketplace() && $order->canArrangeShipment(),
                 'label' => $order->hasShippingLabel(),
+                'pick' => $order->canBulkPick(),
             ]]),
             'warehouses' => Warehouse::orderBy('code')->get(),
             'channels' => $this->channels(),
@@ -202,6 +203,71 @@ class SalesOrderController extends Controller
         ])->values()->all())->all());
 
         return redirect()->route('sales.orders.show', $order)->with('success', "Picking {$order->number} selesai. Lanjut kemas barangnya.");
+    }
+
+    /**
+     * Tandai banyak pesanan Sudah Diambil dari daftar pesanan, memakai bin usulan
+     * otomatis seperti di halaman Picking. Tiap pesanan diproses dalam transaksinya
+     * sendiri: yang gagal (stok bin kurang, status berubah, dibatalkan di marketplace)
+     * dilewati dan dilaporkan tanpa membatalkan pesanan lain.
+     */
+    public function bulkPick(Request $request, SalesOrderService $service): RedirectResponse
+    {
+        $data = $request->validate([
+            'orders' => ['required', 'array', 'max:100'],
+            'orders.*' => ['integer', 'distinct'],
+        ], ['orders.required' => 'Pilih pesanan yang akan ditandai sudah diambil.', 'orders.max' => 'Maksimal :max pesanan sekali proses.']);
+
+        // Scope gudang: pesanan di gudang yang tidak bisa diakses user tidak ikut terambil.
+        $orders = SalesOrder::whereKey($data['orders'])->orderBy('id')->get();
+        $picked = [];
+        $skipped = [];
+        $failed = [];
+
+        foreach ($orders as $order) {
+            if (! $order->hasStatus('confirmed')) {
+                $skipped[] = $order->number;
+
+                continue;
+            }
+
+            if ($order->marketplaceCancelPending()) {
+                $failed[$order->number] = 'Pembeli mengajukan pembatalan di marketplace. Cek pesanan sebelum picking.';
+
+                continue;
+            }
+
+            try {
+                $service->pickSuggested($order);
+                $picked[] = $order->number;
+            } catch (ValidationException $e) {
+                $failed[$order->number] = collect($e->errors())->flatten()->first();
+            }
+        }
+
+        $messages = [];
+        if ($picked) {
+            $messages[] = count($picked).' pesanan ditandai Sudah Diambil. Lanjut kemas barangnya.';
+        }
+        if ($skipped) {
+            $messages[] = count($skipped).' pesanan dilewati karena tidak berstatus Dikonfirmasi ('.implode(', ', $skipped).').';
+        }
+        if ($missing = count($data['orders']) - $orders->count()) {
+            $messages[] = "{$missing} pesanan tidak ditemukan.";
+        }
+
+        $type = match (true) {
+            (bool) $picked => 'success',
+            ! $failed => 'info',
+            default => 'error',
+        };
+        $redirect = back()->with($type, implode(' ', $messages) ?: count($failed).' pesanan belum bisa ditandai Sudah Diambil.');
+
+        if ($failed) {
+            $redirect->with('pick_failures', $failed);
+        }
+
+        return $redirect;
     }
 
     public function pickList(SalesOrder $order, SalesOrderService $service): View
