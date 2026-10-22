@@ -13,6 +13,13 @@
 
     <form method="POST" enctype="multipart/form-data" action="{{ route('master.products.store') }}" data-dirty-guard class="mx-auto max-w-5xl">
         @csrf
+        @if ($returnOrder)
+            <input type="hidden" name="return_order" value="{{ $returnOrder->id }}">
+            <div class="mb-5 flex items-start gap-3 rounded-lg border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-800">
+                <x-heroicon-o-information-circle class="mt-0.5 size-5 shrink-0" />
+                <p>Produk untuk pesanan <a href="{{ route('sales.orders.show', $returnOrder) }}" class="font-medium underline">{{ $returnOrder->number }}</a>. Biarkan SKU sama dengan SKU marketplace supaya pesanan langsung terhubung; setelah disimpan Anda kembali ke pesanan.</p>
+            </div>
+        @endif
         @include('master.products._form')
 
         <div class="sticky bottom-0 mt-6 flex justify-end gap-3 border-t border-slate-200 bg-slate-50/90 py-4 backdrop-blur">

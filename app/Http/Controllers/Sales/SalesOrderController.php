@@ -11,6 +11,7 @@ use App\Models\Warehouse;
 use App\Models\WarehouseLocation;
 use App\Rules\AccessibleRecord;
 use App\Services\MarketplaceOrderRelink;
+use App\Services\OrderSkuResolver;
 use App\Services\SalesOrderService;
 use App\Services\WarehouseSupply;
 use App\Support\Activity;
@@ -110,7 +111,7 @@ class SalesOrderController extends Controller
         return $this->afterSave($request, $order, $service, 'disimpan sebagai draft');
     }
 
-    public function show(SalesOrder $order, SalesOrderService $service, WarehouseSupply $supply): View
+    public function show(SalesOrder $order, SalesOrderService $service, WarehouseSupply $supply, OrderSkuResolver $skus): View
     {
         $order->load(['warehouse', 'courier', 'creator', 'movement', 'arranger', 'qcChecker', 'handover', 'items.variant.product.unit', 'items.picks.location', 'bundles.bundle.items', 'returns.items']);
 
@@ -123,6 +124,8 @@ class SalesOrderController extends Controller
             'bundleAvailability' => $draft ? $supply->bundleSellable($order->warehouse_id, $order->bundles->pluck('bundle')->unique('id')) : collect(),
             // Pesanan yang diterima dari stok gudang cadangan: menunggu transfer sebelum picking.
             'shortage' => $order->hasStatus('confirmed') ? $service->shortage($order) : collect(),
+            // SKU marketplace yang belum terhubung, dengan saran produk mirip.
+            'unmappedSkus' => $draft ? $skus->unmapped($order) : collect(),
             'couriers' => Courier::query()
                 ->where(fn ($q) => $q->where('is_active', true)->when($order->courier_id, fn ($q) => $q->orWhere('id', $order->courier_id)))
                 ->orderBy('name')

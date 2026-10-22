@@ -7,6 +7,7 @@ use App\Models\BundleItem;
 use App\Models\Product;
 use App\Models\ProductImage;
 use App\Models\ProductVariant;
+use App\Models\SalesOrder;
 use App\Models\StockLedger;
 use App\Models\Unit;
 use App\Services\ProductImporter;
@@ -66,21 +67,37 @@ class ProductController extends Controller
         ]);
     }
 
-    public function create(): View
+    public function create(Request $request): View
     {
-        $product = new Product(['is_active' => true, 'has_variants' => false]);
+        // Dari pesanan marketplace dengan SKU belum terdaftar: SKU & nama terisi,
+        // supaya produk baru langsung cocok dengan SKU marketplace.
+        $sku = mb_substr(mb_strtoupper(trim($request->string('sku')->toString())), 0, 50);
+        $product = new Product(['is_active' => true, 'has_variants' => false, 'sku' => $sku ?: null, 'name' => mb_substr(trim($request->string('name')->toString()), 0, 255) ?: null]);
         $product->setRelation('variants', collect());
         $product->setRelation('images', collect());
 
-        return view('master.products.create', $this->formData($product));
+        return view('master.products.create', [...$this->formData($product), 'returnOrder' => $this->returnOrder($request)]);
     }
 
     public function store(Request $request): RedirectResponse
     {
         $product = $this->save($request, new Product);
 
+        if ($order = $this->returnOrder($request)) {
+            return redirect()->route('sales.orders.show', $order)
+                ->with('success', "Produk {$product->name} ditambahkan. Pesanan dengan SKU yang sama dihubungkan otomatis.");
+        }
+
         return redirect()->route('master.products.index')
             ->with('success', "Produk {$product->name} berhasil ditambahkan.");
+    }
+
+    /** Pesanan asal (bila produk dibuat dari halaman pesanan) untuk kembali setelah simpan. */
+    private function returnOrder(Request $request): ?SalesOrder
+    {
+        $id = $request->integer('return_order');
+
+        return $id && $request->user()->can('sales.view') ? SalesOrder::find($id) : null;
     }
 
     public function edit(Product $product): View
