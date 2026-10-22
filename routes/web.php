@@ -224,6 +224,7 @@ Route::middleware(['auth', 'active'])->group(function () {
         Route::get('handovers/{handover}/manifest', [HandoverController::class, 'manifest'])->middleware('can:sales.fulfill')->name('handovers.manifest');
         Route::post('orders/shipment', [ShipmentController::class, 'bulk'])->middleware('can:sales.fulfill')->name('orders.shipment.bulk');
         Route::get('orders/shipping-labels', [ShipmentController::class, 'bulkLabel'])->middleware('can:sales.fulfill')->name('orders.shipping-labels');
+        Route::get('orders/shipping-labels/part', [ShipmentController::class, 'labelPart'])->middleware('can:sales.fulfill')->name('orders.shipping-labels.part');
         Route::get('orders/{order}', [SalesOrderController::class, 'show'])->middleware('can:sales.view')->name('orders.show');
         Route::get('orders/{order}/edit', [SalesOrderController::class, 'edit'])->middleware('can:sales.create')->name('orders.edit');
         Route::put('orders/{order}', [SalesOrderController::class, 'update'])->middleware('can:sales.create')->name('orders.update');
