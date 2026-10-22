@@ -3,7 +3,7 @@
     produk/SKU, pesanan, resi, retur, penerimaan, mutasi, opname, lokasi & supplier dicari
     lewat route('search'). Logika di resources/js/search.js.
 --}}
-@props(['navigation' => []])
+@props(['navigation' => [], 'settings' => []])
 
 @php
     $user = auth()->user();
@@ -17,7 +17,14 @@
                 'subtitle' => $section['heading'] ?? 'Menu',
                 'url' => route($item['route']),
             ]))
-        ->push(['kind' => 'page', 'title' => 'Profil Saya', 'subtitle' => 'Akun', 'url' => route('profile.edit'), 'keywords' => 'password akun']);
+        // Halaman di dalam Pengaturan tetap bisa dicari langsung (Profil Saya termasuk di sini).
+        ->concat(collect($settings)->flatMap(fn ($group) => collect($group['items'])->map(fn ($item) => [
+            'kind' => 'page',
+            'title' => $item['label'],
+            'subtitle' => 'Pengaturan · '.$group['heading'],
+            'url' => route($item['route']),
+            'keywords' => $item['keywords'] ?? '',
+        ])));
 
     $actions = [
         ['Buat Pesanan Baru', 'sales.orders.create', 'sales.create', 'tambah order so'],

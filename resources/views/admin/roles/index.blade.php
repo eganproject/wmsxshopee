@@ -2,7 +2,7 @@
     <x-slot:breadcrumb>
         <x-heroicon-o-home class="size-4" />
         <x-heroicon-o-chevron-right class="size-3.5" />
-        <span>Administrasi</span>
+        <a href="{{ route('settings') }}" class="hover:text-slate-700">Pengaturan</a>
         <x-heroicon-o-chevron-right class="size-3.5" />
         <span class="font-medium text-slate-700">Role & Permission</span>
     </x-slot:breadcrumb>

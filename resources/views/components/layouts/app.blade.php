@@ -34,7 +34,6 @@
                 // Kartu Stok & Mutasi Stok adalah tab di halaman Stok, jadi menu Stok tetap aktif di sana.
                 ['label' => 'Stok', 'route' => 'inventory.stocks.index', 'active' => ['inventory.stocks.*', 'inventory.stock-card.*', 'inventory.movements.*'], 'icon' => 'heroicon-o-archive-box', 'can' => 'inventory.view'],
                 ['label' => 'Transfer Gudang', 'route' => 'inventory.transfers.index', 'active' => 'inventory.transfers.*', 'icon' => 'heroicon-o-truck', 'can' => 'inventory.view'],
-                ['label' => 'Lokasi Tetap SKU', 'route' => 'inventory.sku-settings.index', 'active' => 'inventory.sku-settings.*', 'icon' => 'heroicon-o-map-pin', 'can' => 'inventory.view'],
                 ['label' => 'Stok Rusak', 'route' => 'inventory.damaged.index', 'active' => 'inventory.damaged.*', 'icon' => 'heroicon-o-exclamation-triangle', 'can' => 'damaged.view'],
                 ['label' => 'Stock Opname', 'route' => 'inventory.counts.index', 'active' => 'inventory.counts.*', 'icon' => 'heroicon-o-clipboard-document-check', 'can' => 'opname.view'],
                 // Label produk butuh hak lihat produk, label lokasi butuh hak lihat gudang.
@@ -55,16 +54,13 @@
             'items' => [
                 ['label' => 'Toko Marketplace', 'route' => 'marketplace.shops', 'active' => ['marketplace.shops', 'shopee.mappings.*', 'tiktok.mappings.*'], 'icon' => 'heroicon-o-building-storefront', 'can' => ['shopee.view', 'tiktok.view']],
                 ['label' => 'Status Produk', 'route' => 'marketplace.products', 'active' => 'marketplace.products', 'icon' => 'heroicon-o-check-badge', 'can' => ['shopee.view', 'tiktok.view']],
-                ['label' => 'Pengaturan Marketplace', 'route' => 'marketplace.settings', 'active' => 'marketplace.settings', 'icon' => 'heroicon-o-key', 'can' => ['shopee.settings', 'tiktok.settings']],
             ],
         ],
         [
             'heading' => 'Administrasi',
             'items' => [
-                ['label' => 'Manajemen User', 'route' => 'admin.users.index', 'active' => 'admin.users.*', 'icon' => 'heroicon-o-users', 'can' => 'users.view'],
-                ['label' => 'Role & Permission', 'route' => 'admin.roles.index', 'active' => 'admin.roles.*', 'icon' => 'heroicon-o-shield-check', 'can' => 'roles.view'],
-                ['label' => 'Log Aktivitas', 'route' => 'admin.activity.index', 'active' => 'admin.activity.*', 'icon' => 'heroicon-o-clock', 'can' => 'activity.view'],
-                ['label' => 'Backup Database', 'route' => 'admin.backups.index', 'active' => 'admin.backups.*', 'icon' => 'heroicon-o-circle-stack', 'can' => 'backups.view'],
+                // Semua menu pengaturan dikumpulkan di halaman Pengaturan (App\Support\SettingsMenu).
+                ['label' => 'Pengaturan', 'route' => 'settings', 'active' => \App\Support\SettingsMenu::activePatterns(), 'icon' => 'heroicon-o-cog-6-tooth', 'can' => null],
             ],
         ],
     ];
@@ -199,7 +195,7 @@
                 @endisset
             </div>
 
-            <x-global-search :navigation="$navigation" />
+            <x-global-search :navigation="$navigation" :settings="\App\Support\SettingsMenu::visibleGroups($user)" />
 
             @can('marketplace.view')
                 <x-marketplace-shops-menu />
@@ -228,6 +224,9 @@
                     <div class="my-1 border-t border-slate-100"></div>
                     <a href="{{ route('profile.edit') }}" class="flex h-7 items-center gap-2 rounded-lg px-2.5 text-sm text-slate-700 hover:bg-slate-100">
                         <x-heroicon-o-user-circle class="size-4 text-slate-500" /> Profil Saya
+                    </a>
+                    <a href="{{ route('settings') }}" class="flex h-7 items-center gap-2 rounded-lg px-2.5 text-sm text-slate-700 hover:bg-slate-100">
+                        <x-heroicon-o-cog-6-tooth class="size-4 text-slate-500" /> Pengaturan
                     </a>
                     <form method="POST" action="{{ route('logout') }}">
                         @csrf
