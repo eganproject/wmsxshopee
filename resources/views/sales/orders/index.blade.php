@@ -149,7 +149,12 @@
                             <td class="px-4 py-2.5">
                                 <p class="text-slate-700">{{ $order->channel_name ?? '—' }}</p>
                                 @if ($order->shopee_sync_error || $order->tiktok_sync_error)
-                                    <p class="text-xs text-amber-600" title="{{ $order->shopee_sync_error ?? $order->tiktok_sync_error }}">Perlu dicek</p>
+                                    <a href="{{ route('sales.orders.show', $order) }}{{ $order->hasStatus('draft') && $order->unmapped_skus !== null ? '#sku-mapping' : '' }}"
+                                       class="inline-flex items-center gap-1 text-xs font-medium text-amber-600 hover:text-amber-700 hover:underline"
+                                       title="{{ ($order->shopee_sync_error ?? $order->tiktok_sync_error) }} · Klik untuk menyelesaikan">
+                                        <x-heroicon-o-exclamation-triangle class="size-3.5" />
+                                        {{ $order->hasStatus('draft') && $order->unmapped_skus !== null ? 'SKU belum terhubung · Selesaikan' : 'Perlu dicek' }}
+                                    </a>
                                 @endif
                                 @if ($order->external_number)
                                     <p class="font-mono text-xs text-slate-500">{{ $order->external_number }}</p>

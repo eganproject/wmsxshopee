@@ -136,6 +136,9 @@
                             @can('shopee.view')
                                 <a href="{{ route('shopee.mappings.index', ['shop' => $order->shopee_shop_id, 'status' => 'unmapped']) }}" class="inline-flex items-center gap-1 font-medium underline"><x-heroicon-o-link class="size-4" /> Buka Pemetaan SKU</a>
                             @endcan
+                            @if ($unmappedSkus->isNotEmpty())
+                                <a href="#sku-mapping" class="inline-flex items-center gap-1 font-medium underline"><x-heroicon-o-wrench-screwdriver class="size-4" /> Selesaikan di bawah</a>
+                            @endif
                             <span>Setelah SKU dipetakan, pesanan ini terhubung & dikonfirmasi otomatis. Bisa juga tekan Sinkronkan ulang.</span>
                         </p>
                     @endif
@@ -173,12 +176,83 @@
                             @can('tiktok.view')
                                 <a href="{{ route('tiktok.mappings.index', ['shop' => $order->tiktok_shop_id, 'status' => 'unmapped']) }}" class="inline-flex items-center gap-1 font-medium underline"><x-heroicon-o-link class="size-4" /> Buka Pemetaan SKU</a>
                             @endcan
+                            @if ($unmappedSkus->isNotEmpty())
+                                <a href="#sku-mapping" class="inline-flex items-center gap-1 font-medium underline"><x-heroicon-o-wrench-screwdriver class="size-4" /> Selesaikan di bawah</a>
+                            @endif
                             <span>Setelah SKU dipetakan, pesanan ini terhubung & dikonfirmasi otomatis. Bisa juga tekan Sinkronkan ulang.</span>
                         </p>
                     @endif
                 @elseif ($order->hasStatus('confirmed', 'picked', 'packed') && ! $order->tiktokShipmentArranged())
                     <p class="mt-0.5">Atur pickup / drop off dengan tombol Atur Pengiriman (atau dari TikTok Shop Seller Center); status & resi masuk otomatis.</p>
                 @endif
+            </div>
+        </div>
+    @endif
+
+    @if ($unmappedSkus->isNotEmpty())
+        @php
+            $platform = $unmappedSkus->first()['platform'];
+            $platformLabel = $platform === 'shopee' ? 'Shopee' : 'TikTok';
+            $canMap = auth()->user()->can($platform.'.mapping');
+        @endphp
+        <div id="sku-mapping" class="card mb-6 scroll-mt-20 border-amber-200">
+            <div class="flex flex-wrap items-center justify-between gap-2 border-b border-amber-100 bg-amber-50/60 px-5 py-3">
+                <h2 class="flex items-center gap-2 font-semibold text-amber-900">
+                    <x-heroicon-o-link class="size-5" /> SKU {{ $platformLabel }} belum terhubung ({{ $unmappedSkus->count() }})
+                </h2>
+                <p class="text-sm text-amber-800">Pilih produk Optima yang sesuai. Setelah semua SKU terhubung, pesanan dikonfirmasi otomatis.</p>
+            </div>
+            <div class="divide-y divide-slate-100">
+                @foreach ($unmappedSkus as $row)
+                    <div class="grid gap-4 px-5 py-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.6fr)]">
+                        <div class="min-w-0">
+                            <p class="font-mono text-sm font-medium text-slate-900">{{ $row['sku'] ?: 'Tanpa SKU' }}</p>
+                            <p class="text-sm text-slate-600">{{ $row['name'] ?? '—' }}@if ($row['variation']) · {{ $row['variation'] }}@endif</p>
+                            <p class="text-xs text-slate-500">Dipesan {{ $row['qty'] }} pcs</p>
+                        </div>
+                        <div class="space-y-3">
+                            @if ($canMap)
+                                @if ($row['suggestions']->isNotEmpty())
+                                    <div>
+                                        <p class="mb-1.5 text-xs font-medium uppercase tracking-wide text-slate-500">Saran produk mirip</p>
+                                        <div class="flex flex-wrap gap-2">
+                                            @foreach ($row['suggestions'] as $suggestion)
+                                                <form method="POST" action="{{ route('sales.orders.map-sku', $order) }}">
+                                                    @csrf
+                                                    <input type="hidden" name="mapping_id" value="{{ $row['mapping']->id }}">
+                                                    <input type="hidden" name="target" value="{{ $suggestion['target'] }}">
+                                                    <button type="submit" class="btn-secondary text-left text-sm" title="Petakan {{ $row['sku'] }} ke {{ $suggestion['label'] }}">
+                                                        <x-heroicon-o-sparkles class="size-4 text-amber-500" /> {{ $suggestion['label'] }}
+                                                    </button>
+                                                </form>
+                                            @endforeach
+                                        </div>
+                                    </div>
+                                @endif
+                                <form method="POST" action="{{ route('sales.orders.map-sku', $order) }}" class="flex flex-col gap-2 sm:flex-row sm:items-center">
+                                    @csrf
+                                    <input type="hidden" name="mapping_id" value="{{ $row['mapping']->id }}">
+                                    <div class="min-w-0 flex-1">
+                                        <select name="target" class="form-input" aria-label="Produk Optima untuk {{ $row['sku'] }}" required
+                                                data-remote="{{ route($platform.'.mappings.lookup') }}" data-placeholder="Cari SKU / nama produk / paket Optima">
+                                            <option value="">Cari SKU / nama produk / paket Optima</option>
+                                        </select>
+                                    </div>
+                                    <button type="submit" class="btn-primary shrink-0"><x-heroicon-o-link class="size-5" /> Petakan</button>
+                                </form>
+                            @else
+                                <p class="text-sm text-slate-500">Minta admin dengan hak pemetaan SKU {{ $platformLabel }} untuk menghubungkan SKU ini.</p>
+                            @endif
+                            @can('products.create')
+                                <p class="text-sm text-slate-600">Produknya belum ada di Optima?
+                                    <a href="{{ route('master.products.create', ['sku' => $row['sku'], 'name' => trim(($row['name'] ?? '').($row['variation'] ? ' '.$row['variation'] : '')), 'return_order' => $order->id]) }}" class="inline-flex items-center gap-1 font-medium text-sky-700 hover:underline">
+                                        <x-heroicon-o-plus class="size-4" /> Buat produk baru dengan SKU {{ $row['sku'] }}
+                                    </a>
+                                </p>
+                            @endcan
+                        </div>
+                    </div>
+                @endforeach
             </div>
         </div>
     @endif

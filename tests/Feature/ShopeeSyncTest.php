@@ -307,6 +307,68 @@ class ShopeeSyncTest extends TestCase
         Http::assertSent(fn (Request $r) => str_contains($r->url(), 'get_order_detail') && str_contains($r['order_sn_list'], 'B3'));
     }
 
+    public function test_unmapped_sku_can_be_resolved_from_the_order_page(): void
+    {
+        $this->actingAs(User::where('username', 'superadmin')->first());
+        $this->fakeOrders([$this->order('B6', 'READY_TO_SHIP', [[...$this->line(33, 301, 2, 'KAOSL'), 'item_name' => 'Kaos Polos', 'model_name' => 'L']])]);
+        $this->artisan('shopee:sync --only=orders')->assertSuccessful();
+        $order = SalesOrder::where('external_number', 'B6')->firstOrFail();
+        $mapping = $this->shop->mappings()->where('item_id', 33)->firstOrFail();
+
+        $this->get('/sales/orders?status=draft')->assertOk()->assertSee('SKU belum terhubung')->assertSee('#sku-mapping', false);
+        $this->get("/sales/orders/{$order->id}")->assertOk()
+            ->assertSee('SKU Shopee belum terhubung')
+            ->assertSee('variant:'.$this->kaosL->id, false) // saran produk mirip
+            ->assertSee('Buat produk baru dengan SKU KAOSL');
+
+        $this->post("/sales/orders/{$order->id}/map-sku", ['mapping_id' => $mapping->id, 'target' => 'variant:'.$this->kaosL->id])
+            ->assertRedirect("/sales/orders/{$order->id}")
+            ->assertSessionHas('success', fn ($m) => str_contains($m, 'KAOSL dipetakan') && str_contains($m, '1 pesanan'));
+
+        $this->assertSame('confirmed', $order->refresh()->status);
+        $this->assertSame($this->kaosL->id, $mapping->refresh()->product_variant_id);
+        $this->get("/sales/orders/{$order->id}")->assertDontSee('SKU Shopee belum terhubung');
+    }
+
+    public function test_new_product_from_order_page_is_prefilled_and_links_the_order(): void
+    {
+        $this->actingAs(User::where('username', 'superadmin')->first());
+        $this->fakeOrders([$this->order('B7', 'READY_TO_SHIP', [$this->line(33, 301, 1, 'mur1')])]);
+        $this->artisan('shopee:sync --only=orders')->assertSuccessful();
+        $order = SalesOrder::where('external_number', 'B7')->firstOrFail();
+
+        $this->get("/master/products/create?sku=mur1&name=Mur+Baut&return_order={$order->id}")->assertOk()
+            ->assertSee('value="MUR1"', false)->assertSee('Mur Baut')->assertSee($order->number);
+
+        $this->post('/master/products', [
+            'sku' => 'MUR1', 'name' => 'Mur Baut', 'unit_id' => Unit::where('code', 'PCS')->value('id'), 'has_variants' => '0', 'is_active' => '1',
+            'variants' => [['sku' => '', 'name' => '']], 'return_order' => $order->id,
+        ])->assertSessionHasNoErrors()->assertRedirect("/sales/orders/{$order->id}");
+
+        $order->refresh();
+        $this->assertNull($order->unmapped_skus, 'SKU terhubung ke produk baru.');
+        $this->assertStringContainsString('MUR1 tidak cukup', (string) $order->shopee_sync_error); // stok belum ada
+    }
+
+    public function test_map_sku_from_order_requires_mapping_permission_and_same_shop(): void
+    {
+        $this->fakeOrders([$this->order('B8', 'READY_TO_SHIP', [$this->line(33, 301, 1, 'TOPI-Q')])]);
+        $this->artisan('shopee:sync --only=orders')->assertSuccessful();
+        $order = SalesOrder::where('external_number', 'B8')->firstOrFail();
+        $mapping = $this->shop->mappings()->where('item_id', 33)->firstOrFail();
+
+        $staff = User::factory()->create(['username' => 'staf', 'is_active' => true]);
+        $staff->assignRole('Staff Gudang');
+        $staff->warehouses()->sync([$this->warehouse->id]);
+        $this->actingAs($staff)->post("/sales/orders/{$order->id}/map-sku", ['mapping_id' => $mapping->id, 'target' => 'variant:'.$this->kaosL->id])->assertForbidden();
+
+        $other = ShopeeShop::create(['environment' => 'test', 'shop_id' => 556, 'shop_name' => 'Lain', 'status' => 'connected']);
+        $foreign = $other->mappings()->create(['item_id' => 99, 'model_id' => 0, 'shopee_sku' => 'X']);
+        $this->actingAs(User::where('username', 'superadmin')->first())
+            ->post("/sales/orders/{$order->id}/map-sku", ['mapping_id' => $foreign->id, 'target' => 'variant:'.$this->kaosL->id])->assertNotFound();
+        $this->assertFalse($mapping->refresh()->isMapped());
+    }
+
     public function test_resync_falls_back_to_saved_items_when_shopee_is_unreachable(): void
     {
         $this->actingAs(User::where('username', 'superadmin')->first());
