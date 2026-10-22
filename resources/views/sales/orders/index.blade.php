@@ -119,6 +119,7 @@
                  x-transition:leave="transition duration-100 ease-in" x-transition:leave-start="opacity-100" x-transition:leave-end="translate-y-4 opacity-0"
                  @keydown.escape.window="selected = []"
                  class="pointer-events-none fixed inset-x-0 bottom-4 z-40 flex justify-center px-4 lg:left-60 lg:collapsed:left-14"
+                 style="position: fixed; bottom: 1rem;"
                  role="region" aria-label="Aksi untuk pesanan terpilih">
                 <div class="pointer-events-auto w-full max-w-5xl rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm shadow-xl shadow-slate-900/10">
                     <div class="flex flex-wrap items-center gap-x-3 gap-y-2">
