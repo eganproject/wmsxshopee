@@ -5,8 +5,10 @@ namespace App\Services\Tiktok;
 use App\Models\Bundle;
 use App\Models\TiktokShop;
 use App\Models\TiktokSkuMapping;
+use App\Services\StockPushFilter;
 use App\Services\WarehouseSupply;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Cache;
 
 /**
  * Kirim stok tersedia ke TikTok lewat
@@ -22,21 +24,38 @@ class TiktokStockSync
     public function __construct(private readonly WarehouseSupply $supply) {}
 
     /**
+     * $onlyChanged: kirim hanya SKU yang stoknya beda dari yang terakhir terkirim
+     * (dipakai kirim stok otomatis tiap ada perubahan); tanpa itu semua SKU dikirim ulang.
+     *
      * @return array{products: int, skus: int, failed: list<string>}
      */
-    public function push(TiktokShop $shop, ?TiktokShopApi $api = null): array
+    public function push(TiktokShop $shop, ?TiktokShopApi $api = null, bool $onlyChanged = false): array
     {
-        $api ??= TiktokShopApi::for($shop);
+        // Satu kiriman stok per toko pada satu waktu, supaya angka lama tidak menimpa yang baru.
+        return Cache::lock('stock-push:tiktok:'.$shop->id, 300)
+            ->block(120, fn () => $this->pushLocked($shop, $api, $onlyChanged));
+    }
+
+    /**
+     * @return array{products: int, skus: int, failed: list<string>}
+     */
+    private function pushLocked(TiktokShop $shop, ?TiktokShopApi $api, bool $onlyChanged): array
+    {
         $mappings = $shop->mappings()->where(fn ($q) => $q->whereNotNull('product_variant_id')->orWhereNotNull('bundle_id'))->get();
         $failed = [];
         $skus = 0;
+        $stock = $this->levels($shop, $mappings);
+
+        if ($onlyChanged) {
+            $mappings = $mappings->filter(fn (TiktokSkuMapping $row) => StockPushFilter::changed($row, max(0, $stock($row))))->values();
+        }
 
         if ($mappings->isEmpty()) {
             return ['products' => 0, 'skus' => 0, 'failed' => []];
         }
 
+        $api ??= TiktokShopApi::for($shop);
         $warehouseId = $this->tiktokWarehouse($shop, $api);
-        $stock = $this->levels($shop, $mappings);
 
         foreach ($mappings->groupBy('product_id') as $productId => $rows) {
             $body = ['skus' => $rows->map(fn (TiktokSkuMapping $row) => [

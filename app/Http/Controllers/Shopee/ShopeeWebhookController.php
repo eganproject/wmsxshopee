@@ -2,13 +2,11 @@
 
 namespace App\Http\Controllers\Shopee;
 
+use App\Http\Controllers\Concerns\QueuesWebhookEvents;
 use App\Http\Controllers\Controller;
+use App\Models\MarketplaceWebhookEvent;
 use App\Models\ShopeeSetting;
 use App\Models\ShopeeShop;
-use App\Services\Shopee\ShopeeAuth;
-use App\Services\Shopee\ShopeeClient;
-use App\Services\Shopee\ShopeeException;
-use App\Services\Shopee\ShopeeOrderSync;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Log;
@@ -18,11 +16,15 @@ use Illuminate\Support\Facades\Log;
  * berubah (code 3), resi terbit (code 4) atau otorisasi toko dicabut (code 2).
  * Tanda tangan di header Authorization = HMAC-SHA256(key, url + "|" + body), dengan key =
  * Live Push Partner Key dari menu Push Mechanism (app lama: partner key app).
+ * Push disimpan di marketplace_webhook_events lalu diproses job antrean
+ * (ProcessMarketplaceWebhook -> ShopeeWebhookHandler), jadi tidak hilang bila gagal.
  * Daftarkan URL ini di console app Shopee (Push Mechanism) bila Optima bisa
  * diakses dari internet; tanpa itu sinkron terjadwal tetap berjalan.
  */
 class ShopeeWebhookController extends Controller
 {
+    use QueuesWebhookEvents;
+
     public function __invoke(Request $request): Response
     {
         $payload = $request->json()->all();
@@ -52,34 +54,12 @@ class ShopeeWebhookController extends Controller
             default => "Push diterima untuk {$shop->displayName()} (code {$code}).",
         });
 
-        // Otorisasi dicabut: pastikan lewat get_shop_info dulu, baru tandai perlu otorisasi ulang.
-        if ($code === 2) {
-            dispatch(function () use ($shop) {
-                try {
-                    app(ShopeeAuth::class)->syncShopInfo(ShopeeClient::make($shop->environment), $shop);
-                } catch (ShopeeException $e) {
-                    $shop->update([
-                        'last_error' => 'Otorisasi toko dicabut dari Shopee. Hubungkan ulang toko. ('.$e->getMessage().')',
-                        'status' => $e->needsReauthorization() ? 'expired' : $shop->status,
-                    ]);
-                }
-            })->afterResponse();
-
-            return response()->noContent(200);
-        }
         $orderSn = (string) ($data['ordersn'] ?? $data['order_sn'] ?? '');
 
-        if ($orderSn !== '' && $shop->isSyncable() && in_array($code, [3, 4], true)) {
-            dispatch(function () use ($shop, $code, $data, $orderSn) {
-                try {
-                    $sync = app(ShopeeOrderSync::class);
-                    $code === 4 && filled($data['tracking_no'] ?? null)
-                        ? $sync->applyTracking($shop, $orderSn, $data['tracking_no'], $data['package_number'] ?? null)
-                        : $sync->syncOne($shop, $orderSn);
-                } catch (ShopeeException $e) {
-                    Log::warning('Shopee push gagal diproses', ['shop_id' => $shop->shop_id, 'order_sn' => $orderSn, 'error' => $e->getMessage()]);
-                }
-            })->afterResponse();
+        // Simpan dulu, proses lewat antrean (diulang otomatis bila gagal). Push dobel diabaikan.
+        if ($code === 2 || ($orderSn !== '' && in_array($code, [3, 4], true))) {
+            $event = MarketplaceWebhookEvent::record('shopee', $shop, $code, $orderSn, $payload, $request->getContent());
+            $event && $this->dispatchEvent($event);
         }
 
         return response()->noContent(200);

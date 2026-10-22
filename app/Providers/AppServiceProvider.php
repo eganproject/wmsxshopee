@@ -4,10 +4,15 @@ namespace App\Providers;
 
 use App\Models\Bundle;
 use App\Models\ProductVariant;
+use App\Models\SalesOrder;
 use App\Models\ShopeeSkuMapping;
+use App\Models\Stock;
 use App\Models\TiktokSkuMapping;
 use App\Models\User;
+use App\Models\Warehouse;
+use App\Models\WarehouseTransfer;
 use App\Services\MarketplaceOrderRelink;
+use App\Services\MarketplaceStockPush;
 use App\Support\Activity;
 use Illuminate\Auth\Events\Failed;
 use Illuminate\Auth\Events\Login;
@@ -28,6 +33,7 @@ class AppServiceProvider extends ServiceProvider
     {
         // Satu instance per request supaya penghubungan ulang pesanan hanya dijadwalkan sekali.
         $this->app->singleton(MarketplaceOrderRelink::class);
+        $this->app->singleton(MarketplaceStockPush::class);
     }
 
     /**
@@ -55,6 +61,15 @@ class AppServiceProvider extends ServiceProvider
         $mapped = fn ($mapping) => $mapping->isMapped() && ($created($mapping) || $mapping->wasChanged(['product_variant_id', 'bundle_id']));
         ShopeeSkuMapping::saved(fn (ShopeeSkuMapping $mapping) => $mapped($mapping) ? $relink() : null);
         TiktokSkuMapping::saved(fn (TiktokSkuMapping $mapping) => $mapped($mapping) ? $relink() : null);
+
+        // Stok jual berubah (stok fisik, cadangan pesanan, transfer dalam perjalanan,
+        // gudang cadangan): kirim ke Shopee & TikTok lewat antrean, tanpa menunggu jadwal.
+        $pushStock = fn () => $this->app->make(MarketplaceStockPush::class)->queue();
+        Stock::saved($pushStock);
+        Stock::deleted($pushStock);
+        SalesOrder::saved(fn (SalesOrder $order) => $order->wasChanged(['status', 'warehouse_id']) || ($created($order) && in_array($order->status, SalesOrder::RESERVING, true)) ? $pushStock() : null);
+        WarehouseTransfer::saved(fn (WarehouseTransfer $transfer) => $transfer->wasChanged('status') ? $pushStock() : null);
+        Warehouse::saved(fn (Warehouse $warehouse) => $warehouse->wasChanged(['supply_warehouse_id', 'supply_stock_percent']) ? $pushStock() : null);
 
         Password::defaults(fn () => Password::min(8)->letters()->numbers());
 

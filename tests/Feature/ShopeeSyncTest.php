@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\Bundle;
 use App\Models\Courier;
+use App\Models\MarketplaceWebhookEvent;
 use App\Models\Product;
 use App\Models\ProductVariant;
 use App\Models\SalesOrder;
@@ -20,6 +21,7 @@ use App\Services\MarketplaceOrderRelink;
 use App\Services\SalesOrderService;
 use App\Services\Shopee\ShopeeStockSync;
 use App\Services\StockService;
+use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Factory;
 use Illuminate\Http\Client\Request;
@@ -645,6 +647,71 @@ class ShopeeSyncTest extends TestCase
         $other = json_encode(['shop_id' => 999, 'code' => 3, 'data' => ['ordersn' => 'X']]);
         $this->call('POST', $url, [], [], [], ['CONTENT_TYPE' => 'application/json', 'HTTP_AUTHORIZATION' => 'x'], $other)->assertOk();
         $this->assertStringContainsString('#999 belum terhubung', ShopeeSetting::current()->last_push_result);
+    }
+
+    public function test_webhook_is_stored_deduplicated_and_kept_when_processing_fails(): void
+    {
+        $this->fakeOrders([$this->order('W1', 'READY_TO_SHIP', [$this->line(11, 101, 1)])]);
+        $url = route('shopee.webhook');
+        $send = function (array $payload) use ($url) {
+            $body = json_encode($payload);
+
+            return $this->call('POST', $url, [], [], [], ['CONTENT_TYPE' => 'application/json', 'HTTP_AUTHORIZATION' => hash_hmac('sha256', $url.'|'.$body, 'rahasia-test')], $body);
+        };
+        $push = ['shop_id' => 555, 'code' => 3, 'timestamp' => 1700000000, 'data' => ['ordersn' => 'W1', 'status' => 'READY_TO_SHIP']];
+
+        $send($push)->assertOk();
+        $send($push)->assertOk();
+
+        $event = MarketplaceWebhookEvent::sole();
+        $this->assertSame(['shopee', '555', $this->shop->id, 3, 'W1', 'processed', 1], [$event->platform, $event->shop_id, $event->shop_ref, $event->event_type, $event->order_id, $event->status, $event->attempts]);
+        $this->assertSame(1, SalesOrder::where('external_number', 'W1')->count());
+
+        // Shopee sedang error: push tetap diterima (200) dan tersimpan sebagai gagal beserta alasannya.
+        Http::swap(new Factory);
+        Http::preventStrayRequests();
+        Http::fake(['*/order/get_order_detail*' => Http::response(['error' => 'error_server', 'message' => 'Sistem sibuk'])]);
+        $send([...$push, 'timestamp' => 1700000100, 'data' => ['ordersn' => 'W2']])->assertOk();
+
+        $failed = MarketplaceWebhookEvent::where('order_id', 'W2')->sole();
+        $this->assertSame('failed', $failed->status);
+        $this->assertStringContainsString('Sistem sibuk', $failed->error);
+    }
+
+    public function test_same_marketplace_order_cannot_be_stored_twice(): void
+    {
+        $this->fakeOrders([$this->order('U1', 'READY_TO_SHIP', [$this->line(11, 101, 1)])]);
+        $this->artisan('shopee:sync --only=orders')->assertSuccessful();
+        $order = SalesOrder::where('external_number', 'U1')->sole();
+
+        $this->expectException(QueryException::class);
+        SalesOrder::create([...$order->only(['warehouse_id', 'order_date', 'channel_name', 'shopee_shop_id', 'external_number']), 'number' => 'SO-DOBEL', 'status' => 'draft']);
+    }
+
+    public function test_stock_push_sends_only_changed_skus_and_runs_after_stock_changes(): void
+    {
+        Http::fake(['*/product/update_stock*' => Http::response(['error' => '', 'response' => []])]);
+
+        $this->artisan('marketplace:push-stock')->assertSuccessful();
+        Http::assertSentCount(2);
+
+        // Tidak ada yang berubah: tidak ada panggilan ke Shopee.
+        $this->artisan('marketplace:push-stock')->assertSuccessful();
+        Http::assertSentCount(2);
+
+        // Stok berubah: kirim otomatis lewat antrean, hanya SKU yang terdampak.
+        config(['marketplace.instant_stock_push' => true]);
+        app(StockService::class)->record(['type' => 'in', 'warehouse_id' => $this->warehouse->id, 'movement_date' => now()->toDateString()], [
+            ['product_variant_id' => $this->kaosL->id, 'to_location_id' => null, 'qty' => 3],
+        ]);
+
+        Http::assertSentCount(4);
+        Http::assertSent(fn (Request $r) => $r['item_id'] === 11 && $r['stock_list'] === [['model_id' => 102, 'seller_stock' => [['stock' => 7]]]]);
+        Http::assertSent(fn (Request $r) => $r['item_id'] === 22 && $r['stock_list'] === [['model_id' => 0, 'seller_stock' => [['stock' => 7]]]]);
+
+        // --all tetap mengirim semua SKU.
+        $this->artisan('marketplace:push-stock --all')->assertSuccessful();
+        Http::assertSentCount(6);
     }
 
     public function test_deauthorization_push_marks_shop_after_confirming(): void

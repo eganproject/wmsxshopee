@@ -5,8 +5,10 @@ namespace App\Services\Shopee;
 use App\Models\Bundle;
 use App\Models\ShopeeShop;
 use App\Models\ShopeeSkuMapping;
+use App\Services\StockPushFilter;
 use App\Services\WarehouseSupply;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Cache;
 
 /**
  * Kirim stok tersedia ke Shopee lewat /product/update_stock (seller_stock).
@@ -23,13 +25,35 @@ class ShopeeStockSync
     public function __construct(private readonly WarehouseSupply $supply) {}
 
     /**
+     * $onlyChanged: kirim hanya baris yang stoknya beda dari yang terakhir terkirim
+     * (dipakai kirim stok otomatis tiap ada perubahan); tanpa itu semua baris dikirim ulang.
+     *
      * @return array{items: int, models: int, failed: list<string>}
      */
-    public function push(ShopeeShop $shop, ?ShopeeShopApi $api = null): array
+    public function push(ShopeeShop $shop, ?ShopeeShopApi $api = null, bool $onlyChanged = false): array
     {
-        $api ??= ShopeeShopApi::for($shop);
+        // Satu kiriman stok per toko pada satu waktu, supaya angka lama tidak menimpa yang baru.
+        return Cache::lock('stock-push:shopee:'.$shop->id, 300)
+            ->block(120, fn () => $this->pushLocked($shop, $api, $onlyChanged));
+    }
+
+    /**
+     * @return array{items: int, models: int, failed: list<string>}
+     */
+    private function pushLocked(ShopeeShop $shop, ?ShopeeShopApi $api, bool $onlyChanged): array
+    {
         $mappings = $shop->mappings()->where(fn ($q) => $q->whereNotNull('product_variant_id')->orWhereNotNull('bundle_id'))->get();
         $stock = $this->levels($shop, $mappings);
+
+        if ($onlyChanged) {
+            $mappings = $mappings->filter(fn (ShopeeSkuMapping $row) => StockPushFilter::changed($row, max(0, $stock($row))))->values();
+
+            if ($mappings->isEmpty()) {
+                return ['items' => 0, 'models' => 0, 'failed' => []];
+            }
+        }
+
+        $api ??= ShopeeShopApi::for($shop);
         $failed = [];
         $models = 0;
 
