@@ -32,7 +32,7 @@ class SalesOrderController extends Controller
     public function index(Request $request): View|BinaryFileResponse
     {
         $query = $this->filtered($request)
-            ->with(['warehouse', 'courier'])
+            ->with(['warehouse', 'courier', 'looseItems.variant.product', 'bundles.bundle'])
             ->withSum('items', 'qty')
             ->when($request->filled('status'), fn ($query) => $query->where('status', $request->input('status')))
             ->latest('order_date')
@@ -355,7 +355,9 @@ class SalesOrderController extends Controller
                     ->where('number', 'like', "%{$search}%")
                     ->orWhere('external_number', 'like', "%{$search}%")
                     ->orWhere('customer_name', 'like', "%{$search}%")
-                    ->orWhere('tracking_number', 'like', "%{$search}%"));
+                    ->orWhere('tracking_number', 'like', "%{$search}%")
+                    ->orWhereHas('items.variant', fn ($v) => $v->where('sku', 'like', "%{$search}%"))
+                    ->orWhereHas('bundles.bundle', fn ($b) => $b->where('sku', 'like', "%{$search}%")));
             });
     }
 

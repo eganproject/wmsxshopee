@@ -189,6 +189,22 @@ class ShipmentFlowTest extends TestCase
         Http::assertNothingSent();
     }
 
+    public function test_order_list_shows_ordered_skus_and_searches_by_sku(): void
+    {
+        $order = $this->order(['customer_name' => 'Rani'], [
+            ['product_variant_id' => $this->kaosM->id, 'qty' => 2, 'price' => 75000],
+            ['product_variant_id' => $this->kaosL->id, 'qty' => 3, 'price' => 75000],
+        ]);
+        $other = $this->order(['customer_name' => 'Joko'], [['product_variant_id' => $this->kaosM->id, 'qty' => 1, 'price' => 75000]]);
+
+        $this->get('/sales/orders')->assertOk()
+            ->assertSee('Barang Dipesan')->assertSee('KAOS-L')->assertSee('×3')->assertSee('2 SKU · 5 barang');
+
+        $found = $this->get('/sales/orders?search=KAOS-L')->assertOk()->viewData('orders')->pluck('id');
+        $this->assertTrue($found->contains($order->id));
+        $this->assertFalse($found->contains($other->id));
+    }
+
     public function test_order_tab_counts_follow_active_filters(): void
     {
         $this->shopeeOrder('Y1');
