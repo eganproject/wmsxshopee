@@ -1,6 +1,7 @@
 @props(['order', 'limit' => 3])
 
-{{-- Ringkasan SKU yang dipesan di daftar pesanan: barang lepas, paket, dan SKU marketplace yang belum terhubung. --}}
+{{-- Ringkasan SKU yang dipesan di daftar pesanan: barang lepas, paket, dan SKU marketplace yang belum terhubung.
+     Hanya SKU yang tampil; nama produk muncul sebagai tooltip saat kursor diarahkan. --}}
 @php
     $lines = collect();
     foreach ($order->looseItems as $item) {
@@ -27,7 +28,7 @@
 @if ($lines->isEmpty())
     <span class="text-slate-400">—</span>
 @else
-    <div {{ $attributes->class('w-52') }} x-data="{ more: false }">
+    <div {{ $attributes->class('w-44') }} x-data="{ more: false }">
         <ul class="space-y-1">
             @foreach ($lines as $line)
                 <li class="flex items-baseline gap-2" @if ($loop->index >= $limit) x-show="more" x-cloak @endif title="{{ $line['sku'] }}{{ $line['name'] ? ' · '.$line['name'] : '' }}">
@@ -37,9 +38,6 @@
                             <span class="ml-0.5 rounded bg-violet-50 px-1 text-[10px] font-medium text-violet-700">Paket</span>
                         @elseif ($line['tag'] === 'unmapped')
                             <span class="ml-0.5 rounded bg-amber-50 px-1 text-[10px] font-medium text-amber-700">Belum terhubung</span>
-                        @endif
-                        @if ($line['name'] && $line['tag'] !== 'unmapped')
-                            <span class="text-xs text-slate-500">{{ $line['name'] }}</span>
                         @endif
                     </span>
                     @if ($line['qty'] !== null)

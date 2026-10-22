@@ -226,6 +226,25 @@ class SalesOrderService
         });
     }
 
+    /**
+     * Dikonfirmasi -> Sudah Diambil memakai bin usulan otomatis (dipakai aksi massal
+     * di daftar pesanan). Usulan dihitung ulang setelah pesanan & varian dikunci,
+     * supaya pesanan lain yang diproses bersamaan tidak memakai stok bin yang sama.
+     * Validasinya sama dengan picking satu pesanan.
+     *
+     * @throws ValidationException
+     */
+    public function pickSuggested(SalesOrder $order): void
+    {
+        DB::transaction(function () use ($order) {
+            $locked = $this->lock($order, ['confirmed']);
+            $locked->load('items.variant');
+            $this->lockVariants($locked);
+
+            $this->pick($locked, $this->suggestPicks($locked));
+        });
+    }
+
     /** Sudah Diambil -> Sudah Dikemas. */
     public function pack(SalesOrder $order): void
     {

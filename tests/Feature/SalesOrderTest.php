@@ -6,6 +6,7 @@ use App\Models\Courier;
 use App\Models\Product;
 use App\Models\ProductVariant;
 use App\Models\SalesOrder;
+use App\Models\ShopeeShop;
 use App\Models\Stock;
 use App\Models\StockLedger;
 use App\Models\Unit;
@@ -300,5 +301,61 @@ class SalesOrderTest extends TestCase
         $this->actingAs($staff);
         $this->get('/sales/orders')->assertOk();
         $this->get('/sales/orders/create')->assertForbidden();
+    }
+
+    public function test_bulk_pick_uses_suggested_bins_without_double_allocation(): void
+    {
+        $this->post('/sales/orders', $this->payload(['action' => 'confirm', 'items' => [['product_variant_id' => $this->variant->id, 'qty' => 5]]]));
+        $this->post('/sales/orders', $this->payload(['external_number' => 'ORD-2', 'action' => 'confirm', 'items' => [['product_variant_id' => $this->variant->id, 'qty' => 4], ['product_variant_id' => $this->other->id, 'qty' => 2]]]));
+        $this->post('/sales/orders', $this->payload(['external_number' => 'ORD-3', 'items' => [['product_variant_id' => $this->variant->id, 'qty' => 1]]]));
+        [$first, $second, $draft] = SalesOrder::orderBy('id')->with('items')->get()->all();
+
+        $this->get('/sales/orders')->assertOk()->assertSee('Tandai Diambil');
+
+        $this->from('/sales/orders')->post('/sales/orders/pick', ['orders' => [$first->id, $second->id, $draft->id]])
+            ->assertRedirect('/sales/orders')
+            ->assertSessionHas('success', fn ($message) => str_contains($message, '2 pesanan ditandai Sudah Diambil') && str_contains($message, $draft->number));
+
+        $this->assertSame('picked', $first->fresh()->status);
+        $this->assertSame('picked', $second->fresh()->status);
+        $this->assertSame('draft', $draft->fresh()->status);
+        $this->assertNotNull($first->fresh()->picked_at);
+
+        // Pesanan pertama ambil 5 dari bin A (terbanyak); bin A tinggal 1 bebas, jadi pesanan kedua ambil 4 dari bin B.
+        $picks = fn (SalesOrder $order) => $order->items()->with('picks')->get()->flatMap->picks
+            ->map(fn ($pick) => [$pick->warehouse_location_id, $pick->qty])->sort()->values()->all();
+        $this->assertSame([[$this->binA->id, 5]], $picks($first));
+        $this->assertEqualsCanonicalizing([[null, 2], [$this->binB->id, 4]], $picks($second));
+    }
+
+    public function test_bulk_pick_reports_shortage_and_marketplace_cancel_without_blocking_others(): void
+    {
+        $this->post('/sales/orders', $this->payload(['action' => 'confirm', 'items' => [['product_variant_id' => $this->variant->id, 'qty' => 3]]]));
+        $this->post('/sales/orders', $this->payload(['external_number' => 'ORD-2', 'action' => 'confirm', 'items' => [['product_variant_id' => $this->other->id, 'qty' => 2]]]));
+        $this->post('/sales/orders', $this->payload(['external_number' => 'ORD-3', 'action' => 'confirm', 'items' => [['product_variant_id' => $this->variant->id, 'qty' => 1]]]));
+        [$ok, $short, $cancelling] = SalesOrder::orderBy('id')->get()->all();
+
+        // KAOS-L hilang dari gudang setelah dikonfirmasi: stok bebas tidak cukup untuk picking.
+        Stock::where('product_variant_id', $this->other->id)->update(['qty' => 1]);
+
+        $shop = ShopeeShop::create(['environment' => 'test', 'shop_id' => 555, 'shop_name' => 'Toko Uji', 'warehouse_id' => $this->warehouse->id, 'is_active' => true, 'status' => 'connected']);
+        $cancelling->forceFill(['shopee_shop_id' => $shop->id, 'shopee_order_status' => 'IN_CANCEL'])->save();
+        $this->assertFalse($cancelling->fresh()->canBulkPick());
+
+        $this->from('/sales/orders')->post('/sales/orders/pick', ['orders' => [$ok->id, $short->id, $cancelling->id]])
+            ->assertSessionHas('success')
+            ->assertSessionHas('pick_failures', fn ($failures) => array_keys($failures) === [$short->number, $cancelling->number]
+                && str_contains($failures[$short->number], 'KAOS-L') && str_contains($failures[$cancelling->number], 'pembatalan'));
+
+        $this->assertSame('picked', $ok->fresh()->status);
+        $this->assertSame('confirmed', $short->fresh()->status);
+        $this->assertSame('confirmed', $cancelling->fresh()->status);
+        $this->assertSame(0, $short->items()->withCount('picks')->get()->sum('picks_count'));
+
+        $this->get('/sales/orders')->assertSee('2 pesanan belum bisa ditandai Sudah Diambil');
+
+        // Semua gagal: pesan error, bukan sukses.
+        $this->from('/sales/orders')->post('/sales/orders/pick', ['orders' => [$short->id]])->assertSessionHas('error');
+        $this->post('/sales/orders/pick', [])->assertSessionHasErrors('orders');
     }
 }
