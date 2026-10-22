@@ -65,7 +65,7 @@
             @endif
             <div class="relative flex-1 lg:min-w-72">
                 <x-heroicon-o-magnifying-glass class="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-slate-400" />
-                <input type="search" name="search" value="{{ request('search') }}" placeholder="Cari no. SO, no. marketplace, pembeli atau resi..." class="form-input pl-8">
+                <input type="search" name="search" value="{{ request('search') }}" placeholder="Cari no. SO, no. marketplace, pembeli, resi atau SKU..." class="form-input pl-8">
             </div>
             <select name="channel" class="form-input lg:w-48" onchange="this.form.submit()">
                 <option value="">Semua saluran</option>
@@ -113,27 +113,42 @@
         </form>
 
         @can('sales.fulfill')
-            <div x-show="selected.length" x-cloak class="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-slate-100 bg-slate-50 px-4 py-2 text-sm">
-                <span class="text-slate-600"><span class="font-semibold text-slate-900" x-text="selected.length"></span> dipilih</span>
-                <div class="flex flex-wrap items-center gap-2">
-                    @foreach (\App\Models\SalesOrder::SHIPPING_METHODS as $value => $meta)
-                        <form method="POST" action="{{ route('sales.orders.shipment.bulk') }}" x-show="count('arrange')"
-                              data-confirm-title="Atur {{ $meta['label'] }} di marketplace?" :data-confirm="count('arrange') + ' pesanan Shopee / TikTok diatur {{ $meta['label'] }} dengan alamat pickup toko dan jadwal paling awal.'" data-confirm-text="Atur {{ $meta['label'] }}">
-                            @csrf
-                            <input type="hidden" name="method" value="{{ $value }}">
-                            <template x-for="id in ids('arrange')" :key="id"><input type="hidden" name="orders[]" :value="id"></template>
-                            <button type="submit" class="btn-secondary"><x-dynamic-component :component="$meta['icon']" class="size-5" /> Atur {{ $meta['label'] }} <span class="text-slate-500" x-text="'(' + count('arrange') + ')'"></span></button>
-                        </form>
-                    @endforeach
-                    <form method="GET" action="{{ route('sales.orders.shipping-labels') }}" target="_blank" data-no-loading x-show="count('label')">
-                        <template x-for="id in ids('label')" :key="id"><input type="hidden" name="orders[]" :value="id"></template>
-                        <button type="submit" class="btn-secondary"><x-heroicon-o-printer class="size-5" /> Cetak Resi <span class="text-slate-500" x-text="'(' + count('label') + ')'"></span></button>
-                    </form>
+            {{-- Bar aksi massal mengambang di bawah layar selama ada pesanan yang dicentang. --}}
+            <div x-show="selected.length" x-cloak
+                 x-transition:enter="transition duration-150 ease-out" x-transition:enter-start="translate-y-4 opacity-0" x-transition:enter-end="translate-y-0 opacity-100"
+                 x-transition:leave="transition duration-100 ease-in" x-transition:leave-start="opacity-100" x-transition:leave-end="translate-y-4 opacity-0"
+                 @keydown.escape.window="selected = []"
+                 class="pointer-events-none fixed inset-x-0 bottom-4 z-40 flex justify-center px-4 lg:left-60 lg:collapsed:left-14"
+                 role="region" aria-label="Aksi untuk pesanan terpilih">
+                <div class="pointer-events-auto w-full max-w-5xl rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm shadow-xl shadow-slate-900/10">
+                    <div class="flex flex-wrap items-center gap-x-3 gap-y-2">
+                        <span class="flex items-center gap-2 text-slate-600">
+                            <span class="flex h-6 min-w-6 items-center justify-center rounded-full bg-slate-900 px-1.5 text-xs font-semibold text-white" x-text="selected.length"></span>
+                            pesanan dipilih
+                        </span>
+                        <span class="hidden h-5 w-px bg-slate-200 sm:block"></span>
+                        <div class="flex flex-wrap items-center gap-2">
+                            @foreach (\App\Models\SalesOrder::SHIPPING_METHODS as $value => $meta)
+                                <form method="POST" action="{{ route('sales.orders.shipment.bulk') }}" x-show="count('arrange')"
+                                      data-confirm-title="Atur {{ $meta['label'] }} di marketplace?" :data-confirm="count('arrange') + ' pesanan Shopee / TikTok diatur {{ $meta['label'] }} dengan alamat pickup toko dan jadwal paling awal.'" data-confirm-text="Atur {{ $meta['label'] }}">
+                                    @csrf
+                                    <input type="hidden" name="method" value="{{ $value }}">
+                                    <template x-for="id in ids('arrange')" :key="id"><input type="hidden" name="orders[]" :value="id"></template>
+                                    <button type="submit" class="btn-secondary"><x-dynamic-component :component="$meta['icon']" class="size-5" /> Atur {{ $meta['label'] }} <span class="text-slate-500" x-text="'(' + count('arrange') + ')'"></span></button>
+                                </form>
+                            @endforeach
+                            <form method="GET" action="{{ route('sales.orders.shipping-labels') }}" target="_blank" data-no-loading x-show="count('label')">
+                                <template x-for="id in ids('label')" :key="id"><input type="hidden" name="orders[]" :value="id"></template>
+                                <button type="submit" class="btn-primary"><x-heroicon-o-printer class="size-5" /> Cetak Resi <span class="opacity-75" x-text="'(' + count('label') + ')'"></span></button>
+                            </form>
+                            <p class="text-xs text-slate-500" x-show="! count('arrange') && ! count('label')">Tidak ada aksi untuk pesanan terpilih.</p>
+                        </div>
+                        <button type="button" class="btn-secondary ml-auto" title="Batal pilih (Esc)" @click="selected = []"><x-heroicon-o-x-mark class="size-5" /> Batal</button>
+                    </div>
+                    <p class="mt-2 flex items-center gap-1 border-t border-slate-100 pt-2 text-xs text-slate-500" x-show="skipped">
+                        <x-heroicon-o-information-circle class="size-4 shrink-0" /> <span>Dilewati: <span x-text="skipped"></span></span>
+                    </p>
                 </div>
-                <p class="flex items-center gap-1 text-xs text-slate-500" x-show="skipped">
-                    <x-heroicon-o-information-circle class="size-4 shrink-0" /> <span>Dilewati: <span x-text="skipped"></span></span>
-                </p>
-                <button type="button" class="btn-icon ml-auto" title="Batal pilih" @click="selected = []"><x-heroicon-o-x-mark class="size-5" /></button>
             </div>
         @endcan
 
@@ -147,14 +162,13 @@
                                        @change="selected = $event.target.checked ? @js($orders->pluck('id')) : []">
                             </th>
                         @endcan
-                        <th class="h-8 px-4 py-0 font-normal">Pesanan</th>
-                        <th class="h-8 px-4 py-0 font-normal">Saluran / Marketplace</th>
-                        <th class="h-8 px-4 py-0 font-normal">Pembeli</th>
-                        <th class="h-8 px-4 py-0 font-normal">Gudang</th>
-                        <th class="h-8 px-4 py-0 text-right font-normal">Qty</th>
-                        <th class="h-8 px-4 py-0 font-normal">Pengiriman</th>
-                        <th class="h-8 px-4 py-0 font-normal">Status</th>
-                        <th class="h-8 px-4 py-0 text-right font-normal">Aksi</th>
+                        <th class="h-8 px-3 py-0 font-normal">Pesanan</th>
+                        <th class="h-8 px-3 py-0 font-normal">Saluran / Marketplace</th>
+                        <th class="h-8 px-3 py-0 font-normal">Pembeli / Gudang</th>
+                        <th class="h-8 px-3 py-0 font-normal">Barang Dipesan</th>
+                        <th class="h-8 px-3 py-0 font-normal">Pengiriman</th>
+                        <th class="h-8 px-3 py-0 font-normal">Status</th>
+                        <th class="h-8 px-3 py-0 text-right font-normal">Aksi</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-slate-100">
@@ -166,11 +180,11 @@
                             @can('sales.fulfill')
                                 <td class="py-2.5 pl-4"><input type="checkbox" value="{{ $order->id }}" x-model.number="selected" aria-label="Pilih {{ $order->number }}"></td>
                             @endcan
-                            <td class="px-4 py-2.5 whitespace-nowrap">
+                            <td class="px-3 py-2.5 whitespace-nowrap">
                                 <a href="{{ route('sales.orders.show', $order) }}" class="font-mono font-medium text-slate-900 hover:text-brand-600">{{ $order->number }}</a>
                                 <p class="text-xs text-slate-500">{{ $order->order_date->format('d/m/Y') }}</p>
                             </td>
-                            <td class="px-4 py-2.5">
+                            <td class="max-w-44 px-3 py-2.5">
                                 <p class="text-slate-700">{{ $order->channel_name ?? 'Manual' }}</p>
                                 @if ($order->external_number)
                                     <p class="font-mono text-xs text-slate-500">{{ $order->external_number }}</p>
@@ -186,10 +200,14 @@
                                     </a>
                                 @endif
                             </td>
-                            <td class="max-w-48 px-4 py-2.5 text-slate-700"><p class="truncate" title="{{ $order->customer_name }}">{{ $order->customer_name }}</p></td>
-                            <td class="px-4 py-2.5 text-slate-600" title="{{ $order->warehouse->name }}">{{ $order->warehouse->code }}</td>
-                            <td class="px-4 py-2.5 text-right tabular-nums text-slate-700">{{ number_format((int) $order->items_sum_qty, 0, ',', '.') }}</td>
-                            <td class="px-4 py-2.5">
+                            <td class="max-w-36 px-3 py-2.5">
+                                <p class="truncate text-slate-700" title="{{ $order->customer_name }}">{{ $order->customer_name }}</p>
+                                <p class="text-xs text-slate-500" title="{{ $order->warehouse->name }}">{{ $order->warehouse->code }}</p>
+                            </td>
+                            <td class="px-3 py-2.5">
+                                <x-sales.order-lines :order="$order" />
+                            </td>
+                            <td class="px-3 py-2.5">
                                 <x-sales.shipment-status :order="$order" />
                                 @if (! $order->isSelfPickup() && ($order->courier || $order->tracking_number))
                                     <p class="mt-1 text-xs text-slate-700">{{ $order->courier?->name }}{{ $order->courier && $order->courier_service ? ' · '.$order->courier_service : '' }}</p>
@@ -209,11 +227,11 @@
                                     </p>
                                 @endif
                             </td>
-                            <td class="px-4 py-2.5">
+                            <td class="px-3 py-2.5">
                                 <x-sales.status-badge :status="$order->status" />
                             </td>
-                            <td class="px-4 py-2.5">
-                                <div class="flex justify-end gap-1">
+                            <td class="px-3 py-2.5">
+                                <div class="flex justify-end gap-0.5">
                                     @if ($order->isEditable())
                                         @can('sales.create')
                                             <a href="{{ route('sales.orders.edit', $order) }}" class="btn-icon" title="Edit">
@@ -240,7 +258,7 @@
                             </td>
                         </tr>
                     @empty
-                        <x-empty-state :colspan="auth()->user()->can('sales.fulfill') ? 9 : 8" icon="heroicon-o-shopping-cart" title="Belum ada pesanan" description="Input pesanan manual atau impor dari file Excel / CSV.">
+                        <x-empty-state :colspan="auth()->user()->can('sales.fulfill') ? 8 : 7" icon="heroicon-o-shopping-cart" title="Belum ada pesanan" description="Input pesanan manual atau impor dari file Excel / CSV.">
                             @can('sales.create')
                                 <a href="{{ route('sales.orders.create') }}" class="btn-primary"><x-heroicon-o-plus class="size-5" /> Buat Pesanan</a>
                             @endcan
@@ -249,6 +267,9 @@
                 </tbody>
             </table>
         </div>
+
+        {{-- Ruang agar baris terakhir tidak tertutup bar aksi mengambang. --}}
+        <div x-show="selected.length" x-cloak class="h-24" aria-hidden="true"></div>
 
         @if ($orders->hasPages())
             <div class="border-t border-slate-100 px-5 py-4">{{ $orders->links() }}</div>
