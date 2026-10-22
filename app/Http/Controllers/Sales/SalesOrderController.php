@@ -17,6 +17,7 @@ use App\Services\WarehouseSupply;
 use App\Support\Activity;
 use App\Support\ShopeeIncome;
 use App\Support\XlsxExport;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -30,29 +31,10 @@ class SalesOrderController extends Controller
 {
     public function index(Request $request): View|BinaryFileResponse
     {
-        $query = SalesOrder::query()
+        $query = $this->filtered($request)
             ->with(['warehouse', 'courier'])
             ->withSum('items', 'qty')
             ->when($request->filled('status'), fn ($query) => $query->where('status', $request->input('status')))
-            ->when($request->filled('warehouse'), fn ($query) => $query->where('warehouse_id', $request->integer('warehouse')))
-            ->when($request->filled('channel'), fn ($query) => $query->where('channel_name', $request->input('channel')))
-            ->when($request->filled('from'), fn ($query) => $query->whereDate('order_date', '>=', $request->date('from')))
-            ->when($request->filled('to'), fn ($query) => $query->whereDate('order_date', '<=', $request->date('to')))
-            ->when($request->input('shipment') === 'unarranged', fn ($query) => $query
-                ->whereIn('status', SalesOrder::RESERVING)
-                ->where('delivery_type', 'courier')
-                ->whereNull('shipment_arranged_at')
-                ->where(fn ($q) => $q->whereNull('shopee_shop_id')->orWhere('shopee_order_status', 'READY_TO_SHIP')))
-            ->when($request->filled('shopee'), fn ($query) => $query->shopeeFilter((string) $request->input('shopee')))
-            ->when(in_array($request->input('shipment'), array_keys(SalesOrder::SHIPPING_METHODS), true), fn ($query) => $query->where('shipping_method', $request->input('shipment')))
-            ->when($request->filled('search'), function ($query) use ($request) {
-                $search = $request->string('search');
-                $query->where(fn ($q) => $q
-                    ->where('number', 'like', "%{$search}%")
-                    ->orWhere('external_number', 'like', "%{$search}%")
-                    ->orWhere('customer_name', 'like', "%{$search}%")
-                    ->orWhere('tracking_number', 'like', "%{$search}%"));
-            })
             ->latest('order_date')
             ->latest('id');
 
@@ -74,11 +56,19 @@ class SalesOrderController extends Controller
 
         $orders = $query->paginate(20)->withQueryString();
 
-        $counts = SalesOrder::query()->groupBy('status')->selectRaw('status, COUNT(*) as total')->pluck('total', 'status');
+        // Jumlah per tab mengikuti filter yang sedang dipakai (selain tab status itu sendiri).
+        $counts = $this->filtered($request)->toBase()->groupBy('status')->selectRaw('status, COUNT(*) as total')->pluck('total', 'status');
 
         return view('sales.orders.index', [
             'orders' => $orders,
             'counts' => $counts,
+            // Data per baris untuk aksi massal: tombol hanya muncul untuk pesanan yang bisa diproses.
+            'bulkRows' => $orders->getCollection()->mapWithKeys(fn (SalesOrder $order) => [$order->id => [
+                'arrange' => $order->canBulkArrangeShipment(),
+                'arranged' => $order->shipmentAlreadyArranged(),
+                'manual' => ! $order->isMarketplace() && $order->canArrangeShipment(),
+                'label' => $order->hasShippingLabel(),
+            ]]),
             'warehouses' => Warehouse::orderBy('code')->get(),
             'channels' => $this->channels(),
         ]);
@@ -339,6 +329,36 @@ class SalesOrderController extends Controller
     }
 
     /** @return Collection<int, string> */
+    /**
+     * Filter daftar pesanan selain tab status: dipakai untuk daftar dan jumlah per tab.
+     *
+     * @return Builder<SalesOrder>
+     */
+    private function filtered(Request $request): Builder
+    {
+        return SalesOrder::query()
+            ->when($request->filled('warehouse'), fn ($query) => $query->where('warehouse_id', $request->integer('warehouse')))
+            ->when($request->filled('channel'), fn ($query) => $query->where('channel_name', $request->input('channel')))
+            ->when($request->filled('from'), fn ($query) => $query->whereDate('order_date', '>=', $request->date('from')))
+            ->when($request->filled('to'), fn ($query) => $query->whereDate('order_date', '<=', $request->date('to')))
+            ->when($request->input('shipment') === 'unarranged', fn ($query) => $query
+                ->whereIn('status', SalesOrder::RESERVING)
+                ->where('delivery_type', 'courier')
+                ->whereNull('shipment_arranged_at')
+                ->where(fn ($q) => $q->whereNull('shopee_shop_id')->orWhere('shopee_order_status', 'READY_TO_SHIP'))
+                ->where(fn ($q) => $q->whereNull('tiktok_shop_id')->orWhere('tiktok_order_status', 'AWAITING_SHIPMENT')))
+            ->when($request->filled('shopee'), fn ($query) => $query->shopeeFilter((string) $request->input('shopee')))
+            ->when(in_array($request->input('shipment'), array_keys(SalesOrder::SHIPPING_METHODS), true), fn ($query) => $query->where('shipping_method', $request->input('shipment')))
+            ->when($request->filled('search'), function ($query) use ($request) {
+                $search = trim((string) $request->string('search'));
+                $query->where(fn ($q) => $q
+                    ->where('number', 'like', "%{$search}%")
+                    ->orWhere('external_number', 'like', "%{$search}%")
+                    ->orWhere('customer_name', 'like', "%{$search}%")
+                    ->orWhere('tracking_number', 'like', "%{$search}%"));
+            });
+    }
+
     private function channels(): Collection
     {
         return SalesOrder::query()->whereNotNull('channel_name')->distinct()->orderBy('channel_name')->pluck('channel_name');

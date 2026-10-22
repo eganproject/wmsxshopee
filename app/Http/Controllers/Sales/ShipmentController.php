@@ -159,6 +159,9 @@ class ShipmentController extends Controller
 
         $orders = SalesOrder::with(['shopeeShop', 'tiktokShop', 'warehouse'])->whereKey($data['orders'])->orderBy('id')->get();
         $manual = $orders->reject->isMarketplace();
+        // Pesanan yang pengirimannya sudah diatur dilewati, bukan dianggap gagal.
+        $arranged = $orders->filter(fn (SalesOrder $order) => $order->isMarketplace() && $order->shipmentAlreadyArranged());
+        $orders = $orders->diff($arranged);
 
         $shopee = $logistics->arrangeMany($orders->filter->isShopee(), $data['method'], $request->user()->id);
         $tiktokResult = $tiktok->arrangeMany($orders->filter->isTiktok(), $data['method'], $request->user()->id);
@@ -172,11 +175,19 @@ class ShipmentController extends Controller
         if ($tiktokResult['arranged']) {
             $messages[] = count($tiktokResult['arranged'])." pesanan diatur {$label} di TikTok.";
         }
+        if ($arranged->isNotEmpty()) {
+            $messages[] = $arranged->count().' pesanan dilewati karena pengirimannya sudah diatur ('.$arranged->pluck('number')->implode(', ').').';
+        }
         if ($manual->isNotEmpty()) {
             $messages[] = 'Pesanan manual ('.$manual->pluck('number')->implode(', ').') diatur satu per satu dari halaman pesanan.';
         }
 
-        $redirect = back()->with($result['arranged'] ? 'success' : 'error', implode(' ', $messages) ?: 'Tidak ada pesanan yang diatur.');
+        $type = match (true) {
+            (bool) $result['arranged'] => 'success',
+            ! $result['failed'] && ($arranged->isNotEmpty() || $manual->isNotEmpty()) => 'info',
+            default => 'error',
+        };
+        $redirect = back()->with($type, implode(' ', $messages) ?: 'Tidak ada pesanan yang diatur.');
 
         if ($result['failed']) {
             $redirect->with('shipment_failures', $result['failed']);
