@@ -255,6 +255,29 @@ class ShipmentFlowTest extends TestCase
             ->assertRedirect("/sales/orders/{$order->id}")->assertSessionHas('error', fn ($m) => str_contains($m, 'Paket belum siap'));
     }
 
+    public function test_shopee_batch_all_failed_shows_reason_from_result_list(): void
+    {
+        $order = $this->shopeeOrder('L3', ['shopee_order_status' => 'PROCESSED', 'tracking_number' => 'X']);
+        Http::fake(['*/logistics/get_shipping_document_parameter*' => Http::response([
+            'error' => 'common.batch_api_all_failed', 'message' => 'All failed, please check result_list for detail',
+            'response' => ['result_list' => [['order_sn' => 'L3', 'fail_error' => 'logistics.package_can_not_print', 'fail_message' => 'Package can not print now.']]],
+        ])]);
+
+        $this->from("/sales/orders/{$order->id}")->get("/sales/orders/{$order->id}/shipping-label")
+            ->assertRedirect("/sales/orders/{$order->id}")
+            ->assertSessionHas('error', fn ($m) => str_contains($m, 'L3: Package can not print now.') && ! str_contains($m, 'All failed'));
+    }
+
+    public function test_shopee_label_waits_for_tracking_number(): void
+    {
+        $order = $this->shopeeOrder('L4', ['shopee_order_status' => 'PROCESSED', 'tracking_number' => null]);
+        Http::fake(['*/logistics/get_tracking_number*' => Http::response(['error' => '', 'response' => ['tracking_number' => '']])]);
+
+        $this->from("/sales/orders/{$order->id}")->get("/sales/orders/{$order->id}/shipping-label")
+            ->assertRedirect("/sales/orders/{$order->id}")->assertSessionHas('error', fn ($m) => str_contains($m, 'belum terbit'));
+        Http::assertNotSent(fn (Request $r) => str_contains($r->url(), 'shipping_document'));
+    }
+
     public function test_manual_order_records_pickup_or_dropoff_and_prints_own_label(): void
     {
         $order = $this->order();

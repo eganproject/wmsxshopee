@@ -171,11 +171,9 @@ class ShopeeClient
         $json = $response->json() ?? [];
 
         if (filled($json['error'] ?? null)) {
-            throw new ShopeeException(
-                'Shopee: '.($json['message'] ?? $json['error']).' ('.$json['error'].')',
-                $json['error'],
-                $json['request_id'] ?? null,
-            );
+            [$message, $error] = $this->errorDetail($json);
+
+            throw new ShopeeException($message, $error, $json['request_id'] ?? null);
         }
 
         if ($response->failed()) {
@@ -183,6 +181,31 @@ class ShopeeClient
         }
 
         return $json;
+    }
+
+    /**
+     * Pesan error yang bisa dibaca. Untuk API batch yang gagal semua
+     * (common.batch_api_all_failed) alasan sebenarnya ada di result_list per pesanan.
+     *
+     * @param  array<string, mixed>  $json
+     * @return array{0: string, 1: string}
+     */
+    private function errorDetail(array $json): array
+    {
+        $error = (string) $json['error'];
+        $failures = collect($json['response']['result_list'] ?? [])
+            ->filter(fn ($row) => is_array($row) && filled($row['fail_error'] ?? $row['fail_message'] ?? null))
+            ->values();
+
+        if ($failures->isEmpty()) {
+            return ['Shopee: '.($json['message'] ?? $error).' ('.$error.')', $error];
+        }
+
+        $first = $failures->first();
+        $details = $failures->map(fn (array $row) => trim(($row['order_sn'] ?? '').': '.($row['fail_message'] ?? $row['fail_error']).(filled($row['fail_error'] ?? null) ? ' ('.$row['fail_error'].')' : ''), ': '))
+            ->unique()->take(3)->implode('; ');
+
+        return ['Shopee: '.$details, (string) ($first['fail_error'] ?? $error)];
     }
 
     private function ensureConfigured(): void

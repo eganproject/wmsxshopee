@@ -247,6 +247,12 @@ class ShopeeLogistics
             }
         }
 
+        // Shopee baru bisa membuat label setelah nomor resi terbit (beberapa saat setelah pengiriman diatur).
+        $waiting = $orders->filter(fn (SalesOrder $order) => blank($order->tracking_number))->pluck('number');
+        if ($waiting->isNotEmpty()) {
+            throw ValidationException::withMessages(['orders' => 'Nomor resi dari Shopee belum terbit untuk '.$waiting->take(5)->implode(', ').($waiting->count() > 5 ? ' dan '.($waiting->count() - 5).' lainnya' : '').'. Tunggu beberapa menit lalu cetak lagi.']);
+        }
+
         $list = $orders->map(fn (SalesOrder $order) => array_filter([
             'order_sn' => $order->external_number,
             'package_number' => $order->shopee_package_number,
