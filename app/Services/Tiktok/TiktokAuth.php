@@ -157,6 +157,10 @@ class TiktokAuth
         }
 
         // Jaga-jaga bila yang dikirim durasi (detik), bukan timestamp.
-        return (int) $value < 1_000_000_000 ? now()->addSeconds((int) $value) : Carbon::createFromTimestamp((int) $value);
+        $expiry = (int) $value < 1_000_000_000 ? now()->addSeconds((int) $value) : Carbon::createFromTimestamp((int) $value);
+
+        // TikTok bisa mengirim masa berlaku ± 100 tahun (otorisasi "Unlimited"), padahal
+        // kolom TIMESTAMP MySQL hanya sampai 2038-01-19. Dibatasi supaya tetap tersimpan.
+        return $expiry->min(Carbon::create(2037, 12, 31, 0, 0, 0, 'UTC'));
     }
 }
