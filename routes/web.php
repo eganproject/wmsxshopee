@@ -41,6 +41,7 @@ use App\Http\Controllers\Sales\SalesOrderImportController;
 use App\Http\Controllers\Sales\SalesReturnController;
 use App\Http\Controllers\Sales\ShipmentController;
 use App\Http\Controllers\SearchController;
+use App\Http\Controllers\SettingsController;
 use App\Http\Controllers\Shopee\ShopeeSettingController;
 use App\Http\Controllers\Shopee\ShopeeShopController;
 use App\Http\Controllers\Shopee\ShopeeSkuMappingController;
@@ -69,6 +70,7 @@ Route::middleware(['auth', 'active'])->group(function () {
 
     Route::get('dashboard', DashboardController::class)->name('dashboard');
     Route::get('notifications', NotificationController::class)->name('notifications.index');
+    Route::get('settings', SettingsController::class)->name('settings');
 
     // Pencarian global (Ctrl+K). Tiap grup dicek hak lihatnya di App\Support\GlobalSearch.
     Route::get('search', SearchController::class)->middleware('throttle:120,1')->name('search');
