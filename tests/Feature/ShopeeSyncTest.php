@@ -182,6 +182,24 @@ class ShopeeSyncTest extends TestCase
         $this->assertNull(Cache::get("shopee:order-retry:{$this->shop->id}"));
     }
 
+    public function test_retry_list_survives_an_api_error_mid_sync(): void
+    {
+        $key = "shopee:order-retry:{$this->shop->id}";
+        Cache::forever($key, ['BAD']);
+        $this->fakeOrders([], [
+            '*/order/get_order_detail*' => Http::response(['error' => 'error_auth', 'message' => 'Token kedaluwarsa']),
+        ]);
+
+        try {
+            app(ShopeeOrderSync::class)->sync($this->shop);
+            $this->fail('Error API seharusnya diteruskan.');
+        } catch (\App\Services\Shopee\ShopeeException) {
+        }
+
+        // Pesanan yang menunggu coba-ulang tidak hilang karena error API.
+        $this->assertSame(['BAD'], Cache::get($key));
+    }
+
     public function test_split_order_keeps_its_package_number(): void
     {
         $this->fakeOrders([

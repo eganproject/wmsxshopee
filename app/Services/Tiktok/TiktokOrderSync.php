@@ -53,13 +53,31 @@ class TiktokOrderSync
         $api ??= TiktokShopApi::for($shop);
         $stats = ['created' => 0, 'updated' => 0, 'cancelled' => 0, 'pending' => 0, 'failed' => 0];
         $failed = [];
+        $retry = Cache::pull($this->retryKey($shop), []);
 
+        // Daftar coba-ulang selalu disimpan lagi, juga kalau API gagal di tengah jalan,
+        // supaya pesanan yang gagal tidak hilang (jendela sinkron sudah lewat).
+        try {
+            $this->syncOrders($shop, $api, $stats, $failed, $retry);
+        } finally {
+            if ($pending = array_values(array_unique(array_merge($retry, $failed)))) {
+                Cache::forever($this->retryKey($shop), $pending);
+            }
+        }
+
+        return array_intersect_key($stats, array_flip(['created', 'updated', 'cancelled', 'pending', 'failed']));
+    }
+
+    /** @param  array<int, string>  $retry  dikosongkan setelah semua pesanan coba-ulang selesai diproses */
+    private function syncOrders(TiktokShop $shop, TiktokShopApi $api, array &$stats, array &$failed, array &$retry): void
+    {
         // Pesanan yang gagal diproses di sinkron sebelumnya dicoba lagi lebih dulu.
-        foreach (array_chunk(Cache::pull($this->retryKey($shop), []), 50) as $chunk) {
+        foreach (array_chunk($retry, 50) as $chunk) {
             foreach ($api->get('/order/orders', ['ids' => implode(',', $chunk)])['orders'] ?? [] as $detail) {
                 $this->count($stats, $this->applyGuarded($shop, $detail, $failed));
             }
         }
+        $retry = [];
 
         $from = ($shop->orders_synced_until?->copy()->subMinutes(10)) ?? now()->subDays(self::FIRST_SYNC_DAYS);
         $now = now();
@@ -87,12 +105,6 @@ class TiktokOrderSync
 
         // Draft yang SKU-nya baru dipetakan sejak sinkron sebelumnya ikut diproses.
         $stats['updated'] += $this->relinkPending($shop, $api);
-
-        if ($failed) {
-            Cache::forever($this->retryKey($shop), array_values(array_unique($failed)));
-        }
-
-        return array_intersect_key($stats, array_flip(['created', 'updated', 'cancelled', 'pending', 'failed']));
     }
 
     /**
