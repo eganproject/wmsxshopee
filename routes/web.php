@@ -36,6 +36,7 @@ use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\Sales\HandoverController;
+use App\Http\Controllers\Sales\OrderSavedFilterController;
 use App\Http\Controllers\Sales\OrderSkuMappingController;
 use App\Http\Controllers\Sales\QcController;
 use App\Http\Controllers\Sales\SalesOrderController;
@@ -223,6 +224,8 @@ Route::middleware(['auth', 'active'])->group(function () {
         Route::post('handovers/scan', [HandoverController::class, 'scan'])->middleware('can:sales.fulfill')->name('handovers.scan');
         Route::get('handovers/{handover}', [HandoverController::class, 'show'])->middleware('can:sales.fulfill')->name('handovers.show');
         Route::get('handovers/{handover}/manifest', [HandoverController::class, 'manifest'])->middleware('can:sales.fulfill')->name('handovers.manifest');
+        Route::post('orders/saved-filters', [OrderSavedFilterController::class, 'store'])->middleware('can:sales.view')->name('orders.saved-filters.store');
+        Route::delete('orders/saved-filters/{savedFilter}', [OrderSavedFilterController::class, 'destroy'])->middleware('can:sales.view')->name('orders.saved-filters.destroy');
         Route::post('orders/pick', [SalesOrderController::class, 'bulkPick'])->middleware('can:sales.fulfill')->name('orders.pick.bulk');
         Route::post('orders/shipment', [ShipmentController::class, 'bulk'])->middleware('can:sales.fulfill')->name('orders.shipment.bulk');
         Route::get('orders/shipping-labels', [ShipmentController::class, 'bulkLabel'])->middleware('can:sales.fulfill')->name('orders.shipping-labels');
@@ -233,6 +236,7 @@ Route::middleware(['auth', 'active'])->group(function () {
         Route::delete('orders/{order}', [SalesOrderController::class, 'destroy'])->middleware('can:sales.delete')->name('orders.destroy');
         Route::post('orders/{order}/confirm', [SalesOrderController::class, 'confirm'])->middleware('can:sales.confirm')->name('orders.confirm');
         Route::post('orders/{order}/reopen', [SalesOrderController::class, 'reopen'])->middleware('can:sales.confirm')->name('orders.reopen');
+        Route::get('orders/{order}/history', [SalesOrderController::class, 'history'])->middleware('can:sales.view')->name('orders.history');
         Route::post('orders/{order}/resync', [SalesOrderController::class, 'resync'])->middleware('can:sales.confirm')->name('orders.resync');
         Route::post('orders/{order}/map-sku', [OrderSkuMappingController::class, 'store'])->middleware('can:sales.view')->name('orders.map-sku');
         Route::post('orders/{order}/cancel', [SalesOrderController::class, 'cancel'])->middleware('can:sales.cancel')->name('orders.cancel');

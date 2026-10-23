@@ -6,6 +6,7 @@ use App\Models\Courier;
 use App\Models\Product;
 use App\Models\ProductVariant;
 use App\Models\SalesOrder;
+use App\Models\SavedFilter;
 use App\Models\ShopeeShop;
 use App\Models\Stock;
 use App\Models\StockLedger;
@@ -428,5 +429,46 @@ class SalesOrderTest extends TestCase
         $this->get(route('sales.orders.index', ['per_page' => 50]))->assertOk()->assertSee('SO-P01');
         // Nilai di luar pilihan kembali ke 20.
         $this->get(route('sales.orders.index', ['per_page' => 5000]))->assertOk()->assertDontSee('SO-P01');
+    }
+
+    public function test_saved_order_filters_are_private_and_reusable(): void
+    {
+        $this->listOrder('SO-SAVE', ['channel_name' => 'Toko Biru']);
+
+        $this->post(route('sales.orders.saved-filters.store'), ['name' => 'Toko Biru urut kirim', 'query' => 'channel=Toko+Biru&sort=deadline&page=3&foo=bar'])
+            ->assertRedirect(route('sales.orders.index', ['channel' => 'Toko Biru', 'sort' => 'deadline']));
+
+        $saved = SavedFilter::sole();
+        $this->assertSame(['channel' => 'Toko Biru', 'sort' => 'deadline'], $saved->query);
+
+        // Nama sama menimpa, tidak menambah.
+        $this->post(route('sales.orders.saved-filters.store'), ['name' => 'Toko Biru urut kirim', 'query' => 'channel=Toko+Biru']);
+        $this->assertSame(1, SavedFilter::count());
+        $this->assertSame(['channel' => 'Toko Biru'], $saved->fresh()->query);
+
+        // Tanpa filter apa pun tidak disimpan.
+        $this->post(route('sales.orders.saved-filters.store'), ['name' => 'Kosong', 'query' => 'page=2'])->assertSessionHasErrors('name');
+
+        $this->get(route('sales.orders.index'))->assertOk()->assertSee('Toko Biru urut kirim');
+
+        // User lain tidak melihat dan tidak bisa menghapusnya.
+        $other = User::factory()->create(['is_active' => true]);
+        $other->assignRole('Super Admin');
+        $this->actingAs($other)->get(route('sales.orders.index'))->assertOk()->assertDontSee('Toko Biru urut kirim');
+        $this->actingAs($other)->delete(route('sales.orders.saved-filters.destroy', $saved))->assertNotFound();
+
+        $this->actingAs(User::where('username', 'superadmin')->first())
+            ->delete(route('sales.orders.saved-filters.destroy', $saved))->assertRedirect();
+        $this->assertSame(0, SavedFilter::count());
+    }
+
+    public function test_order_history_panel_shows_activity(): void
+    {
+        $order = $this->listOrder('SO-HIST');
+
+        $this->get(route('sales.orders.history', $order))
+            ->assertOk()->assertSee('SO-HIST')->assertSee('Buka detail pesanan')->assertSee('Riwayat');
+
+        $this->get(route('sales.orders.index'))->assertOk()->assertSee('title="Riwayat operasi"', false);
     }
 }
