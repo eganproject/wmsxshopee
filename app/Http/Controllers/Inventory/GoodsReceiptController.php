@@ -116,6 +116,11 @@ class GoodsReceiptController extends Controller
         $data = $this->validated($request, $receipt);
 
         Activity::track($receipt, fn () => DB::transaction(function () use ($request, $receipt, $data) {
+            // Kunci & cek ulang: orang lain bisa memposting draft ini bersamaan.
+            if (! GoodsReceipt::whereKey($receipt->id)->lockForUpdate()->firstOrFail()->isDraft()) {
+                throw ValidationException::withMessages(['receipt' => "{$receipt->number} baru saja diterima orang lain, jadi tidak bisa diubah lagi."]);
+            }
+
             $receipt->update($data['header']);
             $receipt->items()->delete();
             $receipt->items()->createMany($data['items']);
