@@ -480,11 +480,11 @@ class SalesOrderTest extends TestCase
         $this->get(route('sales.orders.index'))->assertOk()
             ->assertSee('20/10/2026 09:15')
             ->assertSee('21/10/2026 16:40')
-            ->assertSee('Waktu Selesai')
+            ->assertSee('title="Waktu selesai serah terima"', false)
             ->assertDontSee('Rahasia Pembeli');
 
         // Belum serah terima: waktu selesai tidak muncul.
         $this->get(route('sales.orders.index', ['status' => 'confirmed']))->assertOk()
-            ->assertSee('Waktu Pembuatan')->assertDontSee('Waktu Selesai');
+            ->assertSee('title="Waktu pesanan dibuat"', false)->assertDontSee('title="Waktu selesai serah terima"', false);
     }
 }
