@@ -328,7 +328,7 @@
                         @endcan
                         <th class="h-8 px-3 py-0 font-normal">Pesanan</th>
                         <th class="h-8 px-3 py-0 font-normal">Saluran</th>
-                        <th class="h-8 px-3 py-0 font-normal">Pembeli / Gudang</th>
+                        <th class="h-8 px-3 py-0 font-normal">Waktu</th>
                         <th class="h-8 px-3 py-0 font-normal">Barang Dipesan</th>
                         <th class="h-8 px-3 py-0 font-normal">Pengiriman</th>
                         <th class="h-8 px-3 py-0 font-normal">Status Gudang</th>
@@ -348,7 +348,6 @@
                             @endcan
                             <td class="px-3 py-2.5 whitespace-nowrap">
                                 <a href="{{ route('sales.orders.show', $order) }}" class="font-mono font-medium text-slate-900 hover:text-brand-600">{{ $order->number }}</a>
-                                <p class="text-xs text-slate-500">{{ $order->order_date->format('d/m/Y') }}</p>
                             </td>
                             <td class="max-w-44 px-3 py-2.5">
                                 {{-- Nama toko marketplace bisa sangat panjang tanpa spasi: potong supaya tidak menimpa kolom Pembeli. --}}
@@ -368,9 +367,14 @@
                                     </a>
                                 @endif
                             </td>
-                            <td class="max-w-36 px-3 py-2.5">
-                                <p class="truncate text-slate-700" title="{{ $order->customer_name }}">{{ $order->customer_name }}</p>
-                                <p class="text-xs text-slate-500" title="{{ $order->warehouse->name }}">{{ $order->warehouse->code }}</p>
+                            <td class="px-3 py-2.5 text-xs whitespace-nowrap">
+                                {{-- Waktu pembuatan & waktu selesai proses gudang (serah terima). --}}
+                                <p class="text-slate-500">Waktu Pembuatan</p>
+                                <p class="text-slate-700">{{ $order->createdTime()->format('d/m/Y H:i') }}</p>
+                                @if ($completed = $order->completedTime())
+                                    <p class="mt-1 text-slate-500">Waktu Selesai</p>
+                                    <p class="text-emerald-700">{{ $completed->format('d/m/Y H:i') }}</p>
+                                @endif
                             </td>
                             <td class="px-3 py-2.5">
                                 <x-sales.order-lines :order="$order" />
@@ -397,6 +401,9 @@
                             </td>
                             <td class="px-3 py-2.5">
                                 <x-sales.status-badge :status="$order->status" />
+                                <p class="mt-1 flex items-center gap-1 text-xs text-slate-500" title="{{ $order->warehouse->name }}">
+                                    <x-heroicon-o-building-office-2 class="size-3.5" /> {{ $order->warehouse->code }}
+                                </p>
                             </td>
                             <td class="px-3 py-2.5">
                                 <x-sales.marketplace-status :order="$order" :issue="$syncIssue" class="max-w-52" />

@@ -153,6 +153,7 @@ class ShopeeOrderSync
         $order->fill([
             'shopee_order_status' => $status,
             'shopee_synced_at' => now(),
+            'ordered_at' => $order->ordered_at ?? (isset($detail['create_time']) ? Carbon::createFromTimestamp($detail['create_time'], config('app.timezone')) : null),
             'shopee_package_number' => ShopeePackage::fromDetail($detail),
             'shopee_ship_by' => $this->shipBy($detail) ?? $order->shopee_ship_by,
         ]);
@@ -247,6 +248,7 @@ class ShopeeOrderSync
             'status' => 'draft',
             'warehouse_id' => $shop->warehouse_id,
             'order_date' => Carbon::createFromTimestamp($detail['create_time'] ?? now()->getTimestamp(), config('app.timezone'))->toDateString(),
+            'ordered_at' => isset($detail['create_time']) ? Carbon::createFromTimestamp($detail['create_time'], config('app.timezone')) : now(),
             'channel_name' => $shop->channelName(),
             'external_number' => (string) $detail['order_sn'],
             'shopee_shop_id' => $shop->id,

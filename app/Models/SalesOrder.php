@@ -131,6 +131,7 @@ class SalesOrder extends Model
         'status',
         'warehouse_id',
         'order_date',
+        'ordered_at',
         'channel_name',
         'external_number',
         'shopee_shop_id',
@@ -193,6 +194,7 @@ class SalesOrder extends Model
     {
         return [
             'order_date' => 'date',
+            'ordered_at' => 'datetime',
             'shipping_fee' => 'decimal:2',
             'discount' => 'decimal:2',
             'confirmed_at' => 'datetime',
@@ -503,6 +505,18 @@ class SalesOrder extends Model
     public function marketplaceRawStatus(): ?string
     {
         return $this->shopee_order_status ?? $this->tiktok_order_status;
+    }
+
+    /** Waktu pesanan dibuat: dari marketplace bila ada, selain itu saat dicatat di Optima. */
+    public function createdTime(): CarbonInterface
+    {
+        return $this->ordered_at ?? $this->created_at;
+    }
+
+    /** Waktu selesai proses gudang: saat diserahkan ke kurir / pembeli. Kosong sebelum serah terima. */
+    public function completedTime(): ?CarbonInterface
+    {
+        return $this->hasStatus('shipped') ? $this->shipped_at : null;
     }
 
     public function marketplacePlatform(): ?string
