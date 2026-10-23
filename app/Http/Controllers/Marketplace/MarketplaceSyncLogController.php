@@ -12,6 +12,7 @@ use App\Services\Shopee\ShopeeException;
 use App\Services\Shopee\ShopeeStockSync;
 use App\Services\Tiktok\TiktokException;
 use App\Services\Tiktok\TiktokStockSync;
+use App\Support\BackgroundHealth;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -61,6 +62,7 @@ class MarketplaceSyncLogController extends Controller
 
         return view('marketplace.sync-logs', [
             'tab' => $tab,
+            'health' => BackgroundHealth::problems(),
             'rows' => $rows,
             'shops' => $shops,
             'shop' => $shop,

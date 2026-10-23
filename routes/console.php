@@ -2,6 +2,7 @@
 
 use App\Models\MarketplaceSyncLog;
 use App\Models\MarketplaceWebhookEvent;
+use App\Support\BackgroundHealth;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Schedule;
@@ -9,6 +10,9 @@ use Illuminate\Support\Facades\Schedule;
 Artisan::command('inspire', function () {
     $this->comment(Inspiring::quote());
 })->purpose('Display an inspiring quote');
+
+// Detak penjadwal: Riwayat Sinkron memperingatkan bila penjadwal berhenti.
+Schedule::call(fn () => BackgroundHealth::beat())->everyMinute()->name('scheduler-heartbeat');
 
 // Jadwal harian. Di Laragon/Windows jalankan `php artisan schedule:work` (atau
 // Task Scheduler yang memanggil `php artisan schedule:run` tiap menit).
