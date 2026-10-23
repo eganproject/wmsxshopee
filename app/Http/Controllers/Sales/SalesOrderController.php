@@ -125,6 +125,7 @@ class SalesOrderController extends Controller
             ]]),
             'warehouses' => Warehouse::orderBy('code')->get(),
             'shops' => $this->shopChips($request),
+            'couriers' => $this->courierChips($request),
             'savedFilters' => SavedFilter::where('user_id', $request->user()->id)->where('page', OrderSavedFilterController::PAGE)->orderBy('name')->get(),
             'searchTerms' => count($this->searchTerms($request)),
         ]);
@@ -474,6 +475,8 @@ class SalesOrderController extends Controller
             ->when($request->input('platform') === 'shopee', fn ($query) => $query->whereNotNull('shopee_shop_id'))
             ->when($request->input('platform') === 'tiktok', fn ($query) => $query->whereNotNull('tiktok_shop_id'))
             ->when($request->input('platform') === 'manual', fn ($query) => $query->whereNull('shopee_shop_id')->whereNull('tiktok_shop_id'))
+            ->when($request->input('courier') === 'none', fn ($query) => $query->whereNull('courier_id'))
+            ->when(ctype_digit((string) $request->input('courier')), fn ($query) => $query->where('courier_id', $request->integer('courier')))
             ->tap(fn ($query) => $this->dateFilter($query, $request))
             ->when($request->input('shipment') === 'unarranged', fn ($query) => $query
                 ->whereIn('status', SalesOrder::RESERVING)
@@ -598,6 +601,35 @@ class SalesOrderController extends Controller
     /**
      * Chip toko di atas daftar: nama saluran beserta platformnya, mengikuti filter platform.
      *
+     * @return Collection<int, array{name: string, platform: ?string}>
+     */
+    private function courierChips(Request $request): Collection
+    {
+        // Jumlah per kurir mengikuti semua filter lain (termasuk tab status), kecuali filter kurir itu sendiri.
+        $others = $request->duplicate(collect($request->query())->except(['courier', 'page'])->all());
+        $counts = $this->filtered($others)
+            ->when($request->filled('status'), fn ($query) => $query->where('status', $request->input('status')))
+            ->toBase()
+            ->groupBy('courier_id')
+            ->selectRaw('courier_id, COUNT(*) as total')
+            ->pluck('total', 'courier_id');
+
+        $selected = $request->integer('courier');
+        $chips = Courier::query()
+            ->whereIn('id', $counts->keys()->filter()->push($selected)->all())
+            ->orderBy('name')
+            ->get(['id', 'name'])
+            ->map(fn (Courier $courier) => ['value' => (string) $courier->id, 'name' => $courier->name, 'count' => (int) ($counts[$courier->id] ?? 0)]);
+
+        // Pesanan tanpa kurir: ambil sendiri / belum diatur pengirimannya.
+        if (($counts[''] ?? 0) || $request->input('courier') === 'none') {
+            $chips->push(['value' => 'none', 'name' => 'Tanpa kurir', 'count' => (int) ($counts[''] ?? 0)]);
+        }
+
+        return $chips->values();
+    }
+
+    /**
      * @return Collection<int, array{name: string, platform: ?string}>
      */
     private function shopChips(Request $request): Collection

@@ -487,4 +487,22 @@ class SalesOrderTest extends TestCase
         $this->get(route('sales.orders.index', ['status' => 'confirmed']))->assertOk()
             ->assertSee('title="Waktu pesanan dibuat"', false)->assertDontSee('title="Waktu selesai serah terima"', false);
     }
+
+    public function test_order_list_filters_by_courier(): void
+    {
+        $jnt = Courier::create(['code' => 'JNTX', 'name' => 'J&T Uji', 'is_active' => true]);
+        $sicepat = Courier::create(['code' => 'SCPX', 'name' => 'SiCepat Uji', 'is_active' => true]);
+        $this->listOrder('SO-JNT', ['courier_id' => $jnt->id]);
+        $this->listOrder('SO-SCP', ['courier_id' => $sicepat->id]);
+        $this->listOrder('SO-NOC');
+
+        $this->get(route('sales.orders.index'))->assertOk()
+            ->assertSee('J&amp;T Uji', false)->assertSee('SiCepat Uji')->assertSee('Tanpa kurir');
+
+        $this->get(route('sales.orders.index', ['courier' => $jnt->id]))->assertOk()
+            ->assertSee('SO-JNT')->assertDontSee('SO-SCP')->assertDontSee('SO-NOC');
+
+        $this->get(route('sales.orders.index', ['courier' => 'none']))->assertOk()
+            ->assertSee('SO-NOC')->assertDontSee('SO-JNT');
+    }
 }
