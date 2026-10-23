@@ -279,7 +279,7 @@ class SalesOrderService
                 'product_variant_id' => $item->product_variant_id,
                 'from_location_id' => $pick->warehouse_location_id,
                 'qty' => $pick->qty,
-            ]))->values()->all());
+            ]))->values()->all(), protectOrders: false);
 
             $order->update([
                 ...$shipping,
