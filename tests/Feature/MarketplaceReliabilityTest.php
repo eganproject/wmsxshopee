@@ -30,6 +30,7 @@ use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Sleep;
+use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
 /** Prioritas 2 koneksi marketplace: coba ulang, riwayat sinkron, peringatan & jenis push baru. */
@@ -216,6 +217,22 @@ class MarketplaceReliabilityTest extends TestCase
         ]);
         $this->post('/marketplace/sync-logs/retry-push')->assertSessionHas('success');
         $this->assertSame('processed', $event->fresh()->status);
+    }
+
+    public function test_sync_log_retry_needs_sync_permission(): void
+    {
+        $this->shop->mappings()->update(['stock_error' => 'Ditolak']);
+        MarketplaceWebhookEvent::create(['platform' => 'shopee', 'shop_id' => '555', 'shop_ref' => $this->shop->id, 'event_type' => 3, 'order_id' => 'Z9', 'payload' => [], 'fingerprint' => sha1('z'), 'status' => 'failed', 'error' => 'Sistem sibuk']);
+
+        // Hak lihat saja: halaman terbuka, tetapi tombol kirim/proses ulang tidak tampil dan ditolak.
+        $role = Role::create(['name' => 'Pemantau'])->givePermissionTo('shopee.view');
+        $this->actingAs(User::factory()->create()->assignRole($role));
+
+        $this->get('/marketplace/sync-logs')->assertOk()->assertDontSee('Kirim Ulang Stok Gagal');
+        $this->get('/marketplace/sync-logs?tab=push')->assertOk()->assertDontSee('Proses Ulang Push Gagal');
+        $this->post('/marketplace/sync-logs/retry-stock')->assertForbidden();
+        $this->post('/marketplace/sync-logs/retry-push')->assertForbidden();
+        $this->assertSame('failed', MarketplaceWebhookEvent::value('status'));
     }
 
     public function test_tiktok_product_webhook_queues_catalog_refresh_once(): void

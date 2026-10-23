@@ -24,14 +24,15 @@
     <div class="card">
         <div class="border-b border-slate-100 px-5 py-3"><h2 class="text-base font-semibold text-slate-900">Paket Diserahkan</h2></div>
         <div class="divide-y divide-slate-100 text-sm">
+            @php($canViewOrder = auth()->user()->can('sales.view'))
             @forelse ($handover->orders->sortByDesc('shipped_at') as $order)
-                <a href="{{ route('sales.orders.show', $order) }}" class="flex items-center justify-between gap-3 px-5 py-2.5 hover:bg-slate-50/60">
+                <{{ $canViewOrder ? 'a' : 'div' }} @if ($canViewOrder) href="{{ route('sales.orders.show', $order) }}" @endif @class(['flex items-center justify-between gap-3 px-5 py-2.5', 'hover:bg-slate-50/60' => $canViewOrder])>
                     <span>
                         <span class="font-mono font-medium text-slate-900">{{ $order->tracking_number ?? $order->number }}</span>
                         <span class="block text-xs text-slate-500">{{ $order->number }} · {{ $order->customer_name }} · {{ $order->courier?->name ?? '—' }}</span>
                     </span>
                     <span class="text-xs text-slate-500">{{ $order->shipped_at?->format('H:i') }}</span>
-                </a>
+                </{{ $canViewOrder ? 'a' : 'div' }}>
             @empty
                 <p class="px-5 py-4 text-slate-500">Belum ada paket yang di-scan.</p>
             @endforelse

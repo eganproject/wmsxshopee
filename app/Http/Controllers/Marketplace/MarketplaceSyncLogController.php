@@ -78,6 +78,8 @@ class MarketplaceSyncLogController extends Controller
     public function retryStock(Request $request, ShopeeStockSync $shopee, TiktokStockSync $tiktok): RedirectResponse
     {
         $user = $request->user();
+        abort_unless($user->canAny(['shopee.sync', 'tiktok.sync']), 403, 'Anda tidak punya izin menyinkron toko marketplace.');
+
         $targets = MarketplaceShopSync::shopsFor($user)
             ->filter(fn ($row) => $row['shop']->isSyncable() && MarketplaceShopSync::canSync($user, $row['platform'], $row['shop']))
             ->filter(fn ($row) => $row['shop']->mappings()->whereNotNull('stock_error')->exists());
@@ -110,6 +112,8 @@ class MarketplaceSyncLogController extends Controller
     public function retryPush(Request $request): RedirectResponse
     {
         $platforms = collect(['shopee', 'tiktok'])->filter(fn ($p) => $request->user()->can("{$p}.sync"))->values()->all();
+        abort_if($platforms === [], 403, 'Anda tidak punya izin menyinkron toko marketplace.');
+
         $events = MarketplaceWebhookEvent::whereIn('platform', $platforms)->where('status', 'failed')
             ->where('created_at', '>=', now()->subDays(7))->get();
 

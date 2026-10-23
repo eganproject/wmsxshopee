@@ -343,7 +343,13 @@
                         <p>QC scan: {{ $order->qcChecker?->name }}</p>
                     @endif
                     @if ($order->handover)
-                        <p>Serah terima: <a href="{{ route('sales.handovers.show', $order->handover) }}" class="font-mono text-brand-600 hover:underline">{{ $order->handover->number }}</a></p>
+                        <p>Serah terima:
+                            @can('sales.fulfill')
+                                <a href="{{ route('sales.handovers.show', $order->handover) }}" class="font-mono text-brand-600 hover:underline">{{ $order->handover->number }}</a>
+                            @else
+                                <span class="font-mono">{{ $order->handover->number }}</span>
+                            @endcan
+                        </p>
                     @endif
                 </div>
             </div>
@@ -427,7 +433,11 @@
         <div>
             <p class="text-xs text-slate-500">Mutasi Stok</p>
             @if ($order->movement)
-                <a href="{{ route('inventory.movements.show', $order->movement) }}" class="mt-1 inline-block font-mono text-sm text-brand-600 hover:underline">{{ $order->movement->number }}</a>
+                @can('inventory.view')
+                    <a href="{{ route('inventory.movements.show', $order->movement) }}" class="mt-1 inline-block font-mono text-sm text-brand-600 hover:underline">{{ $order->movement->number }}</a>
+                @else
+                    <p class="mt-1 font-mono text-sm text-slate-700">{{ $order->movement->number }}</p>
+                @endcan
             @else
                 <p class="mt-1 text-sm text-slate-400">Stok keluar saat dikirim</p>
             @endif
@@ -602,15 +612,16 @@
                 </h2>
             </div>
             <div class="divide-y divide-slate-100">
+                @php($canViewReturn = auth()->user()->can('returns.view'))
                 @foreach ($order->returns as $return)
-                    <a href="{{ route('sales.returns.show', $return) }}" class="flex items-center justify-between gap-3 px-5 py-2.5 text-sm hover:bg-slate-50/60">
+                    <{{ $canViewReturn ? 'a' : 'div' }} @if ($canViewReturn) href="{{ route('sales.returns.show', $return) }}" @endif @class(['flex items-center justify-between gap-3 px-5 py-2.5 text-sm', 'hover:bg-slate-50/60' => $canViewReturn])>
                         <span class="flex items-center gap-3">
                             <span class="font-mono font-medium text-slate-900">{{ $return->number }}</span>
                             <span class="text-slate-500">{{ $return->return_date->format('d/m/Y') }}</span>
                             <span class="text-slate-600">layak jual {{ $return->items->sum('qty_good') }} · rusak {{ $return->items->sum('qty_damaged') }}@if ($missing = $return->items->sum('qty_missing')) · hilang {{ $missing }}@endif</span>
                         </span>
                         @include('sales.returns._status')
-                    </a>
+                    </{{ $canViewReturn ? 'a' : 'div' }}>
                 @endforeach
             </div>
         </div>

@@ -81,7 +81,11 @@
             @if ($receipt->received_at)
                 <p class="mt-1 text-sm text-slate-700">{{ $receipt->receiver?->name ?? '—' }} · {{ $receipt->received_at->format('d/m/Y H:i') }}</p>
                 @if ($receipt->movement)
-                    <a href="{{ route('inventory.movements.show', $receipt->movement) }}" class="font-mono text-xs text-brand-600 hover:underline">{{ $receipt->movement->number }}</a>
+                    @can('inventory.view')
+                        <a href="{{ route('inventory.movements.show', $receipt->movement) }}" class="font-mono text-xs text-brand-600 hover:underline">{{ $receipt->movement->number }}</a>
+                    @else
+                        <span class="font-mono text-xs text-slate-600">{{ $receipt->movement->number }}</span>
+                    @endcan
                 @endif
                 @if ($totals['damaged'])
                     @can('damaged.view')
