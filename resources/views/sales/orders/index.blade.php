@@ -146,6 +146,45 @@
                     </div>
                 </div>
             @endif
+            {{-- Pencarian tersimpan milik user ini: kombinasi filter yang dipakai ulang sekali klik. --}}
+            @php($currentQuery = collect(request()->query())->only(\App\Http\Controllers\Sales\OrderSavedFilterController::KEYS)->filter(fn ($v) => is_string($v) && $v !== '')->all())
+            <div class="flex flex-col gap-1.5 sm:flex-row sm:items-start" x-data="{ saving: @js($errors->has('name')) }">
+                <span class="w-20 shrink-0 pt-1 text-xs text-slate-500">Tersimpan</span>
+                <div class="flex flex-1 flex-wrap items-center gap-1.5" data-testid="saved-filters">
+                    @foreach ($savedFilters as $saved)
+                        @php($active = $saved->query == $currentQuery)
+                        <span @class([$pill, 'gap-0 p-0', $pillOn => $active, $pillOff => ! $active])>
+                            <a href="{{ route('sales.orders.index', $saved->query) }}" class="flex items-center gap-1.5 py-1 pr-1 pl-2.5" title="{{ $saved->name }}">
+                                <x-heroicon-o-bookmark class="size-3.5" /> <span class="truncate">{{ $saved->name }}</span>
+                            </a>
+                            <form method="POST" action="{{ route('sales.orders.saved-filters.destroy', $saved) }}"
+                                  data-confirm-title="Hapus pencarian tersimpan?" data-confirm="Pencarian &quot;{{ $saved->name }}&quot; dihapus. Pesanannya tidak ikut terhapus." data-confirm-text="Hapus">
+                                @csrf
+                                @method('DELETE')
+                                <button type="submit" class="rounded p-1 opacity-60 hover:opacity-100" title="Hapus {{ $saved->name }}" aria-label="Hapus {{ $saved->name }}"><x-heroicon-o-x-mark class="size-3" /></button>
+                            </form>
+                        </span>
+                    @endforeach
+                    @if ($currentQuery)
+                        <button type="button" x-show="! saving" @click="saving = true; $nextTick(() => $refs.savedName.focus())"
+                                class="inline-flex items-center gap-1 rounded-md border border-dashed border-slate-300 px-2.5 py-1 text-xs text-slate-600 hover:border-slate-400 hover:text-slate-900">
+                            <x-heroicon-o-plus class="size-3.5" /> Simpan pencarian ini
+                        </button>
+                        <form method="POST" action="{{ route('sales.orders.saved-filters.store') }}" x-show="saving" x-cloak class="flex items-center gap-1.5" @keydown.escape="saving = false">
+                            @csrf
+                            <input type="hidden" name="query" value="{{ http_build_query($currentQuery) }}">
+                            <input type="text" name="name" x-ref="savedName" maxlength="60" required value="{{ old('name') }}" placeholder="Nama, mis. Shopee lewat batas kirim" class="form-input h-8 w-64 text-xs">
+                            <button type="submit" class="btn-primary h-8 px-3 text-xs">Simpan</button>
+                            <button type="button" class="btn-icon" title="Batal" @click="saving = false"><x-heroicon-o-x-mark class="size-4" /></button>
+                        </form>
+                    @elseif ($savedFilters->isEmpty())
+                        <span class="pt-1 text-xs text-slate-400">Pilih filter lalu simpan di sini supaya bisa dipakai ulang sekali klik.</span>
+                    @endif
+                    @error('name')
+                        <p class="w-full text-xs text-rose-600">{{ $message }}</p>
+                    @enderror
+                </div>
+            </div>
         </div>
         @php($from = request('from'))
         @php($to = request('to'))
@@ -363,7 +402,7 @@
                                 <x-sales.marketplace-status :order="$order" :issue="$syncIssue" class="max-w-52" />
                             </td>
                             <td class="px-3 py-2.5">
-                                <div class="flex justify-end gap-0.5">
+                                <div class="ml-auto flex w-[6.5rem] flex-wrap justify-end gap-0.5">
                                     @if ($order->isEditable())
                                         @can('sales.create')
                                             <a href="{{ route('sales.orders.edit', $order) }}" class="btn-icon" title="Edit">
@@ -383,6 +422,21 @@
                                             <x-heroicon-o-clipboard-document-list class="size-5" />
                                         </a>
                                     @endif
+                                    @if ($order->isMarketplace())
+                                        @can('sales.confirm')
+                                            <form method="POST" action="{{ route('sales.orders.resync', $order) }}"
+                                                  data-confirm-title="Sinkronkan {{ $order->number }}?" data-confirm-variant="primary" data-confirm-text="Sinkronkan"
+                                                  data-confirm="{{ $order->hasStatus('draft') ? 'Data pesanan ditarik ulang dari marketplace dan SKU dicocokkan lagi. Bila semua SKU terhubung dan stok cukup, pesanan langsung dikonfirmasi.' : 'Status, resi dan data pesanan ditarik ulang dari marketplace.' }}">
+                                                @csrf
+                                                <input type="hidden" name="from_list" value="1">
+                                                <button type="submit" class="btn-icon" title="Sinkronkan dari marketplace"><x-heroicon-o-arrow-path class="size-5" /></button>
+                                            </form>
+                                        @endcan
+                                    @endif
+                                    <button type="button" class="btn-icon" title="Riwayat operasi"
+                                            @click="$dispatch('order-history', { url: @js(route('sales.orders.history', $order)), number: @js($order->number) })">
+                                        <x-heroicon-o-clock class="size-5" />
+                                    </button>
                                     <a href="{{ route('sales.orders.show', $order) }}" class="btn-icon" title="Lihat detail">
                                         <x-heroicon-o-eye class="size-5" />
                                     </a>
@@ -418,5 +472,32 @@
                 @endif
             </div>
         @endif
+    </div>
+
+    {{-- Panel samping "Riwayat Operasi": log satu pesanan tanpa membuka halaman detail. --}}
+    <div x-data="{ open: false, loading: false, number: '', html: '' }" x-cloak
+         @order-history.window="open = true; loading = true; number = $event.detail.number; html = '';
+             fetch($event.detail.url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+                 .then((r) => r.ok ? r.text() : Promise.reject())
+                 .then((t) => html = t)
+                 .catch(() => html = '<p class=&quot;text-sm text-rose-600&quot;>Riwayat gagal dimuat. Coba lagi.</p>')
+                 .finally(() => loading = false)"
+         @keydown.escape.window="open = false">
+        <div x-show="open" x-transition.opacity class="fixed inset-0 z-50 bg-slate-900/30" @click="open = false" aria-hidden="true"></div>
+        <aside x-show="open" role="dialog" aria-modal="true" aria-label="Riwayat operasi"
+               x-transition:enter="transition duration-200 ease-out" x-transition:enter-start="translate-x-full" x-transition:enter-end="translate-x-0"
+               x-transition:leave="transition duration-150 ease-in" x-transition:leave-start="translate-x-0" x-transition:leave-end="translate-x-full"
+               class="fixed inset-y-0 right-0 z-50 flex w-full max-w-xl flex-col border-l border-slate-200 bg-white shadow-xl">
+            <div class="flex items-center justify-between border-b border-slate-100 px-5 py-3">
+                <h2 class="flex items-center gap-2 text-sm font-medium text-slate-900">
+                    <x-heroicon-o-clock class="size-4 text-slate-500" /> Riwayat Operasi <span class="font-mono text-slate-500" x-text="number"></span>
+                </h2>
+                <button type="button" class="btn-icon" title="Tutup (Esc)" @click="open = false"><x-heroicon-o-x-mark class="size-5" /></button>
+            </div>
+            <div class="flex-1 overflow-y-auto p-5">
+                <p x-show="loading" class="flex items-center gap-2 text-sm text-slate-500"><x-heroicon-o-arrow-path class="size-4 animate-spin" /> Memuat riwayat...</p>
+                <div x-show="! loading" x-html="html"></div>
+            </div>
+        </aside>
     </div>
 </x-layouts.app>

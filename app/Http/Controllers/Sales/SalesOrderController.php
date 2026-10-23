@@ -7,6 +7,7 @@ use App\Models\Bundle;
 use App\Models\Courier;
 use App\Models\ProductVariant;
 use App\Models\SalesOrder;
+use App\Models\SavedFilter;
 use App\Models\Warehouse;
 use App\Models\WarehouseLocation;
 use App\Rules\AccessibleRecord;
@@ -124,6 +125,7 @@ class SalesOrderController extends Controller
             ]]),
             'warehouses' => Warehouse::orderBy('code')->get(),
             'shops' => $this->shopChips($request),
+            'savedFilters' => SavedFilter::where('user_id', $request->user()->id)->where('page', OrderSavedFilterController::PAGE)->orderBy('name')->get(),
             'searchTerms' => count($this->searchTerms($request)),
         ]);
     }
@@ -399,25 +401,34 @@ class SalesOrderController extends Controller
     }
 
     /** Tombol "Sinkronkan ulang" untuk pesanan Shopee / TikTok. */
-    public function resync(SalesOrder $order, MarketplaceOrderRelink $relink): RedirectResponse
+    public function resync(Request $request, SalesOrder $order, MarketplaceOrderRelink $relink): RedirectResponse
     {
         abort_unless($order->shopee_shop_id || $order->tiktok_shop_id, 404);
+
+        // Dari tombol "Sinkronkan" di daftar: kembali ke daftar dengan filter yang sama.
+        $back = fn () => $request->boolean('from_list') ? redirect()->back() : redirect()->route('sales.orders.show', $order);
 
         try {
             $relink->resync($order);
         } catch (ValidationException $e) {
-            return redirect()->route('sales.orders.show', $order)->with('error', collect($e->errors())->flatten()->first());
+            return $back()->with('error', collect($e->errors())->flatten()->first());
         }
 
         $order->refresh();
         $problem = $order->shopee_sync_error ?? $order->tiktok_sync_error;
 
         if ($order->hasStatus('draft')) {
-            return redirect()->route('sales.orders.show', $order)
+            return $back()
                 ->with('error', "{$order->number} sudah disinkron ulang, tapi masih draft".($problem ? ': '.$problem : '.'));
         }
 
-        return redirect()->route('sales.orders.show', $order)->with('success', "{$order->number} sudah disinkron ulang".($problem ? '. '.$problem : ' dan siap diproses gudang.'));
+        return $back()->with('success', "{$order->number} sudah disinkron ulang".($problem ? '. '.$problem : ' dan siap diproses gudang.'));
+    }
+
+    /** Riwayat operasi satu pesanan, dimuat ke panel samping di daftar pesanan. */
+    public function history(SalesOrder $order): View
+    {
+        return view('sales.orders._history', ['order' => $order]);
     }
 
     public function reopen(SalesOrder $order, SalesOrderService $service): RedirectResponse
