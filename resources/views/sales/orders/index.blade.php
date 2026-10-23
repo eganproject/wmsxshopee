@@ -146,6 +146,29 @@
                     </div>
                 </div>
             @endif
+            @if ($couriers->isNotEmpty())
+                @php($courierFilter = (string) request('courier'))
+                <div class="flex flex-col gap-1.5 sm:flex-row sm:items-start">
+                    <span class="w-20 shrink-0 pt-1 text-xs text-slate-500">Kurir</span>
+                    <div class="flex flex-wrap gap-1.5" data-testid="courier-chips">
+                        <a href="{{ route('sales.orders.index', request()->except(['courier', 'page'])) }}"
+                           @class([$pill, $pillOn => $courierFilter === '', $pillOff => $courierFilter !== ''])>Semua</a>
+                        @foreach ($couriers as $courier)
+                            <a href="{{ route('sales.orders.index', [...request()->except(['courier', 'page']), 'courier' => $courier['value']]) }}"
+                               title="{{ $courier['name'] }}"
+                               @class([$pill, $pillOn => $courierFilter === $courier['value'], $pillOff => $courierFilter !== $courier['value']])>
+                                @if ($courier['value'] === 'none')
+                                    <x-heroicon-o-hand-raised class="size-3.5" />
+                                @else
+                                    <x-heroicon-o-truck class="size-3.5" />
+                                @endif
+                                <span class="truncate">{{ $courier['name'] }}</span>
+                                <span class="opacity-60">{{ $courier['count'] }}</span>
+                            </a>
+                        @endforeach
+                    </div>
+                </div>
+            @endif
             {{-- Pencarian tersimpan milik user ini: kombinasi filter yang dipakai ulang sekali klik. --}}
             @php($currentQuery = collect(request()->query())->only(\App\Http\Controllers\Sales\OrderSavedFilterController::KEYS)->filter(fn ($v) => is_string($v) && $v !== '')->all())
             <div class="flex flex-col gap-1.5 sm:flex-row sm:items-start" x-data="{ saving: @js($errors->has('name')) }">
@@ -192,7 +215,7 @@
         @php($quickDates = ['Hari Ini' => [$today, $today], '7 Hari' => [now()->subDays(6)->toDateString(), $today], '30 Hari' => [now()->subDays(29)->toDateString(), $today]])
         <form method="GET" class="space-y-3 border-b border-slate-100 p-4"
               x-data="{ multi: @js($searchTerms > 1 && str_contains((string) request('search'), "\n")) }">
-            @foreach (['status', 'mp', 'shopee', 'platform', 'channel', 'per_page'] as $keep)
+            @foreach (['status', 'mp', 'shopee', 'platform', 'channel', 'courier', 'per_page'] as $keep)
                 @if (request()->filled($keep))
                     <input type="hidden" name="{{ $keep }}" value="{{ request($keep) }}">
                 @endif
@@ -258,7 +281,7 @@
                     </select>
                     <button type="submit" class="btn-primary"><x-heroicon-o-funnel class="size-5" /> Cari</button>
                     @if (request()->hasAny(['search', 'search_by', 'warehouse', 'shipment', 'date_by', 'from', 'to', 'sort']))
-                        <a href="{{ route('sales.orders.index', request()->only(['status', 'mp', 'shopee', 'platform', 'channel', 'per_page'])) }}" class="btn-icon" title="Reset filter"><x-heroicon-o-x-mark class="size-5" /></a>
+                        <a href="{{ route('sales.orders.index', request()->only(['status', 'mp', 'shopee', 'platform', 'channel', 'courier', 'per_page'])) }}" class="btn-icon" title="Reset filter"><x-heroicon-o-x-mark class="size-5" /></a>
                     @endif
                 </div>
             </div>
