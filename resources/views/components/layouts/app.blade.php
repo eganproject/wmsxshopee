@@ -178,6 +178,17 @@
     {{-- Tooltip nama menu saat sidebar diciutkan --}}
     <div id="sidebar-tip" role="tooltip" class="pointer-events-none fixed z-[90] hidden -translate-y-1/2 rounded-md bg-slate-900 px-2 py-1 text-xs whitespace-nowrap text-white shadow-lg"></div>
 
+    {{-- Tooltip penjelasan untuk elemen [data-hint] (Alpine hintTips) --}}
+    <div id="hint-tip" role="tooltip" class="pointer-events-none fixed z-[90] hidden w-72 max-w-[calc(100vw-1.5rem)] rounded-lg border border-slate-200 bg-white p-3 text-left opacity-0 shadow-lg shadow-slate-900/10 transition-opacity duration-150">
+        <span data-part="arrow" class="absolute size-2.5 rotate-45 border-t border-l border-slate-200 bg-white"></span>
+        <p data-part="title" class="relative text-[13px] font-semibold text-slate-900"></p>
+        <p data-part="body" class="relative mt-1 text-xs leading-relaxed text-slate-600"></p>
+        <p data-part="next" class="relative mt-2 flex gap-1.5 border-t border-slate-100 pt-2 text-xs leading-relaxed text-slate-700">
+            <x-heroicon-o-arrow-right-circle class="mt-px size-4 shrink-0 text-brand-600" />
+            <span data-part="next-text"></span>
+        </p>
+    </div>
+
     <div class="transition-[padding] duration-200 lg:pl-60 lg:collapsed:pl-14">
         {{-- Topbar --}}
         <header class="sticky top-0 z-30 flex h-12 items-center gap-3 border-b border-slate-200 bg-white px-4 sm:px-5">

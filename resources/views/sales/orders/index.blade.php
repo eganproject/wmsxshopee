@@ -19,14 +19,16 @@
         @endcan
     </x-page-header>
 
-    <div class="mb-4 flex gap-1 overflow-x-auto border-b border-slate-200 text-sm">
+    <div class="mb-4 flex gap-1 overflow-x-auto border-b border-slate-200 text-sm" x-data="hintTips">
         @php($statusFilter = request('status'))
         <a href="{{ route('sales.orders.index', request()->except(['status', 'page'])) }}"
+           data-hint-title="Semua pesanan" data-hint="Seluruh pesanan manual, Shopee dan TikTok sesuai filter yang sedang dipakai, dari Draft sampai Batal."
            @class(['-mb-px border-b-2 px-3 py-2 whitespace-nowrap', 'border-brand-500 font-medium text-slate-900' => ! $statusFilter, 'border-transparent text-slate-500 hover:text-slate-700' => $statusFilter])>
             Semua <span class="ml-1 text-xs text-slate-400">{{ $counts->sum() }}</span>
         </a>
         @foreach (\App\Models\SalesOrder::STATUSES as $value => $meta)
             <a href="{{ route('sales.orders.index', [...request()->except(['status', 'page']), 'status' => $value]) }}"
+               data-hint-title="{{ $meta['label'] }}" data-hint="{{ $meta['hint'] }}" @if ($meta['next']) data-hint-next="{{ $meta['next'] }}" @endif
                @class(['-mb-px border-b-2 px-3 py-2 whitespace-nowrap', 'border-brand-500 font-medium text-slate-900' => $statusFilter === $value, 'border-transparent text-slate-500 hover:text-slate-700' => $statusFilter !== $value])>
                 {{ $meta['label'] }} <span class="ml-1 text-xs text-slate-400">{{ $counts[$value] ?? 0 }}</span>
             </a>
@@ -36,17 +38,19 @@
     {{-- Status kedua: status pesanan di Shopee / TikTok, label disamakan. Jumlah ikut tab status gudang di atas. --}}
     @php($marketplaceFilter = request('mp'))
     @php($chip = 'inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs whitespace-nowrap transition')
-    <div class="mb-4 flex flex-wrap items-center gap-1.5" aria-label="Filter status marketplace">
+    <div class="mb-4 flex flex-wrap items-center gap-1.5" aria-label="Filter status marketplace" x-data="hintTips">
         <span class="mr-1 flex items-center gap-1 text-[11px] font-medium tracking-wide text-slate-500 uppercase">
             <x-marketplace-logo platform="shopee" class="size-3.5" /><x-marketplace-logo platform="tiktok" class="size-3.5" /> Status marketplace
         </span>
         <a href="{{ route('sales.orders.index', request()->except(['mp', 'page'])) }}"
+           data-hint-title="Semua status marketplace" data-hint="Pesanan Shopee dan TikTok pada tab yang sedang dibuka, apa pun statusnya di marketplace. Pesanan manual tidak dihitung."
            @class([$chip, 'border-slate-900 bg-slate-900 text-white dark:border-slate-200 dark:bg-slate-200 dark:text-slate-900' => ! $marketplaceFilter, 'border-slate-200 bg-white text-slate-600 hover:border-slate-300' => $marketplaceFilter])>
             Semua <span class="opacity-60">{{ $marketplaceCounts->sum() }}</span>
         </a>
         @foreach (\App\Models\SalesOrder::MARKETPLACE_STATUSES as $value => $meta)
             @continue(! ($marketplaceCounts[$value] ?? 0) && $marketplaceFilter !== $value)
             <a href="{{ route('sales.orders.index', [...request()->except(['mp', 'page']), 'mp' => $value]) }}"
+               data-hint-title="{{ $meta['label'] }} di marketplace" data-hint="{{ $meta['hint'] }}"
                @class([$chip, 'border-slate-900 bg-slate-900 text-white dark:border-slate-200 dark:bg-slate-200 dark:text-slate-900' => $marketplaceFilter === $value, 'border-slate-200 bg-white text-slate-600 hover:border-slate-300' => $marketplaceFilter !== $value])>
                 {{ $meta['label'] }} <span class="opacity-60">{{ $marketplaceCounts[$value] ?? 0 }}</span>
             </a>
@@ -60,7 +64,8 @@
             </a>
         @endif
         <a href="{{ route('sales.orders.index', [...request()->except(['mp', 'page']), 'mp' => $marketplaceFilter === 'out_of_sync' ? null : 'out_of_sync']) }}"
-           title="Status gudang dan status marketplace bertentangan"
+           data-hint-title="Tidak sinkron" data-hint="Status gudang dan status marketplace bertentangan, misalnya pembeli minta batal tapi gudang masih memproses, atau sudah dikirim di marketplace tapi belum di gudang."
+           data-hint-next="Buka pesanannya dan samakan statusnya, misalnya batalkan atau tandai dikirim."
            @class([$chip, 'ml-auto font-medium',
                'border-rose-600 bg-rose-600 text-white dark:border-rose-700 dark:bg-rose-700' => $marketplaceFilter === 'out_of_sync',
                'border-rose-200 bg-rose-50 text-rose-700 hover:border-rose-300' => $marketplaceFilter !== 'out_of_sync' && $outOfSyncCount,

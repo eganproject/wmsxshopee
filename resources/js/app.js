@@ -122,6 +122,69 @@ Alpine.data('sidebarTips', () => ({
     },
 }));
 
+// Tooltip penjelasan (judul + isi + langkah berikutnya) untuk elemen [data-hint] di dalam container.
+// Posisinya fixed agar tidak terpotong container yang bisa digulir (mis. baris tab).
+Alpine.data('hintTips', () => ({
+    init() {
+        const tip = document.getElementById('hint-tip');
+        if (! tip) return;
+        const parts = {
+            title: tip.querySelector('[data-part=title]'),
+            body: tip.querySelector('[data-part=body]'),
+            next: tip.querySelector('[data-part=next]'),
+            nextText: tip.querySelector('[data-part=next-text]'),
+            arrow: tip.querySelector('[data-part=arrow]'),
+        };
+        let current = null;
+        let timer;
+        const place = (target) => {
+            const rect = target.getBoundingClientRect();
+            const width = tip.offsetWidth;
+            const gutter = 12;
+            const left = Math.min(Math.max(gutter, rect.left + rect.width / 2 - width / 2), window.innerWidth - width - gutter);
+            const below = rect.bottom + 8 + tip.offsetHeight < window.innerHeight;
+            tip.style.left = `${left}px`;
+            tip.style.top = below ? `${rect.bottom + 8}px` : `${rect.top - tip.offsetHeight - 8}px`;
+            parts.arrow.style.left = `${Math.min(Math.max(12, rect.left + rect.width / 2 - left - 5), width - 22)}px`;
+            parts.arrow.classList.toggle('-top-[5px]', below);
+            parts.arrow.classList.toggle('-bottom-[5px]', ! below);
+            parts.arrow.classList.toggle('rotate-45', below);
+            parts.arrow.classList.toggle('rotate-[225deg]', ! below);
+        };
+        const open = (target) => {
+            current = target;
+            parts.title.textContent = target.dataset.hintTitle || '';
+            parts.body.textContent = target.dataset.hint;
+            parts.nextText.textContent = target.dataset.hintNext || '';
+            parts.next.classList.toggle('hidden', ! target.dataset.hintNext);
+            tip.classList.remove('hidden');
+            place(target);
+            requestAnimationFrame(() => tip.classList.remove('opacity-0'));
+        };
+        const close = () => {
+            clearTimeout(timer);
+            current = null;
+            tip.classList.add('hidden', 'opacity-0');
+        };
+        this.$el.addEventListener('mouseover', (event) => {
+            const target = event.target.closest?.('[data-hint]');
+            if (target === current) return;
+            clearTimeout(timer);
+            if (! target) return close();
+            // Jeda singkat supaya tooltip tidak berkedip saat kursor hanya lewat.
+            timer = setTimeout(() => open(target), current ? 0 : 250);
+        });
+        this.$el.addEventListener('focusin', (event) => {
+            const target = event.target.closest?.('[data-hint]');
+            if (target) open(target);
+        });
+        this.$el.addEventListener('mouseleave', close);
+        this.$el.addEventListener('focusout', close);
+        window.addEventListener('scroll', close, { passive: true, capture: true });
+        window.addEventListener('keydown', (event) => event.key === 'Escape' && close());
+    },
+}));
+
 window.Alpine = Alpine;
 window.Optima = { ...window.Optima, enhance, enhanceSelect, enhanceDate, toast, fixedBinsFor, spreadToFixedBins };
 initUi(toast);

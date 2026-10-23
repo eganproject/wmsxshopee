@@ -18,12 +18,24 @@ class SalesOrder extends Model
 
     /** Urutan alur pesanan; label, ikon & warna badge. */
     public const STATUSES = [
-        'draft' => ['label' => 'Draft', 'icon' => 'heroicon-o-document', 'color' => 'slate'],
-        'confirmed' => ['label' => 'Dikonfirmasi', 'icon' => 'heroicon-o-check-badge', 'color' => 'sky'],
-        'picking' => ['label' => 'Sedang Diambil', 'icon' => 'heroicon-o-hand-raised', 'color' => 'violet'],
-        'packed' => ['label' => 'Sudah Dikemas', 'icon' => 'heroicon-o-archive-box', 'color' => 'amber'],
-        'shipped' => ['label' => 'Dikirim', 'icon' => 'heroicon-o-truck', 'color' => 'emerald'],
-        'cancelled' => ['label' => 'Batal', 'icon' => 'heroicon-o-x-circle', 'color' => 'rose'],
+        'draft' => ['label' => 'Draft', 'icon' => 'heroicon-o-document', 'color' => 'slate',
+            'hint' => 'Pesanan yang belum mencadangkan stok. Pesanan marketplace tertahan di sini bila SKU-nya belum terhubung ke produk atau stok gudang belum cukup.',
+            'next' => 'Lengkapi SKU / stok, lalu konfirmasi pesanan.'],
+        'confirmed' => ['label' => 'Dikonfirmasi', 'icon' => 'heroicon-o-check-badge', 'color' => 'sky',
+            'hint' => 'Stok sudah dicadangkan dan pesanan siap dikerjakan gudang.',
+            'next' => 'Atur pickup / drop off, cetak label & picking list, lalu tandai Sedang Diambil.'],
+        'picking' => ['label' => 'Sedang Diambil', 'icon' => 'heroicon-o-hand-raised', 'color' => 'violet',
+            'hint' => 'Picker sedang mengambil barang dari rak sesuai picking list.',
+            'next' => 'Scan barang di QC Kemas, lalu kemas paketnya.'],
+        'packed' => ['label' => 'Sudah Dikemas', 'icon' => 'heroicon-o-archive-box', 'color' => 'amber',
+            'hint' => 'Barang sudah lolos QC dan paket sudah dikemas, menunggu diserahkan ke kurir.',
+            'next' => 'Scan resi di Serah Terima saat kurir mengambil paket.'],
+        'shipped' => ['label' => 'Dikirim', 'icon' => 'heroicon-o-truck', 'color' => 'emerald',
+            'hint' => 'Paket sudah diserahkan ke kurir (atau diambil pembeli) dan stok gudang sudah berkurang.',
+            'next' => 'Pantau kolom Status Marketplace sampai kurir scan dan pesanan selesai.'],
+        'cancelled' => ['label' => 'Batal', 'icon' => 'heroicon-o-x-circle', 'color' => 'rose',
+            'hint' => 'Pesanan dibatalkan dan cadangan stoknya sudah dilepas, termasuk pembatalan dari Shopee / TikTok.',
+            'next' => null],
     ];
 
     /** Status pesanan di Shopee (order_status) dengan label Indonesia. */
@@ -64,16 +76,16 @@ class SalesOrder extends Model
      * Kode asli tetap disimpan di shopee_order_status / tiktok_order_status.
      */
     public const MARKETPLACE_STATUSES = [
-        'unpaid' => ['label' => 'Belum Bayar', 'color' => 'slate', 'shopee' => ['UNPAID'], 'tiktok' => ['UNPAID']],
-        'on_hold' => ['label' => 'Ditahan', 'color' => 'slate', 'shopee' => [], 'tiktok' => ['ON_HOLD']],
-        'to_ship' => ['label' => 'Perlu Dikirim', 'color' => 'sky', 'shopee' => ['READY_TO_SHIP'], 'tiktok' => ['AWAITING_SHIPMENT', 'PARTIALLY_SHIPPING']],
-        'awaiting_courier' => ['label' => 'Menunggu Kurir', 'color' => 'violet', 'shopee' => ['PROCESSED', 'RETRY_SHIP'], 'tiktok' => ['AWAITING_COLLECTION']],
-        'in_transit' => ['label' => 'Dalam Pengiriman', 'color' => 'emerald', 'shopee' => ['SHIPPED'], 'tiktok' => ['IN_TRANSIT']],
-        'delivered' => ['label' => 'Sampai di Pembeli', 'color' => 'emerald', 'shopee' => ['TO_CONFIRM_RECEIVE'], 'tiktok' => ['DELIVERED']],
-        'completed' => ['label' => 'Selesai', 'color' => 'emerald', 'shopee' => ['COMPLETED'], 'tiktok' => ['COMPLETED']],
-        'cancel_requested' => ['label' => 'Pengajuan Batal', 'color' => 'amber', 'shopee' => ['IN_CANCEL'], 'tiktok' => []],
-        'cancelled' => ['label' => 'Batal', 'color' => 'rose', 'shopee' => ['CANCELLED'], 'tiktok' => ['CANCELLED']],
-        'returned' => ['label' => 'Retur', 'color' => 'rose', 'shopee' => ['TO_RETURN'], 'tiktok' => []],
+        'unpaid' => ['label' => 'Belum Bayar', 'color' => 'slate', 'shopee' => ['UNPAID'], 'tiktok' => ['UNPAID'], 'hint' => 'Pembeli belum membayar di marketplace.'],
+        'on_hold' => ['label' => 'Ditahan', 'color' => 'slate', 'shopee' => [], 'tiktok' => ['ON_HOLD'], 'hint' => 'Sudah dibayar, tapi TikTok masih menahan pesanan (masa pembeli bisa batal).'],
+        'to_ship' => ['label' => 'Perlu Dikirim', 'color' => 'sky', 'shopee' => ['READY_TO_SHIP'], 'tiktok' => ['AWAITING_SHIPMENT', 'PARTIALLY_SHIPPING'], 'hint' => 'Marketplace menunggu penjual mengatur pengiriman (Shopee READY_TO_SHIP, TikTok AWAITING_SHIPMENT).'],
+        'awaiting_courier' => ['label' => 'Menunggu Kurir', 'color' => 'violet', 'shopee' => ['PROCESSED', 'RETRY_SHIP'], 'tiktok' => ['AWAITING_COLLECTION'], 'hint' => 'Pengiriman sudah diatur dan resi terbit, menunggu kurir scan paket.'],
+        'in_transit' => ['label' => 'Dalam Pengiriman', 'color' => 'emerald', 'shopee' => ['SHIPPED'], 'tiktok' => ['IN_TRANSIT'], 'hint' => 'Kurir sudah scan paket dan paket dalam perjalanan ke pembeli.'],
+        'delivered' => ['label' => 'Sampai di Pembeli', 'color' => 'emerald', 'shopee' => ['TO_CONFIRM_RECEIVE'], 'tiktok' => ['DELIVERED'], 'hint' => 'Paket sudah sampai, menunggu pembeli konfirmasi terima.'],
+        'completed' => ['label' => 'Selesai', 'color' => 'emerald', 'shopee' => ['COMPLETED'], 'tiktok' => ['COMPLETED'], 'hint' => 'Pesanan selesai di marketplace.'],
+        'cancel_requested' => ['label' => 'Pengajuan Batal', 'color' => 'amber', 'shopee' => ['IN_CANCEL'], 'tiktok' => [], 'hint' => 'Pembeli mengajukan pembatalan. Jangan kemas atau kirim sampai ada keputusan.'],
+        'cancelled' => ['label' => 'Batal', 'color' => 'rose', 'shopee' => ['CANCELLED'], 'tiktok' => ['CANCELLED'], 'hint' => 'Pesanan dibatalkan di marketplace.'],
+        'returned' => ['label' => 'Retur', 'color' => 'rose', 'shopee' => ['TO_RETURN'], 'tiktok' => [], 'hint' => 'Pembeli mengajukan pengembalian barang.'],
     ];
 
     /** Status TikTok yang berarti pesanan harus disiapkan gudang. */
