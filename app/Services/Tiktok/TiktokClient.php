@@ -20,6 +20,9 @@ use Illuminate\Support\Sleep;
  */
 class TiktokClient
 {
+    /** Waktu panggilan terakhir dalam proses ini (ms), untuk jeda antar panggilan. */
+    public static ?float $lastCallAt = null;
+
     public function __construct(private readonly TiktokSetting $setting) {}
 
     public static function make(): self
@@ -102,14 +105,19 @@ class TiktokClient
             ($grantType === 'refresh_token' ? 'refresh_token' : 'auth_code') => $value,
         ];
 
-        try {
-            $response = Http::acceptJson()->timeout(config('tiktok.timeout'))
-                ->get(rtrim(config('tiktok.hosts.auth'), '/').$path.'?'.http_build_query($query));
-        } catch (ConnectionException $e) {
-            throw new TiktokException('Tidak bisa terhubung ke TikTok: '.$e->getMessage());
-        }
+        $url = rtrim(config('tiktok.hosts.auth'), '/').$path.'?'.http_build_query($query);
 
-        return $this->unwrap($response->json() ?? [], $response->status());
+        return $this->withRetries('GET', function () use ($url) {
+            $this->pace();
+
+            try {
+                $response = Http::acceptJson()->timeout(config('tiktok.timeout'))->get($url);
+            } catch (ConnectionException $e) {
+                throw new TiktokException('Tidak bisa terhubung ke TikTok: '.$e->getMessage(), connectionFailed: true);
+            }
+
+            return $this->unwrap($response->json() ?? [], $response->status());
+        });
     }
 
     /**
@@ -135,26 +143,60 @@ class TiktokClient
         $query['sign'] = $this->sign($path, $query, $json);
 
         $url = rtrim(config('tiktok.hosts.api'), '/').$path.'?'.http_build_query($query);
+
+        return $this->withRetries($method, fn () => $this->sendOnce($method, $url, $accessToken, $json));
+    }
+
+    /**
+     * Jalankan panggilan; gangguan sementara diulang dengan jeda yang makin panjang
+     * (batas panggilan: 2, 4, 8 detik; lainnya 1, 2, 4 detik).
+     *
+     * @param  callable(): array<string, mixed>  $send
+     * @return array<string, mixed>
+     */
+    private function withRetries(string $method, callable $send): array
+    {
         $attempt = 0;
 
         while (true) {
             try {
-                return $this->sendOnce($method, $url, $accessToken, $json);
+                return $send();
             } catch (TiktokException $e) {
                 $wait = $this->retryable($e, $method);
 
-                if ($wait === null || ++$attempt > max(0, (int) config('tiktok.retries', 2))) {
+                if ($wait === null || ++$attempt > max(0, (int) config('tiktok.retries', 3))) {
                     throw $e;
                 }
 
-                Sleep::for($wait * $attempt)->milliseconds();
+                Sleep::for($wait * 2 ** ($attempt - 1))->milliseconds();
             }
         }
+    }
+
+    /**
+     * Beri jarak minimal antar panggilan dalam satu proses (config tiktok.min_interval_ms),
+     * supaya rangkaian panggilan beruntun (kirim stok per produk, halaman pesanan)
+     * tidak menembus batas panggilan TikTok.
+     */
+    private function pace(): void
+    {
+        $last = self::$lastCallAt;
+        $interval = max(0, (int) config('tiktok.min_interval_ms', 0));
+        $now = hrtime(true) / 1e6;
+
+        if ($interval > 0 && $last !== null && ($gap = $now - $last) < $interval) {
+            Sleep::for((int) ceil($interval - $gap))->milliseconds();
+            $now += $interval - $gap;
+        }
+
+        self::$lastCallAt = $now;
     }
 
     /** @return array<string, mixed> */
     private function sendOnce(string $method, string $url, ?string $accessToken, string $json): array
     {
+        $this->pace();
+
         $request = Http::acceptJson()->timeout(config('tiktok.timeout'))
             ->withHeaders(array_filter(['x-tts-access-token' => $accessToken]));
 
@@ -176,7 +218,7 @@ class TiktokClient
      */
     private function retryable(TiktokException $e, string $method): ?int
     {
-        if ($e->httpStatus === 429 || str_contains(strtolower($e->getMessage()), 'too many request')) {
+        if ($e->isRateLimited()) {
             return 2000;
         }
 

@@ -40,7 +40,11 @@ return [
 
     // Gangguan sementara (batas panggilan, server sibuk, putus koneksi saat GET) diulang
     // sebanyak ini dengan jeda bertahap sebelum dianggap gagal.
-    'retries' => (int) env('TIKTOK_RETRIES', 2),
+    'retries' => (int) env('TIKTOK_RETRIES', 3),
+
+    // Jarak minimal antar panggilan API dalam satu proses (milidetik), supaya
+    // kirim stok / tarik produk yang beruntun tidak kena "Too many requests".
+    'min_interval_ms' => (int) env('TIKTOK_MIN_INTERVAL_MS', 200),
 
     // Ukuran label resi PDF dari TikTok: A6 (thermal 100x150) atau A5.
     'label_size' => env('TIKTOK_LABEL_SIZE', 'A6'),
