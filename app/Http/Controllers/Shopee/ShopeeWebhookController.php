@@ -44,9 +44,13 @@ class ShopeeWebhookController extends Controller
         // supaya tidak mengulang terus. Verifikasi URL push dari console tanpa shop_id juga 200.
         if (! $shop) {
             if ($shopId) {
-                $reason = $shops->isEmpty()
-                    ? "Push ditolak: toko Shopee #{$shopId} belum terhubung di Optima."
-                    : 'Push ditolak: tanda tangan tidak cocok. Isi Live Push Partner Key dari menu Push Mechanism di console Shopee.';
+                // Toko tak dikenal: tetap cek tanda tangannya supaya ketahuan key-nya sudah benar atau belum.
+                $signed = $shops->isEmpty() && collect(array_keys(ShopeeSetting::ENVIRONMENTS))->contains(fn (string $environment) => $this->verified($request, $environment));
+                $reason = match (true) {
+                    $signed => "Push ditolak: toko Shopee #{$shopId} belum terhubung di Optima (tanda tangan push sudah cocok).",
+                    $shops->isEmpty() => "Push ditolak: toko Shopee #{$shopId} belum terhubung di Optima, dan tanda tangan push juga tidak cocok. Cek Live Push Partner Key.",
+                    default => 'Push ditolak: tanda tangan tidak cocok. Isi Live Push Partner Key dari menu Push Mechanism di console Shopee.',
+                };
                 $this->remember($reason);
                 Log::warning('Shopee push ditolak', ['shop_id' => $shopId, 'code' => $code, 'reason' => $reason, 'url' => $request->fullUrl()]);
             }
