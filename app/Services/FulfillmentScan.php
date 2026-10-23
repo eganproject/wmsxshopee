@@ -112,6 +112,26 @@ class FulfillmentScan
             throw ValidationException::withMessages(['code' => "{$order->number} diambil pembeli, bukan lewat kurir. Serahkan dari halaman pesanannya."]);
         }
 
+        $this->ensureMarketplaceReady($order);
+
+        DB::transaction(function () use ($order, $userId) {
+            $handover = ShipmentHandover::forToday($order->warehouse_id, $order->courier_id, $userId);
+
+            $this->orders->ship($order, ['shipment_handover_id' => $handover->id], $userId);
+        });
+
+        return $order->refresh();
+    }
+
+    /**
+     * Paket marketplace boleh keluar gudang hanya bila tidak sedang diajukan batal
+     * dan pengirimannya sudah diatur di Shopee / TikTok. Dipakai serah terima scan
+     * dan tombol Kirim manual.
+     *
+     * @throws ValidationException
+     */
+    public function ensureMarketplaceReady(SalesOrder $order): void
+    {
         if ($order->isShopee()) {
             if ($order->shopee_order_status === 'IN_CANCEL' || $order->shopee_order_status === 'CANCELLED') {
                 throw ValidationException::withMessages(['code' => "{$order->number}: pembeli mengajukan pembatalan di Shopee. Tahan paket ini."]);
@@ -132,13 +152,5 @@ class FulfillmentScan
                 throw ValidationException::withMessages(['code' => "{$order->number}: pengiriman belum diatur di TikTok Shop Seller Center. Atur pickup / drop off dulu."]);
             }
         }
-
-        DB::transaction(function () use ($order, $userId) {
-            $handover = ShipmentHandover::forToday($order->warehouse_id, $order->courier_id, $userId);
-
-            $this->orders->ship($order, ['shipment_handover_id' => $handover->id], $userId);
-        });
-
-        return $order->refresh();
     }
 }

@@ -456,6 +456,26 @@ class ShipmentFlowTest extends TestCase
         $this->assertSame(3, ShipmentHandover::count());
     }
 
+    /** Tombol Kirim manual menahan paket marketplace yang diajukan batal / belum diatur, sama seperti serah terima. */
+    public function test_manual_ship_respects_marketplace_cancel_and_arrangement(): void
+    {
+        $spx = Courier::where('code', 'SPX')->firstOrFail();
+        $shopee = $this->shopeeOrder('M1', ['tracking_number' => 'SPX-M', 'courier_id' => $spx->id]);
+        $this->pick($shopee);
+        $this->post("/sales/orders/{$shopee->id}/pack")->assertSessionHasNoErrors();
+        $ship = fn () => $this->post("/sales/orders/{$shopee->id}/ship", ['courier_id' => $spx->id, 'tracking_number' => 'SPX-M']);
+
+        $ship()->assertSessionHasErrors(['code' => "{$shopee->number}: pengiriman belum diatur di Shopee. Atur pickup / drop off dulu."]);
+
+        $shopee->update(['shopee_order_status' => 'IN_CANCEL']);
+        $ship()->assertSessionHasErrors('code');
+        $this->assertSame('packed', $shopee->fresh()->status);
+
+        $shopee->update(['shopee_order_status' => 'PROCESSED']);
+        $ship()->assertSessionHasNoErrors();
+        $this->assertSame('shipped', $shopee->fresh()->status);
+    }
+
     public function test_staff_must_use_scans_instead_of_manual_pack_and_ship(): void
     {
         $order = $this->order(['tracking_number' => 'JNE1']);

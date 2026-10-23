@@ -11,6 +11,7 @@ use App\Models\SavedFilter;
 use App\Models\Warehouse;
 use App\Models\WarehouseLocation;
 use App\Rules\AccessibleRecord;
+use App\Services\FulfillmentScan;
 use App\Services\MarketplaceOrderRelink;
 use App\Services\OrderSkuResolver;
 use App\Services\SalesOrderService;
@@ -354,8 +355,11 @@ class SalesOrderController extends Controller
         return redirect()->route('sales.orders.show', $order)->with('success', "Pesanan {$order->number} sudah dikemas. Isi kurir & resi untuk mengirim.");
     }
 
-    public function ship(Request $request, SalesOrder $order, SalesOrderService $service): RedirectResponse
+    public function ship(Request $request, SalesOrder $order, SalesOrderService $service, FulfillmentScan $scan): RedirectResponse
     {
+        // Sama dengan serah terima scan: paket yang diajukan batal / belum diatur pengirimannya ditahan.
+        $scan->ensureMarketplaceReady($order);
+
         $data = $request->validate([
             'courier_id' => ['required', 'integer', Rule::exists('couriers', 'id')->where(fn ($q) => $q->where('is_active', true)->orWhere('id', $order->courier_id))],
             'courier_service' => ['nullable', 'string', 'max:50'],
