@@ -20,6 +20,9 @@ use App\Services\Shopee\ShopeeException;
 use App\Services\Shopee\ShopeeShopApi;
 use App\Services\Shopee\ShopeeSync;
 use App\Services\StockService;
+use App\Services\Tiktok\TiktokAuth;
+use App\Services\Tiktok\TiktokClient;
+use App\Services\Tiktok\TiktokException;
 use App\Services\Tiktok\TiktokShopApi;
 use App\Services\Tiktok\TiktokSync;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -243,5 +246,72 @@ class MarketplaceReliabilityTest extends TestCase
         $this->assertSame('processed', MarketplaceWebhookEvent::sole()->status);
         $this->assertTrue($this->shop->fresh()->authorization_expires_at->between(now()->addDays(5), now()->addDays(7)));
         $this->assertStringContainsString('Otorisasi berakhir', app(AlertService::class)->marketplaceIssues()->pluck('problem')->implode(' '));
+    }
+
+    public function test_tiktok_rate_limit_backs_off_and_does_not_require_reauthorization(): void
+    {
+        $shop = $this->tiktokShop();
+        Http::fake(['*/order/202309/orders/search*' => Http::response(['code' => 36009002, 'message' => 'Too many requests', 'request_id' => 'r1'])]);
+
+        try {
+            app(TiktokSync::class)->run($shop, ['orders']);
+            $this->fail('Batas panggilan yang terus berlanjut harus tetap gagal.');
+        } catch (TiktokException $e) {
+            $this->assertTrue($e->isRateLimited());
+            $this->assertFalse($e->needsReauthorization());
+        }
+
+        Http::assertSentCount(4);
+        Sleep::assertSequence([Sleep::for(2000)->milliseconds(), Sleep::for(4000)->milliseconds(), Sleep::for(8000)->milliseconds()]);
+        $this->assertSame('connected', $shop->fresh()->status);
+        $this->assertStringContainsString('36009002', $shop->fresh()->last_error);
+        $this->assertTrue((new TiktokException('TikTok: Invalid shop cipher (36004004)', 36004004))->needsReauthorization());
+    }
+
+    public function test_tiktok_token_refresh_retries_rate_limit_and_keeps_shop_connected(): void
+    {
+        $shop = $this->tiktokShop();
+        Http::fake(['*/api/v2/token/refresh*' => Http::sequence()
+            ->push(['code' => 36009002, 'message' => 'Too many requests'], 429)
+            ->push(['code' => 0, 'data' => ['access_token' => 'baru', 'refresh_token' => 'r2', 'access_token_expire_in' => now()->addDays(7)->getTimestamp(), 'refresh_token_expire_in' => now()->addDays(60)->getTimestamp()]])
+            ->whenEmpty(Http::response(['code' => 36009002, 'message' => 'Too many requests'], 429)),
+        ]);
+
+        $this->assertTrue(app(TiktokAuth::class)->refresh($shop));
+        Http::assertSentCount(2);
+        $this->assertSame(['baru', 'connected'], [$shop->fresh()->access_token, $shop->fresh()->status]);
+
+        $this->expectException(TiktokException::class);
+
+        try {
+            app(TiktokAuth::class)->refresh($shop->fresh());
+        } finally {
+            $this->assertSame('connected', $shop->fresh()->status);
+        }
+    }
+
+    public function test_tiktok_paces_back_to_back_calls(): void
+    {
+        config(['tiktok.min_interval_ms' => 250]);
+        TiktokClient::$lastCallAt = null;
+        Http::fake(['*/logistics/202309/warehouses*' => Http::response(['code' => 0, 'data' => ['warehouses' => []]])]);
+        $api = TiktokShopApi::for($this->tiktokShop());
+
+        $api->get('/logistics/warehouses');
+        $api->get('/logistics/warehouses');
+
+        Sleep::assertSleptTimes(1);
+    }
+
+    public function test_migration_restores_shops_flagged_only_by_rate_limit(): void
+    {
+        $limited = $this->tiktokShop();
+        $limited->update(['status' => 'expired', 'last_error' => 'TikTok: Too many requests (36009002)']);
+        $revoked = TiktokShop::create(['shop_id' => '7495000000000000002', 'shop_name' => 'Dicabut', 'is_active' => true, 'status' => 'expired',
+            'refresh_token' => 'x', 'last_error' => 'Otorisasi dicabut dari TikTok Shop Seller Center. Hubungkan ulang toko.']);
+
+        (require database_path('migrations/2026_10_23_090000_restore_rate_limited_tiktok_shops.php'))->up();
+
+        $this->assertSame(['connected', 'expired'], [$limited->fresh()->status, $revoked->fresh()->status]);
     }
 }
