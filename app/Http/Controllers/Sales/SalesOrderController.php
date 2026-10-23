@@ -29,6 +29,35 @@ use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class SalesOrderController extends Controller
 {
+    /** Pilihan jumlah baris per halaman di daftar pesanan. */
+    public const PER_PAGE = [20, 50, 100];
+
+    /** Kolom pencarian daftar pesanan (seperti pilihan "No. Pesanan / Resi / SKU" di Ginee). */
+    public const SEARCH_FIELDS = [
+        '' => 'Semua kolom',
+        'number' => 'No. pesanan',
+        'tracking' => 'No. resi',
+        'sku' => 'SKU',
+        'customer' => 'Pembeli',
+    ];
+
+    /** Jenis waktu untuk filter tanggal. */
+    public const DATE_FIELDS = [
+        '' => 'Tanggal pesanan',
+        'deadline' => 'Batas kirim',
+        'shipped' => 'Tanggal dikirim',
+    ];
+
+    /** Urutan daftar pesanan. */
+    public const SORTS = [
+        '' => 'Terbaru',
+        'oldest' => 'Terlama',
+        'deadline' => 'Batas kirim terdekat',
+    ];
+
+    /** Batas jumlah nomor yang ditempel sekaligus di kotak cari. */
+    private const MAX_SEARCH_TERMS = 500;
+
     public function index(Request $request): View|BinaryFileResponse|RedirectResponse
     {
         // Tautan lama sebelum status "Sudah Diambil" berganti nama jadi "Sedang Diambil".
@@ -39,9 +68,8 @@ class SalesOrderController extends Controller
         $query = $this->filtered($request)
             ->with(['warehouse', 'courier', 'looseItems.variant.product', 'bundles.bundle'])
             ->withSum('items', 'qty')
-            ->when($request->filled('status'), fn ($query) => $query->where('status', $request->input('status')))
-            ->latest('order_date')
-            ->latest('id');
+            ->when($request->filled('status'), fn ($query) => $query->where('status', $request->input('status')));
+        $this->sorted($query, (string) $request->input('sort'));
 
         if ($request->input('export') === 'xlsx') {
             // Kolom pendapatan Shopee hanya untuk user dengan hak sales.income.
@@ -59,7 +87,8 @@ class SalesOrderController extends Controller
                 ]));
         }
 
-        $orders = $query->paginate(20)->withQueryString();
+        $perPage = in_array($request->integer('per_page'), self::PER_PAGE, true) ? $request->integer('per_page') : self::PER_PAGE[0];
+        $orders = $query->paginate($perPage)->withQueryString();
 
         // Jumlah per tab mengikuti filter yang sedang dipakai (selain tab status itu sendiri).
         $counts = $this->filtered($request)->toBase()->groupBy('status')->selectRaw('status, COUNT(*) as total')->pluck('total', 'status');
@@ -94,7 +123,8 @@ class SalesOrderController extends Controller
                 'pick' => $order->canBulkPick(),
             ]]),
             'warehouses' => Warehouse::orderBy('code')->get(),
-            'channels' => $this->channels(),
+            'shops' => $this->shopChips($request),
+            'searchTerms' => count($this->searchTerms($request)),
         ]);
     }
 
@@ -430,8 +460,10 @@ class SalesOrderController extends Controller
         return SalesOrder::query()
             ->when($request->filled('warehouse'), fn ($query) => $query->where('warehouse_id', $request->integer('warehouse')))
             ->when($request->filled('channel'), fn ($query) => $query->where('channel_name', $request->input('channel')))
-            ->when($request->filled('from'), fn ($query) => $query->whereDate('order_date', '>=', $request->date('from')))
-            ->when($request->filled('to'), fn ($query) => $query->whereDate('order_date', '<=', $request->date('to')))
+            ->when($request->input('platform') === 'shopee', fn ($query) => $query->whereNotNull('shopee_shop_id'))
+            ->when($request->input('platform') === 'tiktok', fn ($query) => $query->whereNotNull('tiktok_shop_id'))
+            ->when($request->input('platform') === 'manual', fn ($query) => $query->whereNull('shopee_shop_id')->whereNull('tiktok_shop_id'))
+            ->tap(fn ($query) => $this->dateFilter($query, $request))
             ->when($request->input('shipment') === 'unarranged', fn ($query) => $query
                 ->whereIn('status', SalesOrder::RESERVING)
                 ->where('delivery_type', 'courier')
@@ -442,16 +474,133 @@ class SalesOrderController extends Controller
             ->when($withMarketplaceStatus && $marketplace === 'out_of_sync', fn ($query) => $query->outOfSync())
             ->when($withMarketplaceStatus && isset(SalesOrder::MARKETPLACE_STATUSES[$marketplace]), fn ($query) => $query->whereMarketplaceStatus($marketplace))
             ->when(in_array($request->input('shipment'), array_keys(SalesOrder::SHIPPING_METHODS), true), fn ($query) => $query->where('shipping_method', $request->input('shipment')))
-            ->when($request->filled('search'), function ($query) use ($request) {
-                $search = trim((string) $request->string('search'));
-                $query->where(fn ($q) => $q
-                    ->where('number', 'like', "%{$search}%")
+            ->tap(fn ($query) => $this->searchFilter($query, $request));
+    }
+
+    /**
+     * Isi kotak cari dipecah per baris / koma, supaya banyak nomor pesanan atau resi bisa ditempel sekaligus.
+     * Pencarian pembeli hanya dipecah per baris dan koma karena nama memakai spasi.
+     *
+     * @return list<string>
+     */
+    private function searchTerms(Request $request): array
+    {
+        $raw = (string) $request->input('search');
+        $field = (string) $request->input('search_by');
+        $pattern = in_array($field, ['number', 'tracking', 'sku'], true) ? '/[\s,;]+/' : '/[\r\n,;]+/';
+
+        return collect(preg_split($pattern, $raw) ?: [])
+            ->map(fn ($term) => trim($term))
+            ->filter(fn ($term) => $term !== '')
+            ->unique()
+            ->take(self::MAX_SEARCH_TERMS)
+            ->values()
+            ->all();
+    }
+
+    /** @param  Builder<SalesOrder>  $query */
+    private function searchFilter(Builder $query, Request $request): void
+    {
+        $terms = $this->searchTerms($request);
+        if ($terms === []) {
+            return;
+        }
+
+        $field = (string) $request->input('search_by');
+        $multiple = count($terms) > 1;
+
+        // Banyak nomor sekaligus dicocokkan persis supaya hasilnya tepat nomor yang ditempel.
+        match ($field) {
+            'number' => $query->where(fn ($q) => $multiple
+                ? $q->whereIn('number', $terms)->orWhereIn('external_number', $terms)
+                : $q->where('number', 'like', "%{$terms[0]}%")->orWhere('external_number', 'like', "%{$terms[0]}%")),
+            'tracking' => $multiple
+                ? $query->whereIn('tracking_number', $terms)
+                : $query->where('tracking_number', 'like', "%{$terms[0]}%"),
+            'sku' => $query->where(fn ($q) => $q
+                ->whereHas('items.variant', fn ($v) => $multiple ? $v->whereIn('sku', $terms) : $v->where('sku', 'like', "%{$terms[0]}%"))
+                ->orWhereHas('bundles.bundle', fn ($b) => $multiple ? $b->whereIn('sku', $terms) : $b->where('sku', 'like', "%{$terms[0]}%"))),
+            'customer' => $query->where(function ($q) use ($terms) {
+                foreach ($terms as $term) {
+                    $q->orWhere('customer_name', 'like', "%{$term}%");
+                }
+            }),
+            default => $query->where(function ($q) use ($terms, $multiple) {
+                if ($multiple) {
+                    $q->whereIn('number', $terms)
+                        ->orWhereIn('external_number', $terms)
+                        ->orWhereIn('tracking_number', $terms)
+                        ->orWhereHas('items.variant', fn ($v) => $v->whereIn('sku', $terms))
+                        ->orWhereHas('bundles.bundle', fn ($b) => $b->whereIn('sku', $terms));
+
+                    return;
+                }
+
+                $search = $terms[0];
+                $q->where('number', 'like', "%{$search}%")
                     ->orWhere('external_number', 'like', "%{$search}%")
                     ->orWhere('customer_name', 'like', "%{$search}%")
                     ->orWhere('tracking_number', 'like', "%{$search}%")
                     ->orWhereHas('items.variant', fn ($v) => $v->where('sku', 'like', "%{$search}%"))
-                    ->orWhereHas('bundles.bundle', fn ($b) => $b->where('sku', 'like', "%{$search}%")));
-            });
+                    ->orWhereHas('bundles.bundle', fn ($b) => $b->where('sku', 'like', "%{$search}%"));
+            }),
+        };
+    }
+
+    /** @param  Builder<SalesOrder>  $query */
+    private function dateFilter(Builder $query, Request $request): void
+    {
+        $from = $request->filled('from') ? $request->date('from')?->toDateString() : null;
+        $to = $request->filled('to') ? $request->date('to')?->toDateString() : null;
+        if (! $from && ! $to) {
+            return;
+        }
+
+        match ((string) $request->input('date_by')) {
+            'deadline' => $query
+                ->when($from, fn ($q) => $q->whereRaw('DATE(COALESCE(shopee_ship_by, tiktok_ship_by)) >= ?', [$from]))
+                ->when($to, fn ($q) => $q->whereRaw('DATE(COALESCE(shopee_ship_by, tiktok_ship_by)) <= ?', [$to])),
+            'shipped' => $query
+                ->when($from, fn ($q) => $q->whereDate('shipped_at', '>=', $from))
+                ->when($to, fn ($q) => $q->whereDate('shipped_at', '<=', $to)),
+            default => $query
+                ->when($from, fn ($q) => $q->whereDate('order_date', '>=', $from))
+                ->when($to, fn ($q) => $q->whereDate('order_date', '<=', $to)),
+        };
+    }
+
+    /** @param  Builder<SalesOrder>  $query */
+    private function sorted(Builder $query, string $sort): void
+    {
+        match ($sort) {
+            'oldest' => $query->oldest('order_date')->oldest('id'),
+            // Yang paling mendesak di atas; pesanan tanpa batas kirim (manual / sudah lewat proses) di bawah.
+            'deadline' => $query
+                ->orderByRaw('COALESCE(shopee_ship_by, tiktok_ship_by) IS NULL')
+                ->orderByRaw('COALESCE(shopee_ship_by, tiktok_ship_by)')
+                ->latest('order_date')
+                ->latest('id'),
+            default => $query->latest('order_date')->latest('id'),
+        };
+    }
+
+    /**
+     * Chip toko di atas daftar: nama saluran beserta platformnya, mengikuti filter platform.
+     *
+     * @return Collection<int, array{name: string, platform: ?string}>
+     */
+    private function shopChips(Request $request): Collection
+    {
+        return SalesOrder::query()->toBase()
+            ->whereNotNull('channel_name')
+            ->when($request->input('platform') === 'shopee', fn ($query) => $query->whereNotNull('shopee_shop_id'))
+            ->when($request->input('platform') === 'tiktok', fn ($query) => $query->whereNotNull('tiktok_shop_id'))
+            ->when($request->input('platform') === 'manual', fn ($query) => $query->whereNull('shopee_shop_id')->whereNull('tiktok_shop_id'))
+            ->groupBy('channel_name')
+            ->selectRaw('channel_name, MAX(CASE WHEN shopee_shop_id IS NOT NULL THEN 1 ELSE 0 END) as shopee, MAX(CASE WHEN tiktok_shop_id IS NOT NULL THEN 1 ELSE 0 END) as tiktok')
+            ->orderBy('channel_name')
+            ->get()
+            ->map(fn ($row) => ['name' => $row->channel_name, 'platform' => $row->shopee ? 'shopee' : ($row->tiktok ? 'tiktok' : null)]);
     }
 
     private function channels(): Collection
