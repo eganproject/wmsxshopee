@@ -362,4 +362,71 @@ class SalesOrderTest extends TestCase
         $this->from('/sales/orders')->post('/sales/orders/pick', ['orders' => [$short->id]])->assertSessionHas('error');
         $this->post('/sales/orders/pick', [])->assertSessionHasErrors('orders');
     }
+
+    /** Pesanan sederhana untuk tes filter daftar; atribut lain lewat $attributes. */
+    private function listOrder(string $number, array $attributes = []): SalesOrder
+    {
+        $order = SalesOrder::create([
+            'number' => $number, 'status' => 'confirmed', 'warehouse_id' => $this->warehouse->id,
+            'order_date' => now()->toDateString(), 'customer_name' => 'Pembeli '.$number, 'delivery_type' => 'courier',
+            'created_by' => auth()->id(),
+        ]);
+        $order->forceFill($attributes)->save();
+
+        return $order;
+    }
+
+    public function test_order_list_filters_platform_shop_and_pasted_numbers(): void
+    {
+        $shop = ShopeeShop::create(['environment' => 'test', 'shop_id' => 777, 'shop_name' => 'Toko Oranye', 'warehouse_id' => $this->warehouse->id, 'status' => 'connected']);
+        $this->listOrder('SO-A', ['channel_name' => 'Toko Oranye', 'shopee_shop_id' => $shop->id, 'tracking_number' => 'RESI-1']);
+        $this->listOrder('SO-B', ['channel_name' => 'Toko Oranye', 'shopee_shop_id' => $shop->id, 'tracking_number' => 'RESI-2']);
+        $this->listOrder('SO-C', ['channel_name' => 'Offline', 'tracking_number' => 'RESI-3']);
+
+        $this->get(route('sales.orders.index', ['platform' => 'shopee']))
+            ->assertOk()->assertSee('SO-A')->assertSee('SO-B')->assertDontSee('SO-C')
+            ->assertSee('Toko Oranye')->assertDontSee('title="Offline"', false);
+
+        $this->get(route('sales.orders.index', ['platform' => 'manual']))
+            ->assertOk()->assertSee('SO-C')->assertDontSee('SO-A');
+
+        $this->get(route('sales.orders.index', ['channel' => 'Toko Oranye']))
+            ->assertOk()->assertSee('SO-A')->assertDontSee('SO-C');
+
+        // Banyak resi ditempel satu per baris: cocok persis, bukan sebagian.
+        $this->get(route('sales.orders.index', ['search_by' => 'tracking', 'search' => "RESI-1\nRESI-3\n"]))
+            ->assertOk()->assertSee('SO-A')->assertSee('SO-C')->assertDontSee('SO-B')->assertSee('Mencari 2 nomor sekaligus');
+
+        $this->get(route('sales.orders.index', ['search' => 'SO-A, SO-B']))
+            ->assertOk()->assertSee('SO-A')->assertSee('SO-B')->assertDontSee('SO-C');
+
+        $this->get(route('sales.orders.index', ['search_by' => 'customer', 'search' => 'Pembeli SO-C']))
+            ->assertOk()->assertSee('SO-C')->assertDontSee('>SO-A<', false);
+    }
+
+    public function test_order_list_sorts_by_deadline_and_filters_by_deadline_date(): void
+    {
+        $this->listOrder('SO-LATER', ['shopee_ship_by' => now()->addDays(2)]);
+        $this->listOrder('SO-SOON', ['tiktok_ship_by' => now()->endOfDay()->subMinutes(5)]);
+        $this->listOrder('SO-NONE');
+
+        $this->get(route('sales.orders.index', ['sort' => 'deadline']))
+            ->assertOk()->assertSeeInOrder(['SO-SOON', 'SO-LATER', 'SO-NONE']);
+
+        $today = now()->toDateString();
+        $this->get(route('sales.orders.index', ['date_by' => 'deadline', 'from' => $today, 'to' => $today]))
+            ->assertOk()->assertSee('SO-SOON')->assertDontSee('SO-LATER')->assertDontSee('SO-NONE');
+    }
+
+    public function test_order_list_per_page_choice(): void
+    {
+        foreach (range(1, 25) as $i) {
+            $this->listOrder(sprintf('SO-P%02d', $i));
+        }
+
+        $this->get(route('sales.orders.index'))->assertOk()->assertSee('SO-P25')->assertDontSee('SO-P01')->assertSee('Total 25');
+        $this->get(route('sales.orders.index', ['per_page' => 50]))->assertOk()->assertSee('SO-P01');
+        // Nilai di luar pilihan kembali ke 20.
+        $this->get(route('sales.orders.index', ['per_page' => 5000]))->assertOk()->assertDontSee('SO-P01');
+    }
 }

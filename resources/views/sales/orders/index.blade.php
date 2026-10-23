@@ -102,46 +102,132 @@
                 ].filter(Boolean).join(' · ');
             },
         }">
-        <form method="GET" class="flex flex-col gap-3 border-b border-slate-100 p-4 lg:flex-row lg:flex-wrap lg:items-center">
-            @foreach (['status', 'mp', 'shopee'] as $keep)
+        {{-- Filter ala Ginee: platform & toko sekali klik, cari banyak nomor sekaligus, tanggal cepat dan urutan. --}}
+        @php($pill = 'inline-flex max-w-56 items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs whitespace-nowrap transition')
+        @php($pillOn = 'border-brand-500 bg-brand-50 font-medium text-brand-700')
+        @php($pillOff = 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:text-slate-900')
+        @php($platform = request('platform'))
+        @php($channel = request('channel'))
+        <div class="space-y-2 border-b border-slate-100 px-4 pt-4 pb-3 text-sm">
+            <div class="flex flex-col gap-1.5 sm:flex-row sm:items-start">
+                <span class="w-20 shrink-0 pt-1 text-xs text-slate-500">Platform</span>
+                <div class="flex flex-wrap gap-1.5">
+                    @foreach (['' => 'Semua', 'shopee' => 'Shopee', 'tiktok' => 'TikTok', 'manual' => 'Manual'] as $value => $label)
+                        <a href="{{ route('sales.orders.index', [...request()->except(['platform', 'channel', 'page']), 'platform' => $value ?: null]) }}"
+                           @class([$pill, $pillOn => (string) $platform === $value, $pillOff => (string) $platform !== $value])>
+                            @if (in_array($value, ['shopee', 'tiktok'], true))
+                                <x-marketplace-logo :platform="$value" class="size-3.5" />
+                            @endif
+                            {{ $label }}
+                        </a>
+                    @endforeach
+                </div>
+            </div>
+            @if ($shops->isNotEmpty())
+                @php($shopLimit = 12)
+                <div class="flex flex-col gap-1.5 sm:flex-row sm:items-start" x-data="{ more: false }">
+                    <span class="w-20 shrink-0 pt-1 text-xs text-slate-500">Toko</span>
+                    <div class="flex flex-wrap gap-1.5" data-testid="shop-chips">
+                        <a href="{{ route('sales.orders.index', request()->except(['channel', 'page'])) }}"
+                           @class([$pill, $pillOn => ! $channel, $pillOff => $channel])>Semua</a>
+                        @foreach ($shops as $shop)
+                            <a href="{{ route('sales.orders.index', [...request()->except(['channel', 'page']), 'channel' => $shop['name']]) }}"
+                               title="{{ $shop['name'] }}"
+                               @if ($loop->index >= $shopLimit && $channel !== $shop['name']) x-show="more" x-cloak @endif
+                               @class([$pill, $pillOn => $channel === $shop['name'], $pillOff => $channel !== $shop['name']])>
+                                <x-marketplace-logo :platform="$shop['platform']" class="size-3.5" />
+                                <span class="truncate">{{ $shop['name'] }}</span>
+                            </a>
+                        @endforeach
+                        @if ($shops->count() > $shopLimit)
+                            <button type="button" class="px-1.5 py-1 text-xs font-medium text-brand-600 hover:underline" @click="more = ! more"
+                                    x-text="more ? 'Lebih sedikit' : 'Lainnya ({{ $shops->count() - $shopLimit }})'"></button>
+                        @endif
+                    </div>
+                </div>
+            @endif
+        </div>
+        @php($from = request('from'))
+        @php($to = request('to'))
+        @php($today = now()->toDateString())
+        @php($quickDates = ['Hari Ini' => [$today, $today], '7 Hari' => [now()->subDays(6)->toDateString(), $today], '30 Hari' => [now()->subDays(29)->toDateString(), $today]])
+        <form method="GET" class="space-y-3 border-b border-slate-100 p-4"
+              x-data="{ multi: @js($searchTerms > 1 && str_contains((string) request('search'), "\n")) }">
+            @foreach (['status', 'mp', 'shopee', 'platform', 'channel', 'per_page'] as $keep)
                 @if (request()->filled($keep))
                     <input type="hidden" name="{{ $keep }}" value="{{ request($keep) }}">
                 @endif
             @endforeach
-            <div class="relative flex-1 lg:min-w-72">
-                <x-heroicon-o-magnifying-glass class="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-slate-400" />
-                <input type="search" name="search" value="{{ request('search') }}" placeholder="Cari no. SO, no. marketplace, pembeli, resi atau SKU..." class="form-input pl-8">
+            <div class="flex flex-col gap-3 lg:flex-row lg:flex-wrap lg:items-start">
+                <div class="flex flex-1 items-start lg:min-w-96">
+                    <select name="search_by" class="form-input w-36 shrink-0 rounded-r-none" aria-label="Cari berdasarkan">
+                        @foreach (\App\Http\Controllers\Sales\SalesOrderController::SEARCH_FIELDS as $value => $label)
+                            <option value="{{ $value }}" @selected((string) request('search_by') === $value)>{{ $label }}</option>
+                        @endforeach
+                    </select>
+                    <div class="relative -ml-px flex-1">
+                        <x-heroicon-o-magnifying-glass class="pointer-events-none absolute top-2.5 left-2.5 size-4 text-slate-400" x-show="! multi" />
+                        <input type="search" name="search" value="{{ request('search') }}" x-ref="single" x-show="! multi" :disabled="multi"
+                               placeholder="Cari no. SO, no. marketplace, pembeli, resi atau SKU..." class="form-input rounded-l-none pr-9 pl-8"
+                               @paste="const text = $event.clipboardData.getData('text'); if (/[\r\n]/.test(text.trim())) { $event.preventDefault(); multi = true; $nextTick(() => { $refs.multi.value = text.trim(); $refs.multi.focus() }) }">
+                        <textarea name="search" rows="4" x-ref="multi" x-show="multi" x-cloak :disabled="! multi"
+                                  placeholder="Tempel banyak nomor pesanan / resi / SKU, satu per baris. Ctrl+Enter untuk cari."
+                                  class="form-input rounded-l-none pr-9 font-mono text-xs" @keydown.ctrl.enter.prevent="$el.form.requestSubmit()"
+                                  @keydown.meta.enter.prevent="$el.form.requestSubmit()">{{ request('search') }}</textarea>
+                        <button type="button" class="absolute top-1.5 right-1.5 rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+                                :title="multi ? 'Kembali ke cari satu' : 'Cari banyak sekaligus (satu per baris)'"
+                                @click="if (multi) { $refs.single.value = $refs.multi.value.split(/[\r\n]+/).filter(Boolean).join(', ') } else { $refs.multi.value = $refs.single.value.split(/\s*[,;]\s*/).filter(Boolean).join('\n') } multi = ! multi; $nextTick(() => (multi ? $refs.multi : $refs.single).focus())">
+                            <x-heroicon-o-queue-list class="size-4" />
+                        </button>
+                    </div>
+                </div>
+                <select name="warehouse" class="form-input lg:w-40" onchange="this.form.submit()">
+                    <option value="">Semua gudang</option>
+                    @foreach ($warehouses as $warehouse)
+                        <option value="{{ $warehouse->id }}" @selected(request('warehouse') == $warehouse->id)>{{ $warehouse->code }}</option>
+                    @endforeach
+                </select>
+                <select name="shipment" class="form-input lg:w-44" onchange="this.form.submit()">
+                    <option value="">Semua pengiriman</option>
+                    <option value="unarranged" @selected(request('shipment') === 'unarranged')>Belum diatur</option>
+                    @foreach (\App\Models\SalesOrder::SHIPPING_METHODS as $value => $meta)
+                        <option value="{{ $value }}" @selected(request('shipment') === $value)>{{ $meta['label'] }}</option>
+                    @endforeach
+                </select>
             </div>
-            <select name="channel" class="form-input lg:w-48" onchange="this.form.submit()">
-                <option value="">Semua saluran</option>
-                @foreach ($channels as $channel)
-                    <option value="{{ $channel }}" @selected(request('channel') === $channel)>{{ $channel }}</option>
-                @endforeach
-            </select>
-            <select name="warehouse" class="form-input lg:w-40" onchange="this.form.submit()">
-                <option value="">Semua gudang</option>
-                @foreach ($warehouses as $warehouse)
-                    <option value="{{ $warehouse->id }}" @selected(request('warehouse') == $warehouse->id)>{{ $warehouse->code }}</option>
-                @endforeach
-            </select>
-            <select name="shipment" class="form-input lg:w-44" onchange="this.form.submit()">
-                <option value="">Semua pengiriman</option>
-                <option value="unarranged" @selected(request('shipment') === 'unarranged')>Belum diatur</option>
-                @foreach (\App\Models\SalesOrder::SHIPPING_METHODS as $value => $meta)
-                    <option value="{{ $value }}" @selected(request('shipment') === $value)>{{ $meta['label'] }}</option>
-                @endforeach
-            </select>
-            <div class="flex items-center gap-2">
-                <input type="date" name="from" value="{{ request('from') }}" class="form-input lg:w-40" title="Dari tanggal" aria-label="Dari tanggal">
-                <span class="text-sm text-slate-500">s/d</span>
-                <input type="date" name="to" value="{{ request('to') }}" class="form-input lg:w-40" title="Sampai tanggal" aria-label="Sampai tanggal">
+            <div class="flex flex-col gap-3 lg:flex-row lg:flex-wrap lg:items-center">
+                <div class="flex flex-wrap items-center gap-2">
+                    <select name="date_by" class="form-input w-40" aria-label="Jenis waktu">
+                        @foreach (\App\Http\Controllers\Sales\SalesOrderController::DATE_FIELDS as $value => $label)
+                            <option value="{{ $value }}" @selected((string) request('date_by') === $value)>{{ $label }}</option>
+                        @endforeach
+                    </select>
+                    <input type="date" name="from" value="{{ $from }}" x-ref="from" class="form-input w-40" title="Dari tanggal" aria-label="Dari tanggal">
+                    <span class="text-sm text-slate-500">s/d</span>
+                    <input type="date" name="to" value="{{ $to }}" x-ref="to" class="form-input w-40" title="Sampai tanggal" aria-label="Sampai tanggal">
+                    @foreach ($quickDates as $label => [$start, $end])
+                        <button type="button" @click="$refs.from.value = '{{ $start }}'; $refs.to.value = '{{ $end }}'; $el.form.requestSubmit()"
+                                @class([$pill, 'py-1.5', $pillOn => $from === $start && $to === $end, $pillOff => ! ($from === $start && $to === $end)])>{{ $label }}</button>
+                    @endforeach
+                </div>
+                <div class="flex items-center gap-2 lg:ml-auto">
+                    <label for="order-sort" class="text-xs whitespace-nowrap text-slate-500">Urutkan</label>
+                    <select id="order-sort" name="sort" class="form-input lg:w-48" onchange="this.form.submit()">
+                        @foreach (\App\Http\Controllers\Sales\SalesOrderController::SORTS as $value => $label)
+                            <option value="{{ $value }}" @selected((string) request('sort') === $value)>{{ $label }}</option>
+                        @endforeach
+                    </select>
+                    <button type="submit" class="btn-primary"><x-heroicon-o-funnel class="size-5" /> Cari</button>
+                    @if (request()->hasAny(['search', 'search_by', 'warehouse', 'shipment', 'date_by', 'from', 'to', 'sort']))
+                        <a href="{{ route('sales.orders.index', request()->only(['status', 'mp', 'shopee', 'platform', 'channel', 'per_page'])) }}" class="btn-icon" title="Reset filter"><x-heroicon-o-x-mark class="size-5" /></a>
+                    @endif
+                </div>
             </div>
-            <div class="flex gap-2">
-                <button type="submit" class="btn-secondary"><x-heroicon-o-funnel class="size-5" /> Filter</button>
-                @if (request()->hasAny(['search', 'channel', 'warehouse', 'shipment', 'from', 'to']))
-                    <a href="{{ route('sales.orders.index', request()->only(['status', 'mp', 'shopee'])) }}" class="btn-icon" title="Reset filter"><x-heroicon-o-x-mark class="size-5" /></a>
-                @endif
-            </div>
+            @if ($searchTerms > 1)
+                <p class="flex items-center gap-1 text-xs text-slate-500">
+                    <x-heroicon-o-information-circle class="size-4" /> Mencari {{ $searchTerms }} nomor sekaligus (cocok persis). Ditemukan {{ $orders->total() }} pesanan.
+                </p>
+            @endif
         </form>
 
         @can('sales.fulfill')
@@ -317,8 +403,20 @@
         {{-- Ruang agar baris terakhir tidak tertutup bar aksi mengambang. --}}
         <div x-show="selected.length" x-cloak class="h-24" aria-hidden="true"></div>
 
-        @if ($orders->hasPages())
-            <div class="border-t border-slate-100 px-5 py-4">{{ $orders->links() }}</div>
+        @if ($orders->total() > \App\Http\Controllers\Sales\SalesOrderController::PER_PAGE[0])
+            <div class="flex flex-col gap-3 border-t border-slate-100 px-5 py-4 lg:flex-row lg:items-center">
+                <div class="flex items-center gap-2 text-sm text-slate-500">
+                    <span>Total {{ number_format($orders->total(), 0, ',', '.') }}</span>
+                    <select class="form-input w-32 py-1 text-xs" aria-label="Jumlah per halaman" onchange="window.location.href = this.value">
+                        @foreach (\App\Http\Controllers\Sales\SalesOrderController::PER_PAGE as $size)
+                            <option value="{{ route('sales.orders.index', [...request()->except(['per_page', 'page']), 'per_page' => $size === \App\Http\Controllers\Sales\SalesOrderController::PER_PAGE[0] ? null : $size]) }}" @selected($orders->perPage() === $size)>{{ $size }} / halaman</option>
+                        @endforeach
+                    </select>
+                </div>
+                @if ($orders->hasPages())
+                    <div class="flex-1">{{ $orders->links() }}</div>
+                @endif
+            </div>
         @endif
     </div>
 </x-layouts.app>
