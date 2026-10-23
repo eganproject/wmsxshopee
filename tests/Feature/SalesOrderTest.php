@@ -471,4 +471,20 @@ class SalesOrderTest extends TestCase
 
         $this->get(route('sales.orders.index'))->assertOk()->assertSee('title="Riwayat operasi"', false);
     }
+
+    public function test_order_list_shows_created_and_completed_time_instead_of_buyer(): void
+    {
+        $this->listOrder('SO-OPEN', ['ordered_at' => '2026-10-20 09:15:00', 'customer_name' => 'Rahasia Pembeli']);
+        $this->listOrder('SO-DONE', ['status' => 'shipped', 'shipped_at' => '2026-10-21 16:40:00']);
+
+        $this->get(route('sales.orders.index'))->assertOk()
+            ->assertSee('20/10/2026 09:15')
+            ->assertSee('21/10/2026 16:40')
+            ->assertSee('Waktu Selesai')
+            ->assertDontSee('Rahasia Pembeli');
+
+        // Belum serah terima: waktu selesai tidak muncul.
+        $this->get(route('sales.orders.index', ['status' => 'confirmed']))->assertOk()
+            ->assertSee('Waktu Pembuatan')->assertDontSee('Waktu Selesai');
+    }
 }

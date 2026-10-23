@@ -134,6 +134,7 @@ class TiktokOrderSync
         $order->fill([
             'tiktok_order_status' => $status,
             'tiktok_synced_at' => now(),
+            'ordered_at' => $order->ordered_at ?? (isset($detail['create_time']) ? Carbon::createFromTimestamp((int) $detail['create_time'], config('app.timezone')) : null),
             'tiktok_package_id' => $this->packageId($detail) ?? $order->tiktok_package_id,
             'tiktok_ship_by' => $this->shipBy($detail) ?? $order->tiktok_ship_by,
             'tiktok_payment' => $detail['payment'] ?? $order->tiktok_payment,
@@ -195,6 +196,7 @@ class TiktokOrderSync
             'status' => 'draft',
             'warehouse_id' => $shop->warehouse_id,
             'order_date' => Carbon::createFromTimestamp((int) ($detail['create_time'] ?? now()->getTimestamp()), config('app.timezone'))->toDateString(),
+            'ordered_at' => isset($detail['create_time']) ? Carbon::createFromTimestamp((int) $detail['create_time'], config('app.timezone')) : now(),
             'channel_name' => $shop->channelName(),
             'external_number' => (string) $detail['id'],
             'tiktok_shop_id' => $shop->id,
