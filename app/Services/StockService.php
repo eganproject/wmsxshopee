@@ -8,6 +8,7 @@ use App\Models\StockLedger;
 use App\Models\StockMovement;
 use App\Models\StockMovementItem;
 use App\Models\WarehouseLocation;
+use App\Support\DocumentNumber;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -143,9 +144,6 @@ class StockService
     {
         $prefix = StockMovement::typeMeta($type, 'prefix').'-'.now()->format('Ym').'-';
 
-        $last = StockMovement::withoutGlobalScope('warehouse_access')->where('number', 'like', "{$prefix}%")->lockForUpdate()->max('number');
-        $sequence = $last ? (int) substr($last, strlen($prefix)) + 1 : 1;
-
-        return $prefix.str_pad((string) $sequence, 4, '0', STR_PAD_LEFT);
+        return DocumentNumber::next(StockMovement::withoutGlobalScope('warehouse_access'), $prefix, 4);
     }
 }

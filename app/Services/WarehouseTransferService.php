@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\WarehouseTransfer;
+use App\Support\DocumentNumber;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -146,9 +147,7 @@ class WarehouseTransferService
     private function nextNumber(): string
     {
         $prefix = WarehouseTransfer::PREFIX.'-'.now()->format('Ym').'-';
-        $last = WarehouseTransfer::withoutGlobalScope('warehouse_access')->where('number', 'like', "{$prefix}%")->lockForUpdate()->max('number');
-        $sequence = $last ? (int) substr($last, strlen($prefix)) + 1 : 1;
 
-        return $prefix.str_pad((string) $sequence, 4, '0', STR_PAD_LEFT);
+        return DocumentNumber::next(WarehouseTransfer::withoutGlobalScope('warehouse_access'), $prefix, 4);
     }
 }
