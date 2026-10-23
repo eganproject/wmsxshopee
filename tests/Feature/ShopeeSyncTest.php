@@ -686,6 +686,11 @@ class ShopeeSyncTest extends TestCase
         $other = json_encode(['shop_id' => 999, 'code' => 3, 'data' => ['ordersn' => 'X']]);
         $this->call('POST', $url, [], [], [], ['CONTENT_TYPE' => 'application/json', 'HTTP_AUTHORIZATION' => 'x'], $other)->assertOk();
         $this->assertStringContainsString('#999 belum terhubung', ShopeeSetting::current()->last_push_result);
+        $this->assertStringContainsString('tidak cocok', ShopeeSetting::current()->last_push_result);
+
+        $signed = hash_hmac('sha256', $url.'|'.$other, 'kunci-push');
+        $this->call('POST', $url, [], [], [], ['CONTENT_TYPE' => 'application/json', 'HTTP_AUTHORIZATION' => $signed], $other)->assertOk();
+        $this->assertStringContainsString('sudah cocok', ShopeeSetting::current()->last_push_result);
     }
 
     public function test_webhook_is_stored_deduplicated_and_kept_when_processing_fails(): void
