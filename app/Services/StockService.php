@@ -94,7 +94,8 @@ class StockService
 
         // Varian sudah dikunci di record(), jadi baris saldo (termasuk "Tanpa bin" yang
         // tidak dijaga unique index) tidak bisa tercipta ganda oleh transaksi lain.
-        $stock = Stock::query()
+        // Tanpa batas akses user: saldo yang tak terlihat user tidak boleh dibuat ganda.
+        $stock = Stock::withoutGlobalScope('warehouse_access')
             ->where('product_variant_id', $item->product_variant_id)
             ->when(
                 $locationId === null,

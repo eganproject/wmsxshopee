@@ -31,7 +31,9 @@ class SalesOrderService
      */
     public function availability(int $warehouseId, array $variantIds, ?int $exceptOrderId = null): Collection
     {
-        $onHand = Stock::query()
+        // Tanpa batas akses user: gudang cadangan bisa di luar akses user yang
+        // mengonfirmasi, tapi stoknya tetap dihitung (sama seperti sinkron otomatis).
+        $onHand = Stock::withoutGlobalScope('warehouse_access')
             ->where('warehouse_id', $warehouseId)
             ->whereIn('product_variant_id', $variantIds)
             ->groupBy('product_variant_id')
@@ -426,7 +428,7 @@ class SalesOrderService
             ->get()
             ->keyBy(fn ($row) => $row->variant_id.':'.($row->location_id ?? 'none'));
 
-        return Stock::query()
+        return Stock::withoutGlobalScope('warehouse_access')
             ->with('location:id,code,is_active')
             ->where('warehouse_id', $warehouseId)
             ->whereIn('product_variant_id', $variantIds)
