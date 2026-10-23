@@ -492,7 +492,46 @@ class ShopeeSyncTest extends TestCase
         $this->assertFalse($order->awaitingCourierScan());
         $this->assertNotNull($order->shopee_shipped_at);
         $this->assertFalse($order->shipped_automatically);
-        $this->actingAs($admin)->get(route('sales.orders.index'))->assertOk()->assertSee('Diterima kurir')->assertSee('Shopee: Dikirim');
+        $this->actingAs($admin)->get(route('sales.orders.index'))->assertOk()->assertSee('Diterima kurir')->assertSee('Dalam Pengiriman');
+    }
+
+    public function test_marketplace_status_is_unified_and_mismatches_are_flagged(): void
+    {
+        $this->fakeOrders([
+            $this->order('M1', 'READY_TO_SHIP', [$this->line(11, 101, 1)]),
+            $this->order('M2', 'READY_TO_SHIP', [$this->line(11, 101, 1)]),
+            $this->order('M3', 'READY_TO_SHIP', [$this->line(11, 101, 1)]),
+        ]);
+        $this->artisan('shopee:sync --only=orders')->assertSuccessful();
+
+        // Simulasi status Shopee berubah tanpa gudang ikut berubah.
+        SalesOrder::where('external_number', 'M2')->update(['shopee_order_status' => 'IN_CANCEL']);
+        SalesOrder::where('external_number', 'M3')->update(['shopee_order_status' => 'SHIPPED']);
+        [$m1, $m2, $m3] = ['M1', 'M2', 'M3'];
+        $orders = SalesOrder::all()->keyBy('external_number');
+
+        $this->assertSame('to_ship', $orders[$m1]->marketplaceStatus());
+        $this->assertNull($orders[$m1]->syncIssue());
+        $this->assertSame('cancel_requested', $orders[$m2]->marketplaceStatus());
+        $this->assertSame('Pembeli minta batal, jangan dikemas', $orders[$m2]->syncIssue());
+        $this->assertSame('in_transit', $orders[$m3]->marketplaceStatus());
+        $this->assertSame('Sudah dikirim di Shopee, belum di gudang', $orders[$m3]->syncIssue());
+
+        $this->assertEqualsCanonicalizing([$orders[$m2]->id, $orders[$m3]->id], SalesOrder::outOfSync()->pluck('id')->all());
+        $this->assertSame([$orders[$m1]->id], SalesOrder::whereMarketplaceStatus('to_ship')->pluck('id')->all());
+
+        // Kode TikTok dipetakan ke label yang sama; pengajuan batal TikTok diutamakan.
+        $this->assertSame('to_ship', SalesOrder::marketplaceStatusKey(null, 'AWAITING_SHIPMENT'));
+        $this->assertSame('awaiting_courier', SalesOrder::marketplaceStatusKey(null, 'AWAITING_COLLECTION'));
+        $this->assertSame('cancel_requested', SalesOrder::marketplaceStatusKey(null, 'AWAITING_SHIPMENT', true));
+        $this->assertSame('cancelled', SalesOrder::marketplaceStatusKey(null, 'CANCELLED', true));
+
+        $admin = User::where('email', 'superadmin@wms.local')->firstOrFail();
+        $this->actingAs($admin)->get(route('sales.orders.index', ['mp' => 'out_of_sync']))->assertOk()
+            ->assertSee('Status Marketplace')->assertSee('Pembeli minta batal, jangan dikemas')
+            ->assertSee($orders[$m2]->number)->assertSee($orders[$m3]->number)->assertDontSee($orders[$m1]->number);
+        $this->actingAs($admin)->get(route('sales.orders.index', ['mp' => 'to_ship']))->assertOk()
+            ->assertSee($orders[$m1]->number)->assertDontSee($orders[$m2]->number)->assertSee('READY_TO_SHIP');
     }
 
     public function test_shipped_in_shopee_without_stock_is_flagged(): void

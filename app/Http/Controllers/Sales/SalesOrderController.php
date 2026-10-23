@@ -48,10 +48,10 @@ class SalesOrderController extends Controller
             $income = $request->user()->can('sales.income');
 
             return XlsxExport::download('pesanan-'.now()->format('Ymd-His').'.xlsx',
-                ['No. SO', 'Tanggal', 'Status', 'Status Shopee', 'Saluran / Toko', 'No. Referensi', 'Pembeli', 'Telepon', 'Pengiriman', 'Alamat', 'Gudang', 'Kurir', 'Layanan', 'No. Resi', 'Total Qty', 'Diskon', 'Ongkir', 'Metode Bayar', 'Status Bayar',
+                ['No. SO', 'Tanggal', 'Status Gudang', 'Status Marketplace', 'Kode Status Marketplace', 'Saluran / Toko', 'No. Referensi', 'Pembeli', 'Telepon', 'Pengiriman', 'Alamat', 'Gudang', 'Kurir', 'Layanan', 'No. Resi', 'Total Qty', 'Diskon', 'Ongkir', 'Metode Bayar', 'Status Bayar',
                     ...($income ? ['Biaya Shopee', 'Dana Diterima Shopee'] : []), 'Catatan'],
                 $query->lazy(500)->map(fn ($o) => [
-                    $o->number, $o->order_date->format('d/m/Y'), $o->statusLabel(), $o->shopeeStatusLabel(), $o->channel_name, $o->external_number, $o->customer_name, $o->customer_phone,
+                    $o->number, $o->order_date->format('d/m/Y'), $o->statusLabel(), $o->marketplaceStatusLabel(), $o->marketplaceRawStatus(), $o->channel_name, $o->external_number, $o->customer_name, $o->customer_phone,
                     $o->deliveryTypeLabel(), $o->shipping_address, $o->warehouse?->code, $o->courier?->name, $o->courier_service, $o->tracking_number,
                     (int) $o->items_sum_qty, (float) $o->discount, (float) $o->shipping_fee, $o->paymentMethodLabel(), $o->paymentStatusLabel(),
                     ...($income ? [$o->shopee_income ? ShopeeIncome::fees($o->shopee_income) : null, $o->shopee_escrow_amount !== null ? (float) $o->shopee_escrow_amount : null] : []),
@@ -64,9 +64,27 @@ class SalesOrderController extends Controller
         // Jumlah per tab mengikuti filter yang sedang dipakai (selain tab status itu sendiri).
         $counts = $this->filtered($request)->toBase()->groupBy('status')->selectRaw('status, COUNT(*) as total')->pluck('total', 'status');
 
+        // Jumlah per chip status marketplace: ikut tab status gudang & filter lain, kecuali chip itu sendiri.
+        $marketplaceBase = fn () => $this->filtered($request, false)
+            ->when($request->filled('status'), fn ($query) => $query->where('status', $request->input('status')));
+        $marketplaceCounts = collect();
+        $marketplaceBase()->toBase()
+            ->where(fn ($q) => $q->whereNotNull('shopee_order_status')->orWhereNotNull('tiktok_order_status'))
+            ->groupBy('shopee_order_status', 'tiktok_order_status', 'tiktok_cancel_requested')
+            ->selectRaw('shopee_order_status, tiktok_order_status, tiktok_cancel_requested, COUNT(*) as total')
+            ->get()
+            ->each(function ($row) use ($marketplaceCounts) {
+                $key = SalesOrder::marketplaceStatusKey($row->shopee_order_status, $row->tiktok_order_status, (bool) $row->tiktok_cancel_requested);
+                if ($key) {
+                    $marketplaceCounts[$key] = ($marketplaceCounts[$key] ?? 0) + $row->total;
+                }
+            });
+
         return view('sales.orders.index', [
             'orders' => $orders,
             'counts' => $counts,
+            'marketplaceCounts' => $marketplaceCounts,
+            'outOfSyncCount' => $marketplaceBase()->outOfSync()->count(),
             // Data per baris untuk aksi massal: tombol hanya muncul untuk pesanan yang bisa diproses.
             'bulkRows' => $orders->getCollection()->mapWithKeys(fn (SalesOrder $order) => [$order->id => [
                 'arrange' => $order->canBulkArrangeShipment(),
@@ -405,8 +423,10 @@ class SalesOrderController extends Controller
      *
      * @return Builder<SalesOrder>
      */
-    private function filtered(Request $request): Builder
+    private function filtered(Request $request, bool $withMarketplaceStatus = true): Builder
     {
+        $marketplace = (string) $request->input('mp');
+
         return SalesOrder::query()
             ->when($request->filled('warehouse'), fn ($query) => $query->where('warehouse_id', $request->integer('warehouse')))
             ->when($request->filled('channel'), fn ($query) => $query->where('channel_name', $request->input('channel')))
@@ -419,6 +439,8 @@ class SalesOrderController extends Controller
                 ->where(fn ($q) => $q->whereNull('shopee_shop_id')->orWhere('shopee_order_status', 'READY_TO_SHIP'))
                 ->where(fn ($q) => $q->whereNull('tiktok_shop_id')->orWhere('tiktok_order_status', 'AWAITING_SHIPMENT')))
             ->when($request->filled('shopee'), fn ($query) => $query->shopeeFilter((string) $request->input('shopee')))
+            ->when($withMarketplaceStatus && $marketplace === 'out_of_sync', fn ($query) => $query->outOfSync())
+            ->when($withMarketplaceStatus && isset(SalesOrder::MARKETPLACE_STATUSES[$marketplace]), fn ($query) => $query->whereMarketplaceStatus($marketplace))
             ->when(in_array($request->input('shipment'), array_keys(SalesOrder::SHIPPING_METHODS), true), fn ($query) => $query->where('shipping_method', $request->input('shipment')))
             ->when($request->filled('search'), function ($query) use ($request) {
                 $search = trim((string) $request->string('search'));
