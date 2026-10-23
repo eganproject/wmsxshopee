@@ -15,8 +15,11 @@ use App\Models\Unit;
 use App\Models\User;
 use App\Models\Warehouse;
 use App\Models\WarehouseLocation;
+use Illuminate\Database\Events\TransactionBeginning;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
@@ -168,6 +171,30 @@ class GoodsReceiptTest extends TestCase
 
         $this->delete("/inventory/receipts/{$receipt->id}")->assertRedirect(route('inventory.receipts.index'));
         $this->assertModelMissing($receipt);
+    }
+
+    /** Draft yang diterima orang lain saat sedang disimpan tidak boleh ikut berubah. */
+    public function test_editing_a_draft_received_meanwhile_is_rejected(): void
+    {
+        $this->actingAs($this->superAdmin());
+        $this->post('/inventory/receipts', $this->payload(['action' => 'draft']));
+        $receipt = GoodsReceipt::first();
+
+        // Orang lain memposting draft ini tepat sebelum transaksi simpan dimulai.
+        $once = false;
+        Event::listen(TransactionBeginning::class, function () use (&$once, $receipt) {
+            if (! $once) {
+                $once = true;
+                DB::table('goods_receipts')->where('id', $receipt->id)->update(['status' => 'received']);
+            }
+        });
+
+        $this->put("/inventory/receipts/{$receipt->id}", $this->payload([
+            'items' => [['product_variant_id' => $this->variant->id, 'warehouse_location_id' => $this->binB->id, 'qty_received' => 99]],
+        ]))->assertSessionHasErrors('receipt');
+
+        $this->assertCount(2, $receipt->items()->get());
+        $this->assertNotContains(99, $receipt->items()->pluck('qty_received')->all());
     }
 
     public function test_validation_rules(): void

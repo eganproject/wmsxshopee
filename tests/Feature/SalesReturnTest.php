@@ -12,8 +12,11 @@ use App\Models\Unit;
 use App\Models\User;
 use App\Models\Warehouse;
 use App\Models\WarehouseLocation;
+use Illuminate\Database\Events\TransactionBeginning;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
@@ -271,6 +274,30 @@ class SalesReturnTest extends TestCase
 
         $this->delete(route('sales.returns.destroy', $return));
         $this->assertModelExists($return);
+    }
+
+    /** Draft retur yang diterima orang lain saat sedang disimpan tidak boleh ikut berubah. */
+    public function test_editing_a_draft_received_meanwhile_is_rejected(): void
+    {
+        $this->post(route('sales.returns.store'), $this->orderPayload([
+            ['sales_order_item_id' => $this->line($this->variant), 'qty_good' => 1, 'reason' => 'damaged'],
+        ]));
+        $return = SalesReturn::sole();
+
+        // Orang lain memposting draft ini tepat sebelum transaksi simpan dimulai.
+        $once = false;
+        Event::listen(TransactionBeginning::class, function () use (&$once, $return) {
+            if (! $once) {
+                $once = true;
+                DB::table('sales_returns')->where('id', $return->id)->update(['status' => 'received']);
+            }
+        });
+
+        $this->put(route('sales.returns.update', $return), $this->orderPayload([
+            ['sales_order_item_id' => $this->line($this->other), 'qty_good' => 1, 'reason' => 'damaged'],
+        ]))->assertSessionHasErrors('return');
+
+        $this->assertSame([$this->variant->id], $return->items()->pluck('product_variant_id')->all());
     }
 
     public function test_updating_draft_keeps_or_removes_photos(): void
