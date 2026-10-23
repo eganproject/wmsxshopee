@@ -25,8 +25,11 @@ use App\Services\Tiktok\TiktokClient;
 use App\Services\Tiktok\TiktokException;
 use App\Services\Tiktok\TiktokShopApi;
 use App\Services\Tiktok\TiktokSync;
+use App\Support\BackgroundHealth;
+use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Sleep;
@@ -193,6 +196,28 @@ class MarketplaceReliabilityTest extends TestCase
         $this->assertStringContainsString('1 push gagal diproses', $problems);
 
         $this->actingAs($user)->get('/notifications')->assertOk()->assertSee('Koneksi marketplace')->assertSee('Toko Putus');
+    }
+
+    public function test_sync_log_page_warns_when_scheduler_or_queue_worker_is_down(): void
+    {
+        $this->actingAs(User::where('username', 'superadmin')->first());
+        config(['queue.default' => 'database', 'marketplace.queue_in_scheduler' => false]);
+
+        // Belum pernah ada detak penjadwal, dan satu job menunggu 10 menit.
+        DB::table('jobs')->insert(['queue' => 'default', 'payload' => '{}', 'attempts' => 0, 'reserved_at' => null, 'available_at' => now()->subMinutes(10)->getTimestamp(), 'created_at' => now()->subMinutes(10)->getTimestamp()]);
+        $this->get('/marketplace/sync-logs')->assertOk()
+            ->assertSee('Penjadwal tidak berjalan')
+            ->assertSee('Antrean tidak diproses: 1 job menunggu')
+            ->assertSee('supervisorctl status');
+
+        // Penjadwal jalan (detak tiap menit) dan antrean kosong: tidak ada peringatan.
+        $this->assertTrue(collect(app(Schedule::class)->events())->contains(fn ($e) => $e->description === 'scheduler-heartbeat' && $e->expression === '* * * * *'));
+        BackgroundHealth::beat();
+        DB::table('jobs')->delete();
+        $this->get('/marketplace/sync-logs')->assertOk()->assertDontSee('Penjadwal tidak berjalan')->assertDontSee('Antrean tidak diproses');
+
+        $this->travel(5)->minutes();
+        $this->get('/marketplace/sync-logs')->assertOk()->assertSee('Penjadwal tidak berjalan sejak');
     }
 
     public function test_sync_log_page_and_retry_buttons(): void

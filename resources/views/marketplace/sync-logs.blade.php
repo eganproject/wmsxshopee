@@ -41,6 +41,16 @@
         @endif
     </x-page-header>
 
+    @foreach ($health as $problem)
+        <div class="mb-3 flex gap-3 rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800" role="alert">
+            <x-heroicon-o-exclamation-triangle class="mt-0.5 size-5 shrink-0" />
+            <div>
+                <p class="font-medium">{{ $problem['title'] }}</p>
+                <p class="mt-0.5 text-xs">{!! preg_replace('/`([^`]+)`/', '<code class="rounded bg-white/70 px-1 font-mono">$1</code>', e($problem['body'])) !!}</p>
+            </div>
+        </div>
+    @endforeach
+
     <div class="mb-6 grid gap-3 sm:grid-cols-4">
         <a href="{{ route('marketplace.sync-logs', ['status' => 'failed']) }}" class="card px-4 py-3 hover:bg-slate-50/60">
             <p class="text-xs text-slate-500">Sinkron gagal hari ini</p>
