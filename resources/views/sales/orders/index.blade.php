@@ -317,56 +317,70 @@
         @endcan
 
         <div class="overflow-x-auto">
+            {{-- Tiap pesanan: baris judul (no. pesanan, toko, gudang, waktu) lalu baris isi (barang, pengiriman, status, aksi). --}}
+            @php($canFulfill = auth()->user()->can('sales.fulfill'))
             <table class="min-w-full text-sm">
                 <thead class="bg-slate-50 text-left text-[13px] text-slate-500">
                     <tr>
-                        @can('sales.fulfill')
+                        @if ($canFulfill)
                             <th class="h-8 w-8 py-0 pl-4">
                                 <input type="checkbox" aria-label="Pilih semua" :checked="selected.length && selected.length === @js($orders->pluck('id'))->length"
                                        @change="selected = $event.target.checked ? @js($orders->pluck('id')) : []">
                             </th>
-                        @endcan
+                        @endif
                         <th class="h-8 px-3 py-0 font-normal">Barang Dipesan</th>
-                        <th class="h-8 px-3 py-0 font-normal">Saluran &amp; Pesanan</th>
-                        <th class="h-8 px-3 py-0 font-normal">Waktu</th>
+                        <th class="h-8 px-3 py-0 font-normal">Pengiriman</th>
                         <th class="h-8 px-3 py-0 font-normal">Status</th>
                         <th class="h-8 px-3 py-0 text-right font-normal">Aksi</th>
                     </tr>
                 </thead>
-                <tbody class="divide-y divide-slate-100">
-                    @forelse ($orders as $order)
-                        @php($syncError = $order->shopee_sync_error ?? $order->tiktok_sync_error)
-                        @php($unmapped = $order->hasStatus('draft') && $order->unmapped_skus !== null)
-                        @php($deadline = $order->shipByDeadline())
-                        @php($syncIssue = $order->syncIssue())
-                        <tr @class(['align-top', 'bg-rose-50/40 hover:bg-rose-50/70' => $syncIssue, 'hover:bg-slate-50/60' => ! $syncIssue]) :class="selected.includes({{ $order->id }}) && 'bg-sky-50/60'">
-                            @can('sales.fulfill')
-                                <td class="py-2.5 pl-4"><input type="checkbox" value="{{ $order->id }}" x-model.number="selected" aria-label="Pilih {{ $order->number }}"></td>
-                            @endcan
-                            <td class="px-3 py-2.5">
-                                <x-sales.order-lines :order="$order" />
+                @forelse ($orders as $order)
+                    @php($syncError = $order->shopee_sync_error ?? $order->tiktok_sync_error)
+                    @php($unmapped = $order->hasStatus('draft') && $order->unmapped_skus !== null)
+                    @php($deadline = $order->shipByDeadline())
+                    @php($syncIssue = $order->syncIssue())
+                    @php($completed = $order->completedTime())
+                    <tbody @class(['border-t border-slate-200', 'bg-rose-50/40' => $syncIssue]) :class="selected.includes({{ $order->id }}) && 'bg-sky-50/60'">
+                        <tr class="bg-slate-50/70 text-xs">
+                            @if ($canFulfill)
+                                <td class="py-2 pl-4"><input type="checkbox" value="{{ $order->id }}" x-model.number="selected" aria-label="Pilih {{ $order->number }}"></td>
+                            @endif
+                            <td colspan="4" class="px-3 py-2">
+                                <div class="flex flex-wrap items-center gap-x-4 gap-y-1">
+                                    <a href="{{ route('sales.orders.show', $order) }}" class="font-mono text-[13px] font-semibold text-slate-900 hover:text-brand-600">{{ $order->number }}</a>
+                                    <span class="flex min-w-0 items-center gap-1.5 text-slate-700" title="{{ $order->channel_name ?? 'Manual' }}">
+                                        <x-marketplace-logo :platform="$order->marketplacePlatform()" class="size-3.5" />
+                                        <span class="max-w-56 truncate">{{ $order->channel_name ?? 'Manual' }}</span>
+                                        @if ($order->external_number)
+                                            <span class="font-mono text-slate-500">· {{ $order->external_number }}</span>
+                                        @endif
+                                    </span>
+                                    <span class="flex items-center gap-1 text-slate-500" title="{{ $order->warehouse->name }}">
+                                        <x-heroicon-o-building-office-2 class="size-3.5" /> {{ $order->warehouse->code }}
+                                    </span>
+                                    @if ($syncError)
+                                        <a href="{{ route('sales.orders.show', $order) }}{{ $unmapped ? '#sku-mapping' : '' }}"
+                                           class="inline-flex items-center gap-1 font-medium text-amber-700 hover:underline" title="{{ $syncError }} · Klik untuk menyelesaikan">
+                                            <x-heroicon-o-exclamation-triangle class="size-3.5" /> {{ $unmapped ? 'SKU belum terhubung · Selesaikan' : 'Perlu dicek' }}
+                                        </a>
+                                    @endif
+                                    <span class="ml-auto flex items-center gap-4 whitespace-nowrap text-slate-500">
+                                        <span title="Waktu pesanan dibuat">Dibuat <span class="text-slate-700">{{ $order->createdTime()->format('d/m/Y H:i') }}</span></span>
+                                        @if ($completed)
+                                            <span title="Waktu selesai serah terima">Selesai <span class="font-medium text-emerald-700">{{ $completed->format('d/m/Y H:i') }}</span></span>
+                                        @endif
+                                    </span>
+                                </div>
                             </td>
-                            <td class="max-w-48 px-3 py-2.5">
-                                <a href="{{ route('sales.orders.show', $order) }}" class="font-mono font-medium whitespace-nowrap text-slate-900 hover:text-brand-600">{{ $order->number }}</a>
-                                {{-- Nama toko marketplace bisa sangat panjang tanpa spasi: dipotong. --}}
-                                <p class="mt-0.5 flex max-w-48 items-center gap-1.5 text-slate-700" title="{{ $order->channel_name ?? 'Manual' }}">
-                                    <x-marketplace-logo :platform="$order->marketplacePlatform()" class="size-4" />
-                                    <span class="truncate">{{ $order->channel_name ?? 'Manual' }}</span>
-                                </p>
-                                @if ($order->external_number)
-                                    <p class="max-w-48 truncate font-mono text-xs text-slate-500" title="{{ $order->external_number }}">{{ $order->external_number }}</p>
-                                @endif
-                                @if ($syncError)
-                                    <a href="{{ route('sales.orders.show', $order) }}{{ $unmapped ? '#sku-mapping' : '' }}"
-                                       class="mt-1 inline-flex items-center gap-1 text-xs font-medium text-amber-700 hover:underline"
-                                       title="{{ $syncError }} · Klik untuk menyelesaikan">
-                                        <x-heroicon-o-exclamation-triangle class="size-3.5" />
-                                        {{ $unmapped ? 'SKU belum terhubung · Selesaikan' : 'Perlu dicek' }}
-                                    </a>
-                                @endif
+                        </tr>
+                        <tr class="align-top">
+                            @if ($canFulfill)
+                                <td></td>
+                            @endif
+                            <td class="px-3 py-3">
+                                <x-sales.order-lines :order="$order" class="w-48" />
                             </td>
-                            <td class="px-3 py-2.5">
-                                {{-- Pengiriman (kurir, resi, batas kirim) lalu waktu pembuatan & waktu selesai serah terima. --}}
+                            <td class="px-3 py-3">
                                 <x-sales.shipment-status :order="$order" />
                                 @if (! $order->isSelfPickup() && ($order->courier || $order->tracking_number))
                                     <p class="mt-1 text-xs text-slate-700">{{ $order->courier?->name }}{{ $order->courier && $order->courier_service ? ' · '.$order->courier_service : '' }}</p>
@@ -385,34 +399,21 @@
                                         {{ $deadline->isPast() ? 'Lewat batas kirim' : 'Kirim sebelum' }} {{ $deadline->format('d/m H:i') }}
                                     </p>
                                 @endif
-                                <dl class="mt-1.5 space-y-0.5 text-xs whitespace-nowrap">
-                                    <div><dt class="text-slate-500">Waktu Pembuatan</dt><dd class="text-slate-700">{{ $order->createdTime()->format('d/m/Y H:i') }}</dd></div>
-                                    @if ($completed = $order->completedTime())
-                                        <div><dt class="text-slate-500">Waktu Selesai</dt><dd class="text-emerald-700">{{ $completed->format('d/m/Y H:i') }}</dd></div>
-                                    @endif
-                                </dl>
                             </td>
-                            <td class="px-3 py-2.5">
-                                {{-- Status gudang dan status marketplace dalam satu kolom, masing-masing diberi tanda. --}}
-                                <div class="space-y-2">
-                                    <div>
-                                        <p class="mb-0.5 flex items-center gap-1 text-[10.5px] font-medium tracking-wide text-slate-400 uppercase" title="{{ $order->warehouse->name }}">
-                                            <x-heroicon-o-building-office-2 class="size-3" /> Gudang · {{ $order->warehouse->code }}
-                                        </p>
+                            <td class="px-3 py-3">
+                                {{-- Status gudang (ikon gedung) dan status marketplace (logo Shopee / TikTok) berdampingan. --}}
+                                <div class="flex flex-wrap items-start gap-x-3 gap-y-1.5">
+                                    <div class="flex items-center gap-1" title="Status gudang">
+                                        <x-heroicon-o-building-office-2 class="size-3.5 text-slate-400" />
                                         <x-sales.status-badge :status="$order->status" />
                                     </div>
                                     @if ($order->isMarketplace())
-                                        <div>
-                                            <p class="mb-0.5 flex items-center gap-1 text-[10.5px] font-medium tracking-wide text-slate-400 uppercase">
-                                                <x-heroicon-o-globe-alt class="size-3" /> Marketplace
-                                            </p>
-                                            <x-sales.marketplace-status :order="$order" :issue="$syncIssue" class="max-w-52" />
-                                        </div>
+                                        <x-sales.marketplace-status :order="$order" :issue="$syncIssue" class="max-w-56" />
                                     @endif
                                 </div>
                             </td>
-                            <td class="px-3 py-2.5">
-                                <div class="ml-auto flex w-[6.5rem] flex-wrap justify-end gap-0.5">
+                            <td class="px-3 py-3">
+                                <div class="flex justify-end gap-0.5">
                                     @if ($order->isEditable())
                                         @can('sales.create')
                                             <a href="{{ route('sales.orders.edit', $order) }}" class="btn-icon" title="Edit">
@@ -453,14 +454,16 @@
                                 </div>
                             </td>
                         </tr>
-                    @empty
-                        <x-empty-state :colspan="auth()->user()->can('sales.fulfill') ? 6 : 5" icon="heroicon-o-shopping-cart" title="Belum ada pesanan" description="Input pesanan manual atau impor dari file Excel / CSV.">
+                    </tbody>
+                @empty
+                    <tbody>
+                        <x-empty-state :colspan="$canFulfill ? 5 : 4" icon="heroicon-o-shopping-cart" title="Belum ada pesanan" description="Input pesanan manual atau impor dari file Excel / CSV.">
                             @can('sales.create')
                                 <a href="{{ route('sales.orders.create') }}" class="btn-primary"><x-heroicon-o-plus class="size-5" /> Buat Pesanan</a>
                             @endcan
                         </x-empty-state>
-                    @endforelse
-                </tbody>
+                    </tbody>
+                @endforelse
             </table>
         </div>
 
