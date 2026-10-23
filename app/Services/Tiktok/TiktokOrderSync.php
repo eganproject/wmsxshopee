@@ -13,6 +13,7 @@ use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
+use Throwable;
 
 /**
  * Tarik pesanan TikTok Shop ke Pesanan Optima.
@@ -45,12 +46,20 @@ class TiktokOrderSync
     public function __construct(private readonly SalesOrderService $orders) {}
 
     /**
-     * @return array{created: int, updated: int, cancelled: int, pending: int}
+     * @return array{created: int, updated: int, cancelled: int, pending: int, failed: int}
      */
     public function sync(TiktokShop $shop, ?TiktokShopApi $api = null): array
     {
         $api ??= TiktokShopApi::for($shop);
-        $stats = ['created' => 0, 'updated' => 0, 'cancelled' => 0, 'pending' => 0];
+        $stats = ['created' => 0, 'updated' => 0, 'cancelled' => 0, 'pending' => 0, 'failed' => 0];
+        $failed = [];
+
+        // Pesanan yang gagal diproses di sinkron sebelumnya dicoba lagi lebih dulu.
+        foreach (array_chunk(Cache::pull($this->retryKey($shop), []), 50) as $chunk) {
+            foreach ($api->get('/order/orders', ['ids' => implode(',', $chunk)])['orders'] ?? [] as $detail) {
+                $this->count($stats, $this->applyGuarded($shop, $detail, $failed));
+            }
+        }
 
         $from = ($shop->orders_synced_until?->copy()->subMinutes(10)) ?? now()->subDays(self::FIRST_SYNC_DAYS);
         $now = now();
@@ -66,8 +75,7 @@ class TiktokOrderSync
                 ], array_filter(['page_size' => 100, 'sort_field' => 'update_time', 'sort_order' => 'ASC', 'page_token' => $pageToken]));
 
                 foreach ($page['orders'] ?? [] as $detail) {
-                    $result = $this->apply($shop, $detail);
-                    $stats[$result] = ($stats[$result] ?? 0) + 1;
+                    $this->count($stats, $this->applyGuarded($shop, $detail, $failed));
                 }
 
                 $pageToken = $page['next_page_token'] ?? null;
@@ -80,7 +88,44 @@ class TiktokOrderSync
         // Draft yang SKU-nya baru dipetakan sejak sinkron sebelumnya ikut diproses.
         $stats['updated'] += $this->relinkPending($shop, $api);
 
-        return array_intersect_key($stats, array_flip(['created', 'updated', 'cancelled', 'pending']));
+        if ($failed) {
+            Cache::forever($this->retryKey($shop), array_values(array_unique($failed)));
+        }
+
+        return array_intersect_key($stats, array_flip(['created', 'updated', 'cancelled', 'pending', 'failed']));
+    }
+
+    /**
+     * Terapkan satu pesanan tanpa menghentikan sinkron toko bila pesanan itu error
+     * (selain error API TikTok, yang tetap menghentikan sinkron seperti biasa).
+     * Pesanan yang gagal dicatat dan dicoba lagi di sinkron berikutnya.
+     *
+     * @param  array<string, mixed>  $detail
+     * @param  list<string>  $failed
+     */
+    private function applyGuarded(TiktokShop $shop, array $detail, array &$failed): string
+    {
+        try {
+            return $this->apply($shop, $detail);
+        } catch (TiktokException $e) {
+            throw $e;
+        } catch (Throwable $e) {
+            report($e);
+            $failed[] = (string) $detail['id'];
+
+            return 'failed';
+        }
+    }
+
+    /** @param  array<string, int>  $stats */
+    private function count(array &$stats, string $result): void
+    {
+        $stats[$result] = ($stats[$result] ?? 0) + 1;
+    }
+
+    private function retryKey(TiktokShop $shop): string
+    {
+        return "tiktok:order-retry:{$shop->id}";
     }
 
     /** Sinkron satu pesanan (dari webhook TikTok). */
