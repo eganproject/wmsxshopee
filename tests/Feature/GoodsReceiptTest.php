@@ -6,6 +6,8 @@ use App\Models\DamagedStock;
 use App\Models\GoodsReceipt;
 use App\Models\Product;
 use App\Models\ProductVariant;
+use App\Models\ShopeeSetting;
+use App\Models\ShopeeShop;
 use App\Models\Stock;
 use App\Models\StockLedger;
 use App\Models\Supplier;
@@ -15,6 +17,7 @@ use App\Models\Warehouse;
 use App\Models\WarehouseLocation;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
@@ -235,5 +238,23 @@ class GoodsReceiptTest extends TestCase
         $this->assertNull($receipt->items->first()->warehouse_location_id);
         $this->assertSame(8, (int) Stock::where('product_variant_id', $this->variant->id)->whereNull('warehouse_location_id')->value('qty'));
         $this->get("/inventory/receipts/{$receipt->id}")->assertOk()->assertSee('Tanpa bin');
+    }
+
+    public function test_receiving_goods_pushes_new_stock_to_marketplace_right_away(): void
+    {
+        config(['marketplace.instant_stock_push' => true]);
+        Http::preventStrayRequests();
+        Http::fake(['*/product/update_stock*' => Http::response(['error' => '', 'response' => []])]);
+        ShopeeSetting::create(['environment' => 'test', 'test_partner_id' => 1000001, 'test_partner_key' => 'rahasia-test']);
+        $shop = ShopeeShop::create([
+            'environment' => 'test', 'shop_id' => 555, 'shop_name' => 'Toko Uji', 'warehouse_id' => $this->warehouse->id, 'is_active' => true,
+            'status' => 'connected', 'access_token' => 'akses', 'refresh_token' => 'refresh', 'access_token_expires_at' => now()->addHours(3),
+        ]);
+        $shop->mappings()->create(['item_id' => 11, 'model_id' => 101, 'shopee_sku' => 'KAOS-M', 'product_variant_id' => $this->variant->id, 'stock_pushed' => 0]);
+
+        $this->actingAs($this->superAdmin())->post('/inventory/receipts', $this->payload(['action' => 'receive']))->assertSessionHasNoErrors();
+
+        Http::assertSent(fn ($r) => str_contains($r->url(), 'update_stock') && $r['stock_list'] === [['model_id' => 101, 'seller_stock' => [['stock' => 15]]]]);
+        $this->assertSame(15, $shop->mappings()->value('stock_pushed'));
     }
 }
