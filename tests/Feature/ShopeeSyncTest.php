@@ -19,12 +19,15 @@ use App\Models\Warehouse;
 use App\Services\AlertService;
 use App\Services\MarketplaceOrderRelink;
 use App\Services\SalesOrderService;
+use App\Services\Shopee\ShopeeOrderSync;
 use App\Services\Shopee\ShopeeStockSync;
+use App\Services\Shopee\ShopeeSync;
 use App\Services\StockService;
 use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Factory;
 use Illuminate\Http\Client\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use OpenSpout\Reader\XLSX\Reader;
 use Tests\TestCase;
@@ -146,6 +149,37 @@ class ShopeeSyncTest extends TestCase
         // Sinkron ulang tidak menggandakan pesanan.
         $this->artisan('shopee:sync --only=orders')->assertSuccessful();
         $this->assertSame(1, SalesOrder::count());
+    }
+
+    /** Satu pesanan yang error tidak menahan pesanan lain; pesanan itu dicoba lagi di sinkron berikutnya. */
+    public function test_one_broken_order_does_not_stop_the_shop_sync(): void
+    {
+        $broken = $this->order('BAD', 'READY_TO_SHIP', [['model_id' => 101, 'model_quantity_purchased' => 1]]);
+        $good = $this->order('OK1', 'READY_TO_SHIP', [$this->line(11, 101, 1)]);
+        $fixed = $this->order('BAD', 'READY_TO_SHIP', [$this->line(11, 101, 1)]);
+        $this->fakeOrders([$broken, $good], [
+            // Sinkron 1: BAD rusak. Sinkron 2: percobaan ulang BAD, lalu jendela biasa.
+            '*/order/get_order_detail*' => Http::sequence()
+                ->push(['error' => '', 'response' => ['order_list' => [$broken, $good]]])
+                ->push(['error' => '', 'response' => ['order_list' => [$fixed]]])
+                ->push(['error' => '', 'response' => ['order_list' => [$fixed, $good]]]),
+        ]);
+
+        $stats = app(ShopeeOrderSync::class)->sync($this->shop);
+
+        $this->assertSame([1, 1], [$stats['created'], $stats['failed']]);
+        $this->assertSame('confirmed', SalesOrder::where('external_number', 'OK1')->value('status'));
+        $this->assertNotNull($this->shop->fresh()->orders_synced_until);
+        $this->assertSame(['BAD'], Cache::get("shopee:order-retry:{$this->shop->id}"));
+        $this->assertStringContainsString('1 gagal', ShopeeSync::summary(['orders' => $stats]));
+
+        // Sinkron berikutnya mencoba BAD lagi lebih dulu; yang sudah beres tidak dobel.
+        $stats = app(ShopeeOrderSync::class)->sync($this->shop->fresh());
+
+        $this->assertSame(0, $stats['failed']);
+        $this->assertSame('confirmed', SalesOrder::where('external_number', 'BAD')->value('status'));
+        $this->assertSame(2, SalesOrder::count());
+        $this->assertNull(Cache::get("shopee:order-retry:{$this->shop->id}"));
     }
 
     public function test_split_order_keeps_its_package_number(): void

@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Models\Concerns\ScopedToWarehouse;
+use App\Support\DocumentNumber;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -111,10 +112,6 @@ class StockCount extends Model
     {
         $prefix = self::PREFIX.now()->format('ym').'-';
 
-        $last = self::withoutGlobalScope('warehouse_access')->where('number', 'like', "{$prefix}%")->lockForUpdate()->pluck('number')
-            ->map(fn ($number) => (int) substr($number, strlen($prefix)))
-            ->max();
-
-        return $prefix.str_pad((string) (($last ?? 0) + 1), 3, '0', STR_PAD_LEFT);
+        return DocumentNumber::next(self::withoutGlobalScope('warehouse_access'), $prefix, 3);
     }
 }

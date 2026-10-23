@@ -13,6 +13,7 @@ use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
+use Throwable;
 
 /**
  * Tarik pesanan Shopee ke Pesanan Optima.
@@ -52,12 +53,20 @@ class ShopeeOrderSync
     /**
      * Tarik semua pesanan yang berubah sejak sinkron terakhir.
      *
-     * @return array{created: int, updated: int, cancelled: int, pending: int}
+     * @return array{created: int, updated: int, cancelled: int, pending: int, failed: int}
      */
     public function sync(ShopeeShop $shop, ?ShopeeShopApi $api = null): array
     {
         $api ??= ShopeeShopApi::for($shop);
-        $stats = ['created' => 0, 'updated' => 0, 'cancelled' => 0, 'pending' => 0];
+        $stats = ['created' => 0, 'updated' => 0, 'cancelled' => 0, 'pending' => 0, 'failed' => 0];
+        $failed = [];
+
+        // Pesanan yang gagal diproses di sinkron sebelumnya dicoba lagi lebih dulu.
+        foreach (array_chunk(Cache::pull($this->retryKey($shop), []), 50) as $chunk) {
+            foreach ($this->details($api, $chunk) as $detail) {
+                $this->count($stats, $this->applyGuarded($shop, $detail, $api, $failed));
+            }
+        }
 
         // Mundur 10 menit dari tanda terakhir supaya pesanan di batas jendela tidak terlewat.
         $from = ($shop->orders_synced_until?->copy()->subMinutes(10)) ?? now()->subDays(self::FIRST_SYNC_DAYS);
@@ -69,9 +78,7 @@ class ShopeeOrderSync
 
             foreach (array_chunk($orderSns, 50) as $chunk) {
                 foreach ($this->details($api, $chunk) as $detail) {
-                    $result = $this->apply($shop, $detail);
-                    $stats[$result] = ($stats[$result] ?? 0) + 1;
-                    $this->refreshIncome($shop, (string) $detail['order_sn'], $api);
+                    $this->count($stats, $this->applyGuarded($shop, $detail, $api, $failed));
                 }
             }
 
@@ -84,7 +91,47 @@ class ShopeeOrderSync
 
         $this->fetchMissingTracking($shop, $api);
 
-        return array_intersect_key($stats, array_flip(['created', 'updated', 'cancelled', 'pending']));
+        if ($failed) {
+            Cache::forever($this->retryKey($shop), array_values(array_unique($failed)));
+        }
+
+        return array_intersect_key($stats, array_flip(['created', 'updated', 'cancelled', 'pending', 'failed']));
+    }
+
+    /**
+     * Terapkan satu pesanan tanpa menghentikan sinkron toko bila pesanan itu error
+     * (selain error API Shopee, yang tetap menghentikan sinkron seperti biasa).
+     * Pesanan yang gagal dicatat dan dicoba lagi di sinkron berikutnya.
+     *
+     * @param  array<string, mixed>  $detail
+     * @param  list<string>  $failed
+     */
+    private function applyGuarded(ShopeeShop $shop, array $detail, ShopeeShopApi $api, array &$failed): string
+    {
+        try {
+            $result = $this->apply($shop, $detail);
+            $this->refreshIncome($shop, (string) $detail['order_sn'], $api);
+
+            return $result;
+        } catch (ShopeeException $e) {
+            throw $e;
+        } catch (Throwable $e) {
+            report($e);
+            $failed[] = (string) $detail['order_sn'];
+
+            return 'failed';
+        }
+    }
+
+    /** @param  array<string, int>  $stats */
+    private function count(array &$stats, string $result): void
+    {
+        $stats[$result] = ($stats[$result] ?? 0) + 1;
+    }
+
+    private function retryKey(ShopeeShop $shop): string
+    {
+        return "shopee:order-retry:{$shop->id}";
     }
 
     /** Sinkron satu pesanan (dari webhook push Shopee). */

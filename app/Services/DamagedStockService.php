@@ -7,6 +7,7 @@ use App\Models\DamagedDocumentItem;
 use App\Models\DamagedStock;
 use App\Models\DamagedStockLedger;
 use App\Models\ProductVariant;
+use App\Support\DocumentNumber;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -300,9 +301,6 @@ class DamagedStockService
     {
         $prefix = DamagedDocument::typeMeta($type, 'prefix').'-'.now()->format('Ym').'-';
 
-        $last = DamagedDocument::withoutGlobalScope('warehouse_access')->where('number', 'like', "{$prefix}%")->lockForUpdate()->max('number');
-        $sequence = $last ? (int) substr($last, strlen($prefix)) + 1 : 1;
-
-        return $prefix.str_pad((string) $sequence, 4, '0', STR_PAD_LEFT);
+        return DocumentNumber::next(DamagedDocument::withoutGlobalScope('warehouse_access'), $prefix, 4);
     }
 }

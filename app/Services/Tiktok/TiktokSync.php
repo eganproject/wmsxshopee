@@ -70,7 +70,7 @@ class TiktokSync
 
         if (isset($result['orders'])) {
             $o = $result['orders'];
-            $parts[] = "pesanan: {$o['created']} baru, {$o['updated']} diperbarui, {$o['cancelled']} batal".($o['pending'] ? ", {$o['pending']} perlu dicek" : '');
+            $parts[] = "pesanan: {$o['created']} baru, {$o['updated']} diperbarui, {$o['cancelled']} batal".($o['pending'] ? ", {$o['pending']} perlu dicek" : '').(($o['failed'] ?? 0) ? ", {$o['failed']} gagal (dicoba lagi di sinkron berikutnya)" : '');
         }
         if (isset($result['returns'])) {
             $parts[] = "retur: {$result['returns']['created']} baru";

@@ -20,6 +20,7 @@ use App\Services\WarehouseSupply;
 use App\Support\Cartons;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Validation\ValidationException;
+use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
 /**
@@ -176,6 +177,21 @@ class WarehouseSupplyTest extends TestCase
         $this->assertTrue($service->shortage($order->fresh())->isEmpty());
         $service->pick($order->fresh(), [$order->items->first()->id => [['warehouse_location_id' => $this->bin->id, 'qty' => 20]]]);
         $this->assertSame('picking', $order->fresh()->status);
+    }
+
+    /** User yang hanya boleh mengakses gudang kecil tetap memakai stok gudang cadangan saat konfirmasi. */
+    public function test_limited_user_confirms_with_supply_stock(): void
+    {
+        $role = Role::create(['name' => 'Admin Gudang Kecil'])->givePermissionTo(['sales.view', 'sales.confirm']);
+        $user = User::factory()->create()->assignRole($role);
+        $user->syncWarehouseAccess(false, [$this->small->id]);
+
+        $order = SalesOrder::create(['number' => 'SO-3', 'warehouse_id' => $this->small->id, 'order_date' => now()->toDateString(), 'customer_name' => 'Budi', 'status' => 'draft']);
+        $order->items()->create(['product_variant_id' => $this->kaos->id, 'qty' => 20, 'price' => 0]);
+
+        $this->actingAs($user)->post("/sales/orders/{$order->id}/confirm")->assertSessionHasNoErrors();
+
+        $this->assertSame('confirmed', $order->fresh()->status);
     }
 
     public function test_order_beyond_combined_stock_is_rejected(): void

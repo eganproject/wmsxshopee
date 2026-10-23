@@ -18,9 +18,11 @@ use App\Services\FulfillmentScan;
 use App\Services\SalesOrderService;
 use App\Services\StockService;
 use App\Services\Tiktok\TiktokClient;
+use App\Services\Tiktok\TiktokOrderSync;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Factory;
 use Illuminate\Http\Client\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Validation\ValidationException;
@@ -164,6 +166,39 @@ class TiktokIntegrationTest extends TestCase
                 && $sign === TiktokClient::make()->sign($path, $query, $request->body());
         });
         $this->assertNotNull($shop->fresh()->orders_synced_until);
+    }
+
+    /** Satu pesanan TikTok yang error tidak menahan pesanan lain; pesanan itu dicoba lagi di sinkron berikutnya. */
+    public function test_one_broken_tiktok_order_does_not_stop_the_shop_sync(): void
+    {
+        $shop = $this->shop();
+        $broken = $this->order('BAD1', 'AWAITING_SHIPMENT', $this->units('2001', 1));
+        $good = $this->order('OK1', 'AWAITING_SHIPMENT', $this->units('2001', 1));
+        $this->fakeSearch([$broken, $good]);
+        // Simulasikan error database pada satu pesanan.
+        $failing = true;
+        SalesOrder::creating(function (SalesOrder $order) use (&$failing) {
+            if ($failing && $order->external_number === 'BAD1') {
+                throw new \RuntimeException('Simulasi error database');
+            }
+        });
+
+        $stats = app(TiktokOrderSync::class)->sync($shop);
+
+        $this->assertSame([1, 1], [$stats['created'], $stats['failed']]);
+        $this->assertSame('confirmed', SalesOrder::where('external_number', 'OK1')->value('status'));
+        $this->assertSame(['BAD1'], Cache::get("tiktok:order-retry:{$shop->id}"));
+
+        $failing = false;
+        $this->refake();
+        $this->fakeSearch([$good], [
+            '*/order/202309/orders?*' => Http::response(['code' => 0, 'data' => ['orders' => [$this->order('BAD1', 'AWAITING_SHIPMENT', $this->units('2001', 1))]]]),
+        ]);
+        $stats = app(TiktokOrderSync::class)->sync($shop->fresh());
+
+        $this->assertSame(0, $stats['failed']);
+        $this->assertSame('confirmed', SalesOrder::where('external_number', 'BAD1')->value('status'));
+        $this->assertNull(Cache::get("tiktok:order-retry:{$shop->id}"));
     }
 
     public function test_settings_keep_secret_encrypted_and_when_left_blank(): void
