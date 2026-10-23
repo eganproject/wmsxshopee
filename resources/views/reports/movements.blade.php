@@ -89,9 +89,11 @@
                             <td class="px-4 py-2.5 text-right font-semibold tabular-nums text-slate-900">{{ $fmt($row->closing) }} <span class="text-xs font-normal text-slate-500">{{ $row->unit_code }}</span></td>
                             <td class="px-4 py-2.5">
                                 <div class="flex justify-end">
-                                    <a href="{{ route('inventory.stock-card.index', array_filter(['variant' => $row->product_variant_id, 'warehouse' => request('warehouse'), 'from' => $from->toDateString(), 'to' => $to->toDateString()])) }}" class="btn-icon" title="Kartu stok">
-                                        <x-heroicon-o-document-chart-bar class="size-5" />
-                                    </a>
+                                    @can('inventory.view')
+                                        <a href="{{ route('inventory.stock-card.index', array_filter(['variant' => $row->product_variant_id, 'warehouse' => request('warehouse'), 'from' => $from->toDateString(), 'to' => $to->toDateString()])) }}" class="btn-icon" title="Kartu stok">
+                                            <x-heroicon-o-document-chart-bar class="size-5" />
+                                        </a>
+                                    @endcan
                                 </div>
                             </td>
                         </tr>

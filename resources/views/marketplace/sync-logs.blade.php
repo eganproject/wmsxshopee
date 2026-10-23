@@ -22,7 +22,9 @@
     </x-slot:breadcrumb>
 
     <x-page-header title="Riwayat Sinkron" description="Setiap sinkron pesanan, retur, stok dan produk per toko, serta push yang masuk dari Shopee dan TikTok." icon="heroicon-o-arrow-path">
-        @if ($summary['failed_stock'])
+        {{-- Kirim ulang & proses ulang butuh hak sinkron (shopee.sync / tiktok.sync). --}}
+        @php($canRetry = auth()->user()->canAny(['shopee.sync', 'tiktok.sync']))
+        @if ($canRetry && $summary['failed_stock'])
             <form method="POST" action="{{ route('marketplace.sync-logs.retry-stock') }}" x-data="{ busy: false }" @submit="busy = true">
                 @csrf
                 <button type="submit" class="btn-secondary" :disabled="busy">
@@ -31,7 +33,7 @@
                 </button>
             </form>
         @endif
-        @if ($summary['failed_push'])
+        @if ($canRetry && $summary['failed_push'])
             <form method="POST" action="{{ route('marketplace.sync-logs.retry-push') }}">
                 @csrf
                 <button type="submit" class="btn-secondary"><x-heroicon-o-arrow-uturn-right class="size-5" /> Proses Ulang Push Gagal</button>

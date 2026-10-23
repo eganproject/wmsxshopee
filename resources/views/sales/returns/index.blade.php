@@ -85,7 +85,11 @@
                             <td class="px-4 py-2.5 whitespace-nowrap text-slate-600">{{ $return->return_date->format('d/m/Y') }}</td>
                             <td class="px-4 py-2.5">
                                 @if ($return->order)
-                                    <a href="{{ route('sales.orders.show', $return->order) }}" class="font-mono text-slate-700 hover:text-brand-600">{{ $return->order->number }}</a>
+                                    @can('sales.view')
+                                        <a href="{{ route('sales.orders.show', $return->order) }}" class="font-mono text-slate-700 hover:text-brand-600">{{ $return->order->number }}</a>
+                                    @else
+                                        <span class="font-mono text-slate-700">{{ $return->order->number }}</span>
+                                    @endcan
                                     @if ($return->external_number)
                                         <p class="text-xs text-slate-500">{{ $return->channel_name }} #{{ $return->external_number }}</p>
                                     @endif

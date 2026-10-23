@@ -75,7 +75,11 @@
         <div>
             <p class="text-xs text-slate-500">Mutasi Stok Baik</p>
             @if ($document->movement)
-                <a href="{{ route('inventory.movements.show', $document->movement) }}" class="mt-1 inline-block font-mono text-sm font-medium text-brand-600 hover:underline">{{ $document->movement->number }}</a>
+                @can('inventory.view')
+                    <a href="{{ route('inventory.movements.show', $document->movement) }}" class="mt-1 inline-block font-mono text-sm font-medium text-brand-600 hover:underline">{{ $document->movement->number }}</a>
+                @else
+                    <p class="mt-1 font-mono text-sm font-medium text-slate-700">{{ $document->movement->number }}</p>
+                @endcan
             @elseif ($document->isDraft())
                 <p class="mt-1 text-sm text-slate-400">Dibuat saat disetujui</p>
             @else

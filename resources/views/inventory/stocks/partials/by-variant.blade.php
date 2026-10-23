@@ -1,4 +1,5 @@
 @php
+    $canViewOrders = auth()->user()->can('sales.view');
     $badge = [
         'rose' => 'border-rose-200 text-rose-700',
         'slate' => 'border-slate-200 text-slate-600',
@@ -45,9 +46,10 @@
                 </td>
                 <td class="px-5 py-3.5 text-right tabular-nums">
                     @if ($row->reserved > 0)
-                        <a href="{{ route('sales.orders.index', array_filter(['search' => $row->sku, 'warehouse' => request('warehouse')])) }}"
-                           class="font-medium text-sky-700 hover:underline"
-                           title="Belum diambil: {{ $fmt($row->reserved_waiting) }} · Sudah diambil / dikemas: {{ $fmt($row->reserved_picked) }}">{{ $fmt($row->reserved) }}</a>
+                        {{-- Angka jadi link ke daftar pesanan hanya untuk user dengan hak sales.view. --}}
+                        <{{ $canViewOrders ? 'a' : 'span' }} @if ($canViewOrders) href="{{ route('sales.orders.index', array_filter(['search' => $row->sku, 'warehouse' => request('warehouse')])) }}" @endif
+                           @class(['font-medium text-sky-700', 'hover:underline' => $canViewOrders])
+                           title="Belum diambil: {{ $fmt($row->reserved_waiting) }} · Sudah diambil / dikemas: {{ $fmt($row->reserved_picked) }}">{{ $fmt($row->reserved) }}</{{ $canViewOrders ? 'a' : 'span' }}>
                         @if ($row->reserved_picked > 0)
                             <p class="text-xs text-slate-500">{{ $fmt($row->reserved_picked) }} sudah diambil</p>
                         @endif
@@ -64,8 +66,8 @@
                 </td>
                 <td class="px-5 py-3.5 text-right tabular-nums">
                     @if ($row->held > 0)
-                        <a href="{{ route('sales.orders.index', array_filter(['search' => $row->sku, 'status' => 'draft', 'warehouse' => request('warehouse')])) }}"
-                           class="font-medium text-amber-700 hover:underline" title="Lihat pesanan draft">{{ $fmt($row->held) }}</a>
+                        <{{ $canViewOrders ? 'a' : 'span' }} @if ($canViewOrders) href="{{ route('sales.orders.index', array_filter(['search' => $row->sku, 'status' => 'draft', 'warehouse' => request('warehouse')])) }}" @endif
+                           @class(['font-medium text-amber-700', 'hover:underline' => $canViewOrders]) title="Pesanan draft">{{ $fmt($row->held) }}</{{ $canViewOrders ? 'a' : 'span' }}>
                     @else
                         <span class="text-slate-400">0</span>
                     @endif

@@ -36,7 +36,11 @@
         <div>
             <p class="text-xs text-slate-500">Mutasi Penyesuaian</p>
             @if ($count->movement)
-                <a href="{{ route('inventory.movements.show', $count->movement) }}" class="mt-1 inline-block font-mono text-sm text-brand-600 hover:underline">{{ $count->movement->number }}</a>
+                @can('inventory.view')
+                    <a href="{{ route('inventory.movements.show', $count->movement) }}" class="mt-1 inline-block font-mono text-sm text-brand-600 hover:underline">{{ $count->movement->number }}</a>
+                @else
+                    <p class="mt-1 font-mono text-sm text-slate-700">{{ $count->movement->number }}</p>
+                @endcan
             @else
                 <p class="mt-1 text-sm text-slate-400">Tidak ada selisih</p>
             @endif

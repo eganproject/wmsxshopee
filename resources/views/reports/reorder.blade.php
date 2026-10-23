@@ -89,7 +89,7 @@
                     @forelse ($rows as $row)
                         <tr class="hover:bg-slate-50/60">
                             <td class="px-4 py-2.5 font-mono font-medium text-slate-900">
-                                <a href="{{ route('inventory.stocks.index', ['view' => 'location', 'search' => $row->sku, 'warehouse' => request('warehouse')]) }}" class="hover:text-brand-600" title="Lihat stok per lokasi">{{ $row->sku }}</a>
+                                @can('inventory.view')<a href="{{ route('inventory.stocks.index', ['view' => 'location', 'search' => $row->sku, 'warehouse' => request('warehouse')]) }}" class="hover:text-brand-600" title="Lihat stok per lokasi">{{ $row->sku }}</a>@else{{ $row->sku }}@endcan
                             </td>
                             <td class="px-4 py-2.5">
                                 <p class="text-slate-900">{{ $row->product_name }}</p>

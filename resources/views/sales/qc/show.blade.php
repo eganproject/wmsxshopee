@@ -8,7 +8,9 @@
     </x-slot:breadcrumb>
 
     <x-page-header :title="'QC '.$order->number" :description="$order->customer_name.' · '.($order->courier?->name ?? 'tanpa kurir').($order->tracking_number ? ' · resi '.$order->tracking_number : '')" icon="heroicon-o-viewfinder-circle">
-        <a href="{{ route('sales.orders.show', $order) }}" class="btn-secondary"><x-heroicon-o-eye class="size-5" /> Detail Pesanan</a>
+        @can('sales.view')
+            <a href="{{ route('sales.orders.show', $order) }}" class="btn-secondary"><x-heroicon-o-eye class="size-5" /> Detail Pesanan</a>
+        @endcan
         <a href="{{ route('sales.qc.index') }}" class="btn-secondary"><x-heroicon-o-arrow-left class="size-5" /> Kembali</a>
     </x-page-header>
 

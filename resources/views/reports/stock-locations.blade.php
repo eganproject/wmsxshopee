@@ -90,7 +90,7 @@
                             <td class="px-4 py-2.5 text-slate-600">{{ $row->rack_code ?? '—' }}</td>
                             <td @class(['px-4 py-2.5', 'font-mono text-slate-700' => $row->location_code, 'text-amber-600' => ! $row->location_code])>{{ $row->location_code ?? 'Tanpa bin' }}</td>
                             <td class="px-4 py-2.5 font-mono font-medium text-slate-900">
-                                <a href="{{ route('inventory.stock-card.index', ['variant' => $row->product_variant_id, 'warehouse' => $row->warehouse_id, 'location' => $row->warehouse_location_id ?? 'none']) }}" class="hover:text-brand-600" title="Kartu stok">{{ $row->sku }}</a>
+                                @can('inventory.view')<a href="{{ route('inventory.stock-card.index', ['variant' => $row->product_variant_id, 'warehouse' => $row->warehouse_id, 'location' => $row->warehouse_location_id ?? 'none']) }}" class="hover:text-brand-600" title="Kartu stok">{{ $row->sku }}</a>@else{{ $row->sku }}@endcan
                             </td>
                             <td class="px-4 py-2.5">
                                 <p class="text-slate-900">{{ $row->product_name }}</p>

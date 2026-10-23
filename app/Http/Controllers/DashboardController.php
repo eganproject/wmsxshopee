@@ -10,6 +10,7 @@ use App\Models\Warehouse;
 use App\Support\StockLevels;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 use Illuminate\View\View;
 
 /**
@@ -27,8 +28,13 @@ class DashboardController extends Controller
         $warehouseId = $request->filled('warehouse') ? $request->integer('warehouse') : null;
         $today = today();
 
+        // Statistik hanya untuk user dengan hak dashboard.view; tiap panel juga
+        // butuh hak lihat modulnya. Tanpa hak itu halaman tetap terbuka (halaman
+        // awal setelah login) tetapi hanya berisi keterangan tanpa angka.
+        $can = fn (string $permission) => $user->can('dashboard.view') && $user->can($permission);
+
         $orders = null;
-        if ($user->can('sales.view')) {
+        if ($can('sales.view')) {
             $counts = SalesOrder::query()
                 ->when($warehouseId, fn ($q) => $q->where('warehouse_id', $warehouseId))
                 ->groupBy('status')->selectRaw('status, COUNT(*) as total')->pluck('total', 'status');
@@ -43,7 +49,7 @@ class DashboardController extends Controller
         }
 
         $lowStock = null;
-        if ($user->can('inventory.view')) {
+        if ($can('inventory.view')) {
             $query = StockLevels::belowMinimum(StockLevels::minStockQuery($warehouseId));
             $lowStock = [
                 'count' => (clone $query)->reorder()->count(),
@@ -52,7 +58,7 @@ class DashboardController extends Controller
         }
 
         $receipts = null;
-        if ($user->can('receipts.view')) {
+        if ($can('receipts.view')) {
             $todayReceipts = GoodsReceipt::query()
                 ->when($warehouseId, fn ($q) => $q->where('warehouse_id', $warehouseId))
                 ->whereDate('receipt_date', $today);
@@ -74,8 +80,8 @@ class DashboardController extends Controller
             'orders' => $orders,
             'lowStock' => $lowStock,
             'receipts' => $receipts,
-            'chart' => $user->can('inventory.view') ? $this->movementChart($warehouseId, $today) : null,
-            'activities' => $user->can('activity.view')
+            'chart' => $can('inventory.view') ? $this->movementChart($warehouseId, $today) : null,
+            'activities' => $can('activity.view')
                 ? ActivityLog::query()->latest('id')->limit(8)->get()
                 : null,
         ]);
@@ -85,7 +91,7 @@ class DashboardController extends Controller
      * Qty masuk & keluar per hari (penyesuaian dihitung sesuai arahnya).
      * Transfer antar lokasi tidak mengubah saldo gudang sehingga tidak dihitung.
      *
-     * @return array{days: \Illuminate\Support\Collection, max: int, in: int, out: int}
+     * @return array{days: Collection, max: int, in: int, out: int}
      */
     private function movementChart(?int $warehouseId, Carbon $today): array
     {

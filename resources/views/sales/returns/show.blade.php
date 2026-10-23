@@ -60,7 +60,11 @@
         <div class="card p-4">
             <p class="text-xs text-slate-500">Mutasi Stok</p>
             @if ($return->movement)
-                <a href="{{ route('inventory.movements.show', $return->movement) }}" class="mt-1 inline-block font-mono text-lg font-semibold text-brand-600 hover:underline">{{ $return->movement->number }}</a>
+                @can('inventory.view')
+                    <a href="{{ route('inventory.movements.show', $return->movement) }}" class="mt-1 inline-block font-mono text-lg font-semibold text-brand-600 hover:underline">{{ $return->movement->number }}</a>
+                @else
+                    <p class="mt-1 font-mono text-lg font-semibold text-slate-900">{{ $return->movement->number }}</p>
+                @endcan
             @else
                 <p class="mt-1 text-sm text-slate-400">{{ $return->isDraft() ? 'Dibuat saat retur diterima' : 'Tidak ada (tidak ada yang layak jual)' }}</p>
             @endif
@@ -85,7 +89,11 @@
         <div>
             <p class="text-xs text-slate-500">Pesanan Asal</p>
             @if ($return->order)
-                <a href="{{ route('sales.orders.show', $return->order) }}" class="mt-1 inline-block font-mono text-sm font-medium text-brand-600 hover:underline">{{ $return->order->number }}</a>
+                @can('sales.view')
+                    <a href="{{ route('sales.orders.show', $return->order) }}" class="mt-1 inline-block font-mono text-sm font-medium text-brand-600 hover:underline">{{ $return->order->number }}</a>
+                @else
+                    <p class="mt-1 font-mono text-sm font-medium text-slate-700">{{ $return->order->number }}</p>
+                @endcan
                 @if ($return->external_number)
                     <p class="text-xs text-slate-500">{{ $return->channel_name }} #{{ $return->external_number }}</p>
                 @endif
