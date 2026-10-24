@@ -23,6 +23,13 @@ function setPartState(index, state, message = '') {
     row.querySelector('[data-message]').textContent = message;
 }
 
+function decodeBase64(text) {
+    const binary = atob(text);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+    return bytes;
+}
+
 async function fetchPart(part) {
     const response = await fetch(part.url, { headers: { Accept: 'application/pdf, application/json' }, credentials: 'same-origin' });
     const type = response.headers.get('Content-Type') ?? '';
@@ -33,7 +40,10 @@ async function fetchPart(part) {
     }
 
     if (type.includes('json')) {
-        return { labels: (await response.json()).labels ?? [] };
+        const body = await response.json();
+        // Shopee kadang memecah label satu bagian jadi beberapa PDF (base64).
+        if (body.pdfs) return { pdfs: body.pdfs.map(decodeBase64) };
+        return { labels: body.labels ?? [] };
     }
 
     return { pdf: await response.arrayBuffer() };
@@ -197,10 +207,12 @@ async function merge(results) {
     for (const [index, result] of results.entries()) {
         if (!result || result.error) continue;
         try {
-            if (result.pdf) {
-                const source = await PDFDocument.load(result.pdf, { ignoreEncryption: true });
-                const pages = await doc.copyPages(source, source.getPageIndices());
-                pages.forEach((page) => doc.addPage(page));
+            if (result.pdf || result.pdfs) {
+                for (const pdf of result.pdfs ?? [result.pdf]) {
+                    const source = await PDFDocument.load(pdf, { ignoreEncryption: true });
+                    const pages = await doc.copyPages(source, source.getPageIndices());
+                    pages.forEach((page) => doc.addPage(page));
+                }
             } else {
                 result.labels.forEach((label) => drawManualLabel(doc, fonts, label));
             }
