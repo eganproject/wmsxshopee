@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\LostItem;
 use App\Models\WarehouseTransfer;
 use App\Support\DocumentNumber;
 use Illuminate\Support\Facades\DB;
@@ -74,6 +75,23 @@ class WarehouseTransferService
                     'received_qty' => $received,
                     'to_location_id' => array_key_exists('to_location_id', $row) ? $row['to_location_id'] : $item->to_location_id,
                 ]);
+
+                // Kekurangan dicatat sebagai barang hilang: stoknya sudah keluar dari
+                // gudang asal saat dikirim dan tidak masuk ke gudang tujuan.
+                if ($received < $item->qty) {
+                    LostItem::create([
+                        'warehouse_id' => $transfer->to_warehouse_id,
+                        'from_warehouse_id' => $transfer->from_warehouse_id,
+                        'product_variant_id' => $item->product_variant_id,
+                        'source' => 'transfer',
+                        'source_id' => $transfer->id,
+                        'reference' => $transfer->number,
+                        'lost_date' => now()->toDateString(),
+                        'qty' => $item->qty - $received,
+                        'notes' => "Dikirim {$item->qty}, diterima {$received}",
+                        'created_by' => $userId,
+                    ]);
+                }
 
                 if ($received > 0) {
                     $lines[] = [

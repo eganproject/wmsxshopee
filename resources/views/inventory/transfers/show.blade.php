@@ -79,7 +79,7 @@
         <div class="border-b border-slate-100 px-5 py-3">
             <h2 class="text-base font-semibold text-slate-900">Barang</h2>
             @if ($receiving)
-                <p class="mt-0.5 text-sm text-slate-500">Cocokkan jumlah yang benar-benar sampai dan pilih bin tujuan, lalu klik Terima. Kekurangan tercatat sebagai selisih.</p>
+                <p class="mt-0.5 text-sm text-slate-500">Cocokkan jumlah yang benar-benar sampai dan pilih bin tujuan, lalu klik Terima. Kekurangan tercatat sebagai barang hilang di laporan Barang Hilang.</p>
             @endif
         </div>
         <x-form-errors class="mx-5 mt-4" />
@@ -129,6 +129,11 @@
                                     <span @class(['font-medium', 'text-rose-600' => $item->received_qty < $item->qty, 'text-slate-900' => $item->received_qty >= $item->qty])>{{ $fmt($item->received_qty) }}</span>
                                     @if ($item->received_qty < $item->qty)
                                         <p class="text-xs text-rose-600">kurang {{ $fmt($item->qty - $item->received_qty) }}</p>
+                                        @can('reports.view')
+                                            <a href="{{ route('reports.lost-items', ['search' => $transfer->number, 'from' => $transfer->transfer_date->toDateString()]) }}" class="text-xs text-brand-600 hover:text-brand-700">tercatat hilang</a>
+                                        @else
+                                            <p class="text-xs text-slate-500">tercatat hilang</p>
+                                        @endcan
                                     @endif
                                 @else
                                     <span class="text-slate-400">—</span>

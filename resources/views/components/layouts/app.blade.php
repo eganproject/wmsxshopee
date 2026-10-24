@@ -47,6 +47,7 @@
                 ['label' => 'Stok Minimum', 'route' => 'reports.min-stock', 'active' => 'reports.min-stock', 'icon' => 'heroicon-o-bell-alert', 'can' => 'reports.view'],
                 ['label' => 'Saran Pembelian', 'route' => 'reports.reorder', 'active' => 'reports.reorder', 'icon' => 'heroicon-o-shopping-bag', 'can' => 'reports.view'],
                 ['label' => 'Pergerakan Barang', 'route' => 'reports.movements', 'active' => 'reports.movements', 'icon' => 'heroicon-o-presentation-chart-line', 'can' => 'reports.view'],
+                ['label' => 'Barang Hilang', 'route' => 'reports.lost-items', 'active' => 'reports.lost-items', 'icon' => 'heroicon-o-question-mark-circle', 'can' => 'reports.view'],
             ],
         ],
         [
