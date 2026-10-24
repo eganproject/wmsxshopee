@@ -39,7 +39,7 @@
                   return this.variants.map(v => ({ value: v.id, text: v.label }));
               },
               locationOptions(activeOnly) {
-                  return this.locationsFor(activeOnly).map(l => ({ value: l.id, text: l.code }));
+                  return this.locationsFor(activeOnly).map(l => ({ value: l.id, text: l.active ? l.code : `${l.code} (nonaktif)` }));
               },
               addScanned() {
                   const code = this.scan.trim().toUpperCase();
@@ -135,7 +135,7 @@
                                 @endif
                                 <td class="px-2 py-1.5">
                                     <select class="form-input min-w-40" :name="`items[${index}][to_location_id]`" x-model="item.to_location_id"
-                                            x-tom-select="{ options: locationOptions(true), value: item.to_location_id }" data-placeholder="Tanpa bin"
+                                            x-tom-select="{ options: locationOptions(@js($type !== 'adjustment')), value: item.to_location_id }" data-placeholder="Tanpa bin"
                                             :class="errors[`items.${index}.to_location_id`] && 'form-input-error'">
                                         <option value="">Tanpa bin</option>
                                     </select>

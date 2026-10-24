@@ -32,6 +32,22 @@ class DatabaseConflict
         return null;
     }
 
+    /**
+     * Baris yang akan dihapus masih dirujuk data lain (foreign key). Dipakai saat
+     * menghapus master data yang ternyata sudah dipakai dokumen.
+     */
+    public static function stillReferenced(Throwable $e): bool
+    {
+        if (! $e instanceof QueryException) {
+            return false;
+        }
+
+        // MySQL/MariaDB 1451, PostgreSQL 23503, SQLite "FOREIGN KEY constraint failed".
+        return ($e->errorInfo[1] ?? null) === 1451
+            || ($e->errorInfo[0] ?? null) === '23503'
+            || str_contains($e->getMessage(), 'FOREIGN KEY constraint failed');
+    }
+
     private static function violatesNonNegativeStock(QueryException $e): bool
     {
         // MySQL 3819, MariaDB 4025, PostgreSQL 23514: CHECK constraint dilanggar.

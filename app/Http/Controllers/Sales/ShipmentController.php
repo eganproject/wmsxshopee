@@ -133,6 +133,10 @@ class ShipmentController extends Controller
             'tracking_number' => 'nomor resi',
         ]);
 
+        if (filled($data['tracking_number'] ?? null) && ($taken = SalesOrder::trackingUsedBy($data['tracking_number'], $order->id))) {
+            throw ValidationException::withMessages(['tracking_number' => "Nomor resi ini sudah dipakai {$taken}."]);
+        }
+
         $pickup = $data['shipping_method'] === 'pickup';
 
         Activity::track($order, fn () => $order->update([

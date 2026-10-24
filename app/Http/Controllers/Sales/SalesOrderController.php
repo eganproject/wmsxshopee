@@ -371,6 +371,10 @@ class SalesOrderController extends Controller
             'tracking_number' => 'nomor resi',
         ]);
 
+        if ($taken = SalesOrder::trackingUsedBy($data['tracking_number'], $order->id)) {
+            throw ValidationException::withMessages(['tracking_number' => "Nomor resi ini sudah dipakai {$taken}."]);
+        }
+
         $service->ship($order, [
             'courier_id' => (int) $data['courier_id'],
             'courier_service' => $data['courier_service'] ?? null,

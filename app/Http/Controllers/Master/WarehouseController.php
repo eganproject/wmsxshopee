@@ -3,6 +3,9 @@
 namespace App\Http\Controllers\Master;
 
 use App\Http\Controllers\Controller;
+use App\Models\GoodsReceipt;
+use App\Models\SalesOrder;
+use App\Models\StockLedger;
 use App\Models\Warehouse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -74,6 +77,15 @@ class WarehouseController extends Controller
     {
         if ($warehouse->zones()->exists()) {
             return back()->with('error', "Gudang {$warehouse->name} masih memiliki zona. Hapus zona terlebih dahulu atau nonaktifkan gudang.");
+        }
+
+        // Stok tanpa bin dan dokumen tidak butuh zona, jadi dicek terpisah.
+        $used = StockLedger::withoutGlobalScope('warehouse_access')->where('warehouse_id', $warehouse->id)->exists()
+            || SalesOrder::withoutGlobalScope('warehouse_access')->where('warehouse_id', $warehouse->id)->exists()
+            || GoodsReceipt::withoutGlobalScope('warehouse_access')->where('warehouse_id', $warehouse->id)->exists();
+
+        if ($used) {
+            return back()->with('error', "Gudang {$warehouse->name} sudah punya riwayat stok atau dokumen sehingga tidak bisa dihapus. Nonaktifkan gudang ini sebagai gantinya.");
         }
 
         $warehouse->delete();
