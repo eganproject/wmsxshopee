@@ -223,10 +223,31 @@ class ShopeeLogistics
 
     /**
      * Unduh label resi Shopee (PDF) untuk satu atau beberapa pesanan dari toko yang sama.
+     * Hanya dipakai bila semua label muat dalam satu PDF; untuk banyak pesanan pakai documents().
      *
      * @param  Collection<int, SalesOrder>  $orders
      */
     public function label(Collection $orders): string
+    {
+        $documents = $this->documents($orders);
+
+        if (count($documents) > 1) {
+            throw new ShopeeException('Shopee tidak bisa menyatukan label pesanan ini dalam satu PDF. Gunakan cetak resi gabungan.');
+        }
+
+        return $documents[0];
+    }
+
+    /**
+     * Unduh label resi Shopee untuk pesanan dari toko yang sama, dalam satu PDF atau lebih.
+     * Shopee menolak mengunduh bersamaan paket yang tidak cocok (mis. beda kurir atau beda
+     * cara kirim): pesanan dikelompokkan dulu per kurir & cara kirim, lalu kelompok yang
+     * masih ditolak Shopee diunduh satu per satu.
+     *
+     * @param  Collection<int, SalesOrder>  $orders
+     * @return list<string>
+     */
+    public function documents(Collection $orders): array
     {
         $orders = $orders->values();
 
@@ -253,10 +274,44 @@ class ShopeeLogistics
             throw ValidationException::withMessages(['orders' => 'Nomor resi dari Shopee belum terbit untuk '.$waiting->take(5)->implode(', ').($waiting->count() > 5 ? ' dan '.($waiting->count() - 5).' lainnya' : '').'. Tunggu beberapa menit lalu cetak lagi.']);
         }
 
+        $documents = [];
+        foreach (self::compatibleGroups($orders) as $group) {
+            try {
+                $documents[] = $this->download($api, $group);
+            } catch (ShopeeException $e) {
+                if ($e->shopeeError !== 'logistics.packages_can_not_download_together' || $group->count() === 1) {
+                    throw $e;
+                }
+
+                foreach ($group as $order) {
+                    $documents[] = $this->download($api, collect([$order]));
+                }
+            }
+        }
+
+        SalesOrder::withoutGlobalScope('warehouse_access')->whereKey($orders->modelKeys())->update(['shipping_label_printed_at' => now()]);
+
+        return $documents;
+    }
+
+    /**
+     * Kelompok pesanan yang kemungkinan besar boleh diunduh Shopee dalam satu PDF.
+     *
+     * @param  Collection<int, SalesOrder>  $orders
+     * @return Collection<int, Collection<int, SalesOrder>>
+     */
+    public static function compatibleGroups(Collection $orders): Collection
+    {
+        return $orders->groupBy(fn (SalesOrder $order) => ($order->courier_id ?? '-').'|'.($order->shipping_method ?? '-'))->map->values()->values();
+    }
+
+    /** @param Collection<int, SalesOrder> $orders */
+    private function download(ShopeeShopApi $api, Collection $orders): string
+    {
         $list = $orders->map(fn (SalesOrder $order) => array_filter([
             'order_sn' => $order->external_number,
             'package_number' => $order->shopee_package_number,
-        ]))->all();
+        ]))->values()->all();
 
         $params = collect($api->post('/api/v2/logistics/get_shipping_document_parameter', ['order_list' => $list])['response']['result_list'] ?? []);
         $this->throwFailures($params);
@@ -268,20 +323,16 @@ class ShopeeLogistics
                 'package_number' => $order->shopee_package_number,
                 'tracking_number' => $order->tracking_number,
                 'shipping_document_type' => $type,
-            ]))->all(),
+            ]))->values()->all(),
         ])['response']['result_list'] ?? []);
         $this->throwFailures($created);
 
         $this->waitUntilReady($api, collect($list)->map(fn ($row) => [...$row, 'shipping_document_type' => $type])->all());
 
-        $pdf = $api->download('/api/v2/logistics/download_shipping_document', [
+        return $api->download('/api/v2/logistics/download_shipping_document', [
             'shipping_document_type' => $type,
             'order_list' => $list,
         ]);
-
-        SalesOrder::withoutGlobalScope('warehouse_access')->whereKey($orders->modelKeys())->update(['shipping_label_printed_at' => now()]);
-
-        return $pdf;
     }
 
     public function fetchTracking(SalesOrder $order, ShopeeShopApi $api): bool

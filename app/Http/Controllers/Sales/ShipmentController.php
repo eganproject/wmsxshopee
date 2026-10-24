@@ -236,10 +236,9 @@ class ShipmentController extends Controller
             return $this->label($orders->first(), $logistics, $tiktok);
         }
 
-        // Label Shopee satu toko atau label manual saja: dicetak langsung seperti biasa.
-        $shopeeShops = $orders->filter->isShopee()->pluck('shopee_shop_id')->unique();
-        $onlyShopee = $orders->every->isShopee() && $shopeeShops->count() === 1;
-        if ($onlyShopee || $orders->every(fn (SalesOrder $order) => ! $order->isMarketplace())) {
+        // Label manual saja: dicetak langsung seperti biasa. Label Shopee lebih dari satu selalu lewat
+        // cetak gabungan, karena Shopee bisa menolak menyatukan paket beda kurir/cara kirim dalam satu PDF.
+        if ($orders->every(fn (SalesOrder $order) => ! $order->isMarketplace())) {
             return $this->labels($orders, $logistics);
         }
 
@@ -247,7 +246,7 @@ class ShipmentController extends Controller
     }
 
     /**
-     * Cetak gabungan: label Shopee (per toko), TikTok (per paket) dan manual diunduh
+     * Cetak gabungan: label Shopee (per toko, kurir & cara kirim), TikTok (per paket) dan manual diunduh
      * bagian demi bagian oleh browser lalu disatukan jadi satu PDF siap cetak.
      *
      * @param  EloquentCollection<int, SalesOrder>  $orders
@@ -263,12 +262,14 @@ class ShipmentController extends Controller
 
         $parts = collect();
         foreach ($printable->filter->isShopee()->groupBy('shopee_shop_id') as $shopOrders) {
-            $parts->push([
-                'type' => 'shopee',
-                'title' => 'Shopee · '.($shopOrders->first()->shopeeShop?->displayName() ?? 'Toko'),
-                'numbers' => $shopOrders->pluck('number')->all(),
-                'url' => route('sales.orders.shipping-labels.part', ['orders' => $shopOrders->modelKeys()]),
-            ]);
+            foreach (ShopeeLogistics::compatibleGroups($shopOrders) as $group) {
+                $parts->push([
+                    'type' => 'shopee',
+                    'title' => 'Shopee · '.($group->first()->shopeeShop?->displayName() ?? 'Toko'),
+                    'numbers' => $group->pluck('number')->all(),
+                    'url' => route('sales.orders.shipping-labels.part', ['orders' => $group->modelKeys()]),
+                ]);
+            }
         }
         foreach ($printable->filter->isTiktok() as $order) {
             $parts->push([
@@ -320,7 +321,12 @@ class ShipmentController extends Controller
             if ($orders->every->isTiktok() && $orders->count() === 1) {
                 $pdf = $tiktok->label($orders->first());
             } elseif ($orders->every->isShopee()) {
-                $pdf = $logistics->label($orders);
+                $documents = $logistics->documents($orders);
+                if (count($documents) > 1) {
+                    // Shopee memecah label jadi beberapa PDF; browser yang menyatukannya.
+                    return response()->json(['pdfs' => array_map('base64_encode', $documents)]);
+                }
+                $pdf = $documents[0];
             } elseif ($orders->every(fn (SalesOrder $order) => ! $order->isMarketplace())) {
                 // Label manual digambar di browser dari data ini (PDF-nya dibuat di sisi klien).
                 $orders->each->update(['shipping_label_printed_at' => now()]);

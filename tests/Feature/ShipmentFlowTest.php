@@ -372,6 +372,42 @@ class ShipmentFlowTest extends TestCase
         $this->getJson(route('sales.orders.shipping-labels.part', ['orders' => [$shopee->id, $manual->id]]))->assertStatus(422);
     }
 
+    public function test_shopee_packages_that_cannot_download_together_are_printed_one_by_one(): void
+    {
+        $a = $this->shopeeOrder('T1', ['shopee_order_status' => 'PROCESSED', 'tracking_number' => 'SPX1']);
+        $b = $this->shopeeOrder('T2', ['shopee_order_status' => 'PROCESSED', 'tracking_number' => 'SPX2']);
+        $rows = fn (Request $r, array $extra = []) => collect($r['order_list'])->map(fn ($row) => ['order_sn' => $row['order_sn'], ...$extra])->all();
+        Http::fake([
+            '*/logistics/get_shipping_document_parameter*' => fn (Request $r) => Http::response(['error' => '', 'response' => ['result_list' => $rows($r, ['suggest_shipping_document_type' => 'THERMAL_AIR_WAYBILL'])]]),
+            '*/logistics/create_shipping_document*' => fn (Request $r) => Http::response(['error' => '', 'response' => ['result_list' => $rows($r)]]),
+            '*/logistics/get_shipping_document_result*' => fn (Request $r) => Http::response(['error' => '', 'response' => ['result_list' => $rows($r, ['status' => 'READY'])]]),
+            '*/logistics/download_shipping_document*' => fn (Request $r) => count($r['order_list']) > 1
+                ? Http::response(['error' => 'logistics.packages_can_not_download_together', 'message' => 'Packages can not download together.'], 200)
+                : Http::response('%PDF-1.4 '.$r['order_list'][0]['order_sn'], 200, ['Content-Type' => 'application/pdf']),
+        ]);
+
+        $page = $this->get('/sales/orders/shipping-labels?'.http_build_query(['orders' => [$a->id, $b->id]]))
+            ->assertOk()->assertSee('Cetak Resi Gabungan');
+        $parts = $page->viewData('parts');
+        $this->assertCount(1, $parts);
+
+        $this->getJson($parts[0]['url'])->assertOk()->assertJsonCount(2, 'pdfs')
+            ->assertJsonPath('pdfs.0', base64_encode('%PDF-1.4 T1'))->assertJsonPath('pdfs.1', base64_encode('%PDF-1.4 T2'));
+        $this->assertNotNull($b->fresh()->shipping_label_printed_at);
+    }
+
+    public function test_shopee_labels_are_split_per_courier_and_method_in_batch(): void
+    {
+        $a = $this->shopeeOrder('U1', ['shopee_order_status' => 'PROCESSED', 'tracking_number' => 'SPX1', 'shipping_method' => 'pickup']);
+        $b = $this->shopeeOrder('U2', ['shopee_order_status' => 'PROCESSED', 'tracking_number' => 'SPX2', 'shipping_method' => 'dropoff']);
+
+        $parts = $this->get('/sales/orders/shipping-labels?'.http_build_query(['orders' => [$a->id, $b->id]]))->assertOk()->viewData('parts');
+
+        $this->assertCount(2, $parts);
+        $this->assertSame([$a->number], $parts[0]['numbers']);
+        $this->assertSame([$b->number], $parts[1]['numbers']);
+    }
+
     public function test_manual_order_records_pickup_or_dropoff_and_prints_own_label(): void
     {
         $order = $this->order();
