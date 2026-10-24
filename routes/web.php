@@ -205,6 +205,7 @@ Route::middleware(['auth', 'active'])->group(function () {
         Route::get('min-stock', [ReportController::class, 'minStock'])->name('min-stock');
         Route::get('reorder', [ReportController::class, 'reorder'])->name('reorder');
         Route::get('movements', [ReportController::class, 'movements'])->name('movements');
+        Route::get('lost-items', [ReportController::class, 'lostItems'])->name('lost-items');
     });
 
     // Pesanan penjualan manual: draft -> dikonfirmasi (stok dicadangkan) -> diambil ->

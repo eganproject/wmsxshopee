@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Master;
 
 use App\Http\Controllers\Controller;
+use App\Models\DamagedDocument;
 use App\Models\Supplier;
 use App\Support\XlsxExport;
 use Illuminate\Http\RedirectResponse;
@@ -69,8 +70,8 @@ class SupplierController extends Controller
 
     public function destroy(Supplier $supplier): RedirectResponse
     {
-        if ($supplier->receipts()->exists()) {
-            return back()->with('error', "Supplier {$supplier->name} sudah punya penerimaan barang sehingga tidak bisa dihapus. Nonaktifkan supplier ini sebagai gantinya.");
+        if ($supplier->receipts()->exists() || DamagedDocument::withoutGlobalScope('warehouse_access')->where('supplier_id', $supplier->id)->exists()) {
+            return back()->with('error', "Supplier {$supplier->name} sudah punya penerimaan barang atau retur barang rusak sehingga tidak bisa dihapus. Nonaktifkan supplier ini sebagai gantinya.");
         }
 
         $supplier->delete();

@@ -716,6 +716,20 @@ class SalesOrder extends Model
     }
 
     /**
+     * Nomor SO lain (bukan batal) yang sudah memakai nomor resi ini. Resi dipakai
+     * untuk scan QC, serah terima & retur, jadi satu resi hanya boleh satu pesanan.
+     * Dicek di semua gudang karena resi berlaku lintas gudang.
+     */
+    public static function trackingUsedBy(string $tracking, ?int $exceptId = null): ?string
+    {
+        return self::withoutGlobalScope('warehouse_access')
+            ->where('tracking_number', trim($tracking))
+            ->where('status', '!=', 'cancelled')
+            ->when($exceptId, fn ($q) => $q->whereKeyNot($exceptId))
+            ->value('number');
+    }
+
+    /**
      * Nomor pendek berurutan per bulan, cth. SO2610-001. Lewat 999 urutan
      * tetap jalan jadi 4 digit (SO2610-1000). Panggil di dalam transaksi.
      */

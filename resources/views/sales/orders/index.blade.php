@@ -347,7 +347,7 @@
                     <tr>
                         @if ($canFulfill)
                             <th class="h-8 w-8 py-0 pl-4">
-                                <input type="checkbox" aria-label="Pilih semua" :checked="selected.length && selected.length === @js($orders->pluck('id'))->length"
+                                <input type="checkbox" aria-label="Pilih semua" :checked="selected.length && selected.length === @js($orders->pluck('id')).length"
                                        @change="selected = $event.target.checked ? @js($orders->pluck('id')) : []">
                             </th>
                         @endif

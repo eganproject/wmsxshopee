@@ -141,7 +141,8 @@ class StockMovementController extends Controller
             'items.*.product_variant_id' => ['required', 'integer', Rule::exists('product_variants', 'id')],
             // Mengambil dari lokasi nonaktif tetap boleh (untuk mengosongkan); menaruh hanya ke lokasi aktif.
             'items.*.from_location_id' => $type === 'transfer' ? ['nullable', 'integer', $location()] : ['nullable'],
-            'items.*.to_location_id' => ['nullable', 'integer', $location()->where('is_active', true)],
+            // Penyesuaian minus boleh di lokasi nonaktif (mengosongkan); yang plus dicek di bawah.
+            'items.*.to_location_id' => ['nullable', 'integer', $type === 'adjustment' ? $location() : $location()->where('is_active', true)],
             'items.*.qty' => $type === 'adjustment'
                 ? ['required', 'integer', 'between:-1000000,1000000', 'not_in:0']
                 : ['required', 'integer', 'min:1', 'max:1000000'],
@@ -163,6 +164,16 @@ class StockMovementController extends Controller
             'items.*.qty' => 'jumlah',
             'items.*.notes' => 'keterangan',
         ]);
+
+        if ($type === 'adjustment') {
+            $inactive = WarehouseLocation::whereIn('id', collect($data['items'])->pluck('to_location_id')->filter())->where('is_active', false)->pluck('id')->all();
+
+            foreach ($data['items'] as $index => $row) {
+                if ((int) $row['qty'] > 0 && in_array((int) ($row['to_location_id'] ?? 0), $inactive, true)) {
+                    throw ValidationException::withMessages(["items.{$index}.to_location_id" => 'Penyesuaian plus harus ke lokasi aktif. Lokasi nonaktif hanya bisa dikurangi.']);
+                }
+            }
+        }
 
         if ($type === 'transfer') {
             foreach ($data['items'] as $index => $row) {

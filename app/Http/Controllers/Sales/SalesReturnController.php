@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Sales;
 
 use App\Http\Controllers\Controller;
+use App\Models\LostItem;
 use App\Models\ProductVariant;
 use App\Models\SalesOrder;
 use App\Models\SalesReturn;
@@ -285,6 +286,21 @@ class SalesReturnController extends Controller
                     'qty' => $item->qty_damaged,
                     'notes' => trim("Retur dari {$return->sender_name} · {$item->reasonLabel()}"),
                 ])->values()->all(), $request->user()->id);
+
+            // Barang yang tidak ada di paket dicatat sebagai barang hilang untuk laporan.
+            foreach ($return->items->where('qty_missing', '>', 0) as $item) {
+                LostItem::create([
+                    'warehouse_id' => $return->warehouse_id,
+                    'product_variant_id' => $item->product_variant_id,
+                    'source' => 'return',
+                    'source_id' => $return->id,
+                    'reference' => $return->number,
+                    'lost_date' => $return->return_date->toDateString(),
+                    'qty' => $item->qty_missing,
+                    'notes' => trim('Tidak ada di paket retur'.($return->order ? " · {$return->order->number}" : '')),
+                    'created_by' => $request->user()->id,
+                ]);
+            }
 
             $return->update([
                 'status' => 'received',

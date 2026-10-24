@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\LostItem;
 use App\Models\ProductVariant;
 use App\Models\Stock;
 use App\Models\StockLedger;
@@ -220,6 +221,58 @@ class ReportController extends Controller
             ->first();
 
         return view('reports.movements', [
+            'rows' => $query->paginate(50)->withQueryString(),
+            'totals' => $totals,
+            'from' => $from,
+            'to' => $to,
+            'warehouses' => Warehouse::orderBy('code')->get(),
+        ]);
+    }
+
+    /**
+     * Barang hilang: kekurangan saat terima transfer antar gudang dan barang yang
+     * tidak ada di paket retur, per kejadian.
+     */
+    public function lostItems(Request $request): View|BinaryFileResponse
+    {
+        $from = ($request->date('from') ?? now()->startOfMonth())->startOfDay();
+        $to = ($request->date('to') ?? now())->startOfDay();
+        if ($to->lt($from)) {
+            [$from, $to] = [$to, $from];
+        }
+
+        $query = LostItem::query()
+            ->with(['warehouse:id,code,name', 'fromWarehouse:id,code', 'variant.product.unit', 'creator:id,name'])
+            ->where('lost_date', '>=', $from->toDateString())
+            ->where('lost_date', '<', $to->copy()->addDay()->toDateString())
+            ->when($request->filled('warehouse'), fn ($q) => $q->where('warehouse_id', $request->integer('warehouse')))
+            ->when(isset(LostItem::SOURCES[$request->input('source')]), fn ($q) => $q->where('source', $request->input('source')))
+            ->when($request->filled('search'), function (Builder $q) use ($request) {
+                $like = '%'.$request->string('search')->trim().'%';
+                $q->where(fn ($q) => $q->where('reference', 'like', $like)
+                    ->orWhereHas('variant', fn ($v) => $v->where('sku', 'like', $like)->orWhere('barcode', 'like', $like)
+                        ->orWhereHas('product', fn ($p) => $p->where('name', 'like', $like))));
+            })
+            ->latest('lost_date')
+            ->latest('id');
+
+        if ($request->input('export') === 'xlsx') {
+            return XlsxExport::download("barang-hilang-{$from->format('Ymd')}-{$to->format('Ymd')}.xlsx",
+                ['Tanggal', 'Gudang', 'Dari Gudang', 'Sumber', 'Dokumen', 'SKU', 'Produk', 'Varian', 'Satuan', 'Qty Hilang', 'Keterangan', 'Dicatat Oleh'],
+                $query->lazy(500)->map(fn (LostItem $row) => [
+                    $row->lost_date->format('d/m/Y'), $row->warehouse?->code, $row->fromWarehouse?->code ?? '', $row->sourceLabel(), $row->reference,
+                    $row->variant?->sku, $row->variant?->product?->name, $row->variant?->name ?? '', $row->variant?->product?->unit?->code ?? '',
+                    $row->qty, $row->notes ?? '', $row->creator?->name ?? '',
+                ]));
+        }
+
+        $totals = (clone $query)->reorder()->toBase()
+            ->selectRaw("COALESCE(SUM(qty), 0) as qty, COUNT(*) as events, COUNT(DISTINCT product_variant_id) as skus,
+                COALESCE(SUM(CASE WHEN source = 'transfer' THEN qty ELSE 0 END), 0) as transfer_qty,
+                COALESCE(SUM(CASE WHEN source = 'return' THEN qty ELSE 0 END), 0) as return_qty")
+            ->first();
+
+        return view('reports.lost-items', [
             'rows' => $query->paginate(50)->withQueryString(),
             'totals' => $totals,
             'from' => $from,

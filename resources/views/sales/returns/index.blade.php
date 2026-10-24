@@ -20,7 +20,7 @@
     </x-page-header>
 
     <div class="card">
-        <form method="GET" class="flex flex-col gap-3 border-b border-slate-100 p-4 lg:flex-row lg:items-center">
+        <form method="GET" class="flex flex-col gap-3 border-b border-slate-100 p-4 lg:flex-row lg:flex-wrap lg:items-center">
             <div class="relative flex-1 lg:min-w-64">
                 <x-heroicon-o-magnifying-glass class="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-slate-400" />
                 <input type="search" name="search" value="{{ request('search') }}" placeholder="Cari no. retur, resi, SO, pengirim..." class="form-input pl-8">

@@ -37,6 +37,12 @@ return Application::configure(basePath: dirname(__DIR__))
         $exceptions->render(function (QueryException $e, Request $request) {
             $message = DatabaseConflict::message($e);
 
+            // Hapus master data yang ternyata masih dipakai dokumen lain: tampilkan
+            // pesan, bukan halaman error. Data tetap utuh karena hapusnya ditolak database.
+            if ($message === null && $request->isMethod('DELETE') && DatabaseConflict::stillReferenced($e)) {
+                $message = 'Data ini masih dipakai di dokumen atau data lain sehingga tidak bisa dihapus. Nonaktifkan saja sebagai gantinya.';
+            }
+
             if ($message === null) {
                 return null;
             }

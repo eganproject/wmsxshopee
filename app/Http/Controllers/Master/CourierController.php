@@ -4,6 +4,8 @@ namespace App\Http\Controllers\Master;
 
 use App\Http\Controllers\Controller;
 use App\Models\Courier;
+use App\Models\SalesOrder;
+use App\Models\ShipmentHandover;
 use App\Support\XlsxExport;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -65,6 +67,15 @@ class CourierController extends Controller
 
     public function destroy(Courier $courier): RedirectResponse
     {
+        // Pesanan & manifest menyimpan kurirnya; menghapus kurir akan mengosongkan
+        // kurir di riwayat pengiriman, jadi kurir yang sudah dipakai hanya bisa dinonaktifkan.
+        $used = SalesOrder::withoutGlobalScope('warehouse_access')->where('courier_id', $courier->id)->exists()
+            || ShipmentHandover::withoutGlobalScope('warehouse_access')->where('courier_id', $courier->id)->exists();
+
+        if ($used) {
+            return back()->with('error', "Kurir {$courier->name} sudah dipakai pesanan sehingga tidak bisa dihapus. Nonaktifkan kurir ini sebagai gantinya.");
+        }
+
         $courier->delete();
 
         return redirect()->route('master.couriers.index')
