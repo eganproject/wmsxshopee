@@ -704,10 +704,11 @@ class SalesOrder extends Model
     /**
      * Nomor SO lain (bukan batal) yang sudah memakai no. pesanan marketplace ini di
      * saluran yang sama, supaya pesanan yang sama tidak diproses dua kali.
+     * Dicek di semua gudang, termasuk gudang yang tidak bisa diakses user.
      */
     public static function duplicateOf(?string $channel, string $external, ?int $exceptId = null): ?string
     {
-        return self::query()
+        return self::withoutGlobalScope('warehouse_access')
             ->where('external_number', trim($external))
             ->where('channel_name', filled($channel) ? trim($channel) : null)
             ->where('status', '!=', 'cancelled')

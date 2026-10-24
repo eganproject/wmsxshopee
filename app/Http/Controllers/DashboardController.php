@@ -8,6 +8,8 @@ use App\Models\SalesOrder;
 use App\Models\StockLedger;
 use App\Models\Warehouse;
 use App\Support\StockLevels;
+use App\Support\WarehouseAccess;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
@@ -90,6 +92,8 @@ class DashboardController extends Controller
     /**
      * Qty masuk & keluar per hari (penyesuaian dihitung sesuai arahnya).
      * Transfer antar lokasi tidak mengubah saldo gudang sehingga tidak dihitung.
+     * Tanpa filter gudang, transfer antar gudang yang kedua gudangnya terlihat
+     * juga dilewati (keluar di asal dan masuk di tujuan bukan barang masuk/keluar baru).
      *
      * @return array{days: Collection, max: int, in: int, out: int}
      */
@@ -100,6 +104,7 @@ class DashboardController extends Controller
         $rows = StockLedger::query()
             ->when($warehouseId, fn ($q) => $q->where('warehouse_id', $warehouseId))
             ->where('type', '!=', 'transfer')
+            ->when(! $warehouseId, fn ($q) => $this->skipInternalTransfers($q))
             ->where('movement_date', '>=', $from->toDateString())
             ->where('movement_date', '<', $today->copy()->addDay()->toDateString())
             ->toBase()
@@ -121,5 +126,22 @@ class DashboardController extends Controller
             'in' => $days->sum('in'),
             'out' => $days->sum('out'),
         ];
+    }
+
+    /**
+     * Lewati baris transfer_out/transfer_in dari transfer antar gudang yang
+     * gudang asal dan tujuannya sama-sama bisa diakses user.
+     */
+    private function skipInternalTransfers(Builder $query): void
+    {
+        $ids = WarehouseAccess::ids();
+
+        $query->whereNot(fn ($q) => $q->whereIn('stock_ledgers.type', ['transfer_out', 'transfer_in'])
+            ->whereExists(fn ($sub) => $sub->selectRaw('1')
+                ->from('stock_movements')
+                ->join('warehouse_transfers', 'warehouse_transfers.number', '=', 'stock_movements.reference')
+                ->whereColumn('stock_movements.id', 'stock_ledgers.stock_movement_id')
+                ->when($ids !== null, fn ($w) => $w->whereIn('warehouse_transfers.from_warehouse_id', $ids)
+                    ->whereIn('warehouse_transfers.to_warehouse_id', $ids))));
     }
 }
