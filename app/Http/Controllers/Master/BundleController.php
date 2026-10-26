@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Bundle;
 use App\Models\ProductVariant;
 use App\Models\Warehouse;
+use App\Services\BundleImporter;
 use App\Services\SalesOrderService;
 use App\Support\XlsxExport;
 use Illuminate\Http\RedirectResponse;
@@ -40,12 +41,12 @@ class BundleController extends Controller
             ->orderBy('sku');
 
         if ($request->input('export') === 'xlsx') {
-            return XlsxExport::download('produk-paket-'.now()->format('Ymd-His').'.xlsx',
-                ['SKU Paket', 'Nama', 'Barcode', 'Harga', 'Isi Paket', 'Status'],
-                $query->lazy(200)->map(fn ($b) => [
-                    $b->sku, $b->name, $b->barcode, (float) $b->price,
-                    $b->items->map(fn ($item) => $item->variant?->sku.' × '.$item->qty)->implode(', '), $b->is_active ? 'Aktif' : 'Nonaktif',
-                ]));
+            // Kolom sama dengan template impor (satu baris per barang isi), jadi file ini bisa diedit lalu diimpor ulang.
+            return XlsxExport::download('produk-paket-'.now()->format('Ymd-His').'.xlsx', array_keys(BundleImporter::COLUMNS),
+                $query->lazy(200)->flatMap(fn (Bundle $b) => ($b->items->isEmpty() ? collect([null]) : $b->items)->map(fn ($item, $index) => [
+                    $b->sku, $b->name, $b->barcode, (float) $b->price, $item?->variant?->sku, $item?->qty,
+                    $b->is_active ? 'Ya' : 'Tidak', $b->description,
+                ])));
         }
 
         $bundles = $query->paginate(15)->withQueryString();

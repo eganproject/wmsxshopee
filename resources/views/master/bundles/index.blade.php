@@ -10,6 +10,9 @@
     <x-page-header title="Master Produk" description="Produk paket: satu SKU jual berisi beberapa barang gudang. Stoknya dihitung dari isi paket." icon="heroicon-o-cube">
         <x-reports.export-button />
         @can('products.create')
+            <a href="{{ route('master.bundles.import') }}" class="btn-secondary">
+                <x-heroicon-o-arrow-up-tray class="size-5" /> Impor Excel / CSV
+            </a>
             <a href="{{ route('master.bundles.create') }}" class="btn-primary">
                 <x-heroicon-o-plus class="size-5" /> Tambah Paket
             </a>

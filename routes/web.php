@@ -22,6 +22,7 @@ use App\Http\Controllers\Marketplace\MarketplaceController;
 use App\Http\Controllers\Marketplace\MarketplaceProductStatusController;
 use App\Http\Controllers\Marketplace\MarketplaceSyncLogController;
 use App\Http\Controllers\Master\BundleController;
+use App\Http\Controllers\Master\BundleImportController;
 use App\Http\Controllers\Master\CourierController;
 use App\Http\Controllers\Master\LocationController;
 use App\Http\Controllers\Master\LocationImportController;
@@ -89,6 +90,9 @@ Route::middleware(['auth', 'active'])->group(function () {
         Route::get('products/import/template.{format}', [ProductImportController::class, 'template'])->middleware('can:products.create')->name('products.import.template');
 
         // Impor massal zona, rak & lokasi bin dari Excel/CSV.
+        Route::get('bundles/import', [BundleImportController::class, 'create'])->middleware('can:products.create')->name('bundles.import');
+        Route::post('bundles/import', [BundleImportController::class, 'store'])->middleware('can:products.create')->name('bundles.import.store');
+        Route::get('bundles/import/template.{format}', [BundleImportController::class, 'template'])->middleware('can:products.create')->name('bundles.import.template');
         Route::get('locations/import', [LocationImportController::class, 'create'])->middleware('can:warehouses.create')->name('locations.import');
         Route::post('locations/import', [LocationImportController::class, 'store'])->middleware('can:warehouses.create')->name('locations.import.store');
         Route::get('locations/import/template.{format}', [LocationImportController::class, 'template'])->middleware('can:warehouses.create')->name('locations.import.template');
