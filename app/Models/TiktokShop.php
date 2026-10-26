@@ -70,6 +70,12 @@ class TiktokShop extends Model
         return $this->hasMany(TiktokSkuMapping::class);
     }
 
+    /** SKU yang masih ada di toko tapi kiriman stok terakhirnya gagal. */
+    public function failedStockMappings(): HasMany
+    {
+        return $this->hasMany(TiktokSkuMapping::class)->whereNull('removed_at')->whereNotNull('stock_error')->orderBy('id');
+    }
+
     public function orders(): HasMany
     {
         return $this->hasMany(SalesOrder::class);

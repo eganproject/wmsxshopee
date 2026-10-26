@@ -46,7 +46,7 @@ class TiktokStockSync
      */
     private function pushLocked(TiktokShop $shop, ?TiktokShopApi $api, bool $onlyChanged): array
     {
-        $mappings = $shop->mappings()->where(fn ($q) => $q->whereNotNull('product_variant_id')->orWhereNotNull('bundle_id'))->get();
+        $mappings = $shop->mappings()->whereNull('removed_at')->where(fn ($q) => $q->whereNotNull('product_variant_id')->orWhereNotNull('bundle_id'))->get();
         $failed = [];
         $skus = 0;
         $stock = $this->levels($shop, $mappings);

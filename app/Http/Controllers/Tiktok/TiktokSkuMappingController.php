@@ -6,6 +6,7 @@ use App\Http\Controllers\Concerns\ResolvesSkuTarget;
 use App\Http\Controllers\Controller;
 use App\Models\TiktokShop;
 use App\Models\TiktokSkuMapping;
+use App\Services\MarketplaceProductSync;
 use App\Services\Tiktok\TiktokCatalog;
 use App\Services\Tiktok\TiktokException;
 use Illuminate\Database\Eloquent\Builder;
@@ -27,6 +28,8 @@ class TiktokSkuMappingController extends Controller
                 $query->where(fn ($q) => $q->where('seller_sku', 'like', $like)->orWhere('product_name', 'like', $like)
                     ->orWhere('sku_name', 'like', $like)->orWhere('product_id', 'like', $like)->orWhere('sku_id', 'like', $like));
             })
+            // SKU yang sudah tidak ada di toko hanya tampil di filter "Tidak ada di toko".
+            ->when($request->input('status') === 'removed', fn ($q) => $q->whereNotNull('removed_at'), fn ($q) => $q->whereNull('removed_at'))
             ->when($request->input('status') === 'mapped', fn ($q) => $q->where(fn ($q) => $q->whereNotNull('product_variant_id')->orWhereNotNull('bundle_id')))
             ->when($request->input('status') === 'unmapped', fn ($q) => $q->whereNull('product_variant_id')->whereNull('bundle_id'))
             ->when($request->input('status') === 'failed', fn ($q) => $q->whereNotNull('stock_error'))
@@ -36,9 +39,10 @@ class TiktokSkuMappingController extends Controller
         return view('tiktok.mappings.index', [
             'shop' => $shop,
             'mappings' => $mappings,
-            'total' => $shop->mappings()->count(),
-            'unmapped' => $shop->mappings()->whereNull('product_variant_id')->whereNull('bundle_id')->count(),
-            'failed' => $shop->mappings()->whereNotNull('stock_error')->count(),
+            'total' => $shop->mappings()->whereNull('removed_at')->count(),
+            'unmapped' => $shop->mappings()->whereNull('removed_at')->whereNull('product_variant_id')->whereNull('bundle_id')->count(),
+            'failed' => $shop->mappings()->whereNull('removed_at')->whereNotNull('stock_error')->count(),
+            'removed' => $shop->mappings()->whereNotNull('removed_at')->count(),
         ]);
     }
 
@@ -99,6 +103,6 @@ class TiktokSkuMappingController extends Controller
             return back()->with('error', 'Gagal menarik produk dari TikTok. '.$e->getMessage());
         }
 
-        return back()->with('success', "{$result['products']} produk ({$result['rows']} baris SKU) ditarik dari TikTok".($result['inactive'] ? " ({$result['inactive']} belum aktif)" : '').", {$result['matched']} cocok otomatis.".$this->relinkOrders());
+        return back()->with('success', "{$result['products']} produk ({$result['rows']} baris SKU) ditarik dari TikTok".($result['inactive'] ? " ({$result['inactive']} belum aktif)" : '').", {$result['matched']} cocok otomatis".MarketplaceProductSync::removedNote($result).'.'.$this->relinkOrders());
     }
 }

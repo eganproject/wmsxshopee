@@ -47,7 +47,7 @@ class ShopeeStockSync
      */
     private function pushLocked(ShopeeShop $shop, ?ShopeeShopApi $api, bool $onlyChanged): array
     {
-        $mappings = $shop->mappings()->where(fn ($q) => $q->whereNotNull('product_variant_id')->orWhereNotNull('bundle_id'))->get();
+        $mappings = $shop->mappings()->whereNull('removed_at')->where(fn ($q) => $q->whereNotNull('product_variant_id')->orWhereNotNull('bundle_id'))->get();
         $stock = $this->levels($shop, $mappings);
 
         if ($onlyChanged) {

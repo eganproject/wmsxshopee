@@ -24,7 +24,10 @@ class TiktokCatalog
     private const SKIPPED_STATUSES = ['DELETED'];
 
     /**
-     * @return array{products: int, rows: int, matched: int, inactive: int}
+     * Baris yang tidak muncul lagi (SKU dihapus di TikTok) ditandai removed_at,
+     * sama seperti ShopeeCatalog::pull().
+     *
+     * @return array{products: int, rows: int, matched: int, inactive: int, removed: int}
      */
     public function pull(TiktokShop $shop, ?TiktokShopApi $api = null): array
     {
@@ -33,6 +36,7 @@ class TiktokCatalog
         $rows = 0;
         $inactive = 0;
         $pageToken = null;
+        $seen = [];
 
         do {
             $page = $api->post('/product/products/search', ['status' => 'ALL'], array_filter(['page_size' => 100, 'page_token' => $pageToken]));
@@ -48,7 +52,7 @@ class TiktokCatalog
                 $inactive += $status !== '' && $status !== 'ACTIVATE' ? 1 : 0;
 
                 foreach ($product['skus'] ?? [] as $sku) {
-                    $this->upsert($shop, $product, $sku);
+                    $seen[] = $this->upsert($shop, $product, $sku);
                     $rows++;
 
                     // Gudang TikTok tempat stok dikirim diambil dari SKU bila belum diatur.
@@ -61,9 +65,13 @@ class TiktokCatalog
             $pageToken = $page['next_page_token'] ?? null;
         } while (filled($pageToken));
 
+        // Daftar kosong bisa berarti jawaban API yang tidak lengkap: jangan tandai semua hilang.
+        $removed = $seen === [] ? 0 : $shop->mappings()->whereNull('removed_at')->whereNotIn('id', $seen)
+            ->update(['removed_at' => now(), 'stock_error' => null, 'updated_at' => now()]);
+
         $shop->update(['last_synced_at' => now()]);
 
-        return ['products' => $products, 'rows' => $rows, 'matched' => $this->autoMatch($shop), 'inactive' => $inactive];
+        return ['products' => $products, 'rows' => $rows, 'matched' => $this->autoMatch($shop), 'inactive' => $inactive, 'removed' => $removed];
     }
 
     /** Cocokkan baris yang belum terpetakan dengan SKU varian / paket yang sama persis. */
@@ -71,7 +79,7 @@ class TiktokCatalog
     {
         $matched = 0;
 
-        $shop->mappings()->whereNull('product_variant_id')->whereNull('bundle_id')->whereNotNull('seller_sku')
+        $shop->mappings()->whereNull('removed_at')->whereNull('product_variant_id')->whereNull('bundle_id')->whereNotNull('seller_sku')
             ->each(function (TiktokSkuMapping $mapping) use (&$matched) {
                 $sku = mb_strtoupper(trim($mapping->seller_sku));
 
@@ -108,19 +116,30 @@ class TiktokCatalog
     }
 
     /**
+     * Simpan satu SKU. Bila Seller SKU-nya berganti dan baris itu dulu dicocokkan
+     * otomatis, pemetaannya dilepas supaya dicocokkan ulang (manual dipertahankan).
+     *
      * @param  array<string, mixed>  $product
      * @param  array<string, mixed>  $sku
+     * @return int id baris
      */
-    private function upsert(TiktokShop $shop, array $product, array $sku): void
+    private function upsert(TiktokShop $shop, array $product, array $sku): int
     {
-        $shop->mappings()->updateOrCreate(
-            ['sku_id' => (string) $sku['id']],
-            [
-                'product_id' => (string) $product['id'],
-                'seller_sku' => filled($sku['seller_sku'] ?? null) ? trim($sku['seller_sku']) : null,
-                'product_name' => isset($product['title']) ? mb_substr($product['title'], 0, 255) : null,
-                'sku_name' => self::skuName($sku),
-            ],
-        );
+        $sellerSku = filled($sku['seller_sku'] ?? null) ? trim($sku['seller_sku']) : null;
+        $mapping = $shop->mappings()->firstOrNew(['sku_id' => (string) $sku['id']]);
+
+        if ($mapping->exists && $mapping->match_type === 'auto' && mb_strtoupper((string) $mapping->seller_sku) !== mb_strtoupper((string) $sellerSku)) {
+            $mapping->fill(['product_variant_id' => null, 'bundle_id' => null, 'match_type' => null, 'stock_error' => null]);
+        }
+
+        $mapping->fill([
+            'product_id' => (string) $product['id'],
+            'seller_sku' => $sellerSku,
+            'product_name' => isset($product['title']) ? mb_substr($product['title'], 0, 255) : null,
+            'sku_name' => self::skuName($sku),
+            'removed_at' => null,
+        ])->save();
+
+        return $mapping->id;
     }
 }

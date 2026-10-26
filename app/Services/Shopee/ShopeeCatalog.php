@@ -18,11 +18,19 @@ class ShopeeCatalog
 {
     public function __construct(private readonly ShopeeAuth $auth) {}
 
+    /** Status item yang ditarik: tayang & diarsipkan (stok item arsip tetap bisa dikirim). */
+    private const ITEM_STATUSES = ['NORMAL', 'UNLIST'];
+
     /**
-     * Tarik semua item aktif toko ke tabel pemetaan (pemetaan yang sudah ada
+     * Tarik semua item toko ke tabel pemetaan (pemetaan yang sudah ada
      * dipertahankan), lalu cocokkan otomatis yang belum terpetakan.
      *
-     * @return array{items: int, rows: int, matched: int}
+     * Baris yang tidak muncul lagi (variasi/SKU dihapus atau diganti di Shopee)
+     * ditandai removed_at: tidak dikirim stoknya dan tidak dihitung gagal, tapi
+     * tidak dihapus supaya pesanan & retur lama tetap dikenali. Bila muncul lagi,
+     * tanda itu dilepas dan pemetaannya dipakai kembali.
+     *
+     * @return array{items: int, rows: int, matched: int, removed: int}
      */
     public function pull(ShopeeShop $shop, ?ShopeeClient $client = null): array
     {
@@ -30,22 +38,27 @@ class ShopeeCatalog
         $call = fn (string $path, array $query = []) => $client->shopRequest('GET', $path, $shop->shop_id, $this->auth->freshAccessToken($shop, $client), $query);
 
         $itemIds = [];
-        $offset = 0;
 
-        do {
-            $page = $call('/api/v2/product/get_item_list', ['offset' => $offset, 'page_size' => 100, 'item_status' => 'NORMAL'])['response'] ?? [];
-            array_push($itemIds, ...array_column($page['item'] ?? [], 'item_id'));
-            $offset = $page['next_offset'] ?? 0;
-        } while (! empty($page['has_next_page']));
+        foreach (self::ITEM_STATUSES as $status) {
+            $offset = 0;
 
+            do {
+                $page = $call('/api/v2/product/get_item_list', ['offset' => $offset, 'page_size' => 100, 'item_status' => $status])['response'] ?? [];
+                array_push($itemIds, ...array_column($page['item'] ?? [], 'item_id'));
+                $offset = $page['next_offset'] ?? 0;
+            } while (! empty($page['has_next_page']));
+        }
+
+        $itemIds = array_values(array_unique($itemIds));
         $rows = 0;
+        $seen = [];
 
         foreach (array_chunk($itemIds, 50) as $chunk) {
             $items = $call('/api/v2/product/get_item_base_info', ['item_id_list' => implode(',', $chunk)])['response']['item_list'] ?? [];
 
             foreach ($items as $item) {
                 if (empty($item['has_model'])) {
-                    $this->upsert($shop, $item, 0, $item['item_sku'] ?? null, null);
+                    $seen[] = $this->upsert($shop, $item, 0, $item['item_sku'] ?? null, null);
                     $rows++;
 
                     continue;
@@ -54,15 +67,30 @@ class ShopeeCatalog
                 $models = $call('/api/v2/product/get_model_list', ['item_id' => $item['item_id']])['response'] ?? [];
 
                 foreach ($models['model'] ?? [] as $model) {
-                    $this->upsert($shop, $item, (int) $model['model_id'], $model['model_sku'] ?? null, $this->modelName($model, $models['tier_variation'] ?? []));
+                    $seen[] = $this->upsert($shop, $item, (int) $model['model_id'], $model['model_sku'] ?? null, $this->modelName($model, $models['tier_variation'] ?? []));
                     $rows++;
                 }
             }
         }
 
+        // Daftar kosong bisa berarti jawaban API yang tidak lengkap: jangan tandai semua hilang.
+        $removed = $seen === [] ? 0 : $this->markRemoved($shop, $seen);
+
         $shop->update(['last_synced_at' => now()]);
 
-        return ['items' => count($itemIds), 'rows' => $rows, 'matched' => $this->autoMatch($shop)];
+        return ['items' => count($itemIds), 'rows' => $rows, 'matched' => $this->autoMatch($shop), 'removed' => $removed];
+    }
+
+    /**
+     * Tandai baris yang tidak ikut tertarik sebagai sudah tidak ada di Shopee.
+     * Error kirim stoknya dihapus karena SKU itu memang tidak dikirim lagi.
+     *
+     * @param  list<int>  $seen  id baris yang masih ada
+     */
+    private function markRemoved(ShopeeShop $shop, array $seen): int
+    {
+        return $shop->mappings()->whereNull('removed_at')->whereNotIn('id', $seen)
+            ->update(['removed_at' => now(), 'stock_error' => null, 'updated_at' => now()]);
     }
 
     /**
@@ -73,7 +101,7 @@ class ShopeeCatalog
     {
         $matched = 0;
 
-        $shop->mappings()->whereNull('product_variant_id')->whereNull('bundle_id')->whereNotNull('shopee_sku')
+        $shop->mappings()->whereNull('removed_at')->whereNull('product_variant_id')->whereNull('bundle_id')->whereNotNull('shopee_sku')
             ->each(function (ShopeeSkuMapping $mapping) use (&$matched) {
                 $sku = mb_strtoupper(trim($mapping->shopee_sku));
 
@@ -94,14 +122,25 @@ class ShopeeCatalog
     }
 
     /**
+     * Simpan satu baris item/variasi. Bila SKU Shopee-nya berganti dan baris itu
+     * dulu dicocokkan otomatis, pemetaannya dilepas supaya dicocokkan ulang ke SKU
+     * yang baru (pemetaan manual tetap dipertahankan).
+     *
      * @param  array<string, mixed>  $item
+     * @return int id baris
      */
-    private function upsert(ShopeeShop $shop, array $item, int $modelId, ?string $sku, ?string $modelName): void
+    private function upsert(ShopeeShop $shop, array $item, int $modelId, ?string $sku, ?string $modelName): int
     {
-        $shop->mappings()->updateOrCreate(
-            ['item_id' => $item['item_id'], 'model_id' => $modelId],
-            ['shopee_sku' => filled($sku) ? trim($sku) : null, 'item_name' => $item['item_name'] ?? null, 'model_name' => $modelName],
-        );
+        $sku = filled($sku) ? trim($sku) : null;
+        $mapping = $shop->mappings()->firstOrNew(['item_id' => $item['item_id'], 'model_id' => $modelId]);
+
+        if ($mapping->exists && $mapping->match_type === 'auto' && mb_strtoupper((string) $mapping->shopee_sku) !== mb_strtoupper((string) $sku)) {
+            $mapping->fill(['product_variant_id' => null, 'bundle_id' => null, 'match_type' => null, 'stock_error' => null]);
+        }
+
+        $mapping->fill(['shopee_sku' => $sku, 'item_name' => $item['item_name'] ?? null, 'model_name' => $modelName, 'removed_at' => null])->save();
+
+        return $mapping->id;
     }
 
     /**

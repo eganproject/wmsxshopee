@@ -41,15 +41,15 @@ class Bundle extends Model
         return "{$this->sku} · {$this->name}";
     }
 
-    /** Baris pemetaan SKU Shopee (bisa di beberapa toko) yang menunjuk ke SKU ini. */
+    /** Baris pemetaan SKU Shopee (bisa di beberapa toko) yang menunjuk ke SKU ini; SKU yang sudah tidak ada di toko tidak ikut. */
     public function shopeeMappings(): HasMany
     {
-        return $this->hasMany(ShopeeSkuMapping::class);
+        return $this->hasMany(ShopeeSkuMapping::class)->whereNull('removed_at');
     }
 
-    /** Baris pemetaan SKU TikTok (bisa di beberapa toko) yang menunjuk ke SKU ini. */
+    /** Baris pemetaan SKU TikTok (bisa di beberapa toko) yang menunjuk ke SKU ini; SKU yang sudah tidak ada di toko tidak ikut. */
     public function tiktokMappings(): HasMany
     {
-        return $this->hasMany(TiktokSkuMapping::class);
+        return $this->hasMany(TiktokSkuMapping::class)->whereNull('removed_at');
     }
 }

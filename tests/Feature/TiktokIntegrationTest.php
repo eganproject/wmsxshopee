@@ -721,4 +721,36 @@ class TiktokIntegrationTest extends TestCase
         $this->actingAs($staff)->get('/marketplace/settings')->assertForbidden();
         $this->actingAs($staff)->post('/tiktok/shops/connect', ['warehouse_id' => $this->warehouse->id])->assertForbidden();
     }
+
+    public function test_pull_retires_skus_gone_from_tiktok_and_rematches_changed_auto_sku(): void
+    {
+        $shop = $this->shop();
+        $shop->mappings()->where('sku_id', '2001')->update(['match_type' => 'auto']);
+        $shop->mappings()->where('sku_id', '2003')->update(['stock_error' => 'sku not exist']);
+
+        // Di TikTok: Seller SKU 2001 diganti KAOS-M -> KAOS-L, SKU 2002 & produk 1002 dihapus.
+        Http::fake([
+            '*/product/202309/products/search*' => Http::response(['code' => 0, 'data' => ['products' => [
+                ['id' => '1001', 'title' => 'Kaos Polos', 'status' => 'ACTIVATE', 'skus' => [['id' => '2001', 'seller_sku' => 'KAOS-L']]],
+            ], 'next_page_token' => '']]),
+            '*/inventory/update*' => Http::response(['code' => 0, 'message' => 'Success', 'data' => []]),
+        ]);
+
+        $this->post("/tiktok/shops/{$shop->id}/mappings/pull")->assertSessionHas('success', fn ($m) => str_contains($m, '2 SKU sudah tidak ada di toko'));
+
+        $rows = $shop->mappings()->get()->keyBy('sku_id');
+        $this->assertSame([$this->kaosL->id, 'auto'], [$rows['2001']->product_variant_id, $rows['2001']->match_type]);
+        $this->assertNotNull($rows['2002']->removed_at);
+        $this->assertSame($this->kaosL->id, $rows['2002']->product_variant_id);
+        $this->assertNotNull($rows['2003']->removed_at);
+        $this->assertNull($rows['2003']->stock_error);
+
+        $this->artisan('tiktok:sync --only=stock')->assertSuccessful();
+        Http::assertSent(fn (Request $r) => str_contains($r->url(), '/products/1001/inventory/update') && collect($r['skus'])->pluck('id')->all() === ['2001']);
+        Http::assertNotSent(fn (Request $r) => str_contains($r->url(), '/products/1002/inventory/update'));
+
+        $this->get('/marketplace/shops')->assertOk()->assertSee('1 SKU')->assertDontSee('gagal kirim stok');
+        $this->get("/tiktok/shops/{$shop->id}/mappings")->assertOk()->assertDontSee('PAKET-2')->assertSee('2 SKU sudah tidak ada lagi di TikTok');
+        $this->get("/tiktok/shops/{$shop->id}/mappings?status=removed")->assertOk()->assertSee('PAKET-2');
+    }
 }

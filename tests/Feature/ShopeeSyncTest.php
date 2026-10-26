@@ -19,6 +19,8 @@ use App\Models\Warehouse;
 use App\Services\AlertService;
 use App\Services\MarketplaceOrderRelink;
 use App\Services\SalesOrderService;
+use App\Services\Shopee\ShopeeCatalog;
+use App\Services\Shopee\ShopeeException;
 use App\Services\Shopee\ShopeeOrderSync;
 use App\Services\Shopee\ShopeeStockSync;
 use App\Services\Shopee\ShopeeSync;
@@ -194,7 +196,7 @@ class ShopeeSyncTest extends TestCase
         try {
             app(ShopeeOrderSync::class)->sync($this->shop);
             $this->fail('Error API seharusnya diteruskan.');
-        } catch (\App\Services\Shopee\ShopeeException) {
+        } catch (ShopeeException) {
         }
 
         // Pesanan yang menunggu coba-ulang tidak hilang karena error API.
@@ -942,5 +944,113 @@ class ShopeeSyncTest extends TestCase
         $this->post('/marketplace/sync-all')->assertSessionHas('error');
         $this->post('/marketplace/shops/shopee/999/sync-all')->assertNotFound();
         $this->post('/marketplace/shops/lazada/1/sync-all')->assertNotFound();
+    }
+
+    /** @var array<int, array<int|string, string>> katalog Shopee palsu, lihat fakeCatalog() */
+    private array $catalog = [];
+
+    private bool $catalogFaked = false;
+
+    /**
+     * Katalog palsu: item => ['sku' => item_sku] (tanpa variasi) atau [model_id => model_sku].
+     * Bisa dipanggil ulang untuk mengganti isi katalog di tengah tes.
+     */
+    private function fakeCatalog(array $items): void
+    {
+        $this->catalog = $items;
+
+        if ($this->catalogFaked) {
+            return;
+        }
+
+        $this->catalogFaked = true;
+        Http::fake([
+            '*/product/get_item_list*' => fn (Request $r) => Http::response(['error' => '', 'response' => [
+                // Item arsip (UNLIST) ditarik juga; di tes ini semua item tayang.
+                'item' => $r['item_status'] === 'NORMAL' ? array_map(fn ($id) => ['item_id' => $id], array_keys($this->catalog)) : [],
+                'has_next_page' => false,
+            ]]),
+            '*/product/get_item_base_info*' => fn () => Http::response(['error' => '', 'response' => ['item_list' => array_map(
+                fn ($id) => ['item_id' => $id, 'item_name' => "Produk {$id}", 'has_model' => ! array_key_exists('sku', $this->catalog[$id]), 'item_sku' => $this->catalog[$id]['sku'] ?? null],
+                array_keys($this->catalog),
+            )]]),
+            '*/product/get_model_list*' => fn (Request $r) => Http::response(['error' => '', 'response' => [
+                'tier_variation' => [],
+                'model' => collect($this->catalog[(int) $r['item_id']] ?? [])->map(fn ($sku, $modelId) => ['model_id' => $modelId, 'model_sku' => $sku, 'model_name' => "Model {$modelId}"])->values()->all(),
+            ]]),
+            '*/product/update_stock*' => Http::response(['error' => '', 'response' => []]),
+        ]);
+    }
+
+    public function test_pull_retires_skus_gone_from_shopee_and_rematches_changed_auto_sku(): void
+    {
+        $this->actingAs(User::where('username', 'superadmin')->first());
+        $pod2 = $this->kaosM->product->variants()->create(['sku' => 'POD2', 'name' => 'POD2', 'is_active' => true]);
+        $rows = $this->shop->mappings()->get()->keyBy('model_id');
+        $rows[101]->update(['match_type' => 'auto', 'shopee_sku' => 'KAOS-M']);
+        $rows[102]->update(['match_type' => 'manual', 'stock_error' => 'model_id not exist']);
+
+        // Di Shopee: SKU variasi 101 diganti KAOS-M -> POD2, variasi 102 dihapus
+        // (diganti variasi baru 103), item 22 (paket) dihapus.
+        $this->fakeCatalog([11 => [101 => 'POD2', 103 => 'KAOS-L']]);
+
+        $this->post('/marketplace/sync-products')->assertSessionHas('success', fn ($m) => str_contains($m, '2 SKU sudah tidak ada di toko'));
+
+        $rows = $this->shop->mappings()->get()->keyBy('model_id');
+        $this->assertSame([$pod2->id, 'auto', 'POD2'], [$rows[101]->product_variant_id, $rows[101]->match_type, $rows[101]->shopee_sku]);
+        $this->assertSame($this->kaosL->id, $rows[103]->product_variant_id);
+        // Baris yang hilang ditandai, pemetaan manualnya tidak dibuang, dan tidak dihitung gagal lagi.
+        $this->assertNotNull($rows[102]->removed_at);
+        $this->assertSame([$this->kaosL->id, 'manual', null], [$rows[102]->product_variant_id, $rows[102]->match_type, $rows[102]->stock_error]);
+        $this->assertNotNull($rows[0]->removed_at);
+        $this->assertSame($this->bundle->id, $rows[0]->bundle_id);
+
+        // Stok hanya dikirim untuk SKU yang masih ada.
+        Http::assertSent(fn (Request $r) => str_contains($r->url(), 'update_stock') && $r['item_id'] === 11
+            && collect($r['stock_list'])->pluck('model_id')->sort()->values()->all() === [101, 103]);
+        Http::assertNotSent(fn (Request $r) => str_contains($r->url(), 'update_stock') && $r['item_id'] === 22);
+
+        $this->get('/marketplace/shops')->assertOk()->assertSee('2 SKU')->assertDontSee('gagal kirim stok');
+        $this->get("/shopee/shops/{$this->shop->id}/mappings")->assertOk()
+            ->assertSee('POD2')->assertDontSee('PAKET-2')->assertSee('2 SKU sudah tidak ada lagi di Shopee');
+        $this->get("/shopee/shops/{$this->shop->id}/mappings?status=removed")->assertOk()->assertSee('PAKET-2')->assertSee('Tidak ada di Shopee sejak');
+
+        // Variasi muncul lagi: tanda dilepas, pemetaan manual dipakai kembali.
+        $this->fakeCatalog([11 => [101 => 'POD2', 102 => 'KAOS-L-LAMA', 103 => 'KAOS-L']]);
+        app(ShopeeCatalog::class)->pull($this->shop);
+        $back = $this->shop->mappings()->where('model_id', 102)->first();
+        $this->assertSame([null, $this->kaosL->id, 'manual'], [$back->removed_at, $back->product_variant_id, $back->match_type]);
+    }
+
+    public function test_empty_catalog_answer_does_not_retire_mappings(): void
+    {
+        $this->fakeCatalog([]);
+
+        app(ShopeeCatalog::class)->pull($this->shop);
+
+        $this->assertSame(0, $this->shop->mappings()->whereNotNull('removed_at')->count());
+    }
+
+    public function test_failed_stock_push_explains_which_sku_failed_and_how_to_fix(): void
+    {
+        $this->actingAs(User::where('username', 'superadmin')->first());
+        $this->shop->mappings()->where('model_id', 101)->update(['item_name' => 'Produk A', 'model_name' => 'Merah']);
+        Http::fake(['*/product/update_stock*' => Http::response(['error' => '', 'response' => [
+            'success_list' => [['model_id' => 102]],
+            'failure_list' => [['model_id' => 101, 'failed_reason' => 'model_id not exist']],
+        ]])]);
+
+        app(ShopeeStockSync::class)->push($this->shop);
+
+        $this->get('/marketplace/shops')->assertOk()
+            ->assertSee('1 gagal kirim stok')
+            ->assertSee("/shopee/shops/{$this->shop->id}/mappings?status=failed", false)
+            ->assertSee('KAOS-M (Produk A · Merah): model_id not exist')
+            ->assertSee('SKU sudah tidak ada di Shopee')
+            ->assertSee('Tarik dari Shopee');
+
+        $this->get("/shopee/shops/{$this->shop->id}/mappings?status=failed")->assertOk()
+            ->assertSee('KAOS-M')->assertDontSee('PAKET-2')
+            ->assertSee('SKU sudah tidak ada di Shopee')->assertSee('model_id not exist');
     }
 }
