@@ -20,6 +20,12 @@ use Throwable;
  */
 class SpreadsheetImport
 {
+    /** Batas baris data per sekali impor, dipakai semua halaman impor. */
+    public const MAX_ROWS = 3000;
+
+    /** Batas waktu proses impor (detik); impor ribuan baris bisa lewat 30 detik bawaan PHP. */
+    public const TIME_LIMIT = 300;
+
     /**
      * Baca file lalu ubah tiap baris jadi array [kolom template => nilai] plus
      * 'line' (nomor baris di file). Baris kosong dibuang.
@@ -30,8 +36,10 @@ class SpreadsheetImport
      *
      * @throws ValidationException
      */
-    public static function records(string $path, string $extension, array $aliases, array $required, int $maxRows = 2000, string $emptyMessage = 'File tidak berisi data.'): Collection
+    public static function records(string $path, string $extension, array $aliases, array $required, int $maxRows = self::MAX_ROWS, string $emptyMessage = 'File tidak berisi data.'): Collection
     {
+        @set_time_limit(self::TIME_LIMIT);
+
         $rows = self::readRows($path, $extension);
         $map = self::mapColumns(array_shift($rows) ?? [], $aliases);
 

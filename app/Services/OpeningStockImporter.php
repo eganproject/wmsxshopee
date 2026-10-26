@@ -16,7 +16,7 @@ use Illuminate\Validation\ValidationException;
  */
 class OpeningStockImporter
 {
-    public const MAX_ROWS = 2000;
+    public const MAX_ROWS = SpreadsheetImport::MAX_ROWS;
 
     public const COLUMNS = [
         'sku' => 'Wajib. SKU varian atau barcode.',

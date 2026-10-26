@@ -12,6 +12,7 @@ use App\Models\Warehouse;
 use App\Models\WarehouseLocation;
 use App\Models\WarehouseRack;
 use App\Models\WarehouseZone;
+use App\Services\ProductImporter;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use OpenSpout\Common\Entity\Row;
@@ -170,6 +171,48 @@ class ImportExportTest extends TestCase
         $this->assertSame(2, ProductVariant::count());
     }
 
+    /** File Excel produk: $products produk x 2 varian = baris data. */
+    private function productXlsx(int $products, int $extraRows = 0): UploadedFile
+    {
+        $path = tempnam(sys_get_temp_dir(), 'imp').'.xlsx';
+        $writer = new Writer;
+        $writer->openToFile($path);
+        $writer->addRow(Row::fromValues(array_keys(ProductImporter::COLUMNS)));
+        for ($i = 1; $i <= $products; $i++) {
+            foreach (['M', 'L'] as $j => $size) {
+                $writer->addRow(Row::fromValues(["P{$i}", "Produk {$i}", 'Pakaian', 'Optima', 'PCS', $size, "P{$i}-{$size}", '899'.str_pad((string) ($i * 2 + $j), 9, '0', STR_PAD_LEFT), 200, 30, 25, 2, 10, 'Ya', 'Deskripsi produk']));
+            }
+        }
+        for ($i = 1; $i <= $extraRows; $i++) {
+            $writer->addRow(Row::fromValues(["X{$i}", "Tambahan {$i}", '', '', 'PCS']));
+        }
+        $writer->close();
+
+        return new UploadedFile($path, 'produk.xlsx', null, null, true);
+    }
+
+    public function test_product_import_accepts_3000_rows(): void
+    {
+        $this->post('/master/products/import', ['file' => $this->productXlsx(1500)])
+            ->assertSessionHasNoErrors()
+            ->assertRedirect('/master/products/import');
+
+        $this->assertSame(1500, Product::count());
+        $this->assertSame(3000, ProductVariant::count());
+
+        // Impor ulang file yang sama: semua 1.500 produk lewat jalur perbarui.
+        $this->post('/master/products/import', ['file' => $this->productXlsx(1500)])->assertSessionHasNoErrors();
+        $this->assertSame(3000, ProductVariant::count());
+    }
+
+    public function test_product_import_rejects_more_than_3000_rows(): void
+    {
+        $this->post('/master/products/import', ['file' => $this->productXlsx(1500, 1)])
+            ->assertSessionHasErrors(['file' => 'Maksimal 3.000 baris per impor. Pecah file menjadi beberapa bagian.']);
+
+        $this->assertSame(0, Product::count());
+    }
+
     public function test_opening_stock_import_records_one_incoming_document(): void
     {
         $product = Product::create(['sku' => 'KAOS', 'name' => 'Kaos', 'unit_id' => Unit::where('code', 'PCS')->value('id'), 'has_variants' => true, 'is_active' => true]);
@@ -310,7 +353,7 @@ class ImportExportTest extends TestCase
 
     public function test_import_pages_and_templates(): void
     {
-        $this->get('/master/products/import')->assertOk()->assertSee('sku_induk');
+        $this->get('/master/products/import')->assertOk()->assertSee('sku_induk')->assertSee('3.000 baris');
         $this->get('/master/products/import/template.xlsx')->assertOk()->assertDownload('template-impor-produk.xlsx');
         $this->get('/master/products/import/template.csv')->assertOk()->assertDownload('template-impor-produk.csv');
         $this->get('/inventory/opening-stock')->assertOk()->assertSee('JKT01');

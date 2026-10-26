@@ -64,7 +64,7 @@ class SalesOrderImporter
      */
     public function import(string $path, string $extension, int $warehouseId, bool $confirm, ?int $userId): array
     {
-        $groups = $this->parse(SpreadsheetImport::records($path, $extension, self::ALIASES, ['nama_pembeli', 'sku', 'qty'], 2000, 'File tidak berisi baris pesanan.'));
+        $groups = $this->parse(SpreadsheetImport::records($path, $extension, self::ALIASES, ['nama_pembeli', 'sku', 'qty'], SpreadsheetImport::MAX_ROWS, 'File tidak berisi baris pesanan.'));
 
         $created = [];
         $skipped = [];

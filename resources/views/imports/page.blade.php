@@ -69,7 +69,7 @@
                     @error('file')
                         <p class="mt-1 flex items-center gap-1 text-xs text-rose-600"><x-heroicon-o-exclamation-triangle class="size-4 shrink-0" /> {{ $message }}</p>
                     @else
-                        <p class="mt-1 text-xs text-slate-400">.xlsx atau .csv (pemisah koma atau titik koma), maks. 10 MB / 2.000 baris.</p>
+                        <p class="mt-1 text-xs text-slate-400">.xlsx atau .csv (pemisah koma atau titik koma), maks. 10 MB / {{ number_format(\App\Support\SpreadsheetImport::MAX_ROWS, 0, ',', '.') }} baris.</p>
                     @enderror
                 </div>
                 <button type="submit" class="btn-primary">
