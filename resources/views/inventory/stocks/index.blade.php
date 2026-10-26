@@ -50,7 +50,7 @@
             <div class="relative flex-1">
                 <x-heroicon-o-magnifying-glass class="pointer-events-none absolute top-1/2 left-3.5 size-5 -translate-y-1/2 text-slate-400" />
                 <input type="search" name="search" value="{{ request('search') }}" class="form-input pl-11"
-                       placeholder="{{ $mode === 'location' ? 'Cari SKU, barcode, nama produk atau kode lokasi...' : 'Cari SKU, barcode atau nama produk...' }}">
+                       placeholder="{{ ['location' => 'Cari SKU, barcode, nama produk atau kode lokasi...', 'bundle' => 'Cari SKU paket, nama paket atau SKU isi...'][$mode] ?? 'Cari SKU, barcode atau nama produk...' }}">
             </div>
             <select name="warehouse" class="form-input md:w-52" onchange="this.form.submit()">
                 <option value="">Semua gudang</option>
@@ -60,7 +60,7 @@
             </select>
             <label class="flex items-center gap-2 text-sm whitespace-nowrap text-slate-600">
                 <input type="checkbox" name="zero" value="1" class="form-checkbox" @checked(request()->boolean('zero')) onchange="this.form.submit()">
-                {{ $mode === 'variant' ? 'Tampilkan semua SKU' : 'Tampilkan stok 0' }}
+                {{ ['variant' => 'Tampilkan semua SKU', 'bundle' => 'Tampilkan paket nonaktif'][$mode] ?? 'Tampilkan stok 0' }}
             </label>
             <div class="flex gap-2">
                 <button type="submit" class="btn-secondary"><x-heroicon-o-funnel class="size-5" /> Filter</button>
@@ -73,7 +73,7 @@
         <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-4 py-3">
             <div class="flex flex-wrap items-center gap-3">
                 <div class="inline-flex rounded-lg border border-slate-200 p-0.5 text-sm">
-                    @foreach (['variant' => 'Per SKU', 'location' => 'Per Lokasi'] as $value => $label)
+                    @foreach (['variant' => 'Per SKU', 'location' => 'Per Lokasi', 'bundle' => 'Paket (Virtual)'] as $value => $label)
                         <a href="{{ route('inventory.stocks.index', [...request()->except(['view', 'page', 'status']), 'view' => $value]) }}"
                            @class([
                                'rounded-md px-3 py-1.5 font-medium transition',
@@ -95,6 +95,9 @@
                     </div>
                 @endif
             </div>
+            @if ($mode === 'bundle')
+                <p class="text-sm text-slate-500">Paket tidak punya stok sendiri. Angkanya dihitung dari stok tersedia barang isinya.</p>
+            @endif
             @if ($mode === 'location')
                 <p class="text-sm text-slate-500">Total: <span class="font-semibold text-slate-900">{{ $fmt($totalQty) }}</span></p>
             @endif
@@ -103,6 +106,8 @@
         <div class="overflow-x-auto">
             @if ($mode === 'variant')
                 @include('inventory.stocks.partials.by-variant')
+            @elseif ($mode === 'bundle')
+                @include('inventory.stocks.partials.by-bundle')
             @else
                 @include('inventory.stocks.partials.by-location')
             @endif

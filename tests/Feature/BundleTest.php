@@ -16,6 +16,7 @@ use App\Services\SalesOrderService;
 use App\Services\StockService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
+use OpenSpout\Reader\XLSX\Reader;
 use Tests\TestCase;
 
 class BundleTest extends TestCase
@@ -313,5 +314,37 @@ class BundleTest extends TestCase
         $bundle = Bundle::with('items')->sole();
         $this->assertSame('PAKET-3', $bundle->sku);
         $this->assertSame([2, 1], $bundle->items->pluck('qty')->all());
+    }
+
+    public function test_stock_page_shows_virtual_bundle_stock(): void
+    {
+        $this->bundle();
+        Bundle::create(['sku' => 'PAKET-OFF', 'name' => 'Paket Lama', 'is_active' => false])
+            ->items()->create(['product_variant_id' => $this->kaosM->id, 'qty' => 1]);
+
+        // KAOS-M 10 / 2 = 5, KAOS-L 5 / 1 = 5 → 5 paket.
+        $this->get('/inventory/stocks?view=bundle')
+            ->assertOk()
+            ->assertSee('Paket (Virtual)')
+            ->assertSee('PAKET-3')
+            ->assertSee('Virtual')
+            ->assertSeeInOrder(['PAKET-3', '5', 'paket'])
+            ->assertDontSee('PAKET-OFF');
+
+        $this->get('/inventory/stocks?view=bundle&zero=1&warehouse='.$this->warehouse->id)->assertOk()->assertSee('PAKET-OFF')->assertSee('Stok Jual');
+        $this->get('/inventory/stocks?view=bundle&search=KAOS-L')->assertOk()->assertSee('PAKET-3');
+        $this->get('/inventory/stocks?view=bundle&search=TIDAK-ADA')->assertOk()->assertDontSee('PAKET-3');
+
+        $response = $this->get('/inventory/stocks?view=bundle&export=xlsx')->assertOk()->assertDownload();
+        $reader = new Reader;
+        $reader->open($response->getFile()->getPathname());
+        $rows = [];
+        foreach ($reader->getSheetIterator() as $sheet) {
+            foreach ($sheet->getRowIterator() as $row) {
+                $rows[] = $row->toArray();
+            }
+        }
+        $reader->close();
+        $this->assertSame(['PAKET-3', 'Paket Hemat 3 Kaos', 'Virtual', 'KAOS-M × 2, KAOS-L × 1', 0, 5, 'Aktif'], $rows[1]);
     }
 }
