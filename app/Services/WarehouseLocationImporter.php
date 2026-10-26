@@ -20,7 +20,7 @@ use Illuminate\Validation\ValidationException;
  */
 class WarehouseLocationImporter
 {
-    public const MAX_ROWS = 2000;
+    public const MAX_ROWS = SpreadsheetImport::MAX_ROWS;
 
     /** Kolom template, urut sesuai file contoh. */
     public const COLUMNS = [
