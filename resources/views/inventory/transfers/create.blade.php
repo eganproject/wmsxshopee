@@ -84,20 +84,20 @@
                 <p class="mt-0.5 text-sm text-slate-500">Nomor transfer dibuat otomatis saat disimpan.</p>
             </div>
             <div class="grid gap-5 p-6 sm:grid-cols-2 lg:grid-cols-4">
-                <x-select name="from_warehouse_id" label="Dari Gudang" required x-model="from">
+                <x-select name="from_warehouse_id" label="Dari Gudang" tip="Gudang pengirim, biasanya gudang besar (cadangan). Stoknya langsung berkurang saat transfer disimpan." required x-model="from">
                     <option value="">Pilih gudang asal</option>
                     @foreach ($sources as $warehouse)
                         <option value="{{ $warehouse->id }}">{{ $warehouse->code }} · {{ $warehouse->name }}</option>
                     @endforeach
                 </x-select>
-                <x-select name="to_warehouse_id" label="Ke Gudang" required x-model="to">
+                <x-select name="to_warehouse_id" label="Ke Gudang" tip="Gudang penerima. Stok baru masuk setelah transfer dikonfirmasi diterima di gudang ini." required x-model="to">
                     <option value="">Pilih gudang tujuan</option>
                     @foreach ($destinations as $warehouse)
                         <option value="{{ $warehouse->id }}">{{ $warehouse->code }} · {{ $warehouse->name }}</option>
                     @endforeach
                 </x-select>
                 <x-input name="transfer_date" type="date" label="Tanggal Kirim" :value="now()->toDateString()" :max="now()->toDateString()" required />
-                <x-input name="reference" label="Referensi" placeholder="cth. no. surat jalan" />
+                <x-input name="reference" label="Referensi" tip="Nomor acuan, misalnya nomor surat jalan antar gudang." placeholder="cth. no. surat jalan" />
                 <x-textarea name="notes" label="Catatan" rows="2" class="sm:col-span-2 lg:col-span-4" />
             </div>
         </div>
@@ -132,9 +132,9 @@
                     <thead class="text-left text-[13px] text-slate-500">
                         <tr>
                             <th class="py-2 pr-2">Varian *</th>
-                            <th class="px-2 py-2">Lokasi Asal</th>
-                            <th class="px-2 py-2">Lokasi Tujuan</th>
-                            <th class="px-2 py-2">Jumlah (pcs) *</th>
+                            <th class="px-2 py-2">Lokasi <span class="whitespace-nowrap">Asal <x-hint text="Bin di gudang asal tempat barang diambil." /></span></th>
+                            <th class="px-2 py-2">Lokasi <span class="whitespace-nowrap">Tujuan <x-hint text="Bin di gudang tujuan tempat barang akan ditaruh. Bisa diubah lagi saat barang diterima." /></span></th>
+                            <th class="px-2 py-2">Jumlah (pcs) <span class="whitespace-nowrap">* <x-hint text="Jumlah pcs yang dikirim. Tombol + koli / − koli menambah atau mengurangi satu koli sesuai Isi per Koli produk." /></span></th>
                             <th class="px-2 py-2">Keterangan</th>
                             <th class="py-2 pl-2"></th>
                         </tr>

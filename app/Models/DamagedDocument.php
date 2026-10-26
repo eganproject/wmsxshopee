@@ -44,8 +44,10 @@ class DamagedDocument extends Model
     ];
 
     public const STATUSES = [
-        'draft' => ['label' => 'Draft', 'color' => 'slate'],
-        'approved' => ['label' => 'Disetujui', 'color' => 'emerald'],
+        'draft' => ['label' => 'Draft', 'color' => 'slate',
+            'hint' => 'Dokumen belum disetujui. Stok belum berubah dan dokumen masih bisa diubah.'],
+        'approved' => ['label' => 'Disetujui', 'color' => 'emerald',
+            'hint' => 'Dokumen sudah disetujui dan perubahan stok baik / rusak sudah dicatat. Dokumen terkunci.'],
     ];
 
     protected $fillable = [

@@ -65,14 +65,14 @@
                     <tr>
                         <th class="h-8 px-4 py-0 font-normal">No.</th>
                         <th class="h-8 px-4 py-0 font-normal">Tanggal</th>
-                        <th class="h-8 px-4 py-0 font-normal">Pesanan</th>
+                        <th class="h-8 px-4 py-0 font-normal"><span class="whitespace-nowrap">Pesanan <x-hint text="Pesanan asal yang diretur. Kosong untuk retur tanpa pesanan." /></span></th>
                         <th class="h-8 px-4 py-0 font-normal">Pengirim</th>
-                        <th class="h-8 px-4 py-0 font-normal">Resi Retur</th>
+                        <th class="h-8 px-4 py-0 font-normal">Resi <span class="whitespace-nowrap">Retur <x-hint text="Nomor resi paket retur dari pembeli." /></span></th>
                         <th class="h-8 px-4 py-0 font-normal">Gudang</th>
-                        <th class="h-8 px-4 py-0 font-normal text-right">Layak Jual</th>
-                        <th class="h-8 px-4 py-0 font-normal text-right">Rusak</th>
-                        <th class="h-8 px-4 py-0 font-normal text-right">Hilang</th>
-                        <th class="h-8 px-4 py-0 font-normal">Status</th>
+                        <th class="h-8 px-4 py-0 font-normal text-right">Layak <span class="whitespace-nowrap">Jual <x-hint text="Barang dalam kondisi baik yang masuk lagi ke stok jual di lokasi bin." /></span></th>
+                        <th class="h-8 px-4 py-0 font-normal text-right"><span class="whitespace-nowrap">Rusak <x-hint text="Barang rusak / cacat. Masuk ke Stok Rusak gudang dan tidak ikut dijual." /></span></th>
+                        <th class="h-8 px-4 py-0 font-normal text-right"><span class="whitespace-nowrap">Hilang <x-hint text="Barang yang seharusnya ikut kembali tapi tidak ada di paket. Dicatat di laporan Barang Hilang." /></span></th>
+                        <th class="h-8 px-4 py-0 font-normal"><span class="whitespace-nowrap">Status <x-hint text="Draft: stok belum berubah dan masih bisa diubah. Diterima: stok sudah diperbarui dan dokumen terkunci." /></span></th>
                         <th class="h-8 px-4 py-0 font-normal text-right">Aksi</th>
                     </tr>
                 </thead>

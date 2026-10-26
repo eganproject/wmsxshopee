@@ -6,7 +6,7 @@
             </h2>
         </div>
         <div class="grid gap-x-6 gap-y-4 p-5 sm:grid-cols-2">
-            <x-select name="warehouse_zone_id" label="Zona" class="sm:col-span-2" required>
+            <x-select name="warehouse_zone_id" label="Zona" tip="Zona (area) tempat rak ini berada. Gudang rak mengikuti zona yang dipilih." class="sm:col-span-2" required>
                 <option value="">Pilih zona</option>
                 @foreach ($zones->groupBy(fn ($zone) => $zone->warehouse->code.' · '.$zone->warehouse->name) as $warehouseLabel => $warehouseZones)
                     <optgroup label="{{ $warehouseLabel }}">
@@ -18,10 +18,10 @@
                     </optgroup>
                 @endforeach
             </x-select>
-            <x-input name="code" label="Kode Rak" icon="heroicon-o-hashtag" :value="$rack->code" placeholder="cth. A01" class="[&_input]:uppercase"
+            <x-input name="code" label="Kode Rak" tip="Awalan kode lokasi bin. Contoh rak A01 menghasilkan bin A01-01-01, A01-01-02, dan seterusnya." icon="heroicon-o-hashtag" :value="$rack->code" placeholder="cth. A01" class="[&_input]:uppercase"
                      hint="Unik per gudang. Dipakai sebagai awalan kode lokasi bin." x-model="code" required />
             <x-input name="name" label="Nama Rak" :value="$rack->name" placeholder="opsional" />
-            <x-input name="levels" type="number" label="Jumlah Level (tingkat)" :value="$rack->levels" min="1" max="50" x-model.number="levels" required />
+            <x-input name="levels" type="number" tip="Jumlah tingkat rak dari bawah ke atas. Level menjadi angka kedua di kode lokasi bin." label="Jumlah Level (tingkat)" :value="$rack->levels" min="1" max="50" x-model.number="levels" required />
             <x-textarea name="description" label="Keterangan" :value="$rack->description" class="sm:col-span-2" />
         </div>
     </div>
@@ -45,7 +45,7 @@
         </label>
         <div x-show="generate" x-collapse x-cloak>
             <div class="grid gap-x-6 gap-y-4 border-t border-slate-100 p-5 sm:grid-cols-2">
-                <x-input name="positions" type="number" label="Jumlah Bin per Level" value="5" min="1" max="100" x-model.number="positions" />
+                <x-input name="positions" type="number" tip="Jumlah bin di setiap level, dihitung dari kiri. Posisi menjadi angka ketiga di kode lokasi bin." label="Jumlah Bin per Level" value="5" min="1" max="100" x-model.number="positions" />
                 <div class="rounded-lg bg-slate-50 p-4 text-sm text-slate-600">
                     <p>Total: <span class="font-semibold text-slate-900" x-text="(levels || 0) * (positions || 0)"></span> lokasi</p>
                     <p class="mt-1">Contoh kode:

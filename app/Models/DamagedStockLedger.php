@@ -17,8 +17,10 @@ class DamagedStockLedger extends Model
      * dari dokumen barang rusak (lihat DamagedDocument::TYPES).
      */
     public const SOURCE_TYPES = [
-        'receipt' => ['label' => 'Penerimaan Barang', 'icon' => 'heroicon-o-inbox-arrow-down'],
-        'return' => ['label' => 'Retur Penjualan', 'icon' => 'heroicon-o-arrow-uturn-left'],
+        'receipt' => ['label' => 'Penerimaan Barang', 'icon' => 'heroicon-o-inbox-arrow-down',
+            'hint' => 'Barang yang datang dari supplier dalam kondisi rusak dan langsung masuk Stok Rusak.'],
+        'return' => ['label' => 'Retur Penjualan', 'icon' => 'heroicon-o-arrow-uturn-left',
+            'hint' => 'Barang retur dari pembeli yang kondisinya rusak dan masuk Stok Rusak.'],
     ];
 
     protected $fillable = [
@@ -47,7 +49,7 @@ class DamagedStockLedger extends Model
     /** @return array<string, array{label: string, icon: string}> */
     public static function types(): array
     {
-        return self::SOURCE_TYPES + collect(DamagedDocument::TYPES)->map(fn ($meta) => ['label' => $meta['label'], 'icon' => $meta['icon']])->all();
+        return self::SOURCE_TYPES + collect(DamagedDocument::TYPES)->map(fn ($meta) => ['label' => $meta['label'], 'icon' => $meta['icon'], 'hint' => $meta['hint'] ?? null])->all();
     }
 
     public function typeLabel(): string

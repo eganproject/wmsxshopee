@@ -63,7 +63,7 @@
                     @include($fields)
                 @endisset
                 <div>
-                    <label for="file" class="form-label">File <span class="text-rose-500">*</span></label>
+                    <label for="file" class="form-label">File <span class="text-rose-500">*</span> <x-hint text="File .xlsx atau .csv sesuai Format Kolom di samping. Semua baris dicek dulu; bila ada yang salah, tidak ada yang disimpan." /></label>
                     <input id="file" name="file" type="file" required accept=".xlsx,.csv,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                            @class(['form-input file:mr-3 file:border-0 file:bg-transparent file:text-sm file:font-medium', 'form-input-error' => $errors->has('file')])>
                     @error('file')

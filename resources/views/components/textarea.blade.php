@@ -3,6 +3,7 @@
     'label' => null,
     'value' => null,
     'hint' => null,
+    'tip' => null,
     'rows' => 3,
 ])
 
@@ -13,7 +14,7 @@
 
 <div {{ $attributes->only('class') }}>
     @if ($label)
-        <label for="{{ $id }}" class="form-label">{{ $label }}</label>
+        <label for="{{ $id }}" class="form-label">{{ $label }}@if ($tip) <x-hint :text="$tip" :title="$label" />@endif</label>
     @endif
 
     <textarea id="{{ $id }}" name="{{ $name }}" rows="{{ $rows }}"

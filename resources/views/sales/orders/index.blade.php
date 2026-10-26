@@ -19,7 +19,7 @@
         @endcan
     </x-page-header>
 
-    <div class="mb-4 flex gap-1 overflow-x-auto border-b border-slate-200 text-sm" x-data="hintTips">
+    <div class="mb-4 flex gap-1 overflow-x-auto border-b border-slate-200 text-sm">
         @php($statusFilter = request('status'))
         <a href="{{ route('sales.orders.index', request()->except(['status', 'page'])) }}"
            data-hint-title="Semua pesanan" data-hint="Seluruh pesanan manual, Shopee dan TikTok sesuai filter yang sedang dipakai, dari Draft sampai Batal."
@@ -38,7 +38,7 @@
     {{-- Status kedua: status pesanan di Shopee / TikTok, label disamakan. Jumlah ikut tab status gudang di atas. --}}
     @php($marketplaceFilter = request('mp'))
     @php($chip = 'inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs whitespace-nowrap transition')
-    <div class="mb-4 flex flex-wrap items-center gap-1.5" aria-label="Filter status marketplace" x-data="hintTips">
+    <div class="mb-4 flex flex-wrap items-center gap-1.5" aria-label="Filter status marketplace">
         <span class="mr-1 flex items-center gap-1 text-[11px] font-medium tracking-wide text-slate-500 uppercase">
             <x-marketplace-logo platform="shopee" class="size-3.5" /><x-marketplace-logo platform="tiktok" class="size-3.5" /> Status marketplace
         </span>
@@ -351,9 +351,9 @@
                                        @change="selected = $event.target.checked ? @js($orders->pluck('id')) : []">
                             </th>
                         @endif
-                        <th class="h-8 px-3 py-0 font-normal">Barang Dipesan</th>
-                        <th class="h-8 px-3 py-0 font-normal">Pengiriman</th>
-                        <th class="h-8 px-3 py-0 font-normal">Status</th>
+                        <th class="h-8 px-3 py-0 font-normal">Barang <span class="whitespace-nowrap">Dipesan <x-hint text="SKU dan jumlah yang dipesan. Arahkan kursor ke SKU untuk melihat nama produknya." /></span></th>
+                        <th class="h-8 px-3 py-0 font-normal"><span class="whitespace-nowrap">Pengiriman <x-hint text="Cara serah paket ke kurir (pickup / drop off), kurir, nomor resi, dan batas kirim dari marketplace." /></span></th>
+                        <th class="h-8 px-3 py-0 font-normal"><span class="whitespace-nowrap">Status <x-hint text="Kiri: status di gudang (ikon gedung). Kanan: status di Shopee / TikTok. Arahkan kursor ke tiap label untuk artinya." /></span></th>
                         <th class="h-8 px-3 py-0 text-right font-normal">Aksi</th>
                     </tr>
                 </thead>
@@ -383,7 +383,7 @@
                                     </span>
                                     @if ($syncError)
                                         <a href="{{ route('sales.orders.show', $order) }}{{ $unmapped ? '#sku-mapping' : '' }}"
-                                           class="inline-flex items-center gap-1 font-medium text-amber-700 hover:underline" title="{{ $syncError }} · Klik untuk menyelesaikan">
+                                           class="inline-flex items-center gap-1 font-medium text-amber-700 hover:underline" data-hint-title="{{ $unmapped ? 'SKU belum terhubung' : 'Perlu dicek' }}" data-hint="{{ $syncError }}" data-hint-next="{{ $unmapped ? 'Klik untuk menghubungkan SKU marketplace ke produk gudang.' : 'Klik untuk membuka pesanan dan menyelesaikannya.' }}">
                                             <x-heroicon-o-exclamation-triangle class="size-3.5" /> {{ $unmapped ? 'SKU belum terhubung · Selesaikan' : 'Perlu dicek' }}
                                         </a>
                                     @endif
@@ -417,7 +417,7 @@
                                         'font-medium text-rose-600' => $deadline->isPast(),
                                         'text-amber-700' => ! $deadline->isPast() && $deadline->lte(now()->addDay()),
                                         'text-slate-500' => $deadline->gt(now()->addDay()),
-                                    ]) title="Batas kirim dari marketplace">
+                                    ]) data-hint-title="Batas kirim" data-hint="Batas waktu dari marketplace untuk menyerahkan paket ke kurir. Lewat batas bisa kena penalti toko.">
                                         <x-heroicon-o-clock class="size-3.5" />
                                         {{ $deadline->isPast() ? 'Lewat batas kirim' : 'Kirim sebelum' }} {{ $deadline->format('d/m H:i') }}
                                     </p>
@@ -426,7 +426,7 @@
                             <td class="px-3 py-3">
                                 {{-- Status gudang (ikon gedung) dan status marketplace (logo Shopee / TikTok) berdampingan. --}}
                                 <div class="flex flex-wrap items-start gap-x-3 gap-y-1.5">
-                                    <div class="flex items-center gap-1" title="Status gudang">
+                                    <div class="flex items-center gap-1">
                                         <x-heroicon-o-building-office-2 class="size-3.5 text-slate-400" />
                                         <x-sales.status-badge :status="$order->status" />
                                     </div>

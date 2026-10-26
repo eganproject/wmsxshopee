@@ -28,7 +28,7 @@
             </select>
         </div>
         <div class="md:col-span-3">
-            <label for="code" class="form-label">atau scan SKU / barcode</label>
+            <label for="code" class="form-label">atau scan SKU / <span class="whitespace-nowrap">barcode <x-hint text="Scan atau ketik SKU / barcode lalu tekan Enter untuk langsung membuka kartu stok varian tersebut." /></span></label>
             <div class="relative">
                 <x-heroicon-o-qr-code class="pointer-events-none absolute top-1/2 left-3.5 size-5 -translate-y-1/2 text-slate-400" />
                 <input id="code" type="search" name="code" class="form-input pl-11" placeholder="Scan lalu Enter"
@@ -45,7 +45,7 @@
             </select>
         </div>
         <div class="md:col-span-2">
-            <label for="location" class="form-label">Lokasi</label>
+            <label for="location" class="form-label"><span class="whitespace-nowrap">Lokasi <x-hint text="Pilih bin untuk melihat pergerakan di satu lokasi saja. Kosongkan untuk semua lokasi di gudang." /></span></label>
             <select id="location" name="location" class="form-input" onchange="this.form.submit()">
                 <option value="">Semua lokasi</option>
                 <option value="none" @selected(request('location') === 'none')>Tanpa bin</option>
@@ -106,13 +106,13 @@
                     <thead class="bg-slate-50 text-left text-[13px] text-slate-500">
                         <tr>
                             <th class="px-5 py-3">Tanggal</th>
-                            <th class="px-5 py-3">No. Dokumen</th>
-                            <th class="px-5 py-3">Jenis</th>
+                            <th class="px-5 py-3">No. <span class="whitespace-nowrap">Dokumen <x-hint text="Nomor dokumen yang mengubah stok, misalnya penerimaan, pesanan, transfer atau penyesuaian. Klik untuk membuka dokumennya." /></span></th>
+                            <th class="px-5 py-3"><span class="whitespace-nowrap">Jenis <x-hint text="Jenis pergerakan stok, misalnya Barang Masuk, Barang Keluar, Transfer Lokasi atau Penyesuaian." /></span></th>
                             <th class="px-5 py-3">Lokasi</th>
-                            <th class="px-5 py-3">Referensi</th>
+                            <th class="px-5 py-3"><span class="whitespace-nowrap">Referensi <x-hint text="Nomor acuan dari luar, misalnya nomor PO supplier, nomor pesanan marketplace atau nomor retur." /></span></th>
                             <th class="px-5 py-3 text-right">Masuk</th>
                             <th class="px-5 py-3 text-right">Keluar</th>
-                            <th class="px-5 py-3 text-right">Saldo</th>
+                            <th class="px-5 py-3 text-right"><span class="whitespace-nowrap">Saldo <x-hint text="Saldo berjalan: stok setelah pergerakan di baris ini, dihitung dari saldo awal." /></span></th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-slate-100">

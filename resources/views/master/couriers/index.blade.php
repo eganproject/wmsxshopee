@@ -40,10 +40,10 @@
                 <thead class="bg-slate-50 text-left text-[13px] text-slate-500">
                     <tr>
                         <th class="h-8 px-4 py-0 font-normal">Kurir</th>
-                        <th class="h-8 px-4 py-0 font-normal">Layanan</th>
-                        <th class="h-8 px-4 py-0 font-normal">Batas Pickup</th>
+                        <th class="h-8 px-4 py-0 font-normal"><span class="whitespace-nowrap">Layanan <x-hint text="Jenis layanan kurir yang tersedia, misalnya REG atau YES." /></span></th>
+                        <th class="h-8 px-4 py-0 font-normal">Batas <span class="whitespace-nowrap">Pickup <x-hint text="Jam terakhir kurir menjemput. Pesanan setelah jam ini dikirim hari berikutnya." /></span></th>
                         <th class="h-8 px-4 py-0 font-normal">Kontak</th>
-                        <th class="h-8 px-4 py-0 font-normal">Status</th>
+                        <th class="h-8 px-4 py-0 font-normal"><span class="whitespace-nowrap">Status <x-hint text="Data nonaktif tidak bisa dipilih di transaksi baru, tapi riwayatnya tetap tersimpan." /></span></th>
                         <th class="h-8 px-4 py-0 font-normal text-right">Aksi</th>
                     </tr>
                 </thead>

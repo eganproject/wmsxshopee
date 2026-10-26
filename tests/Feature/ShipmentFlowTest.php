@@ -198,7 +198,7 @@ class ShipmentFlowTest extends TestCase
         $other = $this->order(['customer_name' => 'Joko'], [['product_variant_id' => $this->kaosM->id, 'qty' => 1, 'price' => 75000]]);
 
         $this->get('/sales/orders')->assertOk()
-            ->assertSee('Barang Dipesan')->assertSee('KAOS-L')->assertSee('×3')->assertSee('2 SKU · 5 barang');
+            ->assertSeeText('Barang Dipesan')->assertSee('KAOS-L')->assertSee('×3')->assertSee('2 SKU · 5 barang');
 
         $found = $this->get('/sales/orders?search=KAOS-L')->assertOk()->viewData('orders')->pluck('id');
         $this->assertTrue($found->contains($order->id));
@@ -460,7 +460,7 @@ class ShipmentFlowTest extends TestCase
             $this->post("/sales/orders/{$order->id}/pack")->assertSessionHasNoErrors();
         }
 
-        $this->get('/sales/handovers')->assertOk()->assertSee('Scan Resi / No. Pesanan');
+        $this->get('/sales/handovers')->assertOk()->assertSeeText('Scan Resi / No. Pesanan');
 
         $this->post('/sales/handovers/scan', ['code' => 'SPX-A'])->assertSessionHas('scan_ok');
         $this->post('/sales/handovers/scan', ['code' => $b->number])->assertSessionHas('scan_ok');

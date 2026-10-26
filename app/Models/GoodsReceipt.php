@@ -16,8 +16,10 @@ class GoodsReceipt extends Model
     public const PREFIX = 'GR';
 
     public const STATUSES = [
-        'draft' => ['label' => 'Draft', 'color' => 'slate'],
-        'received' => ['label' => 'Diterima', 'color' => 'emerald'],
+        'draft' => ['label' => 'Draft', 'color' => 'slate',
+            'hint' => 'Barang sudah dicatat tapi belum dikonfirmasi diterima. Stok belum bertambah dan dokumen masih bisa diubah.'],
+        'received' => ['label' => 'Diterima', 'color' => 'emerald',
+            'hint' => 'Penerimaan sudah dikonfirmasi: barang baik masuk stok bin, barang rusak masuk Stok Rusak. Dokumen terkunci.'],
     ];
 
     protected $fillable = [

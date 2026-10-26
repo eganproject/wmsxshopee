@@ -249,6 +249,13 @@
         focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-300 [&>svg]:size-4;
 }
 
+/* Ikon info <x-hint>: kecil & samar, menyala saat disorot / difokus. */
+@utility hint-icon {
+    @apply relative -my-1 ml-0.5 inline-flex size-4 cursor-help items-center justify-center rounded-full align-middle text-slate-400
+        transition-colors hover:text-brand-600 focus:outline-none focus-visible:text-brand-600 focus-visible:ring-2 focus-visible:ring-brand-200
+        [&>svg]:size-3.5 [&>svg]:shrink-0;
+}
+
 @utility form-label {
     @apply mb-1.5 block text-xs text-slate-500;
 }

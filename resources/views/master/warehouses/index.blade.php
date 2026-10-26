@@ -43,10 +43,10 @@
                         <th class="h-8 px-4 py-0 font-normal">Gudang</th>
                         <th class="h-8 px-4 py-0 font-normal">Lokasi</th>
                         <th class="h-8 px-4 py-0 font-normal">Penanggung Jawab</th>
-                        <th class="h-8 px-4 py-0 font-normal text-center">Zona</th>
-                        <th class="h-8 px-4 py-0 font-normal text-center">Rak</th>
-                        <th class="h-8 px-4 py-0 font-normal text-center">Bin</th>
-                        <th class="h-8 px-4 py-0 font-normal">Status</th>
+                        <th class="h-8 px-4 py-0 font-normal text-center"><span class="whitespace-nowrap">Zona <x-hint text="Jumlah zona (area) di gudang ini." /></span></th>
+                        <th class="h-8 px-4 py-0 font-normal text-center"><span class="whitespace-nowrap">Rak <x-hint text="Jumlah rak di gudang ini." /></span></th>
+                        <th class="h-8 px-4 py-0 font-normal text-center"><span class="whitespace-nowrap">Bin <x-hint text="Jumlah lokasi bin tempat menyimpan barang." /></span></th>
+                        <th class="h-8 px-4 py-0 font-normal"><span class="whitespace-nowrap">Status <x-hint text="Data nonaktif tidak bisa dipilih di transaksi baru, tapi riwayatnya tetap tersimpan." /></span></th>
                         <th class="h-8 px-4 py-0 font-normal text-right">Aksi</th>
                     </tr>
                 </thead>

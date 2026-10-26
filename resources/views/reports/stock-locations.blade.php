@@ -25,11 +25,11 @@
             <p class="mt-1 text-xl font-semibold tabular-nums text-slate-900">{{ $fmt($summary->skus) }}</p>
         </div>
         <div class="card p-4">
-            <p class="text-xs text-slate-500">Bin Terisi</p>
+            <p class="text-xs text-slate-500">Bin <span class="whitespace-nowrap">Terisi <x-hint text="Jumlah lokasi bin yang saat ini berisi barang." /></span></p>
             <p class="mt-1 text-xl font-semibold tabular-nums text-slate-900">{{ $fmt($summary->bins) }}</p>
         </div>
         <div class="card p-4">
-            <p class="text-xs text-slate-500">Stok Tanpa Bin</p>
+            <p class="text-xs text-slate-500">Stok Tanpa <span class="whitespace-nowrap">Bin <x-hint text="Stok yang sudah tercatat di gudang tapi belum ditaruh di rak. Pindahkan ke bin lewat Transfer Lokasi supaya mudah diambil." /></span></p>
             <p @class(['mt-1 text-xl font-semibold tabular-nums', 'text-amber-600' => $summary->unbinned > 0, 'text-slate-900' => ! $summary->unbinned])>{{ $fmt($summary->unbinned) }}</p>
             @if ($summary->unbinned > 0)
                 @can('opname.create')
@@ -79,7 +79,7 @@
                         <th class="h-8 px-4 py-0 font-normal">Lokasi</th>
                         <th class="h-8 px-4 py-0 font-normal">SKU</th>
                         <th class="h-8 px-4 py-0 font-normal">Produk / Varian</th>
-                        <th class="h-8 px-4 py-0 text-right font-normal">Stok</th>
+                        <th class="h-8 px-4 py-0 text-right font-normal"><span class="whitespace-nowrap">Stok <x-hint text="Jumlah barang di lokasi ini, termasuk yang sudah diambil untuk pesanan tapi belum dikirim." /></span></th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-slate-100">

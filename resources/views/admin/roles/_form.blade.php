@@ -1,6 +1,6 @@
 <div class="space-y-6">
     <div class="card p-5">
-        <x-input name="name" label="Nama Role" icon="heroicon-o-shield-check" :value="$role->name" placeholder="cth. Staff Packing" required />
+        <x-input name="name" label="Nama Role" tip="Nama kelompok hak akses, misalnya Staff Packing atau Admin Toko. Satu user bisa punya beberapa role." icon="heroicon-o-shield-check" :value="$role->name" placeholder="cth. Staff Packing" required />
     </div>
 
     <div class="card">

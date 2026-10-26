@@ -32,11 +32,11 @@
                     <thead class="bg-slate-50 text-left text-[13px] text-slate-500">
                         <tr>
                             <th class="px-5 py-2.5">SKU</th>
-                            <th class="px-5 py-2.5 text-right">Tersedia</th>
-                            <th class="px-5 py-2.5 text-right">Dalam Perjalanan</th>
-                            <th class="px-5 py-2.5 text-right">Min / Maks</th>
-                            <th class="px-5 py-2.5 text-right">Stok Cadangan</th>
-                            <th class="px-5 py-2.5 text-right">Saran Kirim</th>
+                            <th class="px-5 py-2.5 text-right"><span class="whitespace-nowrap">Tersedia <x-hint text="Stok tersedia di gudang kecil ini (fisik dikurangi yang dipesan). Minus berarti pesanan melebihi stok." /></span></th>
+                            <th class="px-5 py-2.5 text-right">Dalam <span class="whitespace-nowrap">Perjalanan <x-hint text="Barang dari transfer yang sudah dikirim tapi belum diterima." /></span></th>
+                            <th class="px-5 py-2.5 text-right">Min / <span class="whitespace-nowrap">Maks <x-hint text="Batas stok minimum dan target maksimum dari Lokasi Tetap SKU. Saran muncul bila tersedia + dalam perjalanan sama atau di bawah Min." /></span></th>
+                            <th class="px-5 py-2.5 text-right">Stok <span class="whitespace-nowrap">Cadangan <x-hint text="Stok bebas di gudang cadangan yang bisa dikirim." /></span></th>
+                            <th class="px-5 py-2.5 text-right">Saran <span class="whitespace-nowrap">Kirim <x-hint text="Jumlah yang disarankan untuk dikirim: menutup kekurangan pesanan lalu mengisi sampai Maks, dibulatkan per koli dan dibatasi stok cadangan." /></span></th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-slate-100">
@@ -108,8 +108,8 @@
                         <th class="px-5 py-3">Tanggal Kirim</th>
                         <th class="px-5 py-3">Dari</th>
                         <th class="px-5 py-3">Ke</th>
-                        <th class="px-5 py-3 text-right">Total Qty</th>
-                        <th class="px-5 py-3">Status</th>
+                        <th class="px-5 py-3 text-right">Total <span class="whitespace-nowrap">Qty <x-hint text="Total pcs semua barang di transfer ini." /></span></th>
+                        <th class="px-5 py-3"><span class="whitespace-nowrap">Status <x-hint text="Dalam Perjalanan: sudah dikirim, belum diterima. Diterima: stok sudah masuk gudang tujuan. Dibatalkan: stok kembali ke gudang asal." /></span></th>
                         <th class="px-5 py-3">Dibuat oleh</th>
                     </tr>
                 </thead>

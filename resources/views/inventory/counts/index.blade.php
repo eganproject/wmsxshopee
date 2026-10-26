@@ -47,10 +47,10 @@
                         <th class="h-8 px-4 py-0 font-normal">No.</th>
                         <th class="h-8 px-4 py-0 font-normal">Tanggal</th>
                         <th class="h-8 px-4 py-0 font-normal">Gudang</th>
-                        <th class="h-8 px-4 py-0 font-normal">Cakupan</th>
-                        <th class="h-8 px-4 py-0 text-right font-normal">Dihitung</th>
+                        <th class="h-8 px-4 py-0 font-normal"><span class="whitespace-nowrap">Cakupan <x-hint text="Bagian gudang yang dihitung: seluruh gudang, satu zona, atau hanya stok tanpa bin." /></span></th>
+                        <th class="h-8 px-4 py-0 text-right font-normal"><span class="whitespace-nowrap">Dihitung <x-hint text="Jumlah baris yang sudah diisi hasil hitung dibanding total baris di lembar." /></span></th>
                         <th class="h-8 px-4 py-0 font-normal">Dibuat oleh</th>
-                        <th class="h-8 px-4 py-0 font-normal">Status</th>
+                        <th class="h-8 px-4 py-0 font-normal"><span class="whitespace-nowrap">Status <x-hint text="Sedang Dihitung: stok belum berubah. Diposting: selisih sudah dicatat sebagai Penyesuaian." /></span></th>
                         <th class="h-8 px-4 py-0 text-right font-normal">Aksi</th>
                     </tr>
                 </thead>

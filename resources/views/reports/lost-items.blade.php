@@ -24,11 +24,11 @@
             <p class="text-xs text-slate-500">{{ $fmt($totals->events) }} kejadian · {{ $fmt($totals->skus) }} SKU</p>
         </div>
         <div class="card p-4">
-            <p class="text-xs text-slate-500">Kurang saat terima transfer</p>
+            <p class="text-xs text-slate-500">Kurang saat terima <span class="whitespace-nowrap">transfer <x-hint text="Selisih antara jumlah yang dikirim gudang asal dan yang benar-benar diterima gudang tujuan." /></span></p>
             <p class="mt-1 text-xl font-semibold tabular-nums text-slate-900">{{ $fmt($totals->transfer_qty) }}</p>
         </div>
         <div class="card p-4">
-            <p class="text-xs text-slate-500">Tidak ada di paket retur</p>
+            <p class="text-xs text-slate-500">Tidak ada di paket <span class="whitespace-nowrap">retur <x-hint text="Barang yang seharusnya kembali di paket retur tapi tidak ada saat paket dibuka." /></span></p>
             <p class="mt-1 text-xl font-semibold tabular-nums text-slate-900">{{ $fmt($totals->return_qty) }}</p>
         </div>
         <div class="card p-4">
@@ -71,10 +71,10 @@
                     <tr>
                         <th class="h-8 px-4 py-0 font-normal">Tanggal</th>
                         <th class="h-8 px-4 py-0 font-normal">Gudang</th>
-                        <th class="h-8 px-4 py-0 font-normal">Sumber</th>
+                        <th class="h-8 px-4 py-0 font-normal"><span class="whitespace-nowrap">Sumber <x-hint text="Asal kehilangan: kekurangan transfer antar gudang atau barang tidak ada di paket retur." /></span></th>
                         <th class="h-8 px-4 py-0 font-normal">SKU</th>
                         <th class="h-8 px-4 py-0 font-normal">Produk / Varian</th>
-                        <th class="h-8 px-4 py-0 text-right font-normal">Hilang</th>
+                        <th class="h-8 px-4 py-0 text-right font-normal"><span class="whitespace-nowrap">Hilang <x-hint text="Jumlah pcs yang hilang. Stok gudang sudah tidak menghitung barang ini." /></span></th>
                         <th class="h-8 px-4 py-0 font-normal">Keterangan</th>
                     </tr>
                 </thead>

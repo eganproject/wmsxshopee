@@ -51,9 +51,9 @@
                     <tr>
                         <th class="h-8 px-4 py-0 font-normal">Waktu</th>
                         <th class="h-8 px-4 py-0 font-normal">User</th>
-                        <th class="h-8 px-4 py-0 font-normal">Modul</th>
-                        <th class="h-8 px-4 py-0 font-normal">Aktivitas</th>
-                        <th class="h-8 px-4 py-0 font-normal">IP</th>
+                        <th class="h-8 px-4 py-0 font-normal"><span class="whitespace-nowrap">Modul <x-hint text="Bagian aplikasi tempat aktivitas terjadi, misalnya Produk, Pesanan atau User." /></span></th>
+                        <th class="h-8 px-4 py-0 font-normal"><span class="whitespace-nowrap">Aktivitas <x-hint text="Jenis aksi (dibuat, diubah, dihapus, ubah status, login) dan data yang terkena. Klik panah di kanan untuk melihat nilai sebelum dan sesudah." /></span></th>
+                        <th class="h-8 px-4 py-0 font-normal"><span class="whitespace-nowrap">IP <x-hint text="Alamat IP perangkat yang dipakai. Arahkan kursor ke IP untuk melihat browser / perangkatnya." /></span></th>
                         <th class="h-8 w-10 px-4 py-0"></th>
                     </tr>
                 </thead>

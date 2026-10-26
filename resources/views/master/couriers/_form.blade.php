@@ -10,13 +10,13 @@
             </h2>
         </div>
         <div class="grid gap-x-6 gap-y-4 p-5 sm:grid-cols-2">
-            <x-input name="code" label="Kode Kurir" icon="heroicon-o-hashtag" :value="$courier->code" placeholder="cth. JNE" class="[&_input]:uppercase" required />
+            <x-input name="code" label="Kode Kurir" tip="Kode singkat kurir, misalnya JNE atau SPX. Dipakai untuk filter dan mencocokkan kurir dari pesanan marketplace." icon="heroicon-o-hashtag" :value="$courier->code" placeholder="cth. JNE" class="[&_input]:uppercase" required />
             <x-input name="name" label="Nama Kurir" :value="$courier->name" placeholder="cth. JNE Express" required />
-            <x-input name="tracking_url" label="URL Lacak Resi" icon="heroicon-o-link" :value="$courier->tracking_url" class="sm:col-span-2"
+            <x-input name="tracking_url" label="URL Lacak Resi" tip="Alamat halaman lacak kurir. Tulis {resi} di tempat nomor resi, nanti nomor resi di pesanan bisa diklik langsung ke halaman lacak." icon="heroicon-o-link" :value="$courier->tracking_url" class="sm:col-span-2"
                      placeholder="https://contoh.com/lacak?resi={resi}" hint="Gunakan {resi} sebagai tempat nomor resi." />
-            <x-input name="pickup_cutoff" type="time" label="Batas Jam Pickup" :value="$courier->pickup_cutoff ? substr($courier->pickup_cutoff, 0, 5) : null"
+            <x-input name="pickup_cutoff" type="time" tip="Jam terakhir kurir biasanya menjemput paket. Patokan untuk tim gudang: pesanan yang masuk setelah jam ini umumnya baru dikirim besok." label="Batas Jam Pickup" :value="$courier->pickup_cutoff ? substr($courier->pickup_cutoff, 0, 5) : null"
                      hint="Pesanan setelah jam ini dikirim besok." />
-            <x-input name="shopee_logistics_channel_id" label="ID Channel Logistik Shopee" :value="$courier->shopee_logistics_channel_id"
+            <x-input name="shopee_logistics_channel_id" label="ID Channel Logistik Shopee" tip="ID logistik dari Shopee (logistics_channel_id) untuk kurir ini, supaya pesanan Shopee otomatis tercatat dengan kurir yang tepat." :value="$courier->shopee_logistics_channel_id"
                      placeholder="opsional" hint="Untuk pemetaan saat integrasi API Shopee." />
         </div>
     </div>

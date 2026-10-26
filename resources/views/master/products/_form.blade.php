@@ -48,17 +48,17 @@
             </h2>
         </div>
         <div class="grid gap-5 p-6 sm:grid-cols-2">
-            <x-input name="sku" label="SKU Induk" icon="heroicon-o-hashtag" :value="$product->sku" placeholder="cth. KAOS-POLOS"
+            <x-input name="sku" label="SKU Induk" tip="Kode unik produk di gudang. Untuk produk tanpa varian, SKU ini sekaligus SKU stok yang dicocokkan dengan SKU di Shopee / TikTok." icon="heroicon-o-hashtag" :value="$product->sku" placeholder="cth. KAOS-POLOS"
                      hint="SKU internal. Huruf, angka, - dan _. Otomatis huruf kapital." class="uppercase" required />
             <x-input name="name" label="Nama Produk" :value="$product->name" placeholder="cth. Kaos Polos Cotton Combed 30s" required />
-            <x-input name="category" label="Kategori" icon="heroicon-o-tag" :value="$product->category" list="product-categories" placeholder="cth. Pakaian" />
+            <x-input name="category" label="Kategori" tip="Pengelompokan bebas untuk filter dan laporan, misalnya Pakaian atau Aksesoris." icon="heroicon-o-tag" :value="$product->category" list="product-categories" placeholder="cth. Pakaian" />
             <datalist id="product-categories">
                 @foreach ($categories as $category)
                     <option value="{{ $category }}"></option>
                 @endforeach
             </datalist>
             <x-input name="brand" label="Merek" :value="$product->brand" placeholder="opsional" />
-            <x-select name="unit_id" label="Satuan" required>
+            <x-select name="unit_id" label="Satuan" tip="Satuan hitung stok yang tampil di samping angka, misalnya PCS." required>
                 <option value="">Pilih satuan</option>
                 @foreach ($units as $unit)
                     <option value="{{ $unit->id }}" @selected((string) old('unit_id', $product->unit_id) === (string) $unit->id)>{{ $unit->code }} · {{ $unit->name }}</option>
@@ -173,15 +173,15 @@
                 <div class="grid gap-5 sm:grid-cols-4">
                     <input type="hidden" name="variants[0][id]" :value="variants[0].id ?? ''">
                     <div class="sm:col-span-2">
-                        <label class="form-label" for="variant-barcode">Barcode</label>
+                        <label class="form-label" for="variant-barcode"><span class="whitespace-nowrap">Barcode <x-hint title="Barcode" text="Kode yang tertera di kemasan (EAN / UPC) atau kode internal. Bisa di-scan menggantikan SKU saat QC kemas, penerimaan dan transfer." /></span></label>
                         <input id="variant-barcode" type="text" class="form-input" name="variants[0][barcode]" x-model="variants[0].barcode" placeholder="EAN / UPC / kode internal">
                     </div>
                     <div class="sm:col-span-2">
-                        <label class="form-label" for="variant-weight">Berat (gram)</label>
+                        <label class="form-label" for="variant-weight">Berat <span class="whitespace-nowrap">(gram) <x-hint text="Berat satu pcs termasuk kemasan, dalam gram. Dipakai untuk perkiraan ongkir dan sinkron ke Shopee." /></span></label>
                         <input id="variant-weight" type="number" min="0" class="form-input" name="variants[0][weight_gram]" x-model="variants[0].weight_gram">
                     </div>
                     <div>
-                        <label class="form-label" for="variant-length">Panjang (cm)</label>
+                        <label class="form-label" for="variant-length">Panjang <span class="whitespace-nowrap">(cm) <x-hint text="Dimensi paket satu pcs. Dipakai Shopee untuk menghitung berat volume." /></span></label>
                         <input id="variant-length" type="number" min="0" step="0.01" class="form-input" name="variants[0][length_cm]" x-model="variants[0].length_cm">
                     </div>
                     <div>
@@ -193,11 +193,11 @@
                         <input id="variant-height" type="number" min="0" step="0.01" class="form-input" name="variants[0][height_cm]" x-model="variants[0].height_cm">
                     </div>
                     <div>
-                        <label class="form-label" for="variant-min-stock">Stok Minimum</label>
+                        <label class="form-label" for="variant-min-stock">Stok <span class="whitespace-nowrap">Minimum <x-hint title="Stok Minimum" text="Batas peringatan stok menipis. Bila stok tersedia sama atau di bawah angka ini, SKU muncul di laporan Stok Minimum dan notifikasi. Kosongkan bila tidak perlu." /></span></label>
                         <input id="variant-min-stock" type="number" min="0" class="form-input" name="variants[0][min_stock]" x-model="variants[0].min_stock" placeholder="Kosong = tanpa peringatan">
                     </div>
                     <div>
-                        <label class="form-label" for="variant-carton">Isi per Koli (pcs)</label>
+                        <label class="form-label" for="variant-carton">Isi per Koli <span class="whitespace-nowrap">(pcs) <x-hint title="Isi per Koli" text="Jumlah pcs dalam satu koli / karton. Saran transfer dari gudang besar dibulatkan ke atas per koli. Kosongkan bila barang tidak dikirim per koli." /></span></label>
                         <input id="variant-carton" type="number" min="1" class="form-input" name="variants[0][pcs_per_carton]" x-model="variants[0].pcs_per_carton" placeholder="Kosong = tidak dijual per koli">
                     </div>
                 </div>
@@ -211,13 +211,13 @@
                             <thead class="text-left text-[13px] text-slate-500">
                                 <tr>
                                     <th class="py-2 pr-2">Nama Varian *</th>
-                                    <th class="px-2 py-2">SKU Varian *</th>
-                                    <th class="px-2 py-2">Barcode</th>
-                                    <th class="px-2 py-2">Berat (g)</th>
-                                    <th class="px-2 py-2">P × L × T (cm)</th>
-                                    <th class="px-2 py-2" title="Peringatan bila stok tersedia di bawah atau sama dengan angka ini">Stok Min.</th>
-                                    <th class="px-2 py-2" title="Jumlah pcs dalam satu koli / karton, dipakai di gudang besar">Isi/Koli</th>
-                                    <th class="px-2 py-2 text-center">Aktif</th>
+                                    <th class="px-2 py-2">SKU Varian <span class="whitespace-nowrap">* <x-hint text="Kode unik tiap varian. Stok dicatat per SKU varian, dan SKU ini yang dicocokkan dengan SKU di Shopee / TikTok." /></span></th>
+                                    <th class="px-2 py-2"><span class="whitespace-nowrap">Barcode <x-hint title="Barcode" text="Kode yang tertera di kemasan (EAN / UPC) atau kode internal. Bisa di-scan menggantikan SKU saat QC kemas, penerimaan dan transfer." /></span></th>
+                                    <th class="px-2 py-2">Berat <span class="whitespace-nowrap">(g) <x-hint text="Berat satu pcs termasuk kemasan, dalam gram. Dipakai untuk perkiraan ongkir dan sinkron ke Shopee." /></span></th>
+                                    <th class="px-2 py-2">P × L × T <span class="whitespace-nowrap">(cm) <x-hint text="Panjang × lebar × tinggi paket satu pcs, dalam cm." /></span></th>
+                                    <th class="px-2 py-2">Stok <span class="whitespace-nowrap">Min. <x-hint title="Stok Minimum" text="Batas peringatan stok menipis. Bila stok tersedia sama atau di bawah angka ini, SKU muncul di laporan Stok Minimum dan notifikasi. Kosongkan bila tidak perlu." /></span></th>
+                                    <th class="px-2 py-2"><span class="whitespace-nowrap">Isi/Koli <x-hint title="Isi per Koli" text="Jumlah pcs dalam satu koli / karton. Saran transfer dari gudang besar dibulatkan ke atas per koli. Kosongkan bila barang tidak dikirim per koli." /></span></th>
+                                    <th class="px-2 py-2 text-center"><span class="whitespace-nowrap">Aktif <x-hint text="Varian nonaktif tidak bisa dipilih di transaksi baru, tapi riwayat stoknya tetap tersimpan." /></span></th>
                                     <th class="py-2 pl-2"></th>
                                 </tr>
                             </thead>

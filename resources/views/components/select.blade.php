@@ -2,6 +2,7 @@
     'name',
     'label' => null,
     'hint' => null,
+    'tip' => null,
     'required' => false,
 ])
 
@@ -14,6 +15,7 @@
     @if ($label)
         <label for="{{ $id }}" class="form-label">
             {{ $label }} @if ($required)<span class="text-rose-500">*</span>@endif
+            @if ($tip)<x-hint :text="$tip" :title="$label" />@endif
         </label>
     @endif
 

@@ -63,14 +63,14 @@
                 <p class="mt-0.5 text-sm text-slate-500">Nomor dokumen dibuat otomatis saat disimpan.</p>
             </div>
             <div class="grid gap-5 p-6 sm:grid-cols-3">
-                <x-select name="warehouse_id" label="Gudang" required x-model="warehouse">
+                <x-select name="warehouse_id" label="Gudang" tip="Gudang tempat perpindahan / koreksi stok ini terjadi." required x-model="warehouse">
                     <option value="">Pilih gudang</option>
                     @foreach ($warehouses as $warehouse)
                         <option value="{{ $warehouse->id }}">{{ $warehouse->code }} · {{ $warehouse->name }}</option>
                     @endforeach
                 </x-select>
                 <x-input name="movement_date" type="date" label="Tanggal" :value="now()->toDateString()" :max="now()->toDateString()" required />
-                <x-input name="reference" label="Referensi" placeholder="opsional" />
+                <x-input name="reference" label="Referensi" tip="Nomor acuan bebas, misalnya nomor berita acara opname. Muncul di kartu stok." placeholder="opsional" />
                 <x-textarea name="notes" label="Catatan" rows="2" class="sm:col-span-3" />
             </div>
         </div>
@@ -106,10 +106,10 @@
                         <tr>
                             <th class="py-2 pr-2">Varian *</th>
                             @if ($needsFrom)
-                                <th class="px-2 py-2">Lokasi Asal</th>
+                                <th class="px-2 py-2">Lokasi <span class="whitespace-nowrap">Asal <x-hint text="Bin tempat barang diambil. Hanya stok bebas (belum diambil untuk pesanan) yang bisa dipindah." /></span></th>
                             @endif
-                            <th class="px-2 py-2">{{ $type === 'adjustment' ? 'Lokasi' : 'Lokasi Tujuan' }}</th>
-                            <th class="px-2 py-2">{{ $type === 'adjustment' ? 'Jumlah (+/-)' : 'Jumlah' }} *</th>
+                            <th class="px-2 py-2">{{ $type === 'adjustment' ? 'Lokasi' : 'Lokasi Tujuan' }} <x-hint text="Bin tempat barang ditaruh, atau bin yang dikoreksi untuk penyesuaian." /></th>
+                            <th class="px-2 py-2">{{ $type === 'adjustment' ? 'Jumlah (+/-)' : 'Jumlah' }} <span class="whitespace-nowrap">* <x-hint text="Untuk penyesuaian: angka positif menambah stok, negatif mengurangi. Untuk transfer: jumlah yang dipindah." /></span></th>
                             <th class="px-2 py-2">Keterangan</th>
                             <th class="py-2 pl-2"></th>
                         </tr>

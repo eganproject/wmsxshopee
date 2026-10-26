@@ -53,19 +53,19 @@
 
     <div class="mb-6 grid gap-3 sm:grid-cols-4">
         <a href="{{ route('marketplace.sync-logs', ['status' => 'failed']) }}" class="card px-4 py-3 hover:bg-slate-50/60">
-            <p class="text-xs text-slate-500">Sinkron gagal hari ini</p>
+            <p class="text-xs text-slate-500">Sinkron gagal hari <span class="whitespace-nowrap">ini <x-hint text="Jumlah proses sinkron hari ini yang gagal, misalnya karena token kedaluwarsa atau API marketplace error." /></span></p>
             <p @class(['text-xl font-semibold tabular-nums', 'text-rose-600' => $summary['failed_today'], 'text-slate-900' => ! $summary['failed_today']])>{{ $fmt($summary['failed_today']) }}</p>
         </a>
         <a href="{{ route('marketplace.products', ['status' => 'error']) }}" class="card px-4 py-3 hover:bg-slate-50/60">
-            <p class="text-xs text-slate-500">SKU gagal kirim stok</p>
+            <p class="text-xs text-slate-500">SKU gagal kirim <span class="whitespace-nowrap">stok <x-hint text="SKU yang stoknya ditolak marketplace saat terakhir dikirim. Klik untuk melihat daftarnya." /></span></p>
             <p @class(['text-xl font-semibold tabular-nums', 'text-rose-600' => $summary['failed_stock'], 'text-slate-900' => ! $summary['failed_stock']])>{{ $fmt($summary['failed_stock']) }}</p>
         </a>
         <a href="{{ route('marketplace.sync-logs', ['tab' => 'push', 'status' => 'failed']) }}" class="card px-4 py-3 hover:bg-slate-50/60">
-            <p class="text-xs text-slate-500">Push gagal diproses</p>
+            <p class="text-xs text-slate-500">Push gagal <span class="whitespace-nowrap">diproses <x-hint text="Notifikasi seketika dari Shopee / TikTok (misalnya pesanan baru) yang gagal diproses walau sudah dicoba ulang." /></span></p>
             <p @class(['text-xl font-semibold tabular-nums', 'text-rose-600' => $summary['failed_push'], 'text-slate-900' => ! $summary['failed_push']])>{{ $fmt($summary['failed_push']) }}</p>
         </a>
         <a href="{{ route('marketplace.sync-logs', ['tab' => 'push']) }}" class="card px-4 py-3 hover:bg-slate-50/60">
-            <p class="text-xs text-slate-500">Push terakhir masuk</p>
+            <p class="text-xs text-slate-500">Push terakhir <span class="whitespace-nowrap">masuk <x-hint text="Kapan notifikasi terakhir dari marketplace diterima. Bila sudah lama, cek pengaturan Live Push / Webhook." /></span></p>
             <p class="text-sm font-semibold text-slate-900" title="{{ $summary['last_push'] ? \Illuminate\Support\Carbon::parse($summary['last_push'])->translatedFormat('d M Y H:i') : '' }}">
                 {{ $summary['last_push'] ? \Illuminate\Support\Carbon::parse($summary['last_push'])->diffForHumans() : 'Belum ada' }}
             </p>
@@ -124,19 +124,19 @@
                         <tr>
                             <th class="h-8 px-4 py-0 font-normal">Waktu</th>
                             <th class="h-8 px-4 py-0 font-normal">Toko</th>
-                            <th class="h-8 px-4 py-0 font-normal">Bagian</th>
-                            <th class="h-8 px-4 py-0 font-normal">Pemicu</th>
-                            <th class="h-8 px-4 py-0 font-normal">Hasil</th>
-                            <th class="h-8 px-4 py-0 text-right font-normal">Durasi</th>
+                            <th class="h-8 px-4 py-0 font-normal"><span class="whitespace-nowrap">Bagian <x-hint text="Data yang disinkron: pesanan, retur, stok (semua SKU / yang berubah saja), atau produk & SKU." /></span></th>
+                            <th class="h-8 px-4 py-0 font-normal"><span class="whitespace-nowrap">Pemicu <x-hint text="Terjadwal: otomatis berkala. Manual: tombol sinkron. Otomatis: setelah ada perubahan stok. Push: notifikasi dari marketplace." /></span></th>
+                            <th class="h-8 px-4 py-0 font-normal"><span class="whitespace-nowrap">Hasil <x-hint text="Berhasil atau Gagal, beserta ringkasan jumlah data yang diproses atau pesan error." /></span></th>
+                            <th class="h-8 px-4 py-0 text-right font-normal"><span class="whitespace-nowrap">Durasi <x-hint text="Lama proses sinkron." /></span></th>
                         </tr>
                     @else
                         <tr>
-                            <th class="h-8 px-4 py-0 font-normal">Diterima</th>
+                            <th class="h-8 px-4 py-0 font-normal"><span class="whitespace-nowrap">Diterima <x-hint text="Waktu notifikasi push diterima Optima." /></span></th>
                             <th class="h-8 px-4 py-0 font-normal">Toko</th>
-                            <th class="h-8 px-4 py-0 font-normal">Jenis</th>
+                            <th class="h-8 px-4 py-0 font-normal"><span class="whitespace-nowrap">Jenis <x-hint text="Jenis notifikasi dari marketplace, misalnya perubahan status pesanan atau resi terbit." /></span></th>
                             <th class="h-8 px-4 py-0 font-normal">Pesanan</th>
-                            <th class="h-8 px-4 py-0 font-normal">Status</th>
-                            <th class="h-8 px-4 py-0 text-right font-normal">Percobaan</th>
+                            <th class="h-8 px-4 py-0 font-normal"><span class="whitespace-nowrap">Status <x-hint text="Menunggu: belum diproses. Dicoba ulang: gagal sementara dan akan dicoba lagi. Diproses: berhasil. Diabaikan: tidak perlu tindakan. Gagal: berhenti setelah beberapa kali dicoba." /></span></th>
+                            <th class="h-8 px-4 py-0 text-right font-normal"><span class="whitespace-nowrap">Percobaan <x-hint text="Berapa kali notifikasi ini sudah dicoba diproses." /></span></th>
                         </tr>
                     @endif
                 </thead>

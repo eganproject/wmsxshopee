@@ -304,7 +304,7 @@
     @if ($order->shipmentAlreadyArranged() || $order->shipment_handover_id)
         <div class="card mb-6 grid gap-5 p-5 sm:grid-cols-2 lg:grid-cols-4">
             <div>
-                <p class="text-xs text-slate-500">Cara Kirim</p>
+                <p class="text-xs text-slate-500">Cara <span class="whitespace-nowrap">Kirim <x-hint text="Pickup: kurir menjemput di gudang. Drop Off: paket diantar ke cabang / agen kurir." /></span></p>
                 <p class="mt-1 flex items-center gap-1.5 text-sm font-medium text-slate-900">
                     @if ($order->shipping_method)
                         <x-dynamic-component :component="\App\Models\SalesOrder::SHIPPING_METHODS[$order->shipping_method]['icon']" class="size-4 text-slate-400" />
@@ -336,7 +336,7 @@
                 @endif
             </div>
             <div>
-                <p class="text-xs text-slate-500">QC & Serah Terima</p>
+                <p class="text-xs text-slate-500">QC & Serah <span class="whitespace-nowrap">Terima <x-hint text="Jejak pengecekan: label resi dicetak, barang di-scan saat QC kemas, lalu resi di-scan saat serah terima ke kurir." /></span></p>
                 <div class="mt-1 space-y-0.5 text-xs text-slate-600">
                     <p>Label resi: {{ $order->shipping_label_printed_at ? 'dicetak '.$order->shipping_label_printed_at->format('d/m H:i') : 'belum dicetak' }}</p>
                     @if ($order->qc_checked_by)
@@ -366,14 +366,14 @@
             <p class="mt-1 text-sm font-medium text-slate-900">{{ $order->order_date->translatedFormat('d F Y') }}</p>
         </div>
         <div>
-            <p class="text-xs text-slate-500">Saluran Penjualan</p>
+            <p class="text-xs text-slate-500">Saluran <span class="whitespace-nowrap">Penjualan <x-hint text="Asal pesanan: toko Shopee / TikTok atau saluran manual seperti WhatsApp." /></span></p>
             <p class="mt-1 text-sm font-medium text-slate-900">{{ $order->channel_name ?? '—' }}</p>
             @if ($order->external_number)
                 <p class="font-mono text-xs text-slate-500">{{ $order->external_number }}</p>
             @endif
         </div>
         <div>
-            <p class="text-xs text-slate-500">Gudang Pengirim</p>
+            <p class="text-xs text-slate-500">Gudang <span class="whitespace-nowrap">Pengirim <x-hint text="Gudang yang menyiapkan pesanan dan stoknya dicadangkan." /></span></p>
             <p class="mt-1 text-sm font-medium text-slate-900">{{ $order->warehouse->code }} · {{ $order->warehouse->name }}</p>
         </div>
         <div>
@@ -418,7 +418,7 @@
             <p class="mt-1 text-sm text-slate-700">{{ $order->creator?->name ?? '—' }} · {{ $order->created_at->format('d/m/Y H:i') }}</p>
         </div>
         <div>
-            <p class="text-xs text-slate-500">Riwayat</p>
+            <p class="text-xs text-slate-500"><span class="whitespace-nowrap">Riwayat <x-hint text="Waktu pesanan berpindah status di gudang." /></span></p>
             <div class="mt-1 space-y-0.5 text-xs text-slate-600">
                 @foreach (['confirmed_at' => 'Dikonfirmasi', 'picking_at' => 'Sedang Diambil', 'packed_at' => 'Dikemas', 'shipped_at' => 'Dikirim'] as $field => $label)
                     @if ($order->{$field})
@@ -431,7 +431,7 @@
             </div>
         </div>
         <div>
-            <p class="text-xs text-slate-500">Mutasi Stok</p>
+            <p class="text-xs text-slate-500">Mutasi <span class="whitespace-nowrap">Stok <x-hint text="Dokumen Barang Keluar yang tercatat saat pesanan dikirim. Kosong berarti stok belum dikurangi." /></span></p>
             @if ($order->movement)
                 @can('inventory.view')
                     <a href="{{ route('inventory.movements.show', $order->movement) }}" class="mt-1 inline-block font-mono text-sm text-brand-600 hover:underline">{{ $order->movement->number }}</a>
@@ -473,7 +473,7 @@
                         @endforeach
                     </x-select>
                     <x-input name="courier_service" label="Layanan" :value="$order->courier_service" placeholder="cth. REG" maxlength="50" />
-                    <x-input name="tracking_number" label="Nomor Resi" :value="$order->tracking_number" required maxlength="100" icon="heroicon-o-qr-code" placeholder="Scan atau ketik resi" />
+                    <x-input name="tracking_number" label="Nomor Resi" tip="Nomor resi dari kurir. Scan barcode di label atau ketik manual." :value="$order->tracking_number" required maxlength="100" icon="heroicon-o-qr-code" placeholder="Scan atau ketik resi" />
                     <div class="flex items-end">
                         <button type="submit" class="btn-primary w-full justify-center"><x-heroicon-o-paper-airplane class="size-5" /> Kirim</button>
                     </div>
@@ -492,10 +492,10 @@
                         <th class="h-8 px-4 py-0 font-normal">Produk / Varian</th>
                         <th class="h-8 px-4 py-0 text-right font-normal">Jumlah</th>
                         @if ($order->hasStatus('draft'))
-                            <th class="h-8 px-4 py-0 text-right font-normal">Stok Tersedia</th>
+                            <th class="h-8 px-4 py-0 text-right font-normal">Stok <span class="whitespace-nowrap">Tersedia <x-hint text="Stok tersedia di gudang pengirim untuk barang ini. Bila kurang dari jumlah dipesan, pesanan belum bisa dikonfirmasi." /></span></th>
                         @endif
                         @if ($showPicks)
-                            <th class="h-8 px-4 py-0 font-normal">Diambil dari</th>
+                            <th class="h-8 px-4 py-0 font-normal">Diambil <span class="whitespace-nowrap">dari <x-hint text="Bin tempat barang diambil saat picking, beserta jumlahnya." /></span></th>
                         @endif
                         <th class="h-8 px-4 py-0 text-right font-normal">Harga</th>
                         <th class="h-8 px-4 py-0 text-right font-normal">Subtotal</th>
@@ -524,7 +524,7 @@
                             @if ($order->hasStatus('draft'))
                                 @php($possible = $bundleAvailability[$bundleLine->bundle_id] ?? 0)
                                 <td @class(['px-4 py-2.5 text-right tabular-nums', 'text-rose-600 font-medium' => $possible < $bundleLine->qty, 'text-slate-600' => $possible >= $bundleLine->qty])
-                                    title="Jumlah paket yang bisa dipenuhi dari stok isinya">
+                                    data-hint="Jumlah paket yang bisa dipenuhi dari stok tersedia barang isinya.">
                                     {{ number_format($possible, 0, ',', '.') }} <span class="text-xs font-normal">paket</span>
                                 </td>
                             @endif

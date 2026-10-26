@@ -19,9 +19,12 @@ class WarehouseTransfer extends Model
     use LogsActivity, ScopedToWarehouse;
 
     public const STATUSES = [
-        'sent' => ['label' => 'Dalam Perjalanan', 'color' => 'amber'],
-        'received' => ['label' => 'Diterima', 'color' => 'emerald'],
-        'cancelled' => ['label' => 'Dibatalkan', 'color' => 'slate'],
+        'sent' => ['label' => 'Dalam Perjalanan', 'color' => 'amber',
+            'hint' => 'Barang sudah keluar dari gudang asal dan belum diterima gudang tujuan. Jumlahnya tetap dihitung di stok jual gudang tujuan.'],
+        'received' => ['label' => 'Diterima', 'color' => 'emerald',
+            'hint' => 'Gudang tujuan sudah menerima barang dan stoknya masuk ke bin. Kekurangan saat terima dicatat di Barang Hilang.'],
+        'cancelled' => ['label' => 'Dibatalkan', 'color' => 'slate',
+            'hint' => 'Transfer dibatalkan dan barang dikembalikan ke stok gudang asal.'],
     ];
 
     public const PREFIX = 'TAG';

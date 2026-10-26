@@ -52,9 +52,9 @@
                     <tr>
                         <th class="h-8 px-4 py-0 font-normal">Zona</th>
                         <th class="h-8 px-4 py-0 font-normal">Gudang</th>
-                        <th class="h-8 px-4 py-0 font-normal">Jenis</th>
-                        <th class="h-8 px-4 py-0 font-normal text-center">Rak</th>
-                        <th class="h-8 px-4 py-0 font-normal">Status</th>
+                        <th class="h-8 px-4 py-0 font-normal"><span class="whitespace-nowrap">Jenis <x-hint text="Fungsi area, misalnya Penerimaan, Penyimpanan, Picking, Packing, Pengiriman, Karantina atau Retur." /></span></th>
+                        <th class="h-8 px-4 py-0 font-normal text-center"><span class="whitespace-nowrap">Rak <x-hint text="Jumlah rak di zona ini." /></span></th>
+                        <th class="h-8 px-4 py-0 font-normal"><span class="whitespace-nowrap">Status <x-hint text="Data nonaktif tidak bisa dipilih di transaksi baru, tapi riwayatnya tetap tersimpan." /></span></th>
                         <th class="h-8 px-4 py-0 font-normal text-right">Aksi</th>
                     </tr>
                 </thead>

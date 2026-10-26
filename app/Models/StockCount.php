@@ -16,8 +16,10 @@ class StockCount extends Model
     public const PREFIX = 'OP';
 
     public const STATUSES = [
-        'draft' => ['label' => 'Sedang Dihitung', 'icon' => 'heroicon-o-pencil-square', 'color' => 'amber'],
-        'posted' => ['label' => 'Diposting', 'icon' => 'heroicon-o-check-badge', 'color' => 'emerald'],
+        'draft' => ['label' => 'Sedang Dihitung', 'icon' => 'heroicon-o-pencil-square', 'color' => 'amber',
+            'hint' => 'Hitung fisik masih berjalan. Stok sistem belum berubah sampai opname diposting.'],
+        'posted' => ['label' => 'Diposting', 'icon' => 'heroicon-o-check-badge', 'color' => 'emerald',
+            'hint' => 'Hasil hitung sudah diposting: selisihnya dicatat sebagai Penyesuaian dan stok sistem disamakan dengan hasil hitung.'],
     ];
 
     public const SCOPES = [

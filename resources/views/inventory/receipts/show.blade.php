@@ -55,11 +55,11 @@
             <p class="font-mono text-xs text-slate-500">{{ $receipt->supplier->code }}</p>
         </div>
         <div>
-            <p class="text-xs text-slate-500">Gudang Tujuan</p>
+            <p class="text-xs text-slate-500">Gudang <span class="whitespace-nowrap">Tujuan <x-hint text="Gudang yang menerima barang ini." /></span></p>
             <p class="mt-1 text-sm font-medium text-slate-900">{{ $receipt->warehouse->code }} · {{ $receipt->warehouse->name }}</p>
         </div>
         <div>
-            <p class="text-xs text-slate-500">No. PO / Surat Jalan</p>
+            <p class="text-xs text-slate-500">No. PO / Surat <span class="whitespace-nowrap">Jalan <x-hint text="Nomor dokumen dari supplier untuk pencocokan." /></span></p>
             <p class="mt-1 text-sm font-medium text-slate-900">{{ $receipt->supplier_reference ?? '—' }}</p>
         </div>
         <div>
@@ -77,7 +77,7 @@
             <p class="mt-1 text-sm text-slate-700">{{ $receipt->creator?->name ?? '—' }} · {{ $receipt->created_at->format('d/m/Y H:i') }}</p>
         </div>
         <div>
-            <p class="text-xs text-slate-500">Diterima oleh</p>
+            <p class="text-xs text-slate-500">Diterima <span class="whitespace-nowrap">oleh <x-hint text="Orang yang mengonfirmasi penerimaan. Nomor di bawahnya adalah dokumen mutasi stok yang tercatat." /></span></p>
             @if ($receipt->received_at)
                 <p class="mt-1 text-sm text-slate-700">{{ $receipt->receiver?->name ?? '—' }} · {{ $receipt->received_at->format('d/m/Y H:i') }}</p>
                 @if ($receipt->movement)
@@ -113,14 +113,14 @@
                         <th class="h-8 px-4 py-0 font-normal">SKU</th>
                         <th class="h-8 px-4 py-0 font-normal">Produk / Varian</th>
                         @if ($hasOrdered)
-                            <th class="h-8 px-4 py-0 text-right font-normal">Dipesan</th>
+                            <th class="h-8 px-4 py-0 text-right font-normal"><span class="whitespace-nowrap">Dipesan <x-hint text="Jumlah yang dipesan ke supplier." /></span></th>
                         @endif
-                        <th class="h-8 px-4 py-0 text-right font-normal">Diterima Baik</th>
-                        <th class="h-8 px-4 py-0 text-right font-normal">Rusak</th>
+                        <th class="h-8 px-4 py-0 text-right font-normal">Diterima <span class="whitespace-nowrap">Baik <x-hint text="Barang kondisi baik yang masuk stok di lokasi bin." /></span></th>
+                        <th class="h-8 px-4 py-0 text-right font-normal"><span class="whitespace-nowrap">Rusak <x-hint text="Barang rusak yang masuk Stok Rusak gudang." /></span></th>
                         @if ($hasOrdered)
-                            <th class="h-8 px-4 py-0 text-right font-normal">Selisih</th>
+                            <th class="h-8 px-4 py-0 text-right font-normal"><span class="whitespace-nowrap">Selisih <x-hint text="Dipesan dikurangi (Diterima Baik + Rusak). Positif berarti kiriman kurang." /></span></th>
                         @endif
-                        <th class="h-8 px-4 py-0 font-normal">Lokasi Bin</th>
+                        <th class="h-8 px-4 py-0 font-normal">Lokasi <span class="whitespace-nowrap">Bin <x-hint text="Bin tempat barang ditaruh. Tanpa bin berarti stok belum ditaruh di rak." /></span></th>
                         <th class="h-8 px-4 py-0 font-normal">Keterangan</th>
                     </tr>
                 </thead>

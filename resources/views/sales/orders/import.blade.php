@@ -36,14 +36,14 @@
                     @endif
                 </div>
                 <div>
-                    <p class="text-xs text-slate-500">Dilewati (sudah pernah diimpor)</p>
+                    <p class="text-xs text-slate-500">Dilewati (sudah pernah <span class="whitespace-nowrap">diimpor) <x-hint text="Baris yang nomor pesanannya sudah ada di saluran penjualan yang sama, jadi tidak dibuat dua kali." /></span></p>
                     <p class="mt-1 text-lg font-semibold text-slate-700">{{ count($result['skipped']) }}</p>
                     @foreach (array_slice($result['skipped'], 0, 10) as $line)
                         <p class="text-xs text-slate-500">{{ $line }}</p>
                     @endforeach
                 </div>
                 <div>
-                    <p class="text-xs text-slate-500">Belum terkonfirmasi (stok kurang)</p>
+                    <p class="text-xs text-slate-500">Belum terkonfirmasi (stok <span class="whitespace-nowrap">kurang) <x-hint text="Pesanan tetap dibuat sebagai Draft karena stok belum cukup. Konfirmasi setelah stok tersedia." /></span></p>
                     <p @class(['mt-1 text-lg font-semibold', 'text-amber-600' => $result['unconfirmed'], 'text-slate-700' => ! $result['unconfirmed']])>{{ count($result['unconfirmed']) }}</p>
                     @foreach (array_slice($result['unconfirmed'], 0, 10) as $line)
                         <p class="text-xs text-slate-500">{{ $line }}</p>
@@ -61,14 +61,14 @@
                 <h2 class="flex items-center gap-2 text-base font-semibold text-slate-900"><x-heroicon-o-document-arrow-up class="size-5 text-slate-400" /> Unggah File</h2>
             </div>
             <div class="space-y-4 p-5">
-                <x-select name="warehouse_id" label="Gudang Pengirim" required>
+                <x-select name="warehouse_id" label="Gudang Pengirim" tip="Gudang yang menyiapkan semua pesanan di file ini." required>
                     <option value="">Pilih gudang</option>
                     @foreach ($warehouses as $warehouse)
                         <option value="{{ $warehouse->id }}" @selected((string) old('warehouse_id', $warehouses->count() === 1 ? $warehouse->id : '') === (string) $warehouse->id)>{{ $warehouse->code }} · {{ $warehouse->name }}</option>
                     @endforeach
                 </x-select>
                 <div>
-                    <label for="file" class="form-label">File Pesanan <span class="text-rose-500">*</span></label>
+                    <label for="file" class="form-label">File Pesanan <span class="text-rose-500">*</span> <x-hint text="File .xlsx atau .csv sesuai format kolom di samping. Satu baris = satu barang, baris dengan nomor pesanan sama digabung jadi satu pesanan." /></label>
                     <input id="file" name="file" type="file" required accept=".xlsx,.csv,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                            @class(['form-input file:mr-3 file:border-0 file:bg-transparent file:text-sm file:font-medium', 'form-input-error' => $errors->has('file')])>
                     @error('file')

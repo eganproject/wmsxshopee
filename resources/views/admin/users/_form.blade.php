@@ -20,7 +20,7 @@
         </div>
         <div class="grid gap-x-6 gap-y-4 p-5 sm:grid-cols-2">
             <x-input name="name" label="Nama Lengkap" icon="heroicon-o-user" :value="$user->name" placeholder="cth. Budi Santoso" required />
-            <x-input name="username" label="Username" icon="heroicon-o-at-symbol" :value="$user->username" placeholder="cth. budi_santoso"
+            <x-input name="username" label="Username" tip="Dipakai untuk login selain email. Tidak bisa diubah sendiri oleh user." icon="heroicon-o-at-symbol" :value="$user->username" placeholder="cth. budi_santoso"
                      hint="Hanya huruf, angka, tanda - dan _ (tanpa spasi)." required />
             <x-input name="email" type="email" label="Email" icon="heroicon-o-envelope" :value="$user->email" placeholder="budi@perusahaan.com" required />
             <x-input name="phone" label="No. Telepon" icon="heroicon-o-phone" :value="$user->phone" placeholder="08xxxxxxxxxx" />
@@ -38,7 +38,7 @@
             @endif
         </div>
         <div class="grid gap-x-6 gap-y-4 p-5 sm:grid-cols-2">
-            <x-input name="password" type="password" label="Password" autocomplete="new-password"
+            <x-input name="password" type="password" label="Password" tip="Saat mengubah user, kosongkan bila password tidak ingin diganti." autocomplete="new-password"
                      hint="Minimal 8 karakter, kombinasi huruf & angka." :required="! $user->exists" />
             <x-input name="password_confirmation" type="password" label="Konfirmasi Password" autocomplete="new-password" :required="! $user->exists" />
         </div>

@@ -331,7 +331,7 @@ class BundleTest extends TestCase
             ->assertSeeInOrder(['PAKET-3', '5', 'paket'])
             ->assertDontSee('PAKET-OFF');
 
-        $this->get('/inventory/stocks?view=bundle&zero=1&warehouse='.$this->warehouse->id)->assertOk()->assertSee('PAKET-OFF')->assertSee('Stok Jual');
+        $this->get('/inventory/stocks?view=bundle&zero=1&warehouse='.$this->warehouse->id)->assertOk()->assertSee('PAKET-OFF')->assertSeeText('Stok Jual');
         $this->get('/inventory/stocks?view=bundle&search=KAOS-L')->assertOk()->assertSee('PAKET-3');
         $this->get('/inventory/stocks?view=bundle&search=TIDAK-ADA')->assertOk()->assertDontSee('PAKET-3');
 

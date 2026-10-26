@@ -55,7 +55,7 @@
             </div>
         @endif
         <div>
-            <p class="text-xs font-medium tracking-wider text-slate-500 uppercase">Mutasi Stok</p>
+            <p class="text-xs font-medium tracking-wider text-slate-500 uppercase">Mutasi <span class="whitespace-nowrap">Stok <x-hint text="Dokumen pergerakan stok yang tercatat otomatis: kirim dari gudang asal, terima di gudang tujuan, atau pengembalian bila dibatalkan." /></span></p>
             <p class="mt-1 flex flex-wrap gap-2 text-sm">
                 @foreach ([$transfer->outMovement, $transfer->inMovement, $transfer->returnMovement] as $movement)
                     @if ($movement)
@@ -90,9 +90,9 @@
                         <th class="px-5 py-3">SKU</th>
                         <th class="px-5 py-3">Produk / Varian</th>
                         <th class="px-5 py-3">Lokasi Asal</th>
-                        <th class="px-5 py-3">Lokasi Tujuan</th>
-                        <th class="px-5 py-3 text-right">Dikirim</th>
-                        <th class="px-5 py-3 text-right">Diterima</th>
+                        <th class="px-5 py-3">Lokasi <span class="whitespace-nowrap">Tujuan <x-hint text="Bin di gudang tujuan tempat barang ditaruh saat diterima." /></span></th>
+                        <th class="px-5 py-3 text-right"><span class="whitespace-nowrap">Dikirim <x-hint text="Jumlah yang keluar dari gudang asal." /></span></th>
+                        <th class="px-5 py-3 text-right"><span class="whitespace-nowrap">Diterima <x-hint text="Jumlah yang benar-benar diterima. Bila kurang dari yang dikirim, kekurangannya dicatat di laporan Barang Hilang." /></span></th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-slate-100">

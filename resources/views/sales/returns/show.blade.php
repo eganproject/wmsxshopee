@@ -41,11 +41,11 @@
 
     <div class="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <div class="card p-4">
-            <p class="text-xs text-slate-500">Layak Jual (masuk stok)</p>
+            <p class="text-xs text-slate-500">Layak Jual (masuk <span class="whitespace-nowrap">stok) <x-hint text="Barang dalam kondisi baik yang masuk lagi ke stok jual di lokasi bin." /></span></p>
             <p class="mt-1 text-2xl font-semibold tabular-nums text-emerald-600">{{ number_format($totals['good'], 0, ',', '.') }}</p>
         </div>
         <div class="card p-4">
-            <p class="text-xs text-slate-500">Rusak (masuk Stok Rusak)</p>
+            <p class="text-xs text-slate-500">Rusak (masuk Stok <span class="whitespace-nowrap">Rusak) <x-hint text="Barang rusak / cacat. Masuk ke Stok Rusak gudang dan tidak ikut dijual." /></span></p>
             <p @class(['mt-1 text-2xl font-semibold tabular-nums', 'text-rose-600' => $totals['damaged'] > 0, 'text-slate-400' => ! $totals['damaged']])>{{ number_format($totals['damaged'], 0, ',', '.') }}</p>
             @if ($totals['damaged'] && ! $return->isDraft())
                 @can('damaged.view')
@@ -54,11 +54,11 @@
             @endif
         </div>
         <div class="card p-4">
-            <p class="text-xs text-slate-500">Hilang (tidak ada di paket)</p>
+            <p class="text-xs text-slate-500">Hilang (tidak ada di <span class="whitespace-nowrap">paket) <x-hint text="Barang yang seharusnya ikut kembali tapi tidak ada di paket. Dicatat di laporan Barang Hilang." /></span></p>
             <p @class(['mt-1 text-2xl font-semibold tabular-nums', 'text-amber-600' => $totals['missing'] > 0, 'text-slate-400' => ! $totals['missing']])>{{ number_format($totals['missing'], 0, ',', '.') }}</p>
         </div>
         <div class="card p-4">
-            <p class="text-xs text-slate-500">Mutasi Stok</p>
+            <p class="text-xs text-slate-500">Mutasi <span class="whitespace-nowrap">Stok <x-hint text="Dokumen Barang Masuk yang tercatat saat retur diterima." /></span></p>
             @if ($return->movement)
                 @can('inventory.view')
                     <a href="{{ route('inventory.movements.show', $return->movement) }}" class="mt-1 inline-block font-mono text-lg font-semibold text-brand-600 hover:underline">{{ $return->movement->number }}</a>
@@ -76,7 +76,7 @@
             <p class="text-xs text-slate-500">Status</p>
             <p class="mt-1">@include('sales.returns._status')</p>
             @if ($return->shopee_return_status || $return->tiktok_return_status)
-                <p class="mt-1 text-xs text-slate-500" title="Status pengajuan retur di marketplace">
+                <p class="mt-1 cursor-help text-xs text-slate-500" data-hint="Status pengajuan retur di marketplace, diambil saat sinkron.">
                     {{ $return->shopee_return_status ? 'Shopee' : 'TikTok' }}:
                     <span class="font-mono">{{ \Illuminate\Support\Str::of($return->shopee_return_status ?? $return->tiktok_return_status)->replace('_', ' ')->lower()->ucfirst() }}</span>
                 </p>
@@ -112,7 +112,7 @@
             @endif
         </div>
         <div>
-            <p class="text-xs text-slate-500">No. Resi Retur</p>
+            <p class="text-xs text-slate-500">No. Resi <span class="whitespace-nowrap">Retur <x-hint text="Nomor resi paket retur dari pembeli ke gudang." /></span></p>
             <p class="mt-1 font-mono text-sm font-medium text-slate-900">{{ $return->tracking_number ?? '—' }}</p>
         </div>
         <div>
@@ -148,10 +148,10 @@
                         <th class="h-8 px-4 py-0 font-normal">Foto</th>
                         <th class="h-8 px-4 py-0 font-normal">SKU</th>
                         <th class="h-8 px-4 py-0 font-normal">Produk / Varian</th>
-                        <th class="h-8 px-4 py-0 text-right font-normal">Layak Jual</th>
-                        <th class="h-8 px-4 py-0 text-right font-normal">Rusak</th>
-                        <th class="h-8 px-4 py-0 text-right font-normal">Hilang</th>
-                        <th class="h-8 px-4 py-0 font-normal">Lokasi Bin</th>
+                        <th class="h-8 px-4 py-0 text-right font-normal">Layak <span class="whitespace-nowrap">Jual <x-hint text="Barang dalam kondisi baik yang masuk lagi ke stok jual di lokasi bin." /></span></th>
+                        <th class="h-8 px-4 py-0 text-right font-normal"><span class="whitespace-nowrap">Rusak <x-hint text="Barang rusak / cacat. Masuk ke Stok Rusak gudang dan tidak ikut dijual." /></span></th>
+                        <th class="h-8 px-4 py-0 text-right font-normal"><span class="whitespace-nowrap">Hilang <x-hint text="Barang yang seharusnya ikut kembali tapi tidak ada di paket. Dicatat di laporan Barang Hilang." /></span></th>
+                        <th class="h-8 px-4 py-0 font-normal">Lokasi <span class="whitespace-nowrap">Bin <x-hint text="Bin tempat barang layak jual ditaruh." /></span></th>
                         <th class="h-8 px-4 py-0 font-normal">Alasan</th>
                         <th class="h-8 px-4 py-0 font-normal">Keterangan</th>
                     </tr>

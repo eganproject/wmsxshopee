@@ -19,22 +19,22 @@
     @if ($mode === 'variant')
         <div class="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <div class="card p-4">
-                <p class="text-xs text-slate-500">Fisik</p>
+                <p class="text-xs text-slate-500"><span class="whitespace-nowrap">Fisik <x-hint text="Jumlah barang yang secara fisik ada di rak gudang, termasuk yang sudah diambil picker tapi belum dikirim." /></span></p>
                 <p class="mt-1 text-xl font-semibold tabular-nums text-slate-900">{{ $fmt($totals['on_hand']) }}</p>
                 <p class="text-xs text-slate-500">{{ $fmt($totals['skus']) }} SKU ditampilkan</p>
             </div>
             <div class="card p-4">
-                <p class="text-xs text-slate-500">Dipesan</p>
+                <p class="text-xs text-slate-500"><span class="whitespace-nowrap">Dipesan <x-hint text="Stok yang sudah dicadangkan untuk pesanan Dikonfirmasi, Sedang Diambil dan Sudah Dikemas. Berkurang dari fisik saat pesanan dikirim." /></span></p>
                 <p class="mt-1 text-xl font-semibold tabular-nums text-sky-700">{{ $fmt($totals['reserved']) }}</p>
                 <p class="text-xs text-slate-500">Dicadangkan pesanan yang belum dikirim</p>
             </div>
             <div class="card p-4">
-                <p class="text-xs text-slate-500">Tersedia</p>
+                <p class="text-xs text-slate-500"><span class="whitespace-nowrap">Tersedia <x-hint text="Fisik dikurangi Dipesan. Inilah stok yang masih bisa menerima pesanan baru." /></span></p>
                 <p @class(['mt-1 text-xl font-semibold tabular-nums', 'text-emerald-700' => $totals['available'] > 0, 'text-rose-600' => $totals['available'] <= 0])>{{ $fmt($totals['available']) }}</p>
                 <p class="text-xs text-slate-500">Fisik − Dipesan @if ($totals['held']) · {{ $fmt($totals['held']) }} tertahan di draft @endif</p>
             </div>
             <a href="{{ route('inventory.stocks.index', [...request()->except(['status', 'page']), 'status' => 'short']) }}" class="card block p-4 transition hover:border-rose-200">
-                <p class="text-xs text-slate-500">SKU Kurang Stok</p>
+                <p class="text-xs text-slate-500">SKU Kurang <span class="whitespace-nowrap">Stok <x-hint text="Jumlah SKU yang pesanannya (termasuk draft) melebihi stok tersedia. Klik untuk melihat daftarnya." next="Terima barang dari supplier atau transfer dari gudang lain." /></span></p>
                 <p @class(['mt-1 text-xl font-semibold tabular-nums', 'text-rose-600' => $totals['short'] > 0, 'text-slate-900' => ! $totals['short']])>{{ $fmt($totals['short']) }} SKU</p>
                 <p class="text-xs text-slate-500">Pesanan melebihi stok tersedia</p>
             </a>

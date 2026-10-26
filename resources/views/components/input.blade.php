@@ -4,6 +4,7 @@
     'type' => 'text',
     'icon' => null,
     'hint' => null,
+    'tip' => null,
     'value' => null,
     'bag' => 'default',
     'required' => false,
@@ -19,6 +20,7 @@
     @if ($label)
         <label for="{{ $id }}" class="form-label">
             {{ $label }} @if ($required)<span class="text-rose-500">*</span>@endif
+            @if ($tip)<x-hint :text="$tip" :title="$label" />@endif
         </label>
     @endif
 

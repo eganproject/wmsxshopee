@@ -11,7 +11,7 @@
 
     <form method="POST" action="{{ route('sales.qc.lookup') }}" class="card mb-6 p-5">
         @csrf
-        <label for="code" class="form-label">Scan Resi / No. SO / No. Pesanan</label>
+        <label for="code" class="form-label">Scan Resi / No. SO / No. <span class="whitespace-nowrap">Pesanan <x-hint text="Scan resi di label, nomor SO Optima, atau nomor pesanan marketplace untuk membuka halaman QC pesanan tersebut." /></span></label>
         <div class="flex gap-2">
             <div class="relative flex-1">
                 <x-heroicon-o-qr-code class="pointer-events-none absolute top-1/2 left-3 size-5 -translate-y-1/2 text-slate-400" />
@@ -34,8 +34,8 @@
                         <th class="h-8 px-4 py-0 font-normal">No.</th>
                         <th class="h-8 px-4 py-0 font-normal">Pembeli</th>
                         <th class="h-8 px-4 py-0 font-normal">Kurir / Resi</th>
-                        <th class="h-8 px-4 py-0 font-normal">Pengiriman</th>
-                        <th class="h-8 px-4 py-0 text-right font-normal">Qty</th>
+                        <th class="h-8 px-4 py-0 font-normal"><span class="whitespace-nowrap">Pengiriman <x-hint text="Cara serah paket ke kurir (pickup / drop off)." /></span></th>
+                        <th class="h-8 px-4 py-0 text-right font-normal"><span class="whitespace-nowrap">Qty <x-hint text="Total barang yang harus di-scan di paket ini." /></span></th>
                         <th class="h-8 px-4 py-0 text-right font-normal">Aksi</th>
                     </tr>
                 </thead>

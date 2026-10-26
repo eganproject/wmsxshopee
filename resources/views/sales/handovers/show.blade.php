@@ -15,7 +15,7 @@
     </x-page-header>
 
     <div class="card mb-6 grid gap-5 p-5 sm:grid-cols-4">
-        <div><p class="text-xs text-slate-500">Status</p><p class="mt-1 text-sm font-medium text-slate-900">{{ $handover->isOpen() ? 'Hari ini, masih bisa bertambah' : 'Selesai' }}</p></div>
+        <div><p class="text-xs text-slate-500"><span class="whitespace-nowrap">Status <x-hint text="Manifest hari ini masih terbuka dan akan bertambah setiap paket di-scan. Manifest hari sebelumnya otomatis selesai." /></span></p><p class="mt-1 text-sm font-medium text-slate-900">{{ $handover->isOpen() ? 'Hari ini, masih bisa bertambah' : 'Selesai' }}</p></div>
         <div><p class="text-xs text-slate-500">Scan Terakhir</p><p class="mt-1 text-sm font-medium text-slate-900">{{ ($handover->closed_at ?? $handover->orders->max('shipped_at'))?->format('d/m/Y H:i') ?? '—' }}</p></div>
         <div><p class="text-xs text-slate-500">Dibuat Oleh</p><p class="mt-1 text-sm font-medium text-slate-900">{{ $handover->creator?->name ?? '—' }}</p></div>
         <div><p class="text-xs text-slate-500">Jumlah Paket</p><p class="mt-1 text-sm font-medium text-slate-900">{{ $handover->orders->count() }}</p></div>

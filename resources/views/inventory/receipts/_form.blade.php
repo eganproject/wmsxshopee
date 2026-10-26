@@ -110,7 +110,7 @@
             </p>
         </div>
         <div class="grid gap-x-6 gap-y-4 p-5 sm:grid-cols-3">
-            <x-select name="supplier_id" label="Supplier" required class="sm:col-span-2">
+            <x-select name="supplier_id" label="Supplier" tip="Pengirim barang. Daftar supplier diatur di Master Data → Supplier." required class="sm:col-span-2">
                 <option value="">Pilih supplier</option>
                 @foreach ($suppliers as $supplier)
                     <option value="{{ $supplier->id }}" @selected((string) old('supplier_id', $receipt->supplier_id) === (string) $supplier->id)>
@@ -118,16 +118,16 @@
                     </option>
                 @endforeach
             </x-select>
-            <x-input name="receipt_date" type="date" label="Tanggal Terima" :value="$receipt->receipt_date?->toDateString()" :max="now()->toDateString()" required />
-            <x-select name="warehouse_id" label="Gudang Tujuan" required x-model="warehouse">
+            <x-input name="receipt_date" type="date" tip="Tanggal barang benar-benar tiba di gudang. Dipakai di kartu stok dan laporan." label="Tanggal Terima" :value="$receipt->receipt_date?->toDateString()" :max="now()->toDateString()" required />
+            <x-select name="warehouse_id" label="Gudang Tujuan" tip="Gudang yang menerima barang. Pilihan lokasi bin di bawah mengikuti gudang ini." required x-model="warehouse">
                 <option value="">Pilih gudang</option>
                 @foreach ($warehouses as $warehouse)
                     <option value="{{ $warehouse->id }}">{{ $warehouse->code }} · {{ $warehouse->name }}</option>
                 @endforeach
             </x-select>
-            <x-input name="supplier_reference" label="No. PO / Surat Jalan" :value="$receipt->supplier_reference" placeholder="cth. SJ-0912" />
+            <x-input name="supplier_reference" label="No. PO / Surat Jalan" tip="Nomor dokumen dari supplier, supaya penerimaan mudah dicocokkan dan dicari kembali." :value="$receipt->supplier_reference" placeholder="cth. SJ-0912" />
             <div>
-                <label for="attachment" class="form-label">Foto Surat Jalan</label>
+                <label for="attachment" class="form-label">Foto Surat <span class="whitespace-nowrap">Jalan <x-hint text="Foto atau PDF surat jalan sebagai bukti. Bisa dibuka lagi dari halaman detail penerimaan." /></span></label>
                 <input id="attachment" name="attachment" type="file" accept="image/jpeg,image/png,image/webp,application/pdf"
                        @class(['form-input file:mr-3 file:border-0 file:bg-transparent file:text-sm file:font-medium', 'form-input-error' => $errors->has('attachment')])>
                 @error('attachment')
@@ -178,12 +178,12 @@
             <table class="min-w-full text-sm">
                 <thead class="text-left text-[13px] text-slate-500">
                     <tr>
-                        <th class="py-2 pr-2 font-normal">Barang *</th>
-                        <th class="px-2 py-2 text-right font-normal">Dipesan</th>
-                        <th class="px-2 py-2 text-right font-normal">Diterima Baik *</th>
-                        <th class="px-2 py-2 text-right font-normal">Rusak</th>
-                        <th class="px-2 py-2 text-right font-normal">Selisih</th>
-                        <th class="px-2 py-2 font-normal">Lokasi Bin</th>
+                        <th class="py-2 pr-2 font-normal">Barang <span class="whitespace-nowrap">* <x-hint text="Varian (SKU) yang diterima. Bisa scan barcode / SKU untuk menambah baris." /></span></th>
+                        <th class="px-2 py-2 text-right font-normal"><span class="whitespace-nowrap">Dipesan <x-hint text="Jumlah yang dipesan ke supplier (opsional). Diisi supaya selisih kiriman terlihat." /></span></th>
+                        <th class="px-2 py-2 text-right font-normal">Diterima Baik <span class="whitespace-nowrap">* <x-hint text="Jumlah barang dalam kondisi baik. Hanya angka ini yang masuk stok jual di lokasi bin." /></span></th>
+                        <th class="px-2 py-2 text-right font-normal"><span class="whitespace-nowrap">Rusak <x-hint text="Jumlah barang rusak / cacat dari kiriman ini. Masuk ke Stok Rusak gudang, tidak ikut dijual." /></span></th>
+                        <th class="px-2 py-2 text-right font-normal"><span class="whitespace-nowrap">Selisih <x-hint text="Dipesan dikurangi (Diterima Baik + Rusak). Angka positif berarti kiriman kurang dari pesanan." /></span></th>
+                        <th class="px-2 py-2 font-normal">Lokasi <span class="whitespace-nowrap">Bin <x-hint text="Bin tempat barang ditaruh. Otomatis disarankan dari Lokasi Tetap SKU. Kosong = masuk sebagai stok Tanpa bin." /></span></th>
                         <th class="px-2 py-2 font-normal">Keterangan</th>
                         <th class="py-2 pl-2"></th>
                     </tr>

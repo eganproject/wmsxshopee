@@ -52,9 +52,9 @@
                     <tr>
                         <th class="h-8 px-4 py-0 font-normal">Rak</th>
                         <th class="h-8 px-4 py-0 font-normal">Gudang / Zona</th>
-                        <th class="h-8 px-4 py-0 font-normal text-center">Level</th>
-                        <th class="h-8 px-4 py-0 font-normal text-center">Lokasi Bin</th>
-                        <th class="h-8 px-4 py-0 font-normal">Status</th>
+                        <th class="h-8 px-4 py-0 font-normal text-center"><span class="whitespace-nowrap">Level <x-hint text="Jumlah tingkat rak dari bawah ke atas." /></span></th>
+                        <th class="h-8 px-4 py-0 font-normal text-center">Lokasi <span class="whitespace-nowrap">Bin <x-hint text="Jumlah lokasi bin (tempat simpan) yang sudah dibuat di rak ini." /></span></th>
+                        <th class="h-8 px-4 py-0 font-normal"><span class="whitespace-nowrap">Status <x-hint text="Data nonaktif tidak bisa dipilih di transaksi baru, tapi riwayatnya tetap tersimpan." /></span></th>
                         <th class="h-8 px-4 py-0 font-normal text-right">Aksi</th>
                     </tr>
                 </thead>

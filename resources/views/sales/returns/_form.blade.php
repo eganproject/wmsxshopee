@@ -169,7 +169,7 @@
 
         <div class="flex flex-col gap-5 p-5">
             <div>
-                <p class="form-label">Sumber Retur</p>
+                <p class="form-label">Sumber <span class="whitespace-nowrap">Retur <x-hint text="Dari pesanan: paket kembali dari pesanan yang tercatat di Optima, jumlahnya dibatasi yang dikirim. Tanpa pesanan: barang kembali dari reseller / toko offline yang tidak punya pesanan di sini." /></span></p>
                 <div class="inline-flex rounded-lg border border-slate-200 p-0.5">
                     @foreach (\App\Models\SalesReturn::SOURCES as $value => $label)
                         <button type="button" class="flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium"
@@ -188,7 +188,7 @@
                     <input type="hidden" name="sales_order_id" :value="order ? order.id : ''">
 
                     <div x-show="! order">
-                        <label class="form-label" for="order-scan">Scan Resi / No. SO / No. Pesanan <span class="text-rose-500">*</span></label>
+                        <label class="form-label" for="order-scan">Scan Resi / No. SO / No. Pesanan <span class="text-rose-500">*</span> <x-hint text="Scan resi pengiriman asal, nomor SO Optima, atau nomor pesanan marketplace untuk mengambil daftar barang pesanan tersebut." /></label>
                         <div class="flex max-w-xl gap-2">
                             <div class="relative flex-1">
                                 <x-heroicon-o-qr-code class="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-slate-400" />
@@ -247,21 +247,21 @@
                 <div class="grid gap-x-6 gap-y-4 sm:grid-cols-3">
                     <x-input name="sender_name" label="Nama Pengirim" :value="$return->source === 'manual' ? $return->sender_name : null" placeholder="cth. Reseller Budi" required />
                     <x-input name="sender_phone" label="Telepon" :value="$return->source === 'manual' ? $return->sender_phone : null" placeholder="cth. 0812..." />
-                    <x-input name="channel_name" label="Channel / Sumber" :value="$return->source === 'manual' ? $return->channel_name : null" placeholder="cth. Toko Offline" />
+                    <x-input name="channel_name" label="Channel / Sumber" tip="Asal barang retur, misalnya Toko Offline atau Reseller. Untuk filter dan laporan." :value="$return->source === 'manual' ? $return->channel_name : null" placeholder="cth. Toko Offline" />
                     <x-input name="external_number" label="No. Nota / Referensi" :value="$return->source === 'manual' ? $return->external_number : null" placeholder="opsional" />
                 </div>
             </template>
 
             <div class="grid gap-x-6 gap-y-4 sm:grid-cols-3">
                 <x-input name="return_date" type="date" label="Tanggal Retur" :value="$return->return_date?->toDateString()" :max="now()->toDateString()" required />
-                <x-select name="warehouse_id" label="Gudang Penerima" required x-model="warehouse">
+                <x-select name="warehouse_id" label="Gudang Penerima" tip="Gudang yang menerima paket retur. Barang layak jual masuk ke stok gudang ini." required x-model="warehouse">
                     <option value="">Pilih gudang</option>
                     @foreach ($warehouses as $warehouse)
                         <option value="{{ $warehouse->id }}">{{ $warehouse->code }} · {{ $warehouse->name }}</option>
                     @endforeach
                 </x-select>
                 <div>
-                    <label for="tracking_number" class="form-label">No. Resi Retur</label>
+                    <label for="tracking_number" class="form-label">No. Resi <span class="whitespace-nowrap">Retur <x-hint text="Nomor resi paket retur dari pembeli ke gudang (bukan resi pengiriman awal)." /></span></label>
                     <input id="tracking_number" name="tracking_number" type="text" maxlength="100" x-model="tracking"
                            @class(['form-input', 'form-input-error' => $errors->has('tracking_number')]) :placeholder="source === 'order' ? 'kosong = resi kirim pesanan' : 'opsional'">
                     @error('tracking_number')
@@ -304,13 +304,13 @@
                 <thead class="text-left text-[13px] text-slate-500">
                     <tr>
                         <th class="py-2 pr-2 font-normal">Barang *</th>
-                        <th class="px-2 py-2 text-right font-normal" x-show="source === 'order'">Dikirim</th>
-                        <th class="px-2 py-2 text-right font-normal whitespace-nowrap">Layak Jual</th>
-                        <th class="px-2 py-2 text-right font-normal">Rusak</th>
-                        <th class="px-2 py-2 text-right font-normal" title="Seharusnya ikut kembali tapi tidak ada di paket">Hilang</th>
-                        <th class="px-2 py-2 font-normal">Lokasi Bin</th>
-                        <th class="px-2 py-2 font-normal">Alasan *</th>
-                        <th class="px-2 py-2 font-normal">Foto</th>
+                        <th class="px-2 py-2 text-right font-normal" x-show="source === 'order'"><span class="whitespace-nowrap">Dikirim <x-hint text="Jumlah yang dulu dikirim di pesanan asal, dikurangi yang sudah pernah diretur." /></span></th>
+                        <th class="px-2 py-2 text-right font-normal whitespace-nowrap">Layak <span class="whitespace-nowrap">Jual <x-hint text="Barang dalam kondisi baik yang masuk lagi ke stok jual di lokasi bin." /></span></th>
+                        <th class="px-2 py-2 text-right font-normal"><span class="whitespace-nowrap">Rusak <x-hint text="Barang rusak / cacat. Masuk ke Stok Rusak gudang dan tidak ikut dijual." /></span></th>
+                        <th class="px-2 py-2 text-right font-normal"><span class="whitespace-nowrap">Hilang <x-hint text="Barang yang seharusnya ikut kembali tapi tidak ada di paket. Dicatat di laporan Barang Hilang." /></span></th>
+                        <th class="px-2 py-2 font-normal">Lokasi <span class="whitespace-nowrap">Bin <x-hint text="Bin tempat barang layak jual ditaruh. Kosong = masuk sebagai stok Tanpa bin." /></span></th>
+                        <th class="px-2 py-2 font-normal">Alasan <span class="whitespace-nowrap">* <x-hint text="Alasan pembeli mengembalikan barang. Dipakai untuk analisis retur." /></span></th>
+                        <th class="px-2 py-2 font-normal"><span class="whitespace-nowrap">Foto <x-hint text="Foto kondisi barang sebagai bukti, misalnya untuk klaim ke marketplace atau supplier." /></span></th>
                         <th class="px-2 py-2 font-normal">Keterangan</th>
                         <th class="py-2 pl-2" x-show="source === 'manual'"></th>
                     </tr>

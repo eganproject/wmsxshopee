@@ -111,13 +111,13 @@
                                 @if ($isProduct)
                                     <th class="h-8 px-4 py-0 font-normal">SKU</th>
                                     <th class="h-8 px-4 py-0 font-normal">Barang</th>
-                                    <th class="h-8 px-4 py-0 font-normal">Isi Barcode</th>
+                                    <th class="h-8 px-4 py-0 font-normal">Isi <span class="whitespace-nowrap">Barcode <x-hint text="Kode yang tercetak di barcode / QR. Bila varian belum punya barcode, SKU yang dipakai." /></span></th>
                                 @else
                                     <th class="h-8 px-4 py-0 font-normal">Kode Lokasi</th>
                                     <th class="h-8 px-4 py-0 font-normal">Gudang / Zona / Rak</th>
                                     <th class="h-8 px-4 py-0 font-normal">Keterangan</th>
                                 @endif
-                                <th class="h-8 w-24 px-4 py-0 text-center font-normal">Jumlah</th>
+                                <th class="h-8 w-24 px-4 py-0 text-center font-normal"><span class="whitespace-nowrap">Jumlah <x-hint text="Berapa lembar stiker yang dicetak untuk baris ini." /></span></th>
                                 <th class="h-8 w-12 px-4 py-0"></th>
                             </tr>
                         </thead>
@@ -184,7 +184,7 @@
                     </div>
                     <div class="space-y-4 p-5">
                         <div>
-                            <label class="form-label" for="label-size">Ukuran kertas</label>
+                            <label class="form-label" for="label-size">Ukuran <span class="whitespace-nowrap">kertas <x-hint text="Pilih sesuai stiker yang dipakai: gulungan printer label (satu stiker per halaman) atau lembar A4 berisi banyak stiker." /></span></label>
                             <select id="label-size" name="size" class="form-input" x-model="size">
                                 @foreach ($groups as $group => $options)
                                     <optgroup label="{{ $group }}">
@@ -197,7 +197,7 @@
                         </div>
 
                         <div>
-                            <p class="form-label">Jenis kode</p>
+                            <p class="form-label">Jenis <span class="whitespace-nowrap">kode <x-hint text="Barcode cocok untuk scanner biasa, QR Code bisa dibaca kamera HP." /></span></p>
                             <div class="grid grid-cols-3 gap-1 rounded-lg bg-slate-100 p-0.5">
                                 @foreach (['barcode' => 'Barcode', 'qr' => 'QR Code', 'both' => 'Keduanya'] as $value => $text)
                                     <label class="cursor-pointer rounded-md px-2 py-1 text-center text-sm transition"
@@ -212,7 +212,7 @@
 
                         @if ($isProduct)
                             <div>
-                                <label class="form-label" for="label-content">Isi kode</label>
+                                <label class="form-label" for="label-content">Isi <span class="whitespace-nowrap">kode <x-hint text="Barcode varian: pakai barcode pabrik bila ada, kalau kosong pakai SKU. Selalu SKU: kode internal gudang." /></span></label>
                                 <select id="label-content" name="content" class="form-input" x-model="options.content">
                                     <option value="barcode">Barcode varian (SKU bila kosong)</option>
                                     <option value="sku">Selalu SKU</option>
@@ -234,7 +234,7 @@
                         </div>
 
                         <div x-show="sheet" x-cloak>
-                            <label class="form-label" for="label-offset">Mulai dari stiker ke-</label>
+                            <label class="form-label" for="label-offset">Mulai dari stiker <span class="whitespace-nowrap">ke- <x-hint text="Nomor stiker pertama yang masih kosong di lembar A4, dihitung dari kiri atas." /></span></label>
                             <input id="label-offset" type="number" min="1" :max="perSheet" x-model.number="start" class="form-input w-24" data-native>
                             <input type="hidden" name="offset" :value="sheet ? Math.max(0, (start || 1) - 1) : 0">
                             <p class="mt-1 text-xs text-slate-500">Untuk memakai sisa stiker di lembar yang sudah terpakai sebagian.</p>

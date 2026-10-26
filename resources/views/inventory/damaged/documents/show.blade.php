@@ -73,7 +73,7 @@
             </div>
         @endif
         <div>
-            <p class="text-xs text-slate-500">Mutasi Stok Baik</p>
+            <p class="text-xs text-slate-500">Mutasi Stok <span class="whitespace-nowrap">Baik <x-hint text="Dokumen pergerakan stok baik yang tercatat otomatis saat disetujui, misalnya barang keluar dari bin atau hasil perbaikan yang masuk lagi." /></span></p>
             @if ($document->movement)
                 @can('inventory.view')
                     <a href="{{ route('inventory.movements.show', $document->movement) }}" class="mt-1 inline-block font-mono text-sm font-medium text-brand-600 hover:underline">{{ $document->movement->number }}</a>

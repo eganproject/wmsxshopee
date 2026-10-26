@@ -58,7 +58,7 @@
                             dari <span class="font-semibold tabular-nums text-slate-900">{{ $item->qty }}</span> {{ $item->variant->product->unit->code }}
                         </p>
                         @if ($unbinned[$item->id] > 0)
-                            <p class="mt-1 text-xs text-slate-500">Stok tanpa bin bebas: {{ $unbinned[$item->id] }}</p>
+                            <p class="mt-1 text-xs text-slate-500">Stok tanpa bin bebas: {{ $unbinned[$item->id] }} <x-hint text="Stok yang tercatat di gudang tapi belum ditaruh di bin, dan belum diambil untuk pesanan lain. Bisa dipakai dengan memilih Tanpa bin." /></p>
                         @endif
                         @error("picks.{$item->id}")
                             <p class="mt-1 flex items-center gap-1 text-xs text-rose-600"><x-heroicon-o-exclamation-triangle class="size-4 shrink-0" /> {{ $message }}</p>

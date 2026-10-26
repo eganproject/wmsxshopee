@@ -108,7 +108,7 @@
 
             <div class="card">
                 <div class="border-b border-slate-100 px-5 py-3">
-                    <h2 class="text-base font-semibold text-slate-900">Cara Kirim</h2>
+                    <h2 class="text-base font-semibold text-slate-900">Cara <span class="whitespace-nowrap">Kirim <x-hint text="Pickup: kurir menjemput paket di gudang. Drop Off: paket diantar ke cabang / agen kurir. Pilihan untuk Shopee / TikTok mengikuti yang tersedia di toko." /></span></h2>
                 </div>
                 <div @class(['grid gap-3 p-5', 'sm:grid-cols-2' => count($methods) === 2, 'sm:grid-cols-3' => count($methods) > 2])>
                     @foreach ($methods as $value => $meta)
@@ -134,7 +134,7 @@
                         </div>
                         <div class="p-5">
                             @if ($tiktokSlots)
-                                <label for="pickup_slot" class="form-label">Jadwal Pickup <span class="text-rose-500">*</span></label>
+                                <label for="pickup_slot" class="form-label">Jadwal Pickup <span class="text-rose-500">*</span> <x-hint text="Slot waktu jemput yang disediakan marketplace untuk toko ini. Siapkan paket sebelum jam tersebut." /></label>
                                 <select id="pickup_slot" name="pickup_slot" x-model="tiktokSlot" class="form-input sm:max-w-md" data-native :disabled="method !== 'pickup'">
                                     @foreach ($tiktokSlots as $slot)
                                         <option value="{{ $slot['key'] }}">{{ $slot['label'] }}</option>
@@ -195,7 +195,7 @@
 
                             @if ($needs('pickup', 'pickup_time_id'))
                                 <div>
-                                    <label for="pickup_time_id" class="form-label">Jadwal Pickup <span class="text-rose-500">*</span></label>
+                                    <label for="pickup_time_id" class="form-label">Jadwal Pickup <span class="text-rose-500">*</span> <x-hint text="Slot waktu jemput yang disediakan Shopee untuk alamat pickup toko. Siapkan paket sebelum jam tersebut." /></label>
                                     <select id="pickup_time_id" name="pickup_time_id" x-model="slotId" class="form-input sm:max-w-md" data-native :disabled="method !== 'pickup'">
                                         <template x-for="slot in slots" :key="slot.pickup_time_id">
                                             <option :value="String(slot.pickup_time_id)" x-text="slot.label + (slot.recommended ? ' (disarankan)' : '')"></option>
@@ -206,7 +206,7 @@
                             @endif
 
                             @if ($needs('pickup', 'tracking_number'))
-                                <x-input name="tracking_number" id="tracking_pickup" label="Nomor Resi" required maxlength="100" class="sm:max-w-md" icon="heroicon-o-qr-code" x-bind:disabled="method !== 'pickup'" />
+                                <x-input name="tracking_number" id="tracking_pickup" label="Nomor Resi" tip="Nomor resi dari kurir. Scan barcode di label kurir atau ketik manual. Resi ini yang nanti di-scan saat serah terima." required maxlength="100" class="sm:max-w-md" icon="heroicon-o-qr-code" x-bind:disabled="method !== 'pickup'" />
                             @endif
                         </div>
                     </div>
@@ -220,7 +220,7 @@
                         </div>
                         <div class="grid gap-x-6 gap-y-4 p-5 sm:grid-cols-2">
                             @if ($needs('dropoff', 'branch_id'))
-                                <x-select name="branch_id" label="Cabang Drop Off" required class="sm:col-span-2" x-bind:disabled="method !== 'dropoff'">
+                                <x-select name="branch_id" label="Cabang Drop Off" tip="Cabang / agen kurir tempat paket akan diantar." required class="sm:col-span-2" x-bind:disabled="method !== 'dropoff'">
                                     <option value="">Pilih cabang</option>
                                     @foreach ($options['dropoff']['branches'] as $branch)
                                         <option value="{{ $branch['branch_id'] }}" @selected((string) old('branch_id') === (string) $branch['branch_id'])>{{ $branch['label'] }}</option>
@@ -236,10 +236,10 @@
                                 </x-select>
                             @endif
                             @if ($needs('dropoff', 'sender_real_name'))
-                                <x-input name="sender_real_name" label="Nama Pengantar" required maxlength="100" :value="$warehouse->pic_name" x-bind:disabled="method !== 'dropoff'" />
+                                <x-input name="sender_real_name" label="Nama Pengantar" tip="Nama orang yang mengantar paket ke cabang. Diminta oleh kurir sebagai data pengirim." required maxlength="100" :value="$warehouse->pic_name" x-bind:disabled="method !== 'dropoff'" />
                             @endif
                             @if ($needs('dropoff', 'tracking_number'))
-                                <x-input name="tracking_number" id="tracking_dropoff" label="Nomor Resi" required maxlength="100" icon="heroicon-o-qr-code" x-bind:disabled="method !== 'dropoff'" />
+                                <x-input name="tracking_number" id="tracking_dropoff" label="Nomor Resi" tip="Nomor resi dari kurir. Scan barcode di label kurir atau ketik manual. Resi ini yang nanti di-scan saat serah terima." required maxlength="100" icon="heroicon-o-qr-code" x-bind:disabled="method !== 'dropoff'" />
                             @endif
                             @if (! array_intersect(['branch_id', 'slug', 'sender_real_name', 'tracking_number'], $options['dropoff']['needs']))
                                 <p class="text-sm text-slate-600 sm:col-span-2">Tidak perlu isian tambahan. Paket bisa diantar ke cabang / agen kurir mana saja.</p>
@@ -251,7 +251,7 @@
                 @if ($options['non_integrated'])
                     <div class="card" x-show="method === 'non_integrated'" x-cloak>
                         <div class="grid gap-x-6 gap-y-4 p-5 sm:grid-cols-2">
-                            <x-input name="tracking_number" id="tracking_manual" label="Nomor Resi" required maxlength="100" icon="heroicon-o-qr-code" x-bind:disabled="method !== 'non_integrated'" />
+                            <x-input name="tracking_number" id="tracking_manual" label="Nomor Resi" tip="Kurir di luar integrasi marketplace: isi resi dari kurir supaya marketplace bisa melacak paket." required maxlength="100" icon="heroicon-o-qr-code" x-bind:disabled="method !== 'non_integrated'" />
                         </div>
                     </div>
                 @endif
@@ -262,12 +262,12 @@
                     </div>
                     <div class="grid gap-x-6 gap-y-4 p-5 sm:grid-cols-2">
                         <div x-show="method === 'pickup'" class="space-y-4 sm:col-span-2">
-                            <x-input type="datetime-local" name="pickup_at" label="Jadwal Jemput" required class="sm:max-w-xs"
+                            <x-input type="datetime-local" name="pickup_at" label="Jadwal Jemput" tip="Perkiraan waktu kurir datang menjemput. Tampil di daftar pesanan sebagai pengingat." required class="sm:max-w-xs"
                                      :value="$order->pickup_at?->format('Y-m-d\TH:i') ?? now()->addHour()->startOfHour()->format('Y-m-d\TH:i')" x-bind:disabled="method !== 'pickup'" />
                             <x-textarea name="pickup_address" label="Alamat Pickup" rows="2" :value="$order->pickup_address ?? $warehouseAddress" hint="Default: alamat gudang pengirim." x-bind:disabled="method !== 'pickup'" />
                         </div>
                         <div x-show="method === 'dropoff'" x-cloak class="sm:col-span-2">
-                            <x-input name="dropoff_point" label="Cabang / Agen Kurir" required maxlength="255" :value="$order->dropoff_point" placeholder="cth. Agen JNE Jl. Merdeka" x-bind:disabled="method !== 'dropoff'" />
+                            <x-input name="dropoff_point" label="Cabang / Agen Kurir" tip="Nama atau alamat cabang / agen tempat paket diantar." required maxlength="255" :value="$order->dropoff_point" placeholder="cth. Agen JNE Jl. Merdeka" x-bind:disabled="method !== 'dropoff'" />
                         </div>
                         <x-select name="courier_id" label="Kurir">
                             <option value="">Pilih kurir</option>
@@ -276,7 +276,7 @@
                             @endforeach
                         </x-select>
                         <x-input name="courier_service" label="Layanan" :value="$order->courier_service" placeholder="cth. REG" maxlength="50" />
-                        <x-input name="tracking_number" label="Nomor Resi" :value="$order->tracking_number" maxlength="100" icon="heroicon-o-qr-code" hint="Boleh diisi nanti saat kirim." />
+                        <x-input name="tracking_number" label="Nomor Resi" :value="$order->tracking_number" tip="Nomor resi dari kurir. Boleh dikosongkan dulu dan diisi saat kirim." maxlength="100" icon="heroicon-o-qr-code" hint="Boleh diisi nanti saat kirim." />
                     </div>
                 </div>
             @endif

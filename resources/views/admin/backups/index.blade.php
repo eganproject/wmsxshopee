@@ -25,7 +25,7 @@
             <table class="min-w-full text-sm">
                 <thead class="bg-slate-50 text-left text-[13px] text-slate-500">
                     <tr>
-                        <th class="h-8 px-4 py-0 font-normal">File</th>
+                        <th class="h-8 px-4 py-0 font-normal"><span class="whitespace-nowrap">File <x-hint text="Nama file backup (.sql.gz) berisi salinan seluruh database. Unduh dan simpan di tempat lain (misalnya Google Drive) supaya aman bila server rusak." /></span></th>
                         <th class="h-8 px-4 py-0 font-normal">Dibuat</th>
                         <th class="h-8 px-4 py-0 text-right font-normal">Ukuran</th>
                         <th class="h-8 w-24 px-4 py-0"></th>

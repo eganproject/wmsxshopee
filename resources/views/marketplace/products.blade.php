@@ -78,7 +78,7 @@
             <table class="min-w-full text-sm">
                 <thead class="bg-slate-50 text-left text-[13px] text-slate-500">
                     <tr>
-                        <th class="h-8 px-4 py-0 font-normal">SKU Optima</th>
+                        <th class="h-8 px-4 py-0 font-normal">SKU <span class="whitespace-nowrap">Optima <x-hint text="SKU varian atau paket di gudang. Kolom di kanan menunjukkan apakah SKU ini sudah terhubung ke tiap toko dan stok terakhir yang dikirim." /></span></th>
                         @foreach ($columns as $column)
                             <th class="h-auto min-w-44 px-4 py-1.5 font-normal">
                                 <x-marketplace.platform-badge :platform="$column['platform']" />
@@ -117,7 +117,7 @@
                                         </p>
                                     @endif
                                     @if ($cell->isNotEmpty() && ($split = $breakdowns[$column['shop']->warehouse_id][$row->id] ?? null))
-                                        <p class="mt-1 text-xs text-slate-500" title="Stok jual sekarang = gudang toko + gudang cadangan + dalam perjalanan">
+                                        <p class="mt-1 cursor-help text-xs text-slate-500" data-hint-title="Stok jual sekarang" data-hint="Gudang kecil (gudang toko) + jatah gudang besar (cadangan) + barang yang sedang dalam perjalanan transfer.">
                                             Sekarang <span class="font-medium tabular-nums text-slate-700">{{ number_format($split['sellable'], 0, ',', '.') }}</span>
                                             = kecil {{ number_format($split['own'], 0, ',', '.') }} + besar {{ number_format($split['supply'], 0, ',', '.') }}{{ $split['transit'] ? ' + jalan '.number_format($split['transit'], 0, ',', '.') : '' }}
                                         </p>

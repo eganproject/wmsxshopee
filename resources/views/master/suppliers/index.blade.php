@@ -42,9 +42,9 @@
                         <th class="h-8 px-4 py-0 font-normal">Supplier</th>
                         <th class="h-8 px-4 py-0 font-normal">Kontak</th>
                         <th class="h-8 px-4 py-0 font-normal">Kota</th>
-                        <th class="h-8 px-4 py-0 font-normal">Termin</th>
-                        <th class="h-8 px-4 py-0 font-normal text-right">Penerimaan</th>
-                        <th class="h-8 px-4 py-0 font-normal">Status</th>
+                        <th class="h-8 px-4 py-0 font-normal"><span class="whitespace-nowrap">Termin <x-hint text="Lama waktu pembayaran ke supplier dalam hari. 0 berarti tunai / COD." /></span></th>
+                        <th class="h-8 px-4 py-0 font-normal text-right"><span class="whitespace-nowrap">Penerimaan <x-hint text="Jumlah dokumen Penerimaan Barang dari supplier ini." /></span></th>
+                        <th class="h-8 px-4 py-0 font-normal"><span class="whitespace-nowrap">Status <x-hint text="Data nonaktif tidak bisa dipilih di transaksi baru, tapi riwayatnya tetap tersimpan." /></span></th>
                         <th class="h-8 px-4 py-0 font-normal text-right">Aksi</th>
                     </tr>
                 </thead>

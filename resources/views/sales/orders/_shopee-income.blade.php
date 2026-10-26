@@ -15,7 +15,7 @@
         @if ($order->shopee_income_final)
             <span class="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-xs text-emerald-700"><x-heroicon-o-check-circle class="size-4" /> Final</span>
         @else
-            <span class="rounded-full bg-amber-50 px-2 py-0.5 text-xs text-amber-700" title="Angka bisa berubah sampai pesanan Selesai di Shopee">Perkiraan</span>
+            <span class="cursor-help rounded-full bg-amber-50 px-2 py-0.5 text-xs text-amber-700" data-hint-title="Perkiraan" data-hint="Angka dari Shopee masih bisa berubah sampai pesanan berstatus Selesai, misalnya karena voucher, ongkir aktual atau retur.">Perkiraan</span>
         @endif
     </div>
 

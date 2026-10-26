@@ -8,6 +8,7 @@
     ];
 @endphp
 
-<span class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium whitespace-nowrap {{ $classes[$transfer->statusColor()] ?? $classes['slate'] }}">
+<span class="inline-flex cursor-help items-center rounded-full px-2.5 py-0.5 text-xs font-medium whitespace-nowrap {{ $classes[$transfer->statusColor()] ?? $classes['slate'] }}"
+      data-hint-title="{{ $transfer->statusLabel() }}" data-hint="{{ \App\Models\WarehouseTransfer::STATUSES[$transfer->status]['hint'] ?? $transfer->statusLabel() }}">
     {{ $transfer->statusLabel() }}
 </span>
