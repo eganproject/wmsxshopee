@@ -16,6 +16,7 @@ use App\Services\SalesOrderService;
 use App\Services\StockService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
+use OpenSpout\Reader\XLSX\Reader;
 use Tests\TestCase;
 
 class BundleTest extends TestCase
@@ -232,5 +233,118 @@ class BundleTest extends TestCase
         $this->assertCount(1, $order->bundles);
         $this->assertSame(7, (int) $order->items->sum('qty'));
         $this->assertSame(470000.0, $order->subtotal());
+    }
+
+    private function csv(string $content): UploadedFile
+    {
+        return UploadedFile::fake()->createWithContent('paket.csv', $content);
+    }
+
+    public function test_bundle_import_creates_bundles_with_components(): void
+    {
+        $csv = "sku_paket;nama_paket;harga;sku_isi;jumlah_isi\n"
+            ."paket-3;Paket Hemat 3 Kaos;200000;KAOS-M;2\n"
+            ."PAKET-3;;;KAOS-L;\n"
+            ."PAKET-M;Paket Kaos M;90000;KAOS-M;1\n";
+
+        $this->get('/master/bundles/import')->assertOk()->assertSee('Impor Produk Paket');
+        $this->post('/master/bundles/import', ['file' => $this->csv($csv)])
+            ->assertSessionHasNoErrors()
+            ->assertRedirect('/master/bundles/import');
+
+        $bundle = Bundle::where('sku', 'PAKET-3')->with('items')->firstOrFail();
+        $this->assertSame('Paket Hemat 3 Kaos', $bundle->name);
+        $this->assertEquals(200000, $bundle->price);
+        $this->assertTrue($bundle->is_active);
+        $this->assertSame([[$this->kaosM->id, 2], [$this->kaosL->id, 1]], $bundle->items->map(fn ($i) => [$i->product_variant_id, $i->qty])->all());
+        $this->assertSame(2, Bundle::count());
+
+        // Stok virtual langsung ikut isi: KAOS-M 10 / 2 = 5, KAOS-L 5 / 1 = 5.
+        $this->assertSame(5, app(SalesOrderService::class)->bundleAvailability($this->warehouse->id, [$bundle])[$bundle->id]);
+    }
+
+    public function test_bundle_import_updates_existing_and_replaces_components(): void
+    {
+        $bundle = $this->bundle();
+
+        $this->post('/master/bundles/import', ['file' => $this->csv("sku_paket,harga,sku_isi,jumlah_isi,aktif\nPAKET-3,250000,KAOS-L,3,Tidak\n")])
+            ->assertSessionHasNoErrors();
+
+        $bundle->refresh()->load('items');
+        $this->assertSame('Paket Hemat 3 Kaos', $bundle->name, 'Kolom kosong tidak menimpa nilai lama.');
+        $this->assertEquals(250000, $bundle->price);
+        $this->assertFalse($bundle->is_active);
+        $this->assertSame([[$this->kaosL->id, 3]], $bundle->items->map(fn ($i) => [$i->product_variant_id, $i->qty])->all());
+
+        // Tanpa sku_isi: hanya data paket yang berubah, isi tetap.
+        $this->post('/master/bundles/import', ['file' => $this->csv("sku_paket,nama_paket\nPAKET-3,Paket Baru\n")])->assertSessionHasNoErrors();
+        $this->assertSame('Paket Baru', $bundle->refresh()->name);
+        $this->assertSame(1, $bundle->items()->count());
+    }
+
+    public function test_bundle_import_rejects_bad_rows_and_saves_nothing(): void
+    {
+        $csv = "sku_paket,nama_paket,sku_isi,jumlah_isi\n"
+            ."PAKET-OK,Paket OK,KAOS-M,1\n"
+            ."PAKET-X,Paket X,TIDAK-ADA,1\n"
+            ."PAKET-Y,Paket Y,KAOS-M,0\n"
+            ."KAOS-L,Bentrok,KAOS-M,1\n"
+            ."PAKET-Z,,KAOS-M,1\n"
+            ."PAKET-K,Paket Kosong,,\n";
+
+        $this->post('/master/bundles/import', ['file' => $this->csv($csv)])->assertSessionHasErrors('rows');
+
+        $errors = session('errors')->get('rows');
+        $this->assertCount(5, $errors);
+        $this->assertStringContainsString('TIDAK-ADA tidak ada', $errors[0]);
+        $this->assertSame(0, Bundle::count());
+    }
+
+    public function test_exported_bundles_can_be_imported_back(): void
+    {
+        $this->bundle();
+
+        $response = $this->get('/master/bundles?export=xlsx')->assertOk()->assertDownload();
+        $path = tempnam(sys_get_temp_dir(), 'exp').'.xlsx';
+        copy($response->getFile()->getPathname(), $path);
+
+        Bundle::query()->delete();
+        $this->post('/master/bundles/import', ['file' => new UploadedFile($path, 'paket.xlsx', null, null, true)])->assertSessionHasNoErrors();
+
+        $bundle = Bundle::with('items')->sole();
+        $this->assertSame('PAKET-3', $bundle->sku);
+        $this->assertSame([2, 1], $bundle->items->pluck('qty')->all());
+    }
+
+    public function test_stock_page_shows_virtual_bundle_stock(): void
+    {
+        $this->bundle();
+        Bundle::create(['sku' => 'PAKET-OFF', 'name' => 'Paket Lama', 'is_active' => false])
+            ->items()->create(['product_variant_id' => $this->kaosM->id, 'qty' => 1]);
+
+        // KAOS-M 10 / 2 = 5, KAOS-L 5 / 1 = 5 → 5 paket.
+        $this->get('/inventory/stocks?view=bundle')
+            ->assertOk()
+            ->assertSee('Paket (Virtual)')
+            ->assertSee('PAKET-3')
+            ->assertSee('Virtual')
+            ->assertSeeInOrder(['PAKET-3', '5', 'paket'])
+            ->assertDontSee('PAKET-OFF');
+
+        $this->get('/inventory/stocks?view=bundle&zero=1&warehouse='.$this->warehouse->id)->assertOk()->assertSee('PAKET-OFF')->assertSee('Stok Jual');
+        $this->get('/inventory/stocks?view=bundle&search=KAOS-L')->assertOk()->assertSee('PAKET-3');
+        $this->get('/inventory/stocks?view=bundle&search=TIDAK-ADA')->assertOk()->assertDontSee('PAKET-3');
+
+        $response = $this->get('/inventory/stocks?view=bundle&export=xlsx')->assertOk()->assertDownload();
+        $reader = new Reader;
+        $reader->open($response->getFile()->getPathname());
+        $rows = [];
+        foreach ($reader->getSheetIterator() as $sheet) {
+            foreach ($sheet->getRowIterator() as $row) {
+                $rows[] = $row->toArray();
+            }
+        }
+        $reader->close();
+        $this->assertSame(['PAKET-3', 'Paket Hemat 3 Kaos', 'Virtual', 'KAOS-M × 2, KAOS-L × 1', 0, 5, 'Aktif'], $rows[1]);
     }
 }
