@@ -73,6 +73,12 @@ class ShopeeShop extends Model
         return $this->hasMany(ShopeeSkuMapping::class);
     }
 
+    /** SKU yang masih ada di toko tapi kiriman stok terakhirnya gagal. */
+    public function failedStockMappings(): HasMany
+    {
+        return $this->hasMany(ShopeeSkuMapping::class)->whereNull('removed_at')->whereNotNull('stock_error')->orderBy('id');
+    }
+
     public function orders(): HasMany
     {
         return $this->hasMany(SalesOrder::class);

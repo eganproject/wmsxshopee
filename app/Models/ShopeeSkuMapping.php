@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
@@ -24,6 +25,7 @@ class ShopeeSkuMapping extends Model
         'stock_pushed',
         'stock_pushed_at',
         'stock_error',
+        'removed_at',
     ];
 
     protected function casts(): array
@@ -33,6 +35,7 @@ class ShopeeSkuMapping extends Model
             'model_id' => 'integer',
             'stock_pushed' => 'integer',
             'stock_pushed_at' => 'datetime',
+            'removed_at' => 'datetime',
         ];
     }
 
@@ -49,6 +52,17 @@ class ShopeeSkuMapping extends Model
     public function bundle(): BelongsTo
     {
         return $this->belongsTo(Bundle::class);
+    }
+
+    /** Baris yang SKU-nya masih ada di toko (belum ditandai hilang saat tarik produk). */
+    public function scopeActive(Builder $query): Builder
+    {
+        return $query->whereNull('removed_at');
+    }
+
+    public function isRemoved(): bool
+    {
+        return $this->removed_at !== null;
     }
 
     public function isMapped(): bool

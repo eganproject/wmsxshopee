@@ -1,3 +1,7 @@
+@php
+    use App\Support\StockPushError;
+@endphp
+
 <x-layouts.app title="Pemetaan SKU Shopee">
     <x-slot:breadcrumb>
         <x-heroicon-o-home class="size-4" />
@@ -28,7 +32,7 @@
         @endcan
     </x-page-header>
 
-    <div class="mb-6 grid gap-3 sm:grid-cols-3">
+    <div class="mb-6 grid gap-3 sm:grid-cols-4">
         <div class="card px-4 py-3">
             <p class="text-xs text-slate-500">Total SKU Shopee</p>
             <p class="text-xl font-semibold text-slate-900 tabular-nums">{{ $total }}</p>
@@ -41,7 +45,21 @@
             <p class="text-xs text-slate-500">Belum dipetakan</p>
             <p class="text-xl font-semibold tabular-nums {{ $unmapped ? 'text-amber-600' : 'text-slate-900' }}">{{ $unmapped }}</p>
         </div>
+        <a href="{{ route('shopee.mappings.index', [$shop, 'status' => 'failed']) }}" class="card px-4 py-3 hover:border-slate-300">
+            <p class="text-xs text-slate-500">Gagal kirim stok</p>
+            <p class="text-xl font-semibold tabular-nums {{ $failed ? 'text-rose-600' : 'text-slate-900' }}">{{ $failed }}</p>
+        </a>
     </div>
+
+    @if ($removed && request('status') !== 'removed')
+        <div class="mb-6 flex items-start gap-2 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+            <x-heroicon-o-archive-box-x-mark class="mt-0.5 size-5 shrink-0 text-slate-400" />
+            <p>
+                {{ $removed }} SKU sudah tidak ada lagi di Shopee (variasi/SKU dihapus atau diganti di toko). Barisnya disembunyikan, tidak dikirim stoknya, dan tidak dihitung gagal.
+                <a href="{{ route('shopee.mappings.index', [$shop, 'status' => 'removed']) }}" class="font-medium text-slate-900 underline underline-offset-2">Lihat</a>
+            </p>
+        </div>
+    @endif
 
     @can('shopee.mapping')
         <details class="card mb-6" @if ($errors->any()) open @endif>
@@ -79,6 +97,8 @@
                 <option value="">Semua baris</option>
                 <option value="unmapped" @selected(request('status') === 'unmapped')>Belum dipetakan</option>
                 <option value="mapped" @selected(request('status') === 'mapped')>Sudah dipetakan</option>
+                <option value="failed" @selected(request('status') === 'failed')>Gagal kirim stok</option>
+                <option value="removed" @selected(request('status') === 'removed')>Tidak ada di toko ({{ $removed }})</option>
             </select>
             <div class="flex gap-2">
                 <button type="submit" class="btn-secondary"><x-heroicon-o-funnel class="size-5" /> Filter</button>
@@ -95,6 +115,7 @@
                         <th class="h-8 px-4 py-0 font-normal">Produk Shopee</th>
                         <th class="h-8 px-4 py-0 font-normal">SKU Shopee</th>
                         <th class="h-8 px-4 py-0 font-normal">SKU Optima</th>
+                        <th class="h-8 px-4 py-0 text-right font-normal">Stok di Shopee</th>
                         <th class="h-8 w-16 px-4 py-0"></th>
                     </tr>
                 </thead>
@@ -107,6 +128,12 @@
                                     @if ($mapping->model_name){{ $mapping->model_name }} · @endif
                                     <span class="font-mono">{{ $mapping->item_id }}@if ($mapping->model_id)/{{ $mapping->model_id }}@endif</span>
                                 </p>
+                                @if ($mapping->isRemoved())
+                                    <span class="mt-1 inline-flex rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600"
+                                          title="Tidak muncul lagi saat produk ditarik dari Shopee. Stoknya tidak dikirim; pemetaan dipakai lagi bila SKU ini muncul kembali.">
+                                        Tidak ada di Shopee sejak {{ $mapping->removed_at->format('d/m/Y') }}
+                                    </span>
+                                @endif
                             </td>
                             <td class="px-4 py-2.5 font-mono text-[13px] text-slate-700">{{ $mapping->shopee_sku ?? '—' }}</td>
                             <td class="px-4 py-2.5">
@@ -130,6 +157,22 @@
                                     {{ $mapping->variant?->displayName() ?? ($mapping->bundle ? 'Paket · '.$mapping->bundle->displayName() : '—') }}
                                 @endcan
                             </td>
+                            <td class="px-4 py-2.5 text-right text-xs whitespace-nowrap">
+                                @if ($mapping->stock_pushed !== null)
+                                    <p class="text-sm font-medium text-slate-900 tabular-nums">{{ $mapping->stock_pushed }}</p>
+                                    <p class="text-slate-400">{{ $mapping->stock_pushed_at?->diffForHumans() }}</p>
+                                @else
+                                    <span class="text-slate-400">—</span>
+                                @endif
+                                @if ($mapping->stock_error)
+                                    @php($why = StockPushError::explain('shopee', $mapping->stock_error))
+                                    <div class="mt-1 ml-auto max-w-64 text-left whitespace-normal">
+                                        <p class="font-medium text-rose-600">{{ $why['title'] }}</p>
+                                        <p class="text-rose-600/90">{{ $mapping->stock_error }}</p>
+                                        <p class="mt-1 text-slate-500">{{ $why['fix'] }}</p>
+                                    </div>
+                                @endif
+                            </td>
                             <td class="px-4 py-2.5">
                                 @can('shopee.mapping')
                                     <form id="delete-mapping-{{ $mapping->id }}" method="POST" action="{{ route('shopee.mappings.destroy', [$shop, $mapping]) }}">
@@ -148,7 +191,7 @@
                             </td>
                         </tr>
                     @empty
-                        <x-empty-state colspan="4" icon="heroicon-o-arrows-right-left" title="Belum ada SKU Shopee"
+                        <x-empty-state colspan="5" icon="heroicon-o-arrows-right-left" title="Belum ada SKU Shopee"
                                        description="Klik Tarik dari Shopee untuk mengambil produk toko, atau tambah baris manual." />
                     @endforelse
                 </tbody>

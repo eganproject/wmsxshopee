@@ -93,12 +93,12 @@ class MarketplaceProductSync
             [$message, $stock, $sent] = MarketplaceSyncLog::track($platform, $shop, 'products', function () use ($platform, $shop, $pushStock) {
                 if ($platform === 'shopee') {
                     $pulled = $this->shopeeCatalog->pull($shop);
-                    $message = "{$pulled['items']} produk ({$pulled['rows']} SKU) ditarik, {$pulled['matched']} cocok otomatis";
+                    $message = "{$pulled['items']} produk ({$pulled['rows']} SKU) ditarik, {$pulled['matched']} cocok otomatis".self::removedNote($pulled);
                     $stock = $pushStock && $shop->isSyncable() && $shop->stock_push ? $this->shopeeStock->push($shop) : null;
                     $sent = $stock['models'] ?? 0;
                 } else {
                     $pulled = $this->tiktokCatalog->pull($shop);
-                    $message = "{$pulled['products']} produk ({$pulled['rows']} SKU) ditarik".($pulled['inactive'] ? " ({$pulled['inactive']} belum aktif di TikTok)" : '').", {$pulled['matched']} cocok otomatis";
+                    $message = "{$pulled['products']} produk ({$pulled['rows']} SKU) ditarik".($pulled['inactive'] ? " ({$pulled['inactive']} belum aktif di TikTok)" : '').", {$pulled['matched']} cocok otomatis".self::removedNote($pulled);
                     $stock = $pushStock && $shop->isSyncable() && $shop->stock_push ? $this->tiktokStock->push($shop) : null;
                     $sent = $stock['skus'] ?? 0;
                 }
@@ -119,6 +119,12 @@ class MarketplaceProductSync
         };
 
         return ['platform' => $platform, 'shop' => $label, 'ok' => true, 'message' => $message];
+    }
+
+    /** Catatan SKU yang ditandai sudah tidak ada di toko saat tarik produk. */
+    public static function removedNote(array $pulled): string
+    {
+        return ($pulled['removed'] ?? 0) ? ", {$pulled['removed']} SKU sudah tidak ada di toko (tidak dikirim stoknya lagi)" : '';
     }
 
     /** Ringkasan satu baris untuk pesan flash. */

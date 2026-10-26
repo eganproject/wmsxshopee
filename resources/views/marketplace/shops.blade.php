@@ -1,6 +1,7 @@
 @php
     use App\Models\ShopeeSetting;
     use App\Models\ShopeeShop;
+    use App\Support\StockPushError;
 
     $connectable = $platforms->filter(fn ($meta) => auth()->user()->can($meta['connect']));
     $defaultConnect = old('platform', $platform && $connectable->has($platform) ? $platform : $connectable->keys()->first());
@@ -114,7 +115,7 @@
             </form>
         </div>
 
-        <div class="overflow-x-auto">
+        <div class="overflow-x-auto" x-data="hintTips">
             <table class="min-w-full text-sm">
                 <thead class="bg-slate-50 text-left text-[13px] text-slate-500">
                     <tr>
@@ -215,7 +216,13 @@
                                     <p class="text-xs text-amber-600">{{ $shop->unmapped_count }} belum dipetakan</p>
                                 @endif
                                 @if ($shop->stock_error_count)
-                                    <p class="text-xs text-rose-600">{{ $shop->stock_error_count }} gagal kirim stok</p>
+                                    @php($hint = StockPushError::summary($p, $shop->failedStockMappings))
+                                    <a href="{{ route($p.'.mappings.index', [$shop, 'status' => 'failed']) }}"
+                                       class="inline-flex items-center gap-1 text-xs text-rose-600 underline decoration-dotted underline-offset-2 hover:text-rose-700"
+                                       data-hint-title="{{ $hint['title'] }}" data-hint="{{ $hint['body'] }}" data-hint-next="{{ $hint['next'] }}">
+                                        {{ $shop->stock_error_count }} gagal kirim stok
+                                        <x-heroicon-o-information-circle class="size-3.5 shrink-0" />
+                                    </a>
                                 @endif
                             </td>
                             <td class="px-4 py-2.5">

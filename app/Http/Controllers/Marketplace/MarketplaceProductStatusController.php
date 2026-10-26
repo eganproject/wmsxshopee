@@ -139,7 +139,7 @@ class MarketplaceProductStatusController extends Controller
             $shopColumn = self::RELATIONS[$platform]['shop_column'];
             $model = $platform === 'shopee' ? ShopeeSkuMapping::class : TiktokSkuMapping::class;
 
-            foreach ($model::whereIn($column, $ids)->get() as $mapping) {
+            foreach ($model::whereIn($column, $ids)->whereNull('removed_at')->get() as $mapping) {
                 $grouped[$mapping->{$column}][$platform.'-'.$mapping->{$shopColumn}][] = $mapping;
             }
         }

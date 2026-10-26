@@ -8,6 +8,7 @@ use App\Models\Bundle;
 use App\Models\ProductVariant;
 use App\Models\ShopeeShop;
 use App\Models\ShopeeSkuMapping;
+use App\Services\MarketplaceProductSync;
 use App\Services\Shopee\ShopeeCatalog;
 use App\Services\Shopee\ShopeeException;
 use Illuminate\Database\Eloquent\Builder;
@@ -30,16 +31,21 @@ class ShopeeSkuMappingController extends Controller
                 $query->where(fn ($q) => $q->where('shopee_sku', 'like', $like)->orWhere('item_name', 'like', $like)
                     ->orWhere('model_name', 'like', $like)->orWhere('item_id', 'like', $like));
             })
+            // SKU yang sudah tidak ada di toko hanya tampil di filter "Tidak ada di toko".
+            ->when($request->input('status') === 'removed', fn ($q) => $q->whereNotNull('removed_at'), fn ($q) => $q->whereNull('removed_at'))
             ->when($request->input('status') === 'mapped', fn ($q) => $q->where(fn ($q) => $q->whereNotNull('product_variant_id')->orWhereNotNull('bundle_id')))
             ->when($request->input('status') === 'unmapped', fn ($q) => $q->whereNull('product_variant_id')->whereNull('bundle_id'))
+            ->when($request->input('status') === 'failed', fn ($q) => $q->whereNotNull('stock_error'))
             ->orderBy('item_name')->orderBy('model_name')
             ->paginate(25)->withQueryString();
 
         return view('shopee.mappings.index', [
             'shop' => $shop,
             'mappings' => $mappings,
-            'total' => $shop->mappings()->count(),
-            'unmapped' => $shop->mappings()->whereNull('product_variant_id')->whereNull('bundle_id')->count(),
+            'total' => $shop->mappings()->whereNull('removed_at')->count(),
+            'unmapped' => $shop->mappings()->whereNull('removed_at')->whereNull('product_variant_id')->whereNull('bundle_id')->count(),
+            'failed' => $shop->mappings()->whereNull('removed_at')->whereNotNull('stock_error')->count(),
+            'removed' => $shop->mappings()->whereNotNull('removed_at')->count(),
         ]);
     }
 
@@ -104,7 +110,7 @@ class ShopeeSkuMappingController extends Controller
             return back()->with('error', 'Gagal menarik produk dari Shopee. '.$e->getMessage());
         }
 
-        return back()->with('success', "{$result['items']} produk ({$result['rows']} baris SKU) ditarik dari Shopee, {$result['matched']} cocok otomatis.".$this->relinkOrders());
+        return back()->with('success', "{$result['items']} produk ({$result['rows']} baris SKU) ditarik dari Shopee, {$result['matched']} cocok otomatis".MarketplaceProductSync::removedNote($result).'.'.$this->relinkOrders());
     }
 
     /** Pilihan target pemetaan untuk Tom Select: varian gudang & paket. */

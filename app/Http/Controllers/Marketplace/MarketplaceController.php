@@ -139,19 +139,20 @@ class MarketplaceController extends Controller
      */
     private function allShops(Collection $platforms): Collection
     {
+        // SKU yang sudah tidak ada di toko (removed_at) tidak dihitung.
         $counts = [
-            'mappings',
-            'mappings as unmapped_count' => fn ($q) => $q->whereNull('product_variant_id')->whereNull('bundle_id'),
-            'mappings as stock_error_count' => fn ($q) => $q->whereNotNull('stock_error'),
+            'mappings' => fn ($q) => $q->whereNull('removed_at'),
+            'mappings as unmapped_count' => fn ($q) => $q->whereNull('removed_at')->whereNull('product_variant_id')->whereNull('bundle_id'),
+            'mappings as stock_error_count' => fn ($q) => $q->whereNull('removed_at')->whereNotNull('stock_error'),
         ];
 
         $shopee = $platforms->contains('shopee')
-            ? ShopeeShop::with('warehouse:id,code,name')->withCount($counts)->orderBy('environment')->orderBy('shop_name')->get()
+            ? ShopeeShop::with(['warehouse:id,code,name', 'failedStockMappings'])->withCount($counts)->orderBy('environment')->orderBy('shop_name')->get()
                 ->map(fn ($shop) => ['platform' => 'shopee', 'shop' => $shop])
             : collect();
 
         $tiktok = $platforms->contains('tiktok')
-            ? TiktokShop::with('warehouse:id,code,name')->withCount($counts)->orderBy('shop_name')->get()
+            ? TiktokShop::with(['warehouse:id,code,name', 'failedStockMappings'])->withCount($counts)->orderBy('shop_name')->get()
                 ->map(fn ($shop) => ['platform' => 'tiktok', 'shop' => $shop])
             : collect();
 
