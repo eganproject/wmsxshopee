@@ -3,6 +3,7 @@
 namespace App\Services\Tiktok;
 
 use App\Models\TiktokSetting;
+use App\Support\ConnectionError;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Sleep;
@@ -111,9 +112,9 @@ class TiktokClient
             $this->pace();
 
             try {
-                $response = Http::acceptJson()->timeout(config('tiktok.timeout'))->get($url);
+                $response = Http::acceptJson()->connectTimeout(config('tiktok.connect_timeout', 10))->timeout(config('tiktok.timeout'))->get($url);
             } catch (ConnectionException $e) {
-                throw new TiktokException('Tidak bisa terhubung ke TikTok: '.$e->getMessage(), connectionFailed: true);
+                throw new TiktokException(ConnectionError::message('TikTok', $e), connectionFailed: true, notSent: ConnectionError::neverSent($e));
             }
 
             return $this->unwrap($response->json() ?? [], $response->status());
@@ -197,7 +198,7 @@ class TiktokClient
     {
         $this->pace();
 
-        $request = Http::acceptJson()->timeout(config('tiktok.timeout'))
+        $request = Http::acceptJson()->connectTimeout(config('tiktok.connect_timeout', 10))->timeout(config('tiktok.timeout'))
             ->withHeaders(array_filter(['x-tts-access-token' => $accessToken]));
 
         try {
@@ -205,7 +206,7 @@ class TiktokClient
                 ? $request->get($url)
                 : $request->withBody($json, 'application/json')->send($method, $url);
         } catch (ConnectionException $e) {
-            throw new TiktokException('Tidak bisa terhubung ke TikTok: '.$e->getMessage(), connectionFailed: true);
+            throw new TiktokException(ConnectionError::message('TikTok', $e), connectionFailed: true, notSent: ConnectionError::neverSent($e));
         }
 
         return $this->unwrap($response->json() ?? [], $response->status());
@@ -214,7 +215,8 @@ class TiktokClient
     /**
      * Jeda (ms) sebelum mengulang, atau null bila tidak boleh diulang. Batas panggilan
      * (HTTP 429) berarti request belum diproses, jadi aman diulang untuk semua metode.
-     * Putus koneksi / HTTP 5xx hanya diulang untuk GET: POST bisa saja sudah diproses.
+     * Koneksi yang gagal dibuka berarti request belum terkirim, jadi juga aman diulang.
+     * Putus koneksi lain / HTTP 5xx hanya diulang untuk GET: POST bisa saja sudah diproses.
      */
     private function retryable(TiktokException $e, string $method): ?int
     {
@@ -222,7 +224,7 @@ class TiktokClient
             return 2000;
         }
 
-        if ($method === 'GET' && ($e->connectionFailed || $e->httpStatus >= 500)) {
+        if ($e->notSent || ($method === 'GET' && ($e->connectionFailed || $e->httpStatus >= 500))) {
             return 1000;
         }
 

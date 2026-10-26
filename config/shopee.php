@@ -33,6 +33,10 @@ return [
     // Batas waktu request ke Shopee (detik).
     'timeout' => (int) env('SHOPEE_TIMEOUT', 20),
 
+    // Batas waktu membuka koneksi (detik). Bila server tidak menjawab dalam waktu ini,
+    // panggilan GET diulang (lihat retries) lalu dicoba lagi di sinkron berikutnya.
+    'connect_timeout' => (int) env('SHOPEE_CONNECT_TIMEOUT', 10),
+
     // Gangguan sementara (batas panggilan, server sibuk, putus koneksi saat GET) diulang
     // sebanyak ini dengan jeda bertahap sebelum dianggap gagal.
     'retries' => (int) env('SHOPEE_RETRIES', 2),

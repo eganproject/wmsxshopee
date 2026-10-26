@@ -18,13 +18,18 @@ use App\Services\FulfillmentScan;
 use App\Services\SalesOrderService;
 use App\Services\StockService;
 use App\Services\Tiktok\TiktokClient;
+use App\Services\Tiktok\TiktokException;
 use App\Services\Tiktok\TiktokOrderSync;
+use App\Services\Tiktok\TiktokSync;
+use App\Support\ConnectionError;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\Factory;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Sleep;
 use Illuminate\Validation\ValidationException;
 use Tests\TestCase;
 
@@ -213,10 +218,54 @@ class TiktokIntegrationTest extends TestCase
         try {
             app(TiktokOrderSync::class)->sync($shop);
             $this->fail('Error API seharusnya diteruskan.');
-        } catch (\App\Services\Tiktok\TiktokException) {
+        } catch (TiktokException) {
         }
 
         $this->assertSame(['BAD1'], Cache::get("tiktok:order-retry:{$shop->id}"));
+    }
+
+    public function test_connection_timeout_shows_a_clean_message_and_clears_after_next_good_sync(): void
+    {
+        Sleep::fake();
+        $shop = $this->shop()->fresh();
+        $attempts = 0;
+        Http::fake(['*/order/202309/orders/search*' => function () use (&$attempts) {
+            $attempts++;
+
+            throw new ConnectionException(
+                'cURL error 28: Failed to connect to open-api.tiktokglobalshop.com port 443 after 10002 ms: Timeout was reached (see https://curl.se/libcurl/c/libcurl-errors.html) for https://open-api.tiktokglobalshop.com/order/202309/orders/search?page_size=100&app_key=appkey123&sign=abcdef&shop_cipher=ROW_cipher1'
+            );
+        }]);
+
+        try {
+            app(TiktokSync::class)->run($shop, ['orders']);
+            $this->fail('Putus koneksi seharusnya diteruskan.');
+        } catch (TiktokException $e) {
+            $this->assertTrue($e->connectionFailed, $e->getMessage());
+        }
+
+        // Diulang sesuai config sebelum menyerah; pesan tanpa URL / app_key / sign.
+        $this->assertSame(1 + config('tiktok.retries'), $attempts);
+        $error = $shop->fresh()->last_error;
+        $this->assertStringContainsString('open-api.tiktokglobalshop.com', $error);
+        $this->assertStringContainsString('tidak menjawab', $error);
+        $this->assertStringNotContainsString('appkey123', $error);
+        $this->assertStringNotContainsString('sign=', $error);
+        $this->assertSame('connected', $shop->fresh()->status);
+
+        $this->refake();
+        $this->fakeSearch([]);
+        app(TiktokSync::class)->run($shop->fresh(), ['orders']);
+
+        $this->assertNull($shop->fresh()->last_error);
+    }
+
+    public function test_connection_error_redacts_secrets_for_the_log(): void
+    {
+        $this->assertSame(
+            'for https://auth.tiktok-shops.com/api/v2/token/get?app_key=k&app_secret=***&auth_code=***',
+            ConnectionError::redact('for https://auth.tiktok-shops.com/api/v2/token/get?app_key=k&app_secret=rahasia&auth_code=xyz'),
+        );
     }
 
     public function test_settings_keep_secret_encrypted_and_when_left_blank(): void

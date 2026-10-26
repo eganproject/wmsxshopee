@@ -13,6 +13,8 @@ class ShopeeException extends RuntimeException
         public readonly ?string $requestId = null,
         public readonly ?int $httpStatus = null,
         public readonly bool $connectionFailed = false,
+        // Koneksi tidak pernah terbuka: request belum diterima server.
+        public readonly bool $notSent = false,
     ) {
         parent::__construct($message);
     }
