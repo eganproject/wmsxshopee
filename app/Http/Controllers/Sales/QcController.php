@@ -20,8 +20,9 @@ class QcController extends Controller
             ->withSum('items', 'qty')
             ->where('status', 'picking')
             ->oldest('picking_at')
-            ->limit(50)
-            ->get();
+            ->oldest('id')
+            ->paginate(50)
+            ->withQueryString();
 
         return view('sales.qc.index', ['queue' => $queue]);
     }

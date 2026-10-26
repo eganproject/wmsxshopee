@@ -133,6 +133,29 @@ class StockTest extends TestCase
         $this->get('/inventory/movements')->assertOk()->assertSee('Barang Masuk');
     }
 
+    public function test_stock_card_paginates_and_carries_running_balance(): void
+    {
+        $this->actingAs($this->superAdmin());
+
+        for ($i = 0; $i < 105; $i++) {
+            $this->stock('in', [['product_variant_id' => $this->variant->id, 'to_location_id' => $this->binA->id, 'qty' => 2]]);
+        }
+        $this->stock('out', [['product_variant_id' => $this->variant->id, 'from_location_id' => $this->binA->id, 'qty' => 10]]);
+
+        $first = $this->get("/inventory/stock-card?variant={$this->variant->id}")->assertOk()->assertSee('Saldo awal');
+        $this->assertCount(100, $first->viewData('rows'));
+        $this->assertSame(200, $first->viewData('rows')->last()->balance);
+        $this->assertSame(210, $first->viewData('totalIn'));
+        $this->assertSame(10, $first->viewData('totalOut'));
+
+        $second = $this->get("/inventory/stock-card?variant={$this->variant->id}&page=2")->assertOk()
+            ->assertSee('Saldo dari halaman sebelumnya');
+        $this->assertSame(200, $second->viewData('carried'));
+        $this->assertCount(6, $second->viewData('rows'));
+        $this->assertSame(200, $second->viewData('rows')->last()->balance);
+        $this->assertSame(210, $second->viewData('totalIn'));
+    }
+
     public function test_stock_card_and_movements_are_tabs_not_sidebar_menus(): void
     {
         $this->actingAs($this->superAdmin());
