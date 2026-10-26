@@ -120,6 +120,8 @@ class ShopeeIntegrationTest extends TestCase
         $this->assertSame([555, 'test', 'Optima Official', 'ID', $this->warehouse->id, 'connected'], [$shop->shop_id, $shop->environment, $shop->shop_name, $shop->region, $shop->warehouse_id, $shop->status]);
         $this->assertSame('refresh-1', $shop->refresh_token);
         $this->assertNotSame('akses-1', DB::table('shopee_shops')->value('access_token'));
+        // Toko baru mulai dengan kirim stok mati supaya stok asli di Shopee tidak tertimpa.
+        $this->assertFalse($shop->stock_push);
 
         Http::assertSent(fn (Request $r) => str_contains($r->url(), '/auth/token/get') && $r['code'] === 'kode123' && $r['shop_id'] === 555 && $r['partner_id'] === 1000001);
     }

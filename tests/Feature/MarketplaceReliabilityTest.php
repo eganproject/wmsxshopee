@@ -64,6 +64,7 @@ class MarketplaceReliabilityTest extends TestCase
         ]);
 
         $this->shop = ShopeeShop::create([
+            'stock_push' => true,
             'environment' => 'test', 'shop_id' => 555, 'shop_name' => 'Toko Uji', 'warehouse_id' => $this->warehouse->id, 'is_active' => true,
             'status' => 'connected', 'access_token' => 'akses', 'refresh_token' => 'refresh', 'access_token_expires_at' => now()->addHours(3),
             'connected_at' => now(),

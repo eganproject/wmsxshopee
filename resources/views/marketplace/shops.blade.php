@@ -158,6 +158,7 @@
                                     <form method="POST" action="{{ route($p.'.shops.update', $shop) }}" class="flex items-center gap-2">
                                         @csrf @method('PUT')
                                         <input type="hidden" name="is_active" value="{{ $shop->is_active ? 1 : 0 }}">
+                                        <input type="hidden" name="stock_push" value="{{ $shop->stock_push ? 1 : 0 }}">
                                         <select name="warehouse_id" class="form-input w-56" onchange="this.form.submit()" aria-label="Gudang pengirim">
                                             @unless ($shop->warehouse_id)
                                                 <option value="">Pilih gudang</option>
@@ -167,8 +168,20 @@
                                             @endforeach
                                         </select>
                                     </form>
+                                    @if ($shop->warehouse_id)
+                                        <form method="POST" action="{{ route($p.'.shops.update', $shop) }}" class="mt-1.5">
+                                            @csrf @method('PUT')
+                                            <input type="hidden" name="is_active" value="{{ $shop->is_active ? 1 : 0 }}">
+                                            <input type="hidden" name="warehouse_id" value="{{ $shop->warehouse_id }}">
+                                            <label class="inline-flex cursor-pointer items-center gap-1.5 text-xs text-slate-600" title="Mati: stok di {{ $platformName }} tidak diubah Optima. Nyalakan setelah stok gudang sudah dicek (stock opname).">
+                                                <input type="checkbox" name="stock_push" value="1" class="form-checkbox" @checked($shop->stock_push) onchange="this.form.submit()">
+                                                Kirim stok ke {{ $platformName }}
+                                            </label>
+                                        </form>
+                                    @endif
                                 @else
                                     {{ $shop->warehouse?->name ?? '—' }}
+                                    <p class="mt-1 text-xs text-slate-500">Kirim stok {{ $shop->stock_push ? 'aktif' : 'mati' }}</p>
                                 @endif
                             </td>
                             <td class="px-4 py-2.5">

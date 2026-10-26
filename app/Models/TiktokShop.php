@@ -37,6 +37,7 @@ class TiktokShop extends Model
         'stock_pushed_at',
         'last_error',
         'is_active',
+        'stock_push',
     ];
 
     protected $hidden = ['access_token', 'refresh_token', 'shop_cipher'];
@@ -55,6 +56,7 @@ class TiktokShop extends Model
             'returns_synced_until' => 'datetime',
             'stock_pushed_at' => 'datetime',
             'is_active' => 'boolean',
+            'stock_push' => 'boolean',
         ];
     }
 

@@ -76,6 +76,7 @@ class TiktokIntegrationTest extends TestCase
         $this->configure();
 
         $shop = TiktokShop::create([
+            'stock_push' => true,
             'shop_id' => '7495000000000000001', 'shop_cipher' => 'ROW_cipher1', 'shop_name' => 'Optima TikTok', 'region' => 'ID',
             'open_id' => 'open-1', 'warehouse_id' => $this->warehouse->id, 'tiktok_warehouse_id' => '7000000000000000009',
             'status' => 'connected', 'access_token' => 'akses', 'refresh_token' => 'refresh', 'access_token_expires_at' => now()->addDays(5),

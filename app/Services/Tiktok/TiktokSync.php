@@ -77,7 +77,7 @@ class TiktokSync
         }
         if (isset($result['stock'])) {
             $s = $result['stock'];
-            $parts[] = "stok: {$s['skus']} SKU dikirim".($s['failed'] ? ', '.count($s['failed']).' gagal' : '');
+            $parts[] = ($s['disabled'] ?? false) ? 'stok: tidak dikirim (kirim stok toko ini dimatikan)' : "stok: {$s['skus']} SKU dikirim".($s['failed'] ? ', '.count($s['failed']).' gagal' : '');
         }
 
         return ucfirst(implode('; ', $parts)).'.';

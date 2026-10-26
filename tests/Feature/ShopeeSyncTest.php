@@ -71,6 +71,7 @@ class ShopeeSyncTest extends TestCase
         ]);
 
         $this->shop = ShopeeShop::create([
+            'stock_push' => true,
             'environment' => 'test', 'shop_id' => 555, 'shop_name' => 'Toko Uji', 'warehouse_id' => $this->warehouse->id,
             'status' => 'connected', 'access_token' => 'akses', 'refresh_token' => 'refresh', 'access_token_expires_at' => now()->addHours(3),
         ]);
@@ -602,6 +603,28 @@ class ShopeeSyncTest extends TestCase
         $this->assertNotNull($this->shop->fresh()->stock_pushed_at);
         $this->assertSame([7, 4, 4], $this->shop->mappings()->orderBy('id')->pluck('stock_pushed')->all());
         $this->assertSame(0, $this->shop->mappings()->whereNotNull('stock_error')->count());
+    }
+
+    public function test_stock_push_switched_off_leaves_marketplace_stock_alone(): void
+    {
+        Http::fake(['*/product/update_stock*' => Http::response(['error' => '', 'response' => ['success_list' => [], 'failure_list' => []]])]);
+        $this->actingAs(User::where('username', 'superadmin')->first());
+
+        // Matikan kirim stok dari daftar toko: gudang tetap.
+        $this->put("/shopee/shops/{$this->shop->id}", ['warehouse_id' => $this->warehouse->id, 'is_active' => 1])->assertSessionHas('success');
+        $this->assertFalse($this->shop->fresh()->stock_push);
+        $this->assertSame($this->warehouse->id, $this->shop->fresh()->warehouse_id);
+
+        $this->artisan('marketplace:push-stock --all')->assertSuccessful();
+        $this->assertTrue(app(ShopeeStockSync::class)->push($this->shop->fresh())['disabled']);
+        Http::assertNotSent(fn (Request $r) => str_contains($r->url(), 'update_stock'));
+        $this->assertSame(0, $this->shop->mappings()->whereNotNull('stock_pushed')->count());
+
+        // Nyalakan lagi: stok terkirim.
+        $this->put("/shopee/shops/{$this->shop->id}", ['warehouse_id' => $this->warehouse->id, 'is_active' => 1, 'stock_push' => 1]);
+        $this->assertTrue($this->shop->fresh()->stock_push);
+        $this->artisan('marketplace:push-stock --all')->assertSuccessful();
+        Http::assertSent(fn (Request $r) => str_contains($r->url(), 'update_stock'));
     }
 
     public function test_stock_push_records_rejected_models_per_sku(): void
