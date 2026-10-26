@@ -24,7 +24,7 @@
 
     <div class="card">
         <div class="border-b border-slate-100 px-5 py-3">
-            <h2 class="text-base font-semibold text-slate-900">Antrean QC <span class="ml-1 text-sm font-normal text-slate-400">{{ $queue->count() }}</span></h2>
+            <h2 class="text-base font-semibold text-slate-900">Antrean QC <span class="ml-1 text-sm font-normal text-slate-400">{{ number_format($queue->total(), 0, ',', '.') }}</span></h2>
             <p class="mt-0.5 text-sm text-slate-500">Pesanan yang picking-nya sudah selesai dan menunggu dicek.</p>
         </div>
         <div class="overflow-x-auto">
@@ -62,5 +62,8 @@
                 </tbody>
             </table>
         </div>
+        @if ($queue->hasPages())
+            <div class="border-t border-slate-100 px-5 py-4">{{ $queue->links() }}</div>
+        @endif
     </div>
 </x-layouts.app>
