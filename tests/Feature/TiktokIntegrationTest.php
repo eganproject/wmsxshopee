@@ -202,6 +202,23 @@ class TiktokIntegrationTest extends TestCase
         $this->assertNull(Cache::get("tiktok:order-retry:{$shop->id}"));
     }
 
+    public function test_tiktok_retry_list_survives_an_api_error_mid_sync(): void
+    {
+        $shop = $this->shop();
+        Cache::forever("tiktok:order-retry:{$shop->id}", ['BAD1']);
+        $this->fakeSearch([], [
+            '*/order/202309/orders?*' => Http::response(['code' => 36009004, 'message' => 'Layanan sibuk']),
+        ]);
+
+        try {
+            app(TiktokOrderSync::class)->sync($shop);
+            $this->fail('Error API seharusnya diteruskan.');
+        } catch (\App\Services\Tiktok\TiktokException) {
+        }
+
+        $this->assertSame(['BAD1'], Cache::get("tiktok:order-retry:{$shop->id}"));
+    }
+
     public function test_settings_keep_secret_encrypted_and_when_left_blank(): void
     {
         $this->get('/tiktok/settings')->assertRedirect(route('marketplace.settings', ['tab' => 'tiktok']));

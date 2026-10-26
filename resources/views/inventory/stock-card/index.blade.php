@@ -117,8 +117,8 @@
                     </thead>
                     <tbody class="divide-y divide-slate-100">
                         <tr class="bg-slate-50/50">
-                            <td colspan="7" class="px-5 py-3 font-medium text-slate-600">Saldo awal</td>
-                            <td class="px-5 py-3 text-right font-semibold tabular-nums text-slate-900">{{ $fmt($opening) }}</td>
+                            <td colspan="7" class="px-5 py-3 font-medium text-slate-600">{{ $rows->onFirstPage() ? 'Saldo awal' : 'Saldo dari halaman sebelumnya' }}</td>
+                            <td class="px-5 py-3 text-right font-semibold tabular-nums text-slate-900">{{ $fmt($carried) }}</td>
                         </tr>
                         @forelse ($rows as $row)
                             <tr class="hover:bg-slate-50/60">
@@ -151,6 +151,9 @@
                     @endif
                 </table>
             </div>
+            @if ($rows->hasPages())
+                <div class="border-t border-slate-100 px-5 py-4">{{ $rows->links() }}</div>
+            @endif
         </div>
     @endif
 </x-layouts.app>
