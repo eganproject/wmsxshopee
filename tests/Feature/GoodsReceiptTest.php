@@ -274,6 +274,7 @@ class GoodsReceiptTest extends TestCase
         Http::fake(['*/product/update_stock*' => Http::response(['error' => '', 'response' => []])]);
         ShopeeSetting::create(['environment' => 'test', 'test_partner_id' => 1000001, 'test_partner_key' => 'rahasia-test']);
         $shop = ShopeeShop::create([
+            'stock_push' => true,
             'environment' => 'test', 'shop_id' => 555, 'shop_name' => 'Toko Uji', 'warehouse_id' => $this->warehouse->id, 'is_active' => true,
             'status' => 'connected', 'access_token' => 'akses', 'refresh_token' => 'refresh', 'access_token_expires_at' => now()->addHours(3),
         ]);

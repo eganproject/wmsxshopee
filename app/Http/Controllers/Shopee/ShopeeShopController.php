@@ -76,9 +76,10 @@ class ShopeeShopController extends Controller
         $data = $request->validate([
             'warehouse_id' => ['required', Rule::exists('warehouses', 'id')],
             'is_active' => ['nullable', 'boolean'],
+            'stock_push' => ['nullable', 'boolean'],
         ], [], ['warehouse_id' => 'gudang pengirim']);
 
-        $shop->update([...$data, 'is_active' => $data['is_active'] ?? false]);
+        $shop->update([...$data, 'is_active' => $data['is_active'] ?? false, 'stock_push' => $data['stock_push'] ?? false]);
 
         return back()->with('success', "Toko {$shop->displayName()} diperbarui.");
     }

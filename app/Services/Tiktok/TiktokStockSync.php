@@ -31,6 +31,11 @@ class TiktokStockSync
      */
     public function push(TiktokShop $shop, ?TiktokShopApi $api = null, bool $onlyChanged = false): array
     {
+        // Kirim stok dimatikan untuk toko ini (cth. toko baru yang stok gudangnya belum dicek).
+        if (! $shop->stock_push) {
+            return ['products' => 0, 'skus' => 0, 'failed' => [], 'disabled' => true];
+        }
+
         // Satu kiriman stok per toko pada satu waktu, supaya angka lama tidak menimpa yang baru.
         return Cache::lock('stock-push:tiktok:'.$shop->id, 300)
             ->block(120, fn () => $this->pushLocked($shop, $api, $onlyChanged));
