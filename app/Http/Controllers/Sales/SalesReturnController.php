@@ -137,6 +137,11 @@ class SalesReturnController extends Controller
         $data = $this->validated($request, $return);
 
         Activity::track($return, fn () => DB::transaction(function () use ($request, $return, $data) {
+            // Kunci & cek ulang: orang lain bisa memposting draft ini bersamaan.
+            if (! SalesReturn::whereKey($return->id)->lockForUpdate()->firstOrFail()->isDraft()) {
+                throw ValidationException::withMessages(['return' => "{$return->number} baru saja diterima orang lain, jadi tidak bisa diubah lagi."]);
+            }
+
             $return->update($data['header']);
             $this->fillItems($request, $return, $data['items']);
         }));
