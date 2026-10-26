@@ -59,7 +59,15 @@ class ShopeeSync
             throw $e;
         }
 
-        $shop->update(['last_synced_at' => now()]);
+        // Sinkron berhasil: error lama (cth. putus koneksi sesaat) tidak relevan lagi.
+        // Kegagalan kirim stok di putaran ini tetap ditampilkan.
+        $stockFailed = ! empty($result['stock']['failed'] ?? []);
+        $keepStockError = ! isset($result['stock']) && str_starts_with((string) $shop->last_error, 'Kirim stok:');
+
+        $shop->update([
+            'last_synced_at' => now(),
+            ...($stockFailed || $keepStockError ? [] : ['last_error' => null]),
+        ]);
 
         return $result;
     }

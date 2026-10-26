@@ -3,6 +3,7 @@
 namespace App\Services\Shopee;
 
 use App\Models\ShopeeSetting;
+use App\Support\ConnectionError;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Sleep;
@@ -129,9 +130,9 @@ class ShopeeClient
         ]);
 
         try {
-            $response = Http::timeout(config('shopee.timeout'))->asJson()->post($url, $body);
+            $response = Http::connectTimeout(config('shopee.connect_timeout', 10))->timeout(config('shopee.timeout'))->asJson()->post($url, $body);
         } catch (ConnectionException $e) {
-            throw new ShopeeException('Tidak bisa terhubung ke Shopee: '.$e->getMessage());
+            throw new ShopeeException(ConnectionError::message('Shopee', $e), connectionFailed: true, notSent: ConnectionError::neverSent($e));
         }
 
         if (str_contains((string) $response->header('Content-Type'), 'json')) {
@@ -191,6 +192,11 @@ class ShopeeClient
             return 2000;
         }
 
+        // Koneksi yang gagal dibuka berarti request belum terkirim: aman diulang untuk POST juga.
+        if ($e->notSent) {
+            return 1000;
+        }
+
         if (strtoupper($method) === 'GET' && ($e->connectionFailed || $e->httpStatus >= 500 || in_array($error, ['error_server', 'error_inner', 'error_network', 'error_system'], true))) {
             return 1000;
         }
@@ -206,14 +212,14 @@ class ShopeeClient
     private function sendOnce(string $method, string $path, array $query, array $body): array
     {
         $url = $this->host().$path.'?'.http_build_query($query);
-        $request = Http::acceptJson()->timeout(config('shopee.timeout'));
+        $request = Http::acceptJson()->connectTimeout(config('shopee.connect_timeout', 10))->timeout(config('shopee.timeout'));
 
         try {
             $response = strtoupper($method) === 'GET'
                 ? $request->get($url)
                 : $request->asJson()->post($url, $body);
         } catch (ConnectionException $e) {
-            throw new ShopeeException('Tidak bisa terhubung ke Shopee: '.$e->getMessage(), connectionFailed: true);
+            throw new ShopeeException(ConnectionError::message('Shopee', $e), connectionFailed: true, notSent: ConnectionError::neverSent($e));
         }
 
         $json = $response->json() ?? [];

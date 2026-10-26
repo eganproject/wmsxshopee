@@ -3,6 +3,7 @@
 namespace App\Services\Tiktok;
 
 use App\Models\SalesOrder;
+use App\Support\ConnectionError;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
@@ -145,9 +146,9 @@ class TiktokLogistics
         }
 
         try {
-            $response = Http::timeout(config('tiktok.timeout'))->get($document['doc_url']);
+            $response = Http::connectTimeout(config('tiktok.connect_timeout', 10))->timeout(config('tiktok.timeout'))->get($document['doc_url']);
         } catch (ConnectionException $e) {
-            throw new TiktokException('Tidak bisa mengunduh label TikTok: '.$e->getMessage());
+            throw new TiktokException('Label TikTok gagal diunduh. '.ConnectionError::message('TikTok', $e), connectionFailed: true);
         }
 
         if ($response->failed() || ! str_starts_with($response->body(), '%PDF')) {
