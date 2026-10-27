@@ -122,6 +122,15 @@ class SalesOrder extends Model
         'dropoff' => ['label' => 'Drop Off', 'description' => 'Paket diantar ke cabang / agen kurir', 'icon' => 'heroicon-o-building-storefront'],
     ];
 
+    /**
+     * Kecepatan layanan kirim, dikenali dari nama layanan / kurir (GoSend Instant, SPX Sameday, dll).
+     * Instant didahulukan karena harus dikirim dalam hitungan jam.
+     */
+    public const DELIVERY_SPEEDS = [
+        'instant' => ['label' => 'Instant', 'keywords' => ['instant', 'instan']],
+        'same_day' => ['label' => 'Same Day', 'keywords' => ['same day', 'sameday', 'same-day']],
+    ];
+
     /** Cara barang sampai ke pembeli. Diambil pembeli tidak butuh kurir, resi maupun serah terima. */
     public const DELIVERY_TYPES = [
         'courier' => ['label' => 'Dikirim Kurir', 'description' => 'Paket dikirim ke alamat pembeli', 'icon' => 'heroicon-o-truck'],
@@ -684,6 +693,39 @@ class SalesOrder extends Model
      *
      * @param  Builder<SalesOrder>  $query
      */
+    /** Pesanan dengan layanan kirim instant / same day (lihat DELIVERY_SPEEDS). */
+    public function scopeDeliverySpeed(Builder $query, string $speed): void
+    {
+        $keywords = self::DELIVERY_SPEEDS[$speed]['keywords'] ?? [];
+
+        if ($keywords === []) {
+            return;
+        }
+
+        $query->where(function (Builder $q) use ($keywords) {
+            foreach ($keywords as $keyword) {
+                $q->orWhereRaw('LOWER(courier_service) LIKE ?', ['%'.$keyword.'%'])
+                    ->orWhereHas('courier', fn (Builder $c) => $c->whereRaw('LOWER(name) LIKE ?', ['%'.$keyword.'%']));
+            }
+        });
+    }
+
+    /** Kunci DELIVERY_SPEEDS untuk pesanan ini, atau null bila layanan biasa. */
+    public function deliverySpeed(): ?string
+    {
+        $text = mb_strtolower(trim(($this->courier_service ?? '').' '.($this->courier?->name ?? '')));
+
+        foreach (self::DELIVERY_SPEEDS as $key => $meta) {
+            foreach ($meta['keywords'] as $keyword) {
+                if (str_contains($text, $keyword)) {
+                    return $key;
+                }
+            }
+        }
+
+        return null;
+    }
+
     public function scopeShopeeFilter(Builder $query, string $filter): void
     {
         match ($filter) {

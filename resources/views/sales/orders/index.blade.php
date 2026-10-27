@@ -256,6 +256,13 @@
                         <option value="{{ $value }}" @selected(request('shipment') === $value)>{{ $meta['label'] }}</option>
                     @endforeach
                 </select>
+                <select name="speed" class="form-input lg:w-40" onchange="this.form.submit()" aria-label="Layanan kirim"
+                        data-hint-title="Layanan kirim" data-hint="Saring pesanan Instant atau Same Day (GoSend, GrabExpress, SPX Instant, dll) supaya bisa didahulukan.">
+                    <option value="">Semua layanan</option>
+                    @foreach (\App\Models\SalesOrder::DELIVERY_SPEEDS as $value => $meta)
+                        <option value="{{ $value }}" @selected(request('speed') === $value)>{{ $meta['label'] }}</option>
+                    @endforeach
+                </select>
                 <select name="label" class="form-input lg:w-44" onchange="this.form.submit()" aria-label="Cetak resi"
                         data-hint-title="Cetak resi" data-hint="Belum cetak resi: pengiriman sudah diatur dan label resi sudah bisa dicetak, tapi belum pernah dicetak dari Optima. Sudah cetak resi: label resi pernah dicetak dari Optima.">
                     <option value="">Semua cetak resi</option>
@@ -294,7 +301,7 @@
                         @endforeach
                     </select>
                     <button type="submit" class="btn-primary"><x-heroicon-o-funnel class="size-5" /> Cari</button>
-                    @if (request()->hasAny(['search', 'search_by', 'warehouse', 'shipment', 'label', 'date_by', 'from', 'to', 'sort']))
+                    @if (request()->hasAny(['search', 'search_by', 'warehouse', 'shipment', 'speed', 'label', 'date_by', 'from', 'to', 'sort']))
                         <a href="{{ route('sales.orders.index', request()->only(['status', 'mp', 'shopee', 'platform', 'channel', 'courier', 'per_page'])) }}" class="btn-icon" title="Reset filter"><x-heroicon-o-x-mark class="size-5" /></a>
                     @endif
                 </div>
@@ -424,7 +431,11 @@
                             <td class="px-3 py-3">
                                 <x-sales.shipment-status :order="$order" />
                                 @if (! $order->isSelfPickup() && ($order->courier || $order->tracking_number))
-                                    <p class="mt-1 text-xs text-slate-700">{{ $order->courier?->name }}{{ $order->courier && $order->courier_service ? ' · '.$order->courier_service : '' }}</p>
+                                    <p class="mt-1 text-xs text-slate-700">{{ $order->courier?->name }}{{ $order->courier && $order->courier_service ? ' · '.$order->courier_service : '' }}
+                                        @if ($speed = $order->deliverySpeed())
+                                            <span class="ml-1 rounded bg-rose-100 px-1.5 py-0.5 text-[10px] font-semibold text-rose-700 uppercase">{{ \App\Models\SalesOrder::DELIVERY_SPEEDS[$speed]['label'] }}</span>
+                                        @endif
+                                    </p>
                                     @if ($order->tracking_number)
                                         <p class="font-mono text-xs text-slate-500">{{ $order->tracking_number }}</p>
                                     @endif

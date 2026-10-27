@@ -14,7 +14,7 @@ class OrderSavedFilterController extends Controller
     public const PAGE = 'sales.orders';
 
     /** Parameter daftar pesanan yang ikut disimpan. */
-    public const KEYS = ['status', 'mp', 'platform', 'channel', 'courier', 'search', 'search_by', 'warehouse', 'shipment', 'label', 'date_by', 'from', 'to', 'sort', 'per_page'];
+    public const KEYS = ['status', 'mp', 'platform', 'channel', 'courier', 'search', 'search_by', 'warehouse', 'shipment', 'speed', 'label', 'date_by', 'from', 'to', 'sort', 'per_page'];
 
     public function store(Request $request): RedirectResponse
     {
