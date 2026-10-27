@@ -89,6 +89,9 @@
                         @case('marketplace')
                             <a href="{{ route('marketplace.sync-logs') }}" class="text-sm text-slate-600 hover:text-slate-900">Riwayat sinkron</a>
                             @break
+                        @case('pending_adjustments')
+                            <a href="{{ route('inventory.adjustments.index', ['status' => 'pending']) }}" class="text-sm text-slate-600 hover:text-slate-900">Lihat penyesuaian</a>
+                            @break
                     @endswitch
                 </div>
 
@@ -164,6 +167,13 @@
                                         <p class="truncate text-xs text-slate-500">{{ $item->supplier?->name ?? 'Tanpa supplier' }} · {{ $item->warehouse?->code }}</p>
                                     </div>
                                     <p class="text-xs text-slate-500" title="{{ $item->created_at?->translatedFormat('d M Y H:i') }}">{{ $item->created_at?->diffForHumans() }}</p>
+                                    @break
+                                @case('pending_adjustments')
+                                    <div class="min-w-0 flex-1">
+                                        <a href="{{ route('inventory.adjustments.show', $item) }}" class="text-sm font-medium text-slate-900 hover:text-brand-600">{{ $item->number }}</a>
+                                        <p class="truncate text-xs text-slate-500">{{ $item->reasonLabel() }} · {{ $item->warehouse?->code }} · diajukan {{ $item->submitter?->name ?? '—' }}</p>
+                                    </div>
+                                    <p class="text-xs text-slate-500" title="{{ $item->submitted_at?->translatedFormat('d M Y H:i') }}">{{ $item->submitted_at?->diffForHumans() }}</p>
                                     @break
                             @endswitch
                         </li>

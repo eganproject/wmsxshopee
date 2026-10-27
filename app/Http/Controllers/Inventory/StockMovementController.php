@@ -52,10 +52,14 @@ class StockMovementController extends Controller
         ]);
     }
 
-    public function create(Request $request): View
+    public function create(Request $request): View|RedirectResponse
     {
-        $default = $request->user()->can('inventory.create') ? 'transfer' : 'adjustment';
-        $type = $this->authorizedType($request, $request->query('type', $default));
+        // Penyesuaian kini lewat dokumen Penyesuaian Stok yang perlu approval.
+        if ($request->query('type') === 'adjustment') {
+            return redirect()->route('inventory.adjustments.create');
+        }
+
+        $type = $this->authorizedType($request, $request->query('type', 'transfer'));
 
         $warehouses = Warehouse::where('is_active', true)->orderBy('code')->get();
 
@@ -113,13 +117,13 @@ class StockMovementController extends Controller
     }
 
     /**
-     * Hanya transfer & penyesuaian yang dicatat manual. Penyesuaian butuh
-     * inventory.adjust, transfer cukup inventory.create.
+     * Hanya transfer lokasi yang dicatat manual (inventory.create). Penyesuaian
+     * lewat dokumen Penyesuaian Stok (StockAdjustmentController) dengan approval.
      */
     private function authorizedType(Request $request, string $type): string
     {
         abort_unless(in_array($type, StockMovement::MANUAL_TYPES, true), 404);
-        abort_unless($request->user()->can($type === 'adjustment' ? 'inventory.adjust' : 'inventory.create'), 403);
+        abort_unless($request->user()->can('inventory.create'), 403);
 
         return $type;
     }

@@ -109,6 +109,8 @@ class StockTest extends TestCase
         }
 
         $this->get('/inventory/movements/create?type=unknown')->assertNotFound();
+        // Jalur lama penyesuaian diarahkan ke dokumen Penyesuaian Stok (perlu approval).
+        $this->get('/inventory/movements/create?type=adjustment')->assertRedirect(route('inventory.adjustments.create'));
     }
 
     public function test_stock_in_and_out_cannot_be_recorded_manually(): void
@@ -127,7 +129,8 @@ class StockTest extends TestCase
         // Menu "Catat Mutasi" hanya menawarkan transfer & penyesuaian; riwayat masuk tetap tampil.
         $this->get('/inventory/stocks')->assertOk()
             ->assertSee(route('inventory.movements.create', ['type' => 'transfer']), false)
-            ->assertSee(route('inventory.movements.create', ['type' => 'adjustment']), false)
+            ->assertSee(route('inventory.adjustments.create'), false)
+            ->assertDontSee(route('inventory.movements.create', ['type' => 'adjustment']), false)
             ->assertDontSee(route('inventory.movements.create', ['type' => 'in']), false)
             ->assertDontSee(route('inventory.movements.create', ['type' => 'out']), false);
         $this->get('/inventory/movements')->assertOk()->assertSee('Barang Masuk');
@@ -222,21 +225,18 @@ class StockTest extends TestCase
         $this->assertSame(2, StockLedger::where('stock_movement_id', $transfer->id)->count());
     }
 
-    public function test_adjustment_accepts_signed_qty_and_requires_permission(): void
+    public function test_adjustment_cannot_be_recorded_directly_as_movement(): void
     {
         $this->actingAs($this->superAdmin());
-        $this->record('adjustment', [['product_variant_id' => $this->variant->id, 'to_location_id' => $this->binA->id, 'qty' => 7]])->assertSessionHasNoErrors();
-        $this->record('adjustment', [['product_variant_id' => $this->variant->id, 'to_location_id' => $this->binA->id, 'qty' => -2]])->assertSessionHasNoErrors();
-        $this->record('adjustment', [['product_variant_id' => $this->variant->id, 'to_location_id' => $this->binA->id, 'qty' => 0]])->assertSessionHasErrors('items.0.qty');
-        $this->record('adjustment', [['product_variant_id' => $this->variant->id, 'to_location_id' => $this->binA->id, 'qty' => -6]])->assertSessionHasErrors('items.0.qty');
+        $this->stock('in', [['product_variant_id' => $this->variant->id, 'to_location_id' => $this->binA->id, 'qty' => 5]]);
 
+        // Penyesuaian hanya lewat dokumen Penyesuaian Stok yang perlu approval.
+        $this->record('adjustment', [['product_variant_id' => $this->variant->id, 'to_location_id' => $this->binA->id, 'qty' => 7]])->assertNotFound();
         $this->assertSame(5, $this->qty($this->binA));
 
-        // Staff gudang boleh catat transfer, tapi tidak penyesuaian.
         $staff = User::factory()->create()->assignRole('Staff Gudang');
         $this->actingAs($staff);
-        $this->get('/inventory/movements/create?type=adjustment')->assertForbidden();
-        $this->record('adjustment', [['product_variant_id' => $this->variant->id, 'to_location_id' => $this->binA->id, 'qty' => 1]])->assertForbidden();
+        $this->record('adjustment', [['product_variant_id' => $this->variant->id, 'to_location_id' => $this->binA->id, 'qty' => 1]])->assertNotFound();
         $this->record('transfer', [['product_variant_id' => $this->variant->id, 'from_location_id' => $this->binA->id, 'to_location_id' => $this->binB->id, 'qty' => 1]])->assertSessionHasNoErrors();
         $this->assertSame(4, $this->qty($this->binA));
     }
@@ -272,16 +272,16 @@ class StockTest extends TestCase
         $this->actingAs($this->superAdmin());
 
         $this->post('/inventory/movements', [
-            'type' => 'adjustment',
+            'type' => 'transfer',
             'warehouse_id' => $other->id,
             'movement_date' => now()->toDateString(),
-            'items' => [['product_variant_id' => $this->variant->id, 'to_location_id' => $this->binA->id, 'qty' => 1]],
+            'items' => [['product_variant_id' => $this->variant->id, 'from_location_id' => '', 'to_location_id' => $this->binA->id, 'qty' => 1]],
         ])->assertSessionHasErrors('items.0.to_location_id');
 
-        $this->record('adjustment', [['product_variant_id' => $this->variant->id, 'to_location_id' => $this->binB->id, 'qty' => 1]])
+        $this->record('transfer', [['product_variant_id' => $this->variant->id, 'from_location_id' => '', 'to_location_id' => $this->binB->id, 'qty' => 1]])
             ->assertSessionHasErrors('items.0.to_location_id');
 
-        $this->record('adjustment', [['product_variant_id' => $this->variant->id, 'to_location_id' => $this->binA->id, 'qty' => 1]], now()->addDay()->toDateString())
+        $this->record('transfer', [['product_variant_id' => $this->variant->id, 'from_location_id' => '', 'to_location_id' => $this->binA->id, 'qty' => 1]], now()->addDay()->toDateString())
             ->assertSessionHasErrors('movement_date');
 
         $this->assertSame(0, StockMovement::count());
@@ -295,7 +295,7 @@ class StockTest extends TestCase
         $this->stock('in', $item(10), now()->subMonths(2)->toDateString());
         $this->stock('in', $item(5), now()->toDateString());
         // Dicatat belakangan tapi bertanggal lebih awal: saldo berjalan tetap urut tanggal.
-        $this->record('adjustment', $item(-3), now()->subDay()->toDateString());
+        $this->stock('adjustment', $item(-3), now()->subDay()->toDateString());
 
         $response = $this->get('/inventory/stock-card?'.http_build_query([
             'variant' => $this->variant->id,
@@ -372,7 +372,7 @@ class StockTest extends TestCase
         $this->assertThrows(fn () => $this->stock('out', [['product_variant_id' => $this->variant->id, 'from_location_id' => '', 'qty' => 10]]),
             ValidationException::class);
         $this->stock('out', [['product_variant_id' => $this->variant->id, 'from_location_id' => '', 'qty' => 9]]);
-        $this->record('adjustment', [['product_variant_id' => $this->variant->id, 'to_location_id' => '', 'qty' => 2]])->assertSessionHasNoErrors();
+        $this->stock('adjustment', [['product_variant_id' => $this->variant->id, 'to_location_id' => '', 'qty' => 2]]);
 
         $this->assertSame(2, (int) $unassigned()->value('qty'));
         $this->assertSame(6, $this->qty($this->binA));

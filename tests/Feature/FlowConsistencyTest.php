@@ -8,6 +8,7 @@ use App\Models\Product;
 use App\Models\ProductVariant;
 use App\Models\SalesOrder;
 use App\Models\Stock;
+use App\Models\StockAdjustment;
 use App\Models\Supplier;
 use App\Models\Unit;
 use App\Models\User;
@@ -156,13 +157,13 @@ class FlowConsistencyTest extends TestCase
         $this->bin->update(['is_active' => false]);
         $this->actingAs($this->admin);
 
-        $this->post('/inventory/movements', ['type' => 'adjustment', 'warehouse_id' => $this->warehouse->id, 'movement_date' => now()->toDateString(), 'items' => [
-            ['product_variant_id' => $this->variant->id, 'to_location_id' => $this->bin->id, 'qty' => 2],
-        ]])->assertSessionHasErrors('items.0.to_location_id');
+        $adjust = fn (int $qty) => $this->post('/inventory/adjustments', ['action' => 'submit', 'warehouse_id' => $this->warehouse->id, 'adjustment_date' => now()->toDateString(), 'reason' => 'input_error', 'items' => [
+            ['product_variant_id' => $this->variant->id, 'warehouse_location_id' => $this->bin->id, 'qty' => $qty],
+        ]]);
 
-        $this->post('/inventory/movements', ['type' => 'adjustment', 'warehouse_id' => $this->warehouse->id, 'movement_date' => now()->toDateString(), 'items' => [
-            ['product_variant_id' => $this->variant->id, 'to_location_id' => $this->bin->id, 'qty' => -10],
-        ]])->assertSessionHasNoErrors();
+        $adjust(2)->assertSessionHasErrors('items.0.warehouse_location_id');
+        $adjust(-10)->assertSessionHasNoErrors();
+        $this->post('/inventory/adjustments/'.StockAdjustment::latest('id')->value('id').'/approve')->assertSessionHasNoErrors();
 
         $this->assertSame(0, (int) Stock::where('warehouse_location_id', $this->bin->id)->value('qty'));
     }

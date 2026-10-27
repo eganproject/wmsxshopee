@@ -41,9 +41,10 @@ class StockMovement extends Model
 
     /**
      * Jenis yang boleh dicatat manual lewat halaman Stok. Barang masuk hanya lewat
-     * Penerimaan Barang (dan impor stok awal), barang keluar lewat pesanan/retur.
+     * Penerimaan Barang (dan impor stok awal), barang keluar lewat pesanan/retur,
+     * penyesuaian lewat dokumen Penyesuaian Stok (perlu approval).
      */
-    public const MANUAL_TYPES = ['transfer', 'adjustment'];
+    public const MANUAL_TYPES = ['transfer'];
 
     protected $fillable = [
         'number',

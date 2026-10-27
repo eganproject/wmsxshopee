@@ -66,6 +66,9 @@ class Activity
         'tracking_number' => 'No. Resi',
         'shipping_fee' => 'Ongkir',
         'cancel_reason' => 'Alasan Batal',
+        'reason' => 'Alasan',
+        'rejection_reason' => 'Alasan Ditolak',
+        'adjustment_date' => 'Tanggal Penyesuaian',
         'return_date' => 'Tanggal Retur',
         'source' => 'Sumber',
         'sales_order_id' => 'Pesanan',
@@ -295,6 +298,10 @@ class Activity
 
         if ($attribute === 'status' && defined($model::class.'::STATUSES')) {
             return $model::STATUSES[$raw]['label'] ?? $raw;
+        }
+
+        if ($attribute === 'reason' && defined($model::class.'::REASONS')) {
+            return $model::REASONS[$raw] ?? $raw;
         }
 
         if ($attribute === 'source' && defined($model::class.'::SOURCES')) {
