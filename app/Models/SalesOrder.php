@@ -42,8 +42,8 @@ class SalesOrder extends Model
 
     /**
      * Tab di daftar pesanan: status gudang, ditambah tab Selesai setelah Dikirim.
-     * Selesai bukan status gudang: pesanan berstatus Dikirim yang di Shopee / TikTok sudah selesai
-     * (pembeli sudah menerima pesanan). Tab Dikirim hanya berisi yang belum selesai.
+     * Selesai bukan status gudang: pesanan berstatus Dikirim yang di Shopee / TikTok sudah sampai di pembeli
+     * atau sudah selesai. Tab Dikirim hanya berisi yang masih di perjalanan.
      */
     public const LIST_TABS = [
         'draft' => self::STATUSES['draft'],
@@ -52,7 +52,7 @@ class SalesOrder extends Model
         'packed' => self::STATUSES['packed'],
         'shipped' => self::STATUSES['shipped'],
         'completed' => ['label' => 'Selesai', 'icon' => 'heroicon-o-check-circle', 'color' => 'emerald',
-            'hint' => 'Pesanan yang sudah dikirim dan di Shopee / TikTok sudah selesai, artinya pembeli sudah menerima pesanan.',
+            'hint' => 'Pesanan yang sudah dikirim dan di Shopee / TikTok sudah sampai di pembeli atau sudah selesai.',
             'next' => null],
         'cancelled' => self::STATUSES['cancelled'],
     ];
@@ -627,19 +627,22 @@ class SalesOrder extends Model
     }
 
     /**
-     * Filter tab daftar pesanan. Tab Selesai = Dikirim + selesai di marketplace;
-     * tab Dikirim tidak lagi memuat pesanan yang sudah selesai.
+     * Filter tab daftar pesanan. Tab Selesai = Dikirim + sampai di pembeli / selesai di marketplace;
+     * tab Dikirim tidak lagi memuat pesanan tersebut.
      *
      * @param  Builder<SalesOrder>  $query
      */
     public function scopeInListTab(Builder $query, string $tab): void
     {
         // Kolom status dicek tidak null supaya NOT (...) tidak ikut membuang baris karena NULL.
+        $done = ['delivered', 'completed'];
+        $shopee = array_merge(...array_map(fn ($key) => self::MARKETPLACE_STATUSES[$key]['shopee'], $done));
+        $tiktok = array_merge(...array_map(fn ($key) => self::MARKETPLACE_STATUSES[$key]['tiktok'], $done));
         $completed = fn ($q) => $q
             ->where(fn ($s) => $s->whereNotNull('shopee_shop_id')->whereNotNull('shopee_order_status')
-                ->whereIn('shopee_order_status', self::MARKETPLACE_STATUSES['completed']['shopee']))
+                ->whereIn('shopee_order_status', $shopee))
             ->orWhere(fn ($t) => $t->whereNotNull('tiktok_shop_id')->whereNotNull('tiktok_order_status')
-                ->whereIn('tiktok_order_status', self::MARKETPLACE_STATUSES['completed']['tiktok'])
+                ->whereIn('tiktok_order_status', $tiktok)
                 ->where('tiktok_cancel_requested', false));
 
         match ($tab) {

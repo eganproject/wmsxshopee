@@ -385,27 +385,30 @@ class SalesOrderTest extends TestCase
 
         $this->listOrder('SO-DONE-SHP', ['status' => 'shipped', 'shopee_shop_id' => $shopee->id, 'shopee_order_status' => 'COMPLETED']);
         $this->listOrder('SO-DONE-TT', ['status' => 'shipped', 'tiktok_shop_id' => $tiktok->id, 'tiktok_order_status' => 'COMPLETED']);
-        $this->listOrder('SO-OTW-SHP', ['status' => 'shipped', 'shopee_shop_id' => $shopee->id, 'shopee_order_status' => 'TO_CONFIRM_RECEIVE']);
-        $this->listOrder('SO-OTW-TT', ['status' => 'shipped', 'tiktok_shop_id' => $tiktok->id, 'tiktok_order_status' => 'DELIVERED']);
+        // Sampai di pembeli (menunggu konfirmasi terima) juga masuk Selesai.
+        $this->listOrder('SO-ARR-SHP', ['status' => 'shipped', 'shopee_shop_id' => $shopee->id, 'shopee_order_status' => 'TO_CONFIRM_RECEIVE']);
+        $this->listOrder('SO-ARR-TT', ['status' => 'shipped', 'tiktok_shop_id' => $tiktok->id, 'tiktok_order_status' => 'DELIVERED']);
+        $this->listOrder('SO-OTW-SHP', ['status' => 'shipped', 'shopee_shop_id' => $shopee->id, 'shopee_order_status' => 'SHIPPED']);
+        $this->listOrder('SO-OTW-TT', ['status' => 'shipped', 'tiktok_shop_id' => $tiktok->id, 'tiktok_order_status' => 'IN_TRANSIT']);
         $this->listOrder('SO-NOSTAT', ['status' => 'shipped', 'shopee_shop_id' => $shopee->id]);
         $this->listOrder('SO-MANUAL', ['status' => 'shipped']);
         // Selesai di Shopee tapi gudang belum mengirim: tetap di tabnya (dan muncul di Tidak sinkron).
         $this->listOrder('SO-AHEAD', ['status' => 'packed', 'shopee_shop_id' => $shopee->id, 'shopee_order_status' => 'COMPLETED']);
 
         $this->get(route('sales.orders.index', ['status' => 'completed']))->assertOk()
-            ->assertSee('SO-DONE-SHP')->assertSee('SO-DONE-TT')
+            ->assertSee('SO-DONE-SHP')->assertSee('SO-DONE-TT')->assertSee('SO-ARR-SHP')->assertSee('SO-ARR-TT')
             ->assertDontSee('SO-OTW-SHP')->assertDontSee('SO-OTW-TT')->assertDontSee('SO-NOSTAT')->assertDontSee('SO-MANUAL')->assertDontSee('SO-AHEAD');
 
         $this->get(route('sales.orders.index', ['status' => 'shipped']))->assertOk()
             ->assertSee('SO-OTW-SHP')->assertSee('SO-OTW-TT')->assertSee('SO-NOSTAT')->assertSee('SO-MANUAL')
-            ->assertDontSee('SO-DONE-SHP')->assertDontSee('SO-DONE-TT')->assertDontSee('SO-AHEAD');
+            ->assertDontSee('SO-DONE-SHP')->assertDontSee('SO-DONE-TT')->assertDontSee('SO-ARR-SHP')->assertDontSee('SO-ARR-TT')->assertDontSee('SO-AHEAD');
 
         // Jumlah tab: Selesai dipisah dari Dikirim, total Semua tetap.
         $this->get(route('sales.orders.index'))->assertOk()
-            ->assertViewHas('counts', fn ($counts) => $counts['completed'] === 2 && $counts['shipped'] === 4 && $counts->sum() === 7);
+            ->assertViewHas('counts', fn ($counts) => $counts['completed'] === 4 && $counts['shipped'] === 4 && $counts->sum() === 9);
 
         $this->get(route('dashboard'))->assertOk()
-            ->assertViewHas('orders', fn ($orders) => $orders['counts']['completed'] === 2 && $orders['counts']['shipped'] === 4);
+            ->assertViewHas('orders', fn ($orders) => $orders['counts']['completed'] === 4 && $orders['counts']['shipped'] === 4);
     }
 
     public function test_order_list_filters_platform_shop_and_pasted_numbers(): void

@@ -10,6 +10,7 @@ use App\Http\Controllers\Inventory\DamagedDocumentController;
 use App\Http\Controllers\Inventory\DamagedStockController;
 use App\Http\Controllers\Inventory\GoodsReceiptController;
 use App\Http\Controllers\Inventory\OpeningStockImportController;
+use App\Http\Controllers\Inventory\StockAdjustmentController;
 use App\Http\Controllers\Inventory\StockCardController;
 use App\Http\Controllers\Inventory\StockController;
 use App\Http\Controllers\Inventory\StockCountController;
@@ -129,12 +130,26 @@ Route::middleware(['auth', 'active'])->group(function () {
         Route::get('stock-card', [StockCardController::class, 'index'])->middleware('can:inventory.view')->name('stock-card.index');
         Route::get('lookup/variants', VariantLookupController::class)->middleware('can:inventory.view')->name('lookup.variants');
 
-        // Hak buat mutasi dicek di controller: penyesuaian butuh inventory.adjust,
-        // jenis lain inventory.create. Mutasi tidak bisa diubah/dihapus.
+        // Mutasi manual hanya transfer lokasi (inventory.create); penyesuaian lewat
+        // dokumen Penyesuaian Stok. Mutasi tidak bisa diubah/dihapus.
         Route::get('movements', [StockMovementController::class, 'index'])->middleware('can:inventory.view')->name('movements.index');
         Route::get('movements/create', [StockMovementController::class, 'create'])->name('movements.create');
         Route::post('movements', [StockMovementController::class, 'store'])->name('movements.store');
         Route::get('movements/{movement}', [StockMovementController::class, 'show'])->middleware('can:inventory.view')->name('movements.show');
+
+        // Penyesuaian stok dengan approval: draft -> diajukan -> disetujui / ditolak.
+        // Stok baru berubah saat disetujui (mutasi Penyesuaian).
+        Route::get('adjustments', [StockAdjustmentController::class, 'index'])->middleware('can:adjustments.view')->name('adjustments.index');
+        Route::get('adjustments/create', [StockAdjustmentController::class, 'create'])->middleware('can:adjustments.create')->name('adjustments.create');
+        Route::post('adjustments', [StockAdjustmentController::class, 'store'])->middleware('can:adjustments.create')->name('adjustments.store');
+        Route::get('adjustments/{adjustment}', [StockAdjustmentController::class, 'show'])->middleware('can:adjustments.view')->name('adjustments.show');
+        Route::get('adjustments/{adjustment}/edit', [StockAdjustmentController::class, 'edit'])->middleware('can:adjustments.create')->name('adjustments.edit');
+        Route::put('adjustments/{adjustment}', [StockAdjustmentController::class, 'update'])->middleware('can:adjustments.create')->name('adjustments.update');
+        Route::delete('adjustments/{adjustment}', [StockAdjustmentController::class, 'destroy'])->middleware('can:adjustments.create')->name('adjustments.destroy');
+        Route::post('adjustments/{adjustment}/submit', [StockAdjustmentController::class, 'submit'])->middleware('can:adjustments.create')->name('adjustments.submit');
+        Route::post('adjustments/{adjustment}/recall', [StockAdjustmentController::class, 'recall'])->middleware('can:adjustments.create')->name('adjustments.recall');
+        Route::post('adjustments/{adjustment}/approve', [StockAdjustmentController::class, 'approve'])->middleware('can:adjustments.approve')->name('adjustments.approve');
+        Route::post('adjustments/{adjustment}/reject', [StockAdjustmentController::class, 'reject'])->middleware('can:adjustments.approve')->name('adjustments.reject');
 
         // Transfer antar gudang (gudang besar -> gudang kecil): kirim, terima, batal.
         Route::get('transfers', [WarehouseTransferController::class, 'index'])->middleware('can:inventory.view')->name('transfers.index');
