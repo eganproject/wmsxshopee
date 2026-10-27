@@ -291,7 +291,7 @@ class TiktokLogistics
         }
 
         if ($pdfs !== []) {
-            SalesOrder::withoutGlobalScope('warehouse_access')->whereKey(array_keys($pdfs))->update(['shipping_label_printed_at' => now()]);
+            SalesOrder::markLabelsPrinted(array_keys($pdfs));
         }
 
         // Urutan PDF mengikuti urutan pesanan.

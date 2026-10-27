@@ -484,7 +484,7 @@ class ShopeeLogistics
             }
         }
 
-        SalesOrder::withoutGlobalScope('warehouse_access')->whereKey($orders->modelKeys())->update(['shipping_label_printed_at' => now()]);
+        SalesOrder::markLabelsPrinted($orders->modelKeys());
 
         return $documents;
     }

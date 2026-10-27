@@ -263,6 +263,12 @@
                         <option value="{{ $value }}" @selected(request('speed') === $value)>{{ $meta['label'] }}</option>
                     @endforeach
                 </select>
+                <select name="label" class="form-input lg:w-44" onchange="this.form.submit()" aria-label="Cetak resi"
+                        data-hint-title="Cetak resi" data-hint="Belum cetak resi: pengiriman sudah diatur dan label resi sudah bisa dicetak, tapi belum pernah dicetak dari Optima. Sudah cetak resi: label resi pernah dicetak dari Optima.">
+                    <option value="">Semua cetak resi</option>
+                    <option value="unprinted" @selected(request('label') === 'unprinted')>Belum cetak resi</option>
+                    <option value="printed" @selected(request('label') === 'printed')>Sudah cetak resi</option>
+                </select>
             </div>
             <div class="flex flex-col gap-3 lg:flex-row lg:flex-wrap lg:items-center">
                 <div class="flex flex-wrap items-center gap-2">
@@ -295,7 +301,7 @@
                         @endforeach
                     </select>
                     <button type="submit" class="btn-primary"><x-heroicon-o-funnel class="size-5" /> Cari</button>
-                    @if (request()->hasAny(['search', 'search_by', 'warehouse', 'shipment', 'speed', 'date_by', 'from', 'to', 'sort']))
+                    @if (request()->hasAny(['search', 'search_by', 'warehouse', 'shipment', 'speed', 'label', 'date_by', 'from', 'to', 'sort']))
                         <a href="{{ route('sales.orders.index', request()->only(['status', 'mp', 'shopee', 'platform', 'channel', 'courier', 'per_page'])) }}" class="btn-icon" title="Reset filter"><x-heroicon-o-x-mark class="size-5" /></a>
                     @endif
                 </div>
@@ -337,6 +343,10 @@
                                 <template x-for="id in ids('label')" :key="id"><input type="hidden" name="orders[]" :value="id"></template>
                                 <button type="submit" class="btn-primary"><x-heroicon-o-printer class="size-5" /> Cetak Resi <span class="opacity-75" x-text="'(' + count('label') + ')'"></span></button>
                             </form>
+                            <span class="flex items-center gap-1 text-xs text-amber-700" x-show="count('reprint')" x-cloak
+                                  title="Label resi pesanan ini sudah pernah dicetak. Pastikan tidak dicetak dobel.">
+                                <x-heroicon-o-exclamation-triangle class="size-4" /> <span x-text="count('reprint') + ' sudah pernah dicetak'"></span>
+                            </span>
                             <form method="POST" action="{{ route('sales.orders.pick.bulk') }}" x-show="count('pick')"
                                   data-confirm-title="Tandai Sedang Diambil?" :data-confirm="count('pick') + ' pesanan Dikonfirmasi ditandai Sedang Diambil dengan bin usulan otomatis (bin lokasi tetap dulu), sama seperti isian awal di halaman Picking. Pastikan barang sudah diambil sesuai picking list. Pesanan yang stok binnya kurang dilewati.'" data-confirm-text="Tandai Sedang Diambil">
                                 @csrf
@@ -430,6 +440,7 @@
                                         <p class="font-mono text-xs text-slate-500">{{ $order->tracking_number }}</p>
                                     @endif
                                 @endif
+                                <x-sales.label-print-status :order="$order" class="mt-1" />
                                 @if ($deadline)
                                     <p @class([
                                         'mt-1 flex items-center gap-1 text-[11px] whitespace-nowrap',

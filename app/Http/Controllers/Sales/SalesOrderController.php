@@ -78,11 +78,12 @@ class SalesOrderController extends Controller
             $income = $request->user()->can('sales.income');
 
             return XlsxExport::download('pesanan-'.now()->format('Ymd-His').'.xlsx',
-                ['No. SO', 'Tanggal', 'Status Gudang', 'Status Marketplace', 'Kode Status Marketplace', 'Saluran / Toko', 'No. Referensi', 'Pembeli', 'Telepon', 'Pengiriman', 'Alamat', 'Gudang', 'Kurir', 'Layanan', 'No. Resi', 'Total Qty', 'Diskon', 'Ongkir', 'Metode Bayar', 'Status Bayar',
+                ['No. SO', 'Tanggal', 'Status Gudang', 'Status Marketplace', 'Kode Status Marketplace', 'Saluran / Toko', 'No. Referensi', 'Pembeli', 'Telepon', 'Pengiriman', 'Alamat', 'Gudang', 'Kurir', 'Layanan', 'No. Resi', 'Cetak Resi', 'Total Qty', 'Diskon', 'Ongkir', 'Metode Bayar', 'Status Bayar',
                     ...($income ? ['Biaya Shopee', 'Dana Diterima Shopee'] : []), 'Catatan'],
                 $query->lazy(500)->map(fn ($o) => [
                     $o->number, $o->order_date->format('d/m/Y'), $o->statusLabel(), $o->marketplaceStatusLabel(), $o->marketplaceRawStatus(), $o->channel_name, $o->external_number, $o->customer_name, $o->customer_phone,
                     $o->deliveryTypeLabel(), $o->shipping_address, $o->warehouse?->code, $o->courier?->name, $o->courier_service, $o->tracking_number,
+                    $o->shipping_label_printed_at ? $o->shipping_label_printed_at->format('d/m/Y H:i').($o->shipping_label_print_count > 1 ? " ({$o->shipping_label_print_count}x)" : '') : 'Belum',
                     (int) $o->items_sum_qty, (float) $o->discount, (float) $o->shipping_fee, $o->paymentMethodLabel(), $o->paymentStatusLabel(),
                     ...($income ? [$o->shopee_income ? ShopeeIncome::fees($o->shopee_income) : null, $o->shopee_escrow_amount !== null ? (float) $o->shopee_escrow_amount : null] : []),
                     $o->notes,
@@ -125,6 +126,7 @@ class SalesOrderController extends Controller
                 'arranged' => $order->shipmentAlreadyArranged(),
                 'manual' => ! $order->isMarketplace() && $order->canArrangeShipment(),
                 'label' => $order->hasShippingLabel(),
+                'reprint' => $order->hasShippingLabel() && $order->isLabelPrinted(),
                 'pick' => $order->canBulkPick(),
             ]]),
             'warehouses' => Warehouse::orderBy('code')->get(),
@@ -497,6 +499,7 @@ class SalesOrderController extends Controller
                 ->where(fn ($q) => $q->whereNull('tiktok_shop_id')->orWhere('tiktok_order_status', 'AWAITING_SHIPMENT')))
             ->when(isset(SalesOrder::DELIVERY_SPEEDS[(string) $request->input('speed')]), fn ($query) => $query->deliverySpeed((string) $request->input('speed')))
             ->when($request->filled('shopee'), fn ($query) => $query->shopeeFilter((string) $request->input('shopee')))
+            ->when(in_array($request->input('label'), ['printed', 'unprinted'], true), fn ($query) => $query->labelPrintFilter((string) $request->input('label')))
             ->when($withMarketplaceStatus && $marketplace === 'out_of_sync', fn ($query) => $query->outOfSync())
             ->when($withMarketplaceStatus && isset(SalesOrder::MARKETPLACE_STATUSES[$marketplace]), fn ($query) => $query->whereMarketplaceStatus($marketplace))
             ->when(in_array($request->input('shipment'), array_keys(SalesOrder::SHIPPING_METHODS), true), fn ($query) => $query->where('shipping_method', $request->input('shipment')))

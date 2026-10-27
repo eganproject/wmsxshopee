@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Facades\DB;
 
 class SalesOrder extends Model
 {
@@ -203,6 +204,7 @@ class SalesOrder extends Model
         'shipment_arranged_at',
         'shipment_arranged_by',
         'shipping_label_printed_at',
+        'shipping_label_print_count',
         'qc_checked_by',
         'shipment_handover_id',
         'shipped_by',
@@ -236,6 +238,7 @@ class SalesOrder extends Model
             'pickup_at' => 'datetime',
             'shipment_arranged_at' => 'datetime',
             'shipping_label_printed_at' => 'datetime',
+            'shipping_label_print_count' => 'integer',
             'shopee_income' => 'array',
             'shopee_escrow_amount' => 'decimal:2',
             'shopee_income_final' => 'boolean',
@@ -740,6 +743,53 @@ class SalesOrder extends Model
         return $this->isShopee() && filled($this->shopee_order_status) && ! in_array($this->shopee_order_status, ['UNPAID', 'READY_TO_SHIP', 'IN_CANCEL', 'CANCELLED'], true);
     }
 
+    /**
+     * Catat bahwa label resi pesanan ini dicetak: waktu cetak terakhir dan jumlah cetak.
+     *
+     * @param  array<int, int>  $ids
+     */
+    public static function markLabelsPrinted(array $ids): void
+    {
+        if ($ids === []) {
+            return;
+        }
+
+        static::withoutGlobalScope('warehouse_access')->whereKey($ids)->toBase()->update([
+            'shipping_label_printed_at' => now(),
+            'shipping_label_print_count' => DB::raw('shipping_label_print_count + 1'),
+            'updated_at' => now(),
+        ]);
+    }
+
+    public function isLabelPrinted(): bool
+    {
+        return $this->shipping_label_printed_at !== null;
+    }
+
+    /**
+     * Filter cetak resi di daftar pesanan.
+     * "printed": label resi sudah pernah dicetak dari Optima.
+     * "unprinted": label resi sudah bisa dicetak (pengiriman diatur) tapi belum dicetak, dan paket belum dikirim.
+     */
+    public function scopeLabelPrintFilter(Builder $query, string $filter): void
+    {
+        match ($filter) {
+            'printed' => $query->whereNotNull('shipping_label_printed_at'),
+            'unprinted' => $query->whereNull('shipping_label_printed_at')
+                ->whereIn('status', self::RESERVING)
+                ->where('delivery_type', 'courier')
+                ->where(fn ($q) => $q
+                    // Sama dengan hasShippingLabel(): Shopee setelah diatur, TikTok setelah paket diatur, manual bila ada pengaturan / resi.
+                    ->orWhere(fn ($s) => $s->whereNotNull('shopee_shop_id')->whereNotNull('shopee_order_status')
+                        ->whereNotIn('shopee_order_status', ['UNPAID', 'READY_TO_SHIP', 'IN_CANCEL', 'CANCELLED']))
+                    ->orWhere(fn ($t) => $t->whereNotNull('tiktok_shop_id')->whereNotNull('tiktok_package_id')->where('tiktok_package_id', '!=', '')
+                        ->whereIn('tiktok_order_status', ['AWAITING_COLLECTION', ...self::TIKTOK_LEFT_WAREHOUSE]))
+                    ->orWhere(fn ($m) => $m->whereNull('shopee_shop_id')->whereNull('tiktok_shop_id')
+                        ->where(fn ($r) => $r->whereNotNull('shipment_arranged_at')->orWhere(fn ($n) => $n->whereNotNull('tracking_number')->where('tracking_number', '!=', ''))))),
+            default => null,
+        };
+    }
+
     /** Label resi: Shopee setelah pengiriman diatur, manual setelah ada metode / resi. */
     public function hasShippingLabel(): bool
     {
@@ -836,7 +886,7 @@ class SalesOrder extends Model
     /** Jejak waktu sinkron Shopee berubah tiap tarikan; tidak perlu masuk log. */
     public function activityIgnored(): array
     {
-        return ['shopee_synced_at', 'shipping_label_printed_at', 'shopee_income', 'shopee_escrow_amount', 'shopee_income_final', 'shopee_income_synced_at'];
+        return ['shopee_synced_at', 'shipping_label_printed_at', 'shipping_label_print_count', 'shopee_income', 'shopee_escrow_amount', 'shopee_income_final', 'shopee_income_synced_at'];
     }
 
     /**

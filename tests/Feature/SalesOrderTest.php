@@ -565,4 +565,35 @@ class SalesOrderTest extends TestCase
         $this->assertSame('instant', SalesOrder::where('number', 'SO-GSI')->first()->deliverySpeed());
         $this->assertNull(SalesOrder::where('number', 'SO-REG')->first()->deliverySpeed());
     }
+
+    public function test_order_list_filters_by_label_printed(): void
+    {
+        $shopee = ShopeeShop::create(['environment' => 'test', 'shop_id' => 779, 'shop_name' => 'Toko Resi', 'warehouse_id' => $this->warehouse->id, 'status' => 'connected']);
+        $tiktok = TiktokShop::create(['shop_id' => '749500002', 'shop_name' => 'Toko Resi TT', 'region' => 'ID', 'warehouse_id' => $this->warehouse->id, 'status' => 'connected']);
+
+        // Siap dicetak tapi belum dicetak.
+        $this->listOrder('SO-SHP-READY', ['shopee_shop_id' => $shopee->id, 'shopee_order_status' => 'PROCESSED']);
+        $this->listOrder('SO-TT-READY', ['tiktok_shop_id' => $tiktok->id, 'tiktok_order_status' => 'AWAITING_COLLECTION', 'tiktok_package_id' => 'PKG1']);
+        $this->listOrder('SO-MAN-READY', ['tracking_number' => 'JNE1']);
+        // Sudah dicetak.
+        $this->listOrder('SO-PRINTED', ['shopee_shop_id' => $shopee->id, 'shopee_order_status' => 'PROCESSED', 'shipping_label_printed_at' => now(), 'shipping_label_print_count' => 1]);
+        // Label belum bisa dicetak / tidak perlu: bukan "belum cetak resi".
+        $this->listOrder('SO-SHP-WAIT', ['shopee_shop_id' => $shopee->id, 'shopee_order_status' => 'READY_TO_SHIP']);
+        $this->listOrder('SO-TT-WAIT', ['tiktok_shop_id' => $tiktok->id, 'tiktok_order_status' => 'AWAITING_SHIPMENT', 'tiktok_package_id' => 'PKG2']);
+        $this->listOrder('SO-MAN-WAIT');
+        $this->listOrder('SO-SELF', ['delivery_type' => 'self_pickup', 'tracking_number' => 'X1']);
+        $this->listOrder('SO-GONE', ['status' => 'shipped', 'tracking_number' => 'JNE2']);
+
+        $this->get(route('sales.orders.index', ['label' => 'unprinted']))->assertOk()
+            ->assertSee('SO-SHP-READY')->assertSee('SO-TT-READY')->assertSee('SO-MAN-READY')
+            ->assertDontSee('SO-PRINTED')->assertDontSee('SO-SHP-WAIT')->assertDontSee('SO-TT-WAIT')->assertDontSee('SO-MAN-WAIT')->assertDontSee('SO-SELF')->assertDontSee('SO-GONE');
+
+        $this->get(route('sales.orders.index', ['label' => 'printed']))->assertOk()
+            ->assertSee('SO-PRINTED')->assertDontSee('SO-SHP-READY')->assertDontSee('SO-MAN-READY');
+
+        // Badge per baris di daftar: belum dicetak hanya untuk pesanan yang labelnya siap.
+        $page = $this->get(route('sales.orders.index'))->assertOk();
+        $this->assertSame(3, substr_count($page->getContent(), 'data-testid="label-unprinted"'));
+        $this->assertSame(1, substr_count($page->getContent(), 'data-testid="label-printed"'));
+    }
 }
