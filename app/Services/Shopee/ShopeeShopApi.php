@@ -45,6 +45,30 @@ class ShopeeShopApi
     }
 
     /**
+     * Beberapa panggilan sekaligus (paralel), lihat ShopeeClient::shopRequestMany().
+     * Panggilan yang ditolak karena token tidak berlaku diulang sekali dengan token baru.
+     *
+     * @param  array<array-key, array{method: string, path: string, params?: array<string, mixed>}>  $requests
+     * @return array<array-key, array<string, mixed>|string|ShopeeException>
+     */
+    public function many(array $requests): array
+    {
+        if ($requests === []) {
+            return [];
+        }
+
+        $results = $this->client->shopRequestMany($this->shop->shop_id, $this->auth->freshAccessToken($this->shop, $this->client), $requests);
+        $rejected = array_filter($results, fn ($result) => $result instanceof ShopeeException && $result->invalidAccessToken());
+
+        if ($rejected !== []) {
+            $this->auth->refresh($this->shop, $this->client);
+            $results = array_replace($results, $this->client->shopRequestMany($this->shop->shop_id, $this->shop->access_token, array_intersect_key($requests, $rejected)));
+        }
+
+        return $results;
+    }
+
+    /**
      * Jalankan panggilan dengan access token segar. Bila Shopee menolak tokennya
      * (cth. sudah diganti proses lain), token diperbarui sekali lalu panggilan diulang.
      *

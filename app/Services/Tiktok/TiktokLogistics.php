@@ -5,6 +5,8 @@ namespace App\Services\Tiktok;
 use App\Models\SalesOrder;
 use App\Support\ConnectionError;
 use Illuminate\Http\Client\ConnectionException;
+use Illuminate\Http\Client\Pool;
+use Illuminate\Http\Client\Response;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Http;
@@ -31,8 +33,15 @@ class TiktokLogistics
     {
         $this->ensureTiktok($order);
 
-        $response = $this->api($order)->get("/fulfillment/packages/{$order->tiktok_package_id}/handover_time_slots");
+        return $this->parseOptions($this->api($order)->get("/fulfillment/packages/{$order->tiktok_package_id}/handover_time_slots"));
+    }
 
+    /**
+     * @param  array<string, mixed>  $response
+     * @return array<string, mixed>
+     */
+    private function parseOptions(array $response): array
+    {
         $slots = collect($response['pickup_slots'] ?? [])
             ->filter(fn ($slot) => ($slot['avaliable'] ?? $slot['available'] ?? true) !== false && isset($slot['start_time'], $slot['end_time']))
             ->map(fn ($slot) => [
@@ -58,6 +67,24 @@ class TiktokLogistics
     {
         $this->ensureArrangeable($order);
         $options ??= $this->options($order);
+        [$body, $record] = $this->prepare($method, $input, $options);
+
+        $api = $this->api($order);
+        $api->post("/fulfillment/packages/{$order->tiktok_package_id}/ship", $body);
+
+        $this->markArranged($order, $record, $userId);
+        $this->fetchTracking($order, $api);
+    }
+
+    /**
+     * Isian ship & catatan pesanan untuk cara kirim yang dipilih.
+     *
+     * @param  array{pickup_slot?: string|null}  $input
+     * @param  array<string, mixed>  $options
+     * @return array{0: array<string, mixed>, 1: array<string, mixed>}
+     */
+    private function prepare(string $method, array $input, array $options): array
+    {
         $available = $options[$method] ?? null;
 
         if (! $available) {
@@ -84,9 +111,12 @@ class TiktokLogistics
             $record['dropoff_point'] = 'Titik drop off kurir TikTok';
         }
 
-        $api = $this->api($order);
-        $api->post("/fulfillment/packages/{$order->tiktok_package_id}/ship", $body);
+        return [$body, $record];
+    }
 
+    /** @param  array<string, mixed>  $record */
+    private function markArranged(SalesOrder $order, array $record, ?int $userId): void
+    {
         $order->update([
             ...$record,
             'tiktok_order_status' => 'AWAITING_COLLECTION',
@@ -94,8 +124,6 @@ class TiktokLogistics
             'shipment_arranged_at' => now(),
             'shipment_arranged_by' => $userId,
         ]);
-
-        $this->fetchTracking($order, $api);
     }
 
     /**
@@ -106,58 +134,204 @@ class TiktokLogistics
      */
     public function arrangeMany(Collection $orders, string $method, ?int $userId): array
     {
-        $result = ['arranged' => [], 'failed' => []];
+        $failed = [];
+        $ready = collect();
 
         foreach ($orders as $order) {
             try {
                 $this->ensureArrangeable($order);
-                $options = $this->options($order);
-                $input = $method === 'pickup' ? ['pickup_slot' => $options['pickup']['slots'][0]['key'] ?? null] : [];
-
-                $this->arrange($order, $method, $input, $userId, $options);
-                $result['arranged'][] = $order->number;
+                $ready->push($order);
             } catch (ValidationException $e) {
-                $result['failed'][$order->number] = collect($e->errors())->flatten()->first();
-            } catch (TiktokException $e) {
-                $result['failed'][$order->number] = $e->getMessage();
+                $failed[$order->number] = collect($e->errors())->flatten()->first();
             }
         }
 
-        return $result;
+        // Per toko: ambil slot semua paket sekaligus, lalu atur semuanya sekaligus (paralel).
+        foreach ($ready->groupBy('tiktok_shop_id') as $shopOrders) {
+            try {
+                $api = $this->api($shopOrders->first());
+                $slots = $api->many($shopOrders->mapWithKeys(fn (SalesOrder $order) => [$order->id => [
+                    'method' => 'GET',
+                    'path' => "/fulfillment/packages/{$order->tiktok_package_id}/handover_time_slots",
+                ]])->all());
+
+                $planned = [];
+                foreach ($shopOrders as $order) {
+                    try {
+                        if ($slots[$order->id] instanceof TiktokException) {
+                            throw $slots[$order->id];
+                        }
+                        $options = $this->parseOptions($slots[$order->id]);
+                        $input = $method === 'pickup' ? ['pickup_slot' => $options['pickup']['slots'][0]['key'] ?? null] : [];
+                        $planned[$order->id] = $this->prepare($method, $input, $options);
+                    } catch (ValidationException $e) {
+                        $failed[$order->number] = collect($e->errors())->flatten()->first();
+                    } catch (TiktokException $e) {
+                        $failed[$order->number] = $e->getMessage();
+                    }
+                }
+
+                $toShip = $shopOrders->filter(fn (SalesOrder $order) => isset($planned[$order->id]))->values();
+                $shipped = $api->many($toShip->mapWithKeys(fn (SalesOrder $order) => [$order->id => [
+                    'method' => 'POST',
+                    'path' => "/fulfillment/packages/{$order->tiktok_package_id}/ship",
+                    'body' => $planned[$order->id][0],
+                ]])->all());
+
+                $done = collect();
+                foreach ($toShip as $order) {
+                    if ($shipped[$order->id] instanceof TiktokException) {
+                        $failed[$order->number] = $shipped[$order->id]->getMessage();
+
+                        continue;
+                    }
+
+                    $this->markArranged($order, $planned[$order->id][1], $userId);
+                    $done->push($order);
+                }
+
+                $this->fetchTrackingMany($api, $done);
+            } catch (TiktokException $e) {
+                foreach ($shopOrders as $order) {
+                    if (! $order->shipment_arranged_at && ! isset($failed[$order->number])) {
+                        $failed[$order->number] = $e->getMessage();
+                    }
+                }
+            }
+        }
+
+        $arranged = $orders->filter(fn (SalesOrder $order) => ! isset($failed[$order->number]) && $ready->contains($order) && $order->shipment_arranged_at)
+            ->pluck('number')->values()->all();
+
+        return ['arranged' => $arranged, 'failed' => $failed];
     }
 
     /** Unduh label resi (PDF) satu pesanan TikTok. */
     public function label(SalesOrder $order): string
     {
         $this->ensureTiktok($order);
-        $api = $this->api($order);
+        $result = $this->labels(collect([$order]));
 
-        if (blank($order->tracking_number)) {
-            $this->fetchTracking($order, $api);
+        if ($result['failed'] !== []) {
+            throw new TiktokException(reset($result['failed']));
         }
 
-        $document = $api->get("/fulfillment/packages/{$order->tiktok_package_id}/shipping_documents", [
-            'document_type' => 'SHIPPING_LABEL',
-            'document_size' => config('tiktok.label_size', 'A6'),
-        ]);
+        return reset($result['pdfs']);
+    }
 
-        if (blank($document['doc_url'] ?? null)) {
-            throw new TiktokException('TikTok belum menyediakan label resi untuk paket ini. Coba lagi sebentar lagi.');
+    /**
+     * Unduh label resi beberapa pesanan TikTok dari toko yang sama sekaligus (paralel).
+     *
+     * @param  Collection<int, SalesOrder>  $orders
+     * @return array{pdfs: array<int, string>, failed: array<string, string>} PDF per id pesanan, alasan gagal per nomor pesanan
+     */
+    public function labels(Collection $orders): array
+    {
+        $pdfs = [];
+        $failed = [];
+        $valid = collect();
+
+        foreach ($orders as $order) {
+            try {
+                $this->ensureTiktok($order);
+                $valid->push($order);
+            } catch (ValidationException $e) {
+                $failed[$order->number] = collect($e->errors())->flatten()->first();
+            }
+        }
+
+        if ($valid->pluck('tiktok_shop_id')->unique()->count() > 1) {
+            throw ValidationException::withMessages(['orders' => 'Label TikTok hanya bisa diambil bersamaan untuk pesanan dari toko yang sama.']);
+        }
+        if ($valid->isEmpty()) {
+            return ['pdfs' => $pdfs, 'failed' => $failed];
+        }
+
+        $api = $this->api($valid->first());
+        $this->fetchTrackingMany($api, $valid->filter(fn (SalesOrder $order) => blank($order->tracking_number))->values());
+
+        $documents = $api->many($valid->mapWithKeys(fn (SalesOrder $order) => [$order->id => [
+            'method' => 'GET',
+            'path' => "/fulfillment/packages/{$order->tiktok_package_id}/shipping_documents",
+            'query' => ['document_type' => 'SHIPPING_LABEL', 'document_size' => config('tiktok.label_size', 'A6')],
+        ]])->all());
+
+        $urls = [];
+        foreach ($valid as $order) {
+            $document = $documents[$order->id] ?? null;
+
+            if ($document instanceof TiktokException) {
+                $failed[$order->number] = $document->getMessage();
+            } elseif (blank($document['doc_url'] ?? null)) {
+                $failed[$order->number] = 'TikTok belum menyediakan label resi untuk paket ini. Coba lagi sebentar lagi.';
+            } else {
+                $urls[$order->id] = $document['doc_url'];
+            }
+        }
+
+        foreach (array_chunk($urls, max(1, (int) config('tiktok.concurrency', 4)), true) as $chunk) {
+            $ids = array_keys($chunk);
+            $responses = Http::pool(fn (Pool $pool) => array_map(
+                fn ($i) => $pool->as((string) $i)->connectTimeout(config('tiktok.connect_timeout', 10))->timeout(config('tiktok.timeout'))->get($chunk[$ids[$i]]),
+                array_keys($ids),
+            ));
+
+            foreach ($ids as $i => $id) {
+                $order = $valid->firstWhere('id', $id);
+                $response = $responses[(string) $i] ?? null;
+
+                if (! $response instanceof Response) {
+                    $failed[$order->number] = 'Label TikTok gagal diunduh. '.($response instanceof ConnectionException ? ConnectionError::message('TikTok', $response) : 'Coba lagi.');
+                } elseif ($response->failed() || ! str_starts_with($response->body(), '%PDF')) {
+                    $failed[$order->number] = "Label TikTok tidak bisa diunduh (HTTP {$response->status()}).";
+                } else {
+                    $pdfs[$id] = $response->body();
+                }
+            }
+        }
+
+        if ($pdfs !== []) {
+            SalesOrder::withoutGlobalScope('warehouse_access')->whereKey(array_keys($pdfs))->update(['shipping_label_printed_at' => now()]);
+        }
+
+        // Urutan PDF mengikuti urutan pesanan.
+        $ordered = [];
+        foreach ($orders as $order) {
+            if (isset($pdfs[$order->id])) {
+                $ordered[$order->id] = $pdfs[$order->id];
+            }
+        }
+
+        return ['pdfs' => $ordered, 'failed' => $failed];
+    }
+
+    /**
+     * Ambil resi banyak paket sekaligus; yang belum terbit dibiarkan kosong.
+     *
+     * @param  Collection<int, SalesOrder>  $orders
+     */
+    private function fetchTrackingMany(TiktokShopApi $api, Collection $orders): void
+    {
+        if ($orders->isEmpty()) {
+            return;
         }
 
         try {
-            $response = Http::connectTimeout(config('tiktok.connect_timeout', 10))->timeout(config('tiktok.timeout'))->get($document['doc_url']);
-        } catch (ConnectionException $e) {
-            throw new TiktokException('Label TikTok gagal diunduh. '.ConnectionError::message('TikTok', $e), connectionFailed: true);
+            $results = $api->many($orders->mapWithKeys(fn (SalesOrder $order) => [$order->id => [
+                'method' => 'GET',
+                'path' => "/fulfillment/packages/{$order->tiktok_package_id}",
+            ]])->all());
+        } catch (TiktokException) {
+            return; // Resi diambil lagi saat sinkron berikutnya.
         }
 
-        if ($response->failed() || ! str_starts_with($response->body(), '%PDF')) {
-            throw new TiktokException("Label TikTok tidak bisa diunduh (HTTP {$response->status()}).");
+        foreach ($orders as $order) {
+            $tracking = is_array($results[$order->id] ?? null) ? ($results[$order->id]['tracking_number'] ?? null) : null;
+
+            if (filled($tracking)) {
+                $order->update(['tracking_number' => mb_substr((string) $tracking, 0, 100)]);
+            }
         }
-
-        $order->update(['shipping_label_printed_at' => now()]);
-
-        return $response->body();
     }
 
     public function fetchTracking(SalesOrder $order, TiktokShopApi $api): bool

@@ -38,6 +38,30 @@ class TiktokShopApi
     }
 
     /**
+     * Beberapa panggilan sekaligus (paralel), lihat TiktokClient::requestMany().
+     * Panggilan yang ditolak karena token tidak berlaku diulang sekali dengan token baru.
+     *
+     * @param  array<array-key, array{method: string, path: string, query?: array<string, scalar|null>, body?: array<string, mixed>|null}>  $requests
+     * @return array<array-key, array<string, mixed>|TiktokException>
+     */
+    public function many(array $requests): array
+    {
+        if ($requests === []) {
+            return [];
+        }
+
+        $results = $this->client->requestMany($requests, $this->token(), $this->shop->shop_cipher);
+        $rejected = array_filter($results, fn ($result) => $result instanceof TiktokException && $result->invalidAccessToken());
+
+        if ($rejected !== []) {
+            $this->auth->refresh($this->shop, $this->client);
+            $results = array_replace($results, $this->client->requestMany(array_intersect_key($requests, $rejected), $this->shop->access_token, $this->shop->shop_cipher));
+        }
+
+        return $results;
+    }
+
+    /**
      * Jalankan panggilan dengan access token segar. Bila TikTok menolak tokennya,
      * token diperbarui sekali lalu panggilan diulang.
      *

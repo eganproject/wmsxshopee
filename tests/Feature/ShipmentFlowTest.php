@@ -18,6 +18,7 @@ use App\Services\StockService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Sleep;
 use Tests\TestCase;
 
 class ShipmentFlowTest extends TestCase
@@ -122,11 +123,12 @@ class ShipmentFlowTest extends TestCase
 
     private function fakeLogistics(array $infoNeeded, array $more = []): void
     {
+        // Isian $more menggantikan respons bawaan dengan pola yang sama.
         Http::fake([
-            ...$more,
             '*/logistics/get_shipping_parameter*' => Http::response($this->shippingParameter($infoNeeded)),
             '*/logistics/ship_order*' => Http::response(['error' => '', 'response' => []]),
             '*/logistics/get_tracking_number*' => Http::response(['error' => '', 'response' => ['tracking_number' => 'SPXID777']]),
+            ...$more,
         ]);
     }
 
@@ -280,6 +282,48 @@ class ShipmentFlowTest extends TestCase
         // Drop off yang butuh cabang tidak bisa diatur massal.
         $c = $this->shopeeOrder('B3');
         $this->post('/sales/orders/shipment', ['method' => 'dropoff', 'orders' => [$c->id]])->assertSessionHas('shipment_failures', fn ($failures) => str_contains($failures[$c->number], 'cabang'));
+    }
+
+    public function test_bulk_pickup_reports_failed_orders_and_arranges_the_rest(): void
+    {
+        $orders = collect(['P1', 'P2', 'P3', 'P4'])->map(fn ($sn) => $this->shopeeOrder($sn));
+        $this->fakeLogistics(['pickup' => ['address_id', 'pickup_time_id']], [
+            '*/logistics/ship_order*' => fn (Request $r) => $r['order_sn'] === 'P3'
+                ? Http::response(['error' => 'logistics.ship_order_invalid', 'message' => 'Order status invalid'])
+                : Http::response(['error' => '', 'response' => []]),
+        ]);
+
+        $this->post('/sales/orders/shipment', ['method' => 'pickup', 'orders' => $orders->pluck('id')->all()])
+            ->assertSessionHas('success', fn ($message) => str_contains($message, '3 pesanan diatur Pickup'))
+            ->assertSessionHas('shipment_failures', fn ($failures) => array_keys($failures) === [$orders[2]->number] && str_contains($failures[$orders[2]->number], 'Order status invalid'));
+
+        $this->assertSame(['pickup', 'SPXID777', 'PROCESSED'], [$orders[3]->fresh()->shipping_method, $orders[3]->fresh()->tracking_number, $orders[3]->fresh()->shopee_order_status]);
+        $this->assertNull($orders[2]->fresh()->shipment_arranged_at);
+        Http::assertSentCount(11); // 4 parameter + 4 atur + 3 resi
+    }
+
+    public function test_bulk_pickup_retries_an_order_that_hit_the_rate_limit(): void
+    {
+        $a = $this->shopeeOrder('R1');
+        $b = $this->shopeeOrder('R2');
+        $limited = 0;
+        $this->fakeLogistics(['pickup' => ['address_id', 'pickup_time_id']], [
+            '*/logistics/ship_order*' => function (Request $r) use (&$limited) {
+                if ($r['order_sn'] === 'R2' && $limited++ === 0) {
+                    return Http::response(['error' => 'error_rate_limit', 'message' => 'Too many requests'], 429);
+                }
+
+                return Http::response(['error' => '', 'response' => []]);
+            },
+        ]);
+        Sleep::fake();
+
+        $this->post('/sales/orders/shipment', ['method' => 'pickup', 'orders' => [$a->id, $b->id]])
+            ->assertSessionHas('success', fn ($message) => str_contains($message, '2 pesanan diatur Pickup'))
+            ->assertSessionMissing('shipment_failures');
+
+        $this->assertSame(2, $limited);
+        $this->assertNotNull($b->fresh()->shipment_arranged_at);
     }
 
     public function test_shopee_label_is_created_polled_and_downloaded_as_pdf(): void

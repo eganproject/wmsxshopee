@@ -49,4 +49,8 @@ return [
     'document_poll_attempts' => (int) env('SHOPEE_DOCUMENT_POLL_ATTEMPTS', 8),
     'document_poll_ms' => (int) env('SHOPEE_DOCUMENT_POLL_MS', 1000),
 
+    // Atur pengiriman & cetak resi banyak pesanan: sebanyak ini panggilan ke Shopee
+    // dikirim bersamaan (paralel), bukan satu per satu.
+    'concurrency' => (int) env('SHOPEE_CONCURRENCY', 8),
+
 ];

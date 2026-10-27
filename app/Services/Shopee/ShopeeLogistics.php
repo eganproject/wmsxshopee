@@ -45,6 +45,15 @@ class ShopeeLogistics
             ...$package,
         ]))['response'] ?? [];
 
+        return $this->parseOptions($response);
+    }
+
+    /**
+     * @param  array<string, mixed>  $response  isi "response" dari get_shipping_parameter
+     * @return array<string, mixed>
+     */
+    private function parseOptions(array $response): array
+    {
         $needed = $response['info_needed'] ?? [];
 
         $options = ['pickup' => null, 'dropoff' => null, 'non_integrated' => null];
@@ -100,6 +109,24 @@ class ShopeeLogistics
     {
         $this->ensureArrangeable($order);
         $options ??= $this->options($order);
+        [$payload, $record] = $this->prepare($order, $method, $input, $options);
+
+        $api = $this->api($order);
+        ShopeePackage::call($order, fn (array $package) => $api->post('/api/v2/logistics/ship_order', $this->shipBody($order, $method, $payload, $package)));
+
+        $this->markArranged($order, $payload, $record, $userId);
+        $this->fetchTracking($order, $api);
+    }
+
+    /**
+     * Isian ship_order & catatan pesanan untuk cara kirim yang dipilih.
+     *
+     * @param  array<string, mixed>  $input
+     * @param  array<string, mixed>  $options
+     * @return array{0: array<string, mixed>, 1: array<string, mixed>}
+     */
+    private function prepare(SalesOrder $order, string $method, array $input, array $options): array
+    {
         $available = $options[$method] ?? null;
 
         if (! $available) {
@@ -159,13 +186,29 @@ class ShopeeLogistics
             throw ValidationException::withMessages(['method' => 'Cara kirim tidak dikenal.']);
         }
 
-        $api = $this->api($order);
-        ShopeePackage::call($order, fn (array $package) => $api->post('/api/v2/logistics/ship_order', [
+        return [$payload, $record];
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     * @param  array<string, string>  $package
+     * @return array<string, mixed>
+     */
+    private function shipBody(SalesOrder $order, string $method, array $payload, array $package): array
+    {
+        return [
             'order_sn' => $order->external_number,
             ...$package,
             $method => $payload === [] ? new \stdClass : $payload,
-        ]));
+        ];
+    }
 
+    /**
+     * @param  array<string, mixed>  $payload
+     * @param  array<string, mixed>  $record
+     */
+    private function markArranged(SalesOrder $order, array $payload, array $record, ?int $userId): void
+    {
         $order->update([
             ...$record,
             'shopee_order_status' => 'PROCESSED',
@@ -174,8 +217,6 @@ class ShopeeLogistics
             'shipment_arranged_by' => $userId,
             'tracking_number' => $payload['tracking_number'] ?? $order->tracking_number,
         ]);
-
-        $this->fetchTracking($order, $api);
     }
 
     /**
@@ -188,37 +229,173 @@ class ShopeeLogistics
      */
     public function arrangeMany(Collection $orders, string $method, ?int $userId): array
     {
-        $result = ['arranged' => [], 'failed' => []];
+        $failed = [];
+        $arranged = [];
+        $ready = collect();
 
         foreach ($orders as $order) {
             try {
                 $this->ensureArrangeable($order);
-                $options = $this->options($order);
-                $input = [];
-
-                if ($method === 'pickup' && ($pickup = $options['pickup'])) {
-                    $address = $pickup['addresses'][0] ?? null;
-                    $slots = collect($address['slots'] ?? []);
-                    $slot = $slots->firstWhere('recommended', true) ?? $slots->first();
-                    $input = ['address_id' => $address['address_id'] ?? null, 'pickup_time_id' => $slot['pickup_time_id'] ?? null];
-                } elseif ($method === 'dropoff' && ($dropoff = $options['dropoff'])) {
-                    $extra = array_diff($dropoff['needs'], ['sender_real_name']);
-                    if ($extra !== []) {
-                        throw ValidationException::withMessages(['method' => 'Drop off kurir ini perlu memilih cabang; atur dari halaman pesanan.']);
-                    }
-                    $input = ['sender_real_name' => $order->warehouse?->pic_name ?: $order->warehouse?->name];
-                }
-
-                $this->arrange($order, $method, $input, $userId, $options);
-                $result['arranged'][] = $order->number;
+                $ready->push($order);
             } catch (ValidationException $e) {
-                $result['failed'][$order->number] = collect($e->errors())->flatten()->first();
-            } catch (ShopeeException $e) {
-                $result['failed'][$order->number] = $e->getMessage();
+                $failed[$order->number] = collect($e->errors())->flatten()->first();
             }
         }
 
-        return $result;
+        // Per toko: ambil pilihan kirim semua pesanan sekaligus, lalu atur semuanya sekaligus
+        // (paralel), bukan tiga panggilan berurutan per pesanan.
+        foreach ($ready->groupBy('shopee_shop_id') as $shopOrders) {
+            try {
+                $api = $this->api($shopOrders->first());
+                $parameters = $this->callMany($api, $shopOrders, 'GET', '/api/v2/logistics/get_shipping_parameter', fn (SalesOrder $order, array $package) => [
+                    'order_sn' => $order->external_number,
+                    ...$package,
+                ]);
+
+                $planned = [];
+                foreach ($shopOrders as $order) {
+                    try {
+                        $response = $parameters[$order->id];
+                        if ($response instanceof ShopeeException) {
+                            throw $response;
+                        }
+                        $options = $this->parseOptions($response['response'] ?? []);
+                        $planned[$order->id] = $this->prepare($order, $method, $this->autoInput($order, $method, $options), $options);
+                    } catch (ValidationException $e) {
+                        $failed[$order->number] = collect($e->errors())->flatten()->first();
+                    } catch (ShopeeException $e) {
+                        $failed[$order->number] = $e->getMessage();
+                    }
+                }
+
+                $toShip = $shopOrders->filter(fn (SalesOrder $order) => isset($planned[$order->id]))->values();
+                $shipped = $this->callMany($api, $toShip, 'POST', '/api/v2/logistics/ship_order', fn (SalesOrder $order, array $package) => $this->shipBody($order, $method, $planned[$order->id][0], $package));
+
+                $done = collect();
+                foreach ($toShip as $order) {
+                    if ($shipped[$order->id] instanceof ShopeeException) {
+                        $failed[$order->number] = $shipped[$order->id]->getMessage();
+
+                        continue;
+                    }
+
+                    $this->markArranged($order, $planned[$order->id][0], $planned[$order->id][1], $userId);
+                    $done->push($order);
+                }
+
+                $this->fetchTrackingMany($api, $done);
+            } catch (ShopeeException $e) {
+                // Gangguan tingkat toko (cth. toko perlu diotorisasi ulang).
+                foreach ($shopOrders as $order) {
+                    if (! $order->shipment_arranged_at && ! isset($failed[$order->number])) {
+                        $failed[$order->number] = $e->getMessage();
+                    }
+                }
+            }
+        }
+
+        // Urutan hasil mengikuti urutan pesanan yang dipilih.
+        foreach ($orders as $order) {
+            if (! isset($failed[$order->number]) && $ready->contains($order) && $order->shipment_arranged_at) {
+                $arranged[] = $order->number;
+            }
+        }
+
+        return ['arranged' => $arranged, 'failed' => $failed];
+    }
+
+    /**
+     * Pilihan otomatis untuk atur massal: alamat pickup Shopee (atau default) dan slot jam
+     * yang disarankan / paling awal; drop off tanpa memilih cabang.
+     *
+     * @param  array<string, mixed>  $options
+     * @return array<string, mixed>
+     */
+    private function autoInput(SalesOrder $order, string $method, array $options): array
+    {
+        if ($method === 'pickup' && ($pickup = $options['pickup'])) {
+            $address = $pickup['addresses'][0] ?? null;
+            $slots = collect($address['slots'] ?? []);
+            $slot = $slots->firstWhere('recommended', true) ?? $slots->first();
+
+            return ['address_id' => $address['address_id'] ?? null, 'pickup_time_id' => $slot['pickup_time_id'] ?? null];
+        }
+
+        if ($method === 'dropoff' && ($dropoff = $options['dropoff'])) {
+            $extra = array_diff($dropoff['needs'], ['sender_real_name']);
+            if ($extra !== []) {
+                throw ValidationException::withMessages(['method' => 'Drop off kurir ini perlu memilih cabang; atur dari halaman pesanan.']);
+            }
+
+            return ['sender_real_name' => $order->warehouse?->pic_name ?: $order->warehouse?->name];
+        }
+
+        return [];
+    }
+
+    /**
+     * Panggil satu API logistik untuk banyak pesanan dari toko yang sama sekaligus (paralel).
+     * Pesanan yang ditolak karena package_number padahal tidak dipecah diulang tanpa nomor
+     * paket, seperti ShopeePackage::call().
+     *
+     * @param  Collection<int, SalesOrder>  $orders
+     * @param  callable(SalesOrder, array<string, string>): array<string, mixed>  $params
+     * @return array<int, array<string, mixed>|ShopeeException> per id pesanan
+     */
+    private function callMany(ShopeeShopApi $api, Collection $orders, string $method, string $path, callable $params): array
+    {
+        $package = fn (SalesOrder $order) => filled($order->shopee_package_number) ? ['package_number' => (string) $order->shopee_package_number] : [];
+
+        $results = $api->many($orders->mapWithKeys(fn (SalesOrder $order) => [$order->id => [
+            'method' => $method,
+            'path' => $path,
+            'params' => $params($order, $package($order)),
+        ]])->all());
+
+        foreach ($orders as $order) {
+            $result = $results[$order->id] ?? null;
+
+            if ($result instanceof ShopeeException && filled($order->shopee_package_number) && ShopeePackage::isUnsplitError($result)) {
+                $order->update(['shopee_package_number' => null]);
+
+                try {
+                    $results[$order->id] = $method === 'GET' ? $api->get($path, $params($order, [])) : $api->post($path, $params($order, []));
+                } catch (ShopeeException $e) {
+                    $results[$order->id] = $e;
+                }
+            }
+        }
+
+        return $results;
+    }
+
+    /**
+     * Ambil resi banyak pesanan sekaligus; yang belum terbit dibiarkan kosong.
+     *
+     * @param  Collection<int, SalesOrder>  $orders
+     */
+    private function fetchTrackingMany(ShopeeShopApi $api, Collection $orders): void
+    {
+        if ($orders->isEmpty()) {
+            return;
+        }
+
+        try {
+            $results = $this->callMany($api, $orders, 'GET', '/api/v2/logistics/get_tracking_number', fn (SalesOrder $order, array $package) => [
+                'order_sn' => $order->external_number,
+                ...$package,
+            ]);
+        } catch (ShopeeException) {
+            return; // Resi diambil lagi saat sinkron berikutnya.
+        }
+
+        foreach ($orders as $order) {
+            $tracking = is_array($results[$order->id] ?? null) ? ($results[$order->id]['response']['tracking_number'] ?? null) : null;
+
+            if (filled($tracking)) {
+                $order->update(['tracking_number' => $tracking]);
+            }
+        }
     }
 
     /**
@@ -262,11 +439,7 @@ class ShopeeLogistics
         }
 
         $api = $this->api($orders->first());
-        foreach ($orders as $order) {
-            if (blank($order->tracking_number)) {
-                $this->fetchTracking($order, $api);
-            }
-        }
+        $this->fetchTrackingMany($api, $orders->filter(fn (SalesOrder $order) => blank($order->tracking_number))->values());
 
         // Shopee baru bisa membuat label setelah nomor resi terbit (beberapa saat setelah pengiriman diatur).
         $waiting = $orders->filter(fn (SalesOrder $order) => blank($order->tracking_number))->pluck('number');
@@ -274,18 +447,40 @@ class ShopeeLogistics
             throw ValidationException::withMessages(['orders' => 'Nomor resi dari Shopee belum terbit untuk '.$waiting->take(5)->implode(', ').($waiting->count() > 5 ? ' dan '.($waiting->count() - 5).' lainnya' : '').'. Tunggu beberapa menit lalu cetak lagi.']);
         }
 
-        $documents = [];
-        foreach (self::compatibleGroups($orders) as $group) {
-            try {
-                $documents[] = $this->download($api, $group);
-            } catch (ShopeeException $e) {
-                if ($e->shopeeError !== 'logistics.packages_can_not_download_together' || $group->count() === 1) {
-                    throw $e;
-                }
+        // Semua kelompok diproses bersamaan; kelompok yang ditolak Shopee diunduh per pesanan,
+        // juga bersamaan, bukan satu per satu.
+        $groups = self::compatibleGroups($orders)->all();
+        $results = $this->downloadMany($api, $groups);
+        $singles = [];
 
-                foreach ($group as $order) {
-                    $documents[] = $this->download($api, collect([$order]));
+        foreach ($groups as $i => $group) {
+            $result = $results[$i];
+            if (! $result instanceof ShopeeException) {
+                continue;
+            }
+            if ($result->shopeeError !== 'logistics.packages_can_not_download_together' || $group->count() === 1) {
+                throw $result;
+            }
+            foreach ($group as $order) {
+                $singles[$i][] = collect([$order]);
+            }
+        }
+
+        $singleResults = $this->downloadMany($api, collect($singles)->flatten(1)->all());
+        foreach ($singleResults as $result) {
+            if ($result instanceof ShopeeException) {
+                throw $result;
+            }
+        }
+
+        $documents = [];
+        foreach ($groups as $i => $group) {
+            if (isset($singles[$i])) {
+                foreach ($singles[$i] as $_) {
+                    $documents[] = array_shift($singleResults);
                 }
+            } else {
+                $documents[] = $results[$i];
             }
         }
 
@@ -305,34 +500,100 @@ class ShopeeLogistics
         return $orders->groupBy(fn (SalesOrder $order) => ($order->courier_id ?? '-').'|'.($order->shipping_method ?? '-'))->map->values()->values();
     }
 
-    /** @param Collection<int, SalesOrder> $orders */
-    private function download(ShopeeShopApi $api, Collection $orders): string
+    /**
+     * Buat & unduh label untuk beberapa kelompok pesanan sekaligus. Tiap tahap
+     * (parameter, buat label, cek status, unduh) dikirim paralel untuk semua kelompok.
+     *
+     * @param  list<Collection<int, SalesOrder>>  $groups
+     * @return list<string|ShopeeException> PDF atau error per kelompok, urutan sama dengan $groups
+     */
+    private function downloadMany(ShopeeShopApi $api, array $groups): array
     {
-        $list = $orders->map(fn (SalesOrder $order) => array_filter([
-            'order_sn' => $order->external_number,
-            'package_number' => $order->shopee_package_number,
-        ]))->values()->all();
+        $results = [];
+        $lists = [];
+        foreach ($groups as $i => $group) {
+            $lists[$i] = $group->map(fn (SalesOrder $order) => array_filter([
+                'order_sn' => $order->external_number,
+                'package_number' => $order->shopee_package_number,
+            ]))->values()->all();
+        }
 
-        $params = collect($api->post('/api/v2/logistics/get_shipping_document_parameter', ['order_list' => $list])['response']['result_list'] ?? []);
-        $this->throwFailures($params);
-        $type = $this->documentType($params);
+        // Kelompok yang masih berjalan; yang gagal langsung diisi error-nya.
+        $step = function (string $method, string $path, callable $params, array $skip = []) use ($api, &$results, $groups) {
+            $active = array_diff_key($groups, $results, $skip);
+            $responses = $api->many(array_map(fn ($i) => ['method' => $method, 'path' => $path, 'params' => $params($i)], array_combine(array_keys($active), array_keys($active))));
 
-        $created = collect($api->post('/api/v2/logistics/create_shipping_document', [
-            'order_list' => $orders->map(fn (SalesOrder $order) => array_filter([
+            foreach ($responses as $i => $response) {
+                if ($response instanceof ShopeeException) {
+                    $results[$i] = $response;
+                }
+            }
+
+            return array_filter($responses, fn ($response) => ! $response instanceof ShopeeException);
+        };
+        $rows = function (array $responses, callable $each) use (&$results) {
+            foreach ($responses as $i => $response) {
+                try {
+                    $each($i, collect($response['response']['result_list'] ?? []));
+                } catch (ShopeeException $e) {
+                    $results[$i] = $e;
+                }
+            }
+        };
+
+        $types = [];
+        $rows($step('POST', '/api/v2/logistics/get_shipping_document_parameter', fn ($i) => ['order_list' => $lists[$i]]), function ($i, Collection $params) use (&$types) {
+            $this->throwFailures($params);
+            $types[$i] = $this->documentType($params);
+        });
+
+        $rows($step('POST', '/api/v2/logistics/create_shipping_document', fn ($i) => [
+            'order_list' => $groups[$i]->map(fn (SalesOrder $order) => array_filter([
                 'order_sn' => $order->external_number,
                 'package_number' => $order->shopee_package_number,
                 'tracking_number' => $order->tracking_number,
-                'shipping_document_type' => $type,
+                'shipping_document_type' => $types[$i],
             ]))->values()->all(),
-        ])['response']['result_list'] ?? []);
-        $this->throwFailures($created);
+        ]), fn ($i, Collection $created) => $this->throwFailures($created));
 
-        $this->waitUntilReady($api, collect($list)->map(fn ($row) => [...$row, 'shipping_document_type' => $type])->all());
+        // Label dibuat Shopee secara asinkron: cek status semua kelompok, tunggu yang belum siap.
+        $attempts = max(1, (int) config('shopee.document_poll_attempts', 8));
+        $ready = [];
+        for ($attempt = 0; $attempt < $attempts; $attempt++) {
+            $rows($step('POST', '/api/v2/logistics/get_shipping_document_result', fn ($i) => [
+                'order_list' => array_map(fn ($row) => [...$row, 'shipping_document_type' => $types[$i]], $lists[$i]),
+            ], $ready), function ($i, Collection $status) use (&$ready) {
+                $this->throwFailures($status);
 
-        return $api->download('/api/v2/logistics/download_shipping_document', [
-            'shipping_document_type' => $type,
-            'order_list' => $list,
-        ]);
+                if ($failed = $status->firstWhere('status', 'FAILED')) {
+                    throw new ShopeeException('Shopee gagal membuat label untuk '.$failed['order_sn'].'.');
+                }
+                if ($status->isNotEmpty() && $status->every(fn ($row) => ($row['status'] ?? '') === 'READY')) {
+                    $ready[$i] = true;
+                }
+            });
+
+            if (array_diff_key($groups, $results, $ready) === []) {
+                break;
+            }
+
+            usleep(max(0, (int) config('shopee.document_poll_ms', 1000)) * 1000);
+        }
+
+        foreach (array_diff_key($groups, $results, $ready) as $i => $_) {
+            $results[$i] = new ShopeeException('Label resi masih diproses Shopee. Coba cetak lagi sebentar lagi.');
+        }
+
+        foreach ($step('DOWNLOAD', '/api/v2/logistics/download_shipping_document', fn ($i) => [
+            'shipping_document_type' => $types[$i],
+            'order_list' => $lists[$i],
+        ]) as $i => $pdf) {
+            $results[$i] = $pdf;
+        }
+
+        ksort($results);
+
+        return array_values($results);
     }
 
     public function fetchTracking(SalesOrder $order, ShopeeShopApi $api): bool
@@ -353,31 +614,6 @@ class ShopeeLogistics
         }
 
         return false;
-    }
-
-    /**
-     * @param  list<array<string, mixed>>  $list
-     */
-    private function waitUntilReady(ShopeeShopApi $api, array $list): void
-    {
-        $attempts = max(1, (int) config('shopee.document_poll_attempts', 8));
-
-        for ($i = 0; $i < $attempts; $i++) {
-            $results = collect($api->post('/api/v2/logistics/get_shipping_document_result', ['order_list' => $list])['response']['result_list'] ?? []);
-            $this->throwFailures($results);
-
-            if ($results->isNotEmpty() && $results->every(fn ($row) => ($row['status'] ?? '') === 'READY')) {
-                return;
-            }
-
-            if ($failed = $results->firstWhere('status', 'FAILED')) {
-                throw new ShopeeException('Shopee gagal membuat label untuk '.$failed['order_sn'].'.');
-            }
-
-            usleep(max(0, (int) config('shopee.document_poll_ms', 1000)) * 1000);
-        }
-
-        throw new ShopeeException('Label resi masih diproses Shopee. Coba cetak lagi sebentar lagi.');
     }
 
     /** @param Collection<int, array<string, mixed>> $rows */
