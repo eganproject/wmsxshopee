@@ -495,6 +495,7 @@ class SalesOrderController extends Controller
                 ->whereNull('shipment_arranged_at')
                 ->where(fn ($q) => $q->whereNull('shopee_shop_id')->orWhere('shopee_order_status', 'READY_TO_SHIP'))
                 ->where(fn ($q) => $q->whereNull('tiktok_shop_id')->orWhere('tiktok_order_status', 'AWAITING_SHIPMENT')))
+            ->when(isset(SalesOrder::DELIVERY_SPEEDS[(string) $request->input('speed')]), fn ($query) => $query->deliverySpeed((string) $request->input('speed')))
             ->when($request->filled('shopee'), fn ($query) => $query->shopeeFilter((string) $request->input('shopee')))
             ->when($withMarketplaceStatus && $marketplace === 'out_of_sync', fn ($query) => $query->outOfSync())
             ->when($withMarketplaceStatus && isset(SalesOrder::MARKETPLACE_STATUSES[$marketplace]), fn ($query) => $query->whereMarketplaceStatus($marketplace))

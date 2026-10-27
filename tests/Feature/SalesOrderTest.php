@@ -542,4 +542,27 @@ class SalesOrderTest extends TestCase
         $this->get(route('sales.orders.index', ['courier' => 'none']))->assertOk()
             ->assertSee('SO-NOC')->assertDontSee('SO-JNT');
     }
+
+    public function test_order_list_filters_instant_and_same_day_shipping(): void
+    {
+        $gosend = Courier::create(['code' => 'GSX', 'name' => 'GoSend Uji', 'is_active' => true]);
+        $grabInstant = Courier::create(['code' => 'GRBX', 'name' => 'GrabExpress Instant Uji', 'is_active' => true]);
+        $jnt = Courier::create(['code' => 'JNTX', 'name' => 'J&T Uji', 'is_active' => true]);
+        $this->listOrder('SO-GSI', ['courier_id' => $gosend->id, 'courier_service' => 'GoSend Instant']);
+        $this->listOrder('SO-GRB', ['courier_id' => $grabInstant->id]);
+        $this->listOrder('SO-SPX', ['courier_service' => 'SPX Sameday']);
+        $this->listOrder('SO-REG', ['courier_id' => $jnt->id, 'courier_service' => 'REG']);
+
+        $this->get(route('sales.orders.index', ['speed' => 'instant']))->assertOk()
+            ->assertSee('SO-GSI')->assertSee('SO-GRB')->assertDontSee('SO-SPX')->assertDontSee('SO-REG');
+
+        $this->get(route('sales.orders.index', ['speed' => 'same_day']))->assertOk()
+            ->assertSee('SO-SPX')->assertDontSee('SO-GSI')->assertDontSee('SO-REG');
+
+        $this->get(route('sales.orders.index', ['speed' => 'bogus']))->assertOk()
+            ->assertSee('SO-REG')->assertSee('SO-GSI');
+
+        $this->assertSame('instant', SalesOrder::where('number', 'SO-GSI')->first()->deliverySpeed());
+        $this->assertNull(SalesOrder::where('number', 'SO-REG')->first()->deliverySpeed());
+    }
 }
