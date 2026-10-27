@@ -594,17 +594,66 @@ class TiktokIntegrationTest extends TestCase
         SalesOrder::whereKey([$first->id, $second->id])->update(['tiktok_order_status' => 'AWAITING_COLLECTION', 'tracking_number' => 'JX1']);
 
         Http::fake([
-            '*/fulfillment/202309/packages/*/shipping_documents*' => Http::response(['code' => 0, 'data' => ['doc_url' => 'https://files.tiktok.test/label.pdf']]),
-            '*files.tiktok.test/*' => Http::response('%PDF-1.4 label', 200, ['Content-Type' => 'application/pdf']),
+            '*/fulfillment/202309/packages/*/shipping_documents*' => fn (Request $r) => Http::response(['code' => 0, 'data' => ['doc_url' => 'https://files.tiktok.test/'.explode('/', parse_url($r->url(), PHP_URL_PATH))[4].'.pdf']]),
+            '*files.tiktok.test/*' => fn (Request $r) => Http::response('%PDF-1.4 '.basename(parse_url($r->url(), PHP_URL_PATH)), 200, ['Content-Type' => 'application/pdf']),
         ]);
 
         $page = $this->get('/sales/orders/shipping-labels?'.http_build_query(['orders' => [$first->id, $second->id]]))
             ->assertOk()->assertSee('Cetak Resi Gabungan')->assertDontSee('dicetak per pesanan');
         $parts = $page->viewData('parts');
-        $this->assertSame(['tiktok', 'tiktok'], $parts->pluck('type')->all());
+        // Paket dari toko yang sama diambil dalam satu bagian (server mengambilnya bersamaan).
+        $this->assertSame(['tiktok'], $parts->pluck('type')->all());
+        $this->assertSame([$first->number, $second->number], $parts[0]['numbers']);
 
-        $this->get($parts[1]['url'])->assertOk()->assertHeader('Content-Type', 'application/pdf');
+        $this->getJson($parts[0]['url'])->assertOk()->assertJsonMissingPath('warning')
+            ->assertJsonPath('pdfs', [base64_encode('%PDF-1.4 PKG660001.pdf'), base64_encode('%PDF-1.4 PKG660002.pdf')]);
+        $this->assertNotNull($first->fresh()->shipping_label_printed_at);
         $this->assertNotNull($second->fresh()->shipping_label_printed_at);
+    }
+
+    public function test_one_failing_tiktok_label_does_not_block_the_others(): void
+    {
+        $this->shop();
+        $first = $this->syncedOrder('670001');
+        $second = $this->syncedOrder('670002');
+        SalesOrder::whereKey([$first->id, $second->id])->update(['tiktok_order_status' => 'AWAITING_COLLECTION', 'tracking_number' => 'JX1']);
+
+        Http::fake([
+            '*/packages/PKG670001/shipping_documents*' => Http::response(['code' => 0, 'data' => ['doc_url' => 'https://files.tiktok.test/a.pdf']]),
+            '*/packages/PKG670002/shipping_documents*' => Http::response(['code' => 21011001, 'message' => 'Package not ready']),
+            '*files.tiktok.test/*' => Http::response('%PDF-1.4 a', 200, ['Content-Type' => 'application/pdf']),
+        ]);
+
+        $url = route('sales.orders.shipping-labels.part', ['orders' => [$first->id, $second->id]]);
+        $this->getJson($url)->assertOk()
+            ->assertJsonPath('pdfs', [base64_encode('%PDF-1.4 a')])
+            ->assertJsonPath('warning', fn ($warning) => str_contains($warning, $second->number) && str_contains($warning, 'Package not ready'));
+        $this->assertNotNull($first->fresh()->shipping_label_printed_at);
+        $this->assertNull($second->fresh()->shipping_label_printed_at);
+    }
+
+    public function test_bulk_pickup_arranges_many_tiktok_orders_at_once(): void
+    {
+        $this->shop();
+        $orders = collect(['650001', '650002', '650003'])->map(fn ($id) => $this->syncedOrder($id));
+        $start = now()->addDay()->setTime(9, 0)->getTimestamp();
+
+        Http::fake([
+            '*/handover_time_slots*' => Http::response(['code' => 0, 'data' => ['can_pickup' => true, 'pickup_slots' => [['start_time' => $start, 'end_time' => $start + 7200]]]]),
+            '*/packages/PKG650002/ship*' => Http::response(['code' => 21001001, 'message' => 'Package status not allowed']),
+            '*/packages/*/ship*' => Http::response(['code' => 0, 'data' => []]),
+            '*/fulfillment/202309/packages/*' => fn (Request $r) => Http::response(['code' => 0, 'data' => ['tracking_number' => 'JX-'.basename(parse_url($r->url(), PHP_URL_PATH))]]),
+        ]);
+
+        $this->post('/sales/orders/shipment', ['orders' => $orders->pluck('id')->all(), 'method' => 'pickup'])
+            ->assertSessionHas('success', fn ($message) => str_contains($message, '2 pesanan diatur Pickup di TikTok'))
+            ->assertSessionHas('shipment_failures', fn ($failures) => array_keys($failures) === [$orders[1]->number] && str_contains($failures[$orders[1]->number], 'not allowed'));
+
+        $this->assertSame(['pickup', 'JX-PKG650001'], [$orders[0]->fresh()->shipping_method, $orders[0]->fresh()->tracking_number]);
+        $this->assertNull($orders[1]->fresh()->shipment_arranged_at);
+        $this->assertSame('JX-PKG650003', $orders[2]->fresh()->tracking_number);
+        // Slot, atur, resi: tiga panggilan per paket (yang gagal tidak diambil resinya).
+        Http::assertSentCount(8);
     }
 
     public function test_bulk_dropoff_arranges_tiktok_orders(): void

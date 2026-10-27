@@ -50,6 +50,10 @@ return [
     // kirim stok / tarik produk yang beruntun tidak kena "Too many requests".
     'min_interval_ms' => (int) env('TIKTOK_MIN_INTERVAL_MS', 200),
 
+    // Atur pengiriman & cetak resi banyak pesanan: sebanyak ini panggilan ke TikTok
+    // dikirim bersamaan (paralel), bukan satu per satu.
+    'concurrency' => (int) env('TIKTOK_CONCURRENCY', 4),
+
     // Ukuran label resi PDF dari TikTok: A6 (thermal 100x150) atau A5.
     'label_size' => env('TIKTOK_LABEL_SIZE', 'A6'),
 

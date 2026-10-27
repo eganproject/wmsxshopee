@@ -42,7 +42,7 @@ async function fetchPart(part) {
     if (type.includes('json')) {
         const body = await response.json();
         // Shopee kadang memecah label satu bagian jadi beberapa PDF (base64).
-        if (body.pdfs) return { pdfs: body.pdfs.map(decodeBase64) };
+        if (body.pdfs) return { pdfs: body.pdfs.map(decodeBase64), warning: body.warning ?? '' };
         return { labels: body.labels ?? [] };
     }
 
@@ -61,7 +61,8 @@ async function fetchAll() {
             setPartState(index, 'loading', 'Mengambil label...');
             try {
                 results[index] = await fetchPart(parts[index]);
-                setPartState(index, 'ok', '');
+                // Sebagian label gagal: yang berhasil tetap dicetak, alasannya ditampilkan.
+                setPartState(index, results[index].warning ? 'error' : 'ok', results[index].warning ?? '');
             } catch (error) {
                 results[index] = { error: error.message };
                 setPartState(index, 'error', error.message);

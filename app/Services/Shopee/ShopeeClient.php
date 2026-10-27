@@ -5,6 +5,8 @@ namespace App\Services\Shopee;
 use App\Models\ShopeeSetting;
 use App\Support\ConnectionError;
 use Illuminate\Http\Client\ConnectionException;
+use Illuminate\Http\Client\Pool;
+use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Sleep;
 
@@ -135,6 +137,117 @@ class ShopeeClient
             throw new ShopeeException(ConnectionError::message('Shopee', $e), connectionFailed: true, notSent: ConnectionError::neverSent($e));
         }
 
+        return $this->downloaded($response);
+    }
+
+    /**
+     * Kirim beberapa request API toko sekaligus (paralel, sebanyak config shopee.concurrency
+     * bersamaan), supaya atur pengiriman / cetak resi banyak pesanan tidak menunggu satu per satu.
+     * Request yang kena gangguan sementara (batas panggilan, koneksi) diulang sendiri-sendiri
+     * dengan aturan yang sama seperti shopRequest().
+     *
+     * Tiap request: ['method' => GET|POST|DOWNLOAD, 'path' => ..., 'params' => [...]]. GET memakai
+     * params sebagai query, POST & DOWNLOAD sebagai body. DOWNLOAD dibalas isi berkas (string).
+     *
+     * @param  array<array-key, array{method: string, path: string, params?: array<string, mixed>}>  $requests
+     * @return array<array-key, array<string, mixed>|string|ShopeeException> hasil per kunci request
+     */
+    public function shopRequestMany(int $shopId, string $accessToken, array $requests): array
+    {
+        $results = [];
+
+        foreach (array_chunk($requests, max(1, (int) config('shopee.concurrency', 8)), true) as $chunk) {
+            $keys = array_keys($chunk);
+            $responses = Http::pool(function (Pool $pool) use ($chunk, $keys, $shopId, $accessToken) {
+                $pending = [];
+                foreach ($keys as $i => $key) {
+                    $request = $chunk[$key];
+                    $method = strtoupper($request['method']);
+                    $params = $request['params'] ?? [];
+                    $url = $this->shopUrl($request['path'], $shopId, $accessToken, $method === 'GET' ? $params : []);
+                    $http = $pool->as((string) $i)->connectTimeout(config('shopee.connect_timeout', 10))->timeout(config('shopee.timeout'));
+
+                    $pending[] = match ($method) {
+                        'GET' => $http->acceptJson()->get($url),
+                        'DOWNLOAD' => $http->asJson()->post($url, $params),
+                        default => $http->acceptJson()->asJson()->post($url, $params),
+                    };
+                }
+
+                return $pending;
+            });
+
+            foreach ($keys as $i => $key) {
+                $request = $chunk[$key];
+                $method = strtoupper($request['method']);
+
+                try {
+                    $response = $responses[(string) $i] ?? null;
+                    if ($response instanceof ConnectionException) {
+                        throw new ShopeeException(ConnectionError::message('Shopee', $response), connectionFailed: true, notSent: ConnectionError::neverSent($response));
+                    }
+                    if (! $response instanceof Response) {
+                        throw new ShopeeException('Shopee: '.($response instanceof \Throwable ? $response->getMessage() : 'tidak ada balasan').'.', connectionFailed: true);
+                    }
+
+                    $results[$key] = $method === 'DOWNLOAD' ? $this->downloaded($response) : $this->parse($response);
+                } catch (ShopeeException $e) {
+                    $results[$key] = $this->retryable($e, $method === 'GET' ? 'GET' : 'POST') === null
+                        ? $e
+                        : $this->retryAlone($request, $shopId, $accessToken, $e);
+                }
+            }
+        }
+
+        return $results;
+    }
+
+    /**
+     * Ulang satu request dari shopRequestMany() sendiri-sendiri setelah jeda.
+     *
+     * @param  array{method: string, path: string, params?: array<string, mixed>}  $request
+     * @return array<string, mixed>|string|ShopeeException
+     */
+    private function retryAlone(array $request, int $shopId, string $accessToken, ShopeeException $first): array|string|ShopeeException
+    {
+        $method = strtoupper($request['method']);
+        $params = $request['params'] ?? [];
+
+        if ((int) config('shopee.retries', 2) < 1) {
+            return $first;
+        }
+
+        Sleep::for($this->retryable($first, $method === 'GET' ? 'GET' : 'POST'))->milliseconds();
+
+        try {
+            return match ($method) {
+                'GET' => $this->shopRequest('GET', $request['path'], $shopId, $accessToken, $params),
+                'DOWNLOAD' => $this->shopDownload($request['path'], $shopId, $accessToken, $params),
+                default => $this->shopRequest('POST', $request['path'], $shopId, $accessToken, body: $params),
+            };
+        } catch (ShopeeException $e) {
+            return $e;
+        }
+    }
+
+    /** @param  array<string, mixed>  $query */
+    private function shopUrl(string $path, int $shopId, string $accessToken, array $query = []): string
+    {
+        $timestamp = now()->getTimestamp();
+
+        return $this->host().$path.'?'.http_build_query([
+            'partner_id' => $this->partnerId(),
+            'timestamp' => $timestamp,
+            'access_token' => $accessToken,
+            'shop_id' => $shopId,
+            'sign' => $this->sign($path, $timestamp, $accessToken, $shopId),
+            ...$query,
+        ]);
+    }
+
+    /** Isi berkas dari balasan unduhan; balasan JSON berarti error. */
+    private function downloaded(Response $response): string
+    {
         if (str_contains((string) $response->header('Content-Type'), 'json')) {
             $json = $response->json() ?? [];
 
@@ -222,6 +335,12 @@ class ShopeeClient
             throw new ShopeeException(ConnectionError::message('Shopee', $e), connectionFailed: true, notSent: ConnectionError::neverSent($e));
         }
 
+        return $this->parse($response);
+    }
+
+    /** @return array<string, mixed> */
+    private function parse(Response $response): array
+    {
         $json = $response->json() ?? [];
 
         if (filled($json['error'] ?? null)) {

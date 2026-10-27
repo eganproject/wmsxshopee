@@ -32,6 +32,9 @@ use Throwable;
  */
 class ShipmentController extends Controller
 {
+    /** Jumlah paket TikTok per bagian cetak gabungan. */
+    public const TIKTOK_PART_SIZE = 10;
+
     public function create(SalesOrder $order, ShopeeLogistics $logistics, TiktokLogistics $tiktok): View|RedirectResponse
     {
         if (! $order->canArrangeShipment()) {
@@ -275,13 +278,16 @@ class ShipmentController extends Controller
                 ]);
             }
         }
-        foreach ($printable->filter->isTiktok() as $order) {
-            $parts->push([
-                'type' => 'tiktok',
-                'title' => 'TikTok · '.($order->tiktokShop?->displayName() ?? 'Toko'),
-                'numbers' => [$order->number],
-                'url' => route('sales.orders.shipping-labels.part', ['orders' => [$order->id]]),
-            ]);
+        // Label TikTok per toko, beberapa paket per bagian; server mengambilnya bersamaan.
+        foreach ($printable->filter->isTiktok()->groupBy('tiktok_shop_id') as $shopOrders) {
+            foreach ($shopOrders->chunk(self::TIKTOK_PART_SIZE) as $group) {
+                $parts->push([
+                    'type' => 'tiktok',
+                    'title' => 'TikTok · '.($group->first()->tiktokShop?->displayName() ?? 'Toko'),
+                    'numbers' => $group->pluck('number')->values()->all(),
+                    'url' => route('sales.orders.shipping-labels.part', ['orders' => $group->modelKeys()]),
+                ]);
+            }
         }
         $manual = $printable->reject->isMarketplace();
         if ($manual->isNotEmpty()) {
@@ -324,6 +330,18 @@ class ShipmentController extends Controller
         try {
             if ($orders->every->isTiktok() && $orders->count() === 1) {
                 $pdf = $tiktok->label($orders->first());
+            } elseif ($orders->every->isTiktok()) {
+                $result = $tiktok->labels($orders);
+                $failed = collect($result['failed'])->map(fn ($message, $number) => "{$number}: {$message}")->values();
+                if ($result['pdfs'] === []) {
+                    return $fail($failed->take(3)->implode(' · ') ?: 'Label TikTok tidak bisa diambil.');
+                }
+
+                // Paket yang gagal disebutkan, label lainnya tetap dicetak.
+                return response()->json(array_filter([
+                    'pdfs' => array_values(array_map('base64_encode', $result['pdfs'])),
+                    'warning' => $failed->isNotEmpty() ? 'Gagal: '.$failed->implode(' · ') : null,
+                ]));
             } elseif ($orders->every->isShopee()) {
                 $documents = $logistics->documents($orders);
                 if (count($documents) > 1) {

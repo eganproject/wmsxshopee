@@ -5,6 +5,8 @@ namespace App\Services\Tiktok;
 use App\Models\TiktokSetting;
 use App\Support\ConnectionError;
 use Illuminate\Http\Client\ConnectionException;
+use Illuminate\Http\Client\Pool;
+use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Sleep;
 
@@ -146,6 +148,83 @@ class TiktokClient
         $url = rtrim(config('tiktok.hosts.api'), '/').$path.'?'.http_build_query($query);
 
         return $this->withRetries($method, fn () => $this->sendOnce($method, $url, $accessToken, $json));
+    }
+
+    /**
+     * Kirim beberapa panggilan Open API sekaligus (paralel, sebanyak config tiktok.concurrency
+     * bersamaan). Panggilan yang kena gangguan sementara diulang sendiri-sendiri dengan aturan
+     * yang sama seperti request().
+     *
+     * @param  array<array-key, array{method: string, path: string, query?: array<string, scalar|null>, body?: array<string, mixed>|null}>  $requests
+     * @return array<array-key, array<string, mixed>|TiktokException> isi "data" atau error per kunci
+     */
+    public function requestMany(array $requests, ?string $accessToken = null, ?string $shopCipher = null): array
+    {
+        $results = [];
+
+        foreach (array_chunk($requests, max(1, (int) config('tiktok.concurrency', 4)), true) as $chunk) {
+            $keys = array_keys($chunk);
+            $this->pace();
+
+            $responses = Http::pool(function (Pool $pool) use ($chunk, $keys, $accessToken, $shopCipher) {
+                $pending = [];
+                foreach ($keys as $i => $key) {
+                    $request = $chunk[$key];
+                    $path = $this->versioned($request['path']);
+                    $method = strtoupper($request['method']);
+                    $json = $method === 'GET' ? '' : json_encode($request['body'] ?? (object) [], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+                    $query = array_filter([
+                        ...($request['query'] ?? []),
+                        'app_key' => $this->appKey(),
+                        'timestamp' => now()->getTimestamp(),
+                        'shop_cipher' => $shopCipher,
+                    ], fn ($value) => $value !== null && $value !== '');
+                    $query['sign'] = $this->sign($path, $query, $json);
+                    $url = rtrim(config('tiktok.hosts.api'), '/').$path.'?'.http_build_query($query);
+
+                    $http = $pool->as((string) $i)->acceptJson()->connectTimeout(config('tiktok.connect_timeout', 10))->timeout(config('tiktok.timeout'))
+                        ->withHeaders(array_filter(['x-tts-access-token' => $accessToken]));
+                    $pending[] = $method === 'GET' ? $http->get($url) : $http->withBody($json, 'application/json')->send($method, $url);
+                }
+
+                return $pending;
+            });
+
+            foreach ($keys as $i => $key) {
+                $request = $chunk[$key];
+                $method = strtoupper($request['method']);
+
+                try {
+                    $response = $responses[(string) $i] ?? null;
+                    if ($response instanceof ConnectionException) {
+                        throw new TiktokException(ConnectionError::message('TikTok', $response), connectionFailed: true, notSent: ConnectionError::neverSent($response));
+                    }
+                    if (! $response instanceof Response) {
+                        throw new TiktokException('TikTok: '.($response instanceof \Throwable ? $response->getMessage() : 'tidak ada balasan').'.', connectionFailed: true);
+                    }
+
+                    $results[$key] = $this->unwrap($response->json() ?? [], $response->status());
+                } catch (TiktokException $e) {
+                    $wait = $this->retryable($e, $method);
+
+                    if ($wait === null || (int) config('tiktok.retries', 3) < 1) {
+                        $results[$key] = $e;
+
+                        continue;
+                    }
+
+                    Sleep::for($wait)->milliseconds();
+
+                    try {
+                        $results[$key] = $this->request($method, $request['path'], $accessToken, $shopCipher, $request['query'] ?? [], $request['body'] ?? null);
+                    } catch (TiktokException $retry) {
+                        $results[$key] = $retry;
+                    }
+                }
+            }
+        }
+
+        return $results;
     }
 
     /**
