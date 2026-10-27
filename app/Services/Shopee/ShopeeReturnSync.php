@@ -150,6 +150,8 @@ class ShopeeReturnSync
         }
 
         $items = $this->items($shop, $order, $data['item'] ?? [], self::REASONS[$data['reason'] ?? ''] ?? 'other');
+        // Barang yang sudah pernah diretur tidak dihitung lagi (cegah stok bertambah dua kali).
+        $items = SalesReturn::capToRemaining($items, $order->items->pluck('qty', 'id')->all());
 
         if (! $items) {
             return 'skipped';

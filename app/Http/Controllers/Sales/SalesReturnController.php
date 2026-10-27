@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\LostItem;
 use App\Models\ProductVariant;
 use App\Models\SalesOrder;
+use App\Models\SalesOrderItem;
 use App\Models\SalesReturn;
 use App\Models\Warehouse;
 use App\Models\WarehouseLocation;
@@ -259,6 +260,8 @@ class SalesReturnController extends Controller
                 throw ValidationException::withMessages(['items' => 'Belum ada barang di retur ini.']);
             }
 
+            $this->ensureNotReturnedTwice($return);
+
             $lines = $return->items->where('qty_good', '>', 0);
 
             $inactive = $lines->first(fn ($item) => $item->location && (! $item->location->is_active || $item->location->warehouse_id !== $return->warehouse_id));
@@ -316,6 +319,41 @@ class SalesReturnController extends Controller
         });
 
         $return->refresh()->load('movement');
+    }
+
+    /**
+     * Cek ulang saat diterima: jumlah retur ini + retur lain yang sudah diterima tidak boleh
+     * melebihi jumlah yang dikirim. Draft otomatis Shopee/TikTok bisa tumpang tindih dengan
+     * retur manual, jadi tanpa cek ini stok bisa bertambah dua kali.
+     */
+    private function ensureNotReturnedTwice(SalesReturn $return): void
+    {
+        if (! $return->sales_order_id) {
+            return;
+        }
+
+        // Kunci pesanan supaya dua retur dari pesanan yang sama tidak diterima bersamaan.
+        SalesOrder::withoutGlobalScopes()->whereKey($return->sales_order_id)->lockForUpdate()->first();
+
+        $orderItems = SalesOrderItem::whereIn('id', $return->items->pluck('sales_order_item_id')->filter()->unique())
+            ->with('variant:id,sku')->get()->keyBy('id');
+        $received = SalesReturn::returnedQty($orderItems->keys()->all(), $return->id, true);
+
+        foreach ($return->items->groupBy('sales_order_item_id') as $orderItemId => $rows) {
+            $orderItem = $orderItems->get($orderItemId);
+            if (! $orderItem) {
+                continue;
+            }
+
+            $qty = $rows->sum(fn ($item) => $item->qty_good + $item->qty_damaged + $item->qty_missing);
+            $done = $received[$orderItemId] ?? 0;
+
+            if ($qty + $done > $orderItem->qty) {
+                $left = max($orderItem->qty - $done, 0);
+
+                throw ValidationException::withMessages(['items' => "{$orderItem->variant?->sku}: dikirim {$orderItem->qty}, sudah diterima di retur lain {$done}, jadi sisa yang bisa diretur {$left}. Ubah jumlah di retur ini dulu."]);
+            }
+        }
     }
 
     /**

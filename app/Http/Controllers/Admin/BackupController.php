@@ -21,6 +21,8 @@ class BackupController extends Controller
             'backups' => $this->backup->all(),
             'keepDays' => config('backup.keep_days'),
             'time' => config('backup.time'),
+            'offsite' => $this->backup->offsiteEnabled() ? ($this->backup->offsiteStatus() ?? ['ok' => null]) : null,
+            'offsiteKeepDays' => config('backup.offsite.keep_days'),
         ]);
     }
 
@@ -35,6 +37,18 @@ class BackupController extends Controller
         }
 
         Activity::record('created', 'backups', "Backup database {$name} dibuat");
+
+        if ($this->backup->offsiteEnabled()) {
+            try {
+                $this->backup->upload($name);
+            } catch (Throwable $e) {
+                report($e);
+
+                return back()->with('error', "Backup {$name} dibuat di server, tapi gagal disalin ke offsite: ".$e->getMessage());
+            }
+
+            return back()->with('success', "Backup {$name} berhasil dibuat dan disalin ke offsite.");
+        }
 
         return back()->with('success', "Backup {$name} berhasil dibuat.");
     }

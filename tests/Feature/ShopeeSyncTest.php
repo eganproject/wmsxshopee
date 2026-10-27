@@ -725,6 +725,38 @@ class ShopeeSyncTest extends TestCase
         $this->assertSame('CANCELLED', $return->fresh()->shopee_return_status);
     }
 
+    public function test_auto_return_skips_quantity_already_returned_manually(): void
+    {
+        $order = SalesOrder::create([
+            'number' => 'SO2610-901', 'status' => 'shipped', 'warehouse_id' => $this->warehouse->id, 'order_date' => now()->toDateString(),
+            'channel_name' => 'Shopee · Toko Uji', 'external_number' => 'F2', 'shopee_shop_id' => $this->shop->id, 'customer_name' => 'Budi',
+        ]);
+        app(SalesOrderService::class)->fillLines($order, [['product_variant_id' => $this->kaosM->id, 'qty' => 3, 'price' => 1, 'notes' => null]], []);
+        $line = $order->items()->sole();
+
+        // Gudang sudah menerima 2 dari 3 lewat retur manual sebelum Shopee mengirim data returnya.
+        $manual = SalesReturn::create(['number' => 'RT-MANUAL', 'status' => 'received', 'source' => 'order', 'sales_order_id' => $order->id,
+            'warehouse_id' => $this->warehouse->id, 'return_date' => now()->toDateString(), 'sender_name' => 'Budi']);
+        $manual->items()->create(['sales_order_item_id' => $line->id, 'product_variant_id' => $this->kaosM->id, 'qty_good' => 2, 'reason' => 'changed_mind']);
+
+        Http::fake(['*/returns/get_return_list*' => Http::response(['error' => '', 'response' => ['more' => false, 'return' => [
+            ['return_sn' => 'R10', 'order_sn' => 'F2', 'status' => 'REQUESTED', 'reason' => 'ITEM_DAMAGED', 'item' => [['item_id' => 11, 'model_id' => 101, 'amount' => 3]]],
+        ]]])]);
+
+        $this->artisan('shopee:sync --only=returns')->assertSuccessful();
+
+        // Hanya sisa 1 yang masuk draft, bukan 3.
+        $auto = SalesReturn::where('external_return_number', 'R10')->with('items')->sole();
+        $this->assertSame([1], $auto->items->pluck('qty_good')->all());
+
+        // Bila semua sudah diretur, tidak ada draft baru.
+        $manual->items()->update(['qty_good' => 3]);
+        $auto->items()->delete();
+        $auto->delete();
+        $this->artisan('shopee:sync --only=returns')->assertSuccessful();
+        $this->assertFalse(SalesReturn::where('external_return_number', 'R10')->exists());
+    }
+
     public function test_webhook_verifies_signature_and_syncs_order(): void
     {
         $this->fakeOrders([$this->order('G1', 'READY_TO_SHIP', [$this->line(11, 101, 1)])]);

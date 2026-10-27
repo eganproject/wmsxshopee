@@ -11,6 +11,7 @@ use App\Models\StockAdjustment;
 use App\Models\TiktokShop;
 use App\Models\User;
 use App\Models\Warehouse;
+use App\Support\FailedJobs;
 use App\Support\StockLevels;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
@@ -165,11 +166,25 @@ class AlertService
             $groups['marketplace'] = [
                 'key' => 'marketplace',
                 'label' => 'Koneksi marketplace',
-                'hint' => 'Toko perlu otorisasi ulang, sinkron terhenti, stok gagal terkirim atau push gagal diproses',
+                'hint' => 'Toko perlu otorisasi ulang, sinkron terhenti, stok gagal terkirim, push atau job antrean gagal',
                 'count' => $issues->count(),
                 'icon' => 'heroicon-o-signal-slash',
                 'tone' => $issues->contains('severe', true) ? 'rose' : 'amber',
                 'items' => $issues->take($limit ?: 0)->values(),
+            ];
+        }
+
+        if ($user->can('backups.view')) {
+            $backupIssues = $this->backupIssues();
+
+            $groups['backup'] = [
+                'key' => 'backup',
+                'label' => 'Backup database',
+                'hint' => 'Backup harian tidak berjalan atau gagal disalin ke offsite',
+                'count' => $backupIssues->count(),
+                'icon' => 'heroicon-o-circle-stack',
+                'tone' => 'rose',
+                'items' => $backupIssues->take($limit ?: 0)->values(),
             ];
         }
 
@@ -205,6 +220,42 @@ class AlertService
         }
 
         return $groups;
+    }
+
+    /**
+     * Backup harian terlewat (penjadwal mati) atau salinan offsite gagal.
+     *
+     * @return Collection<int, object{shop: string, problem: string, since: ?Carbon, severe: bool, url: string}>
+     */
+    public function backupIssues(): Collection
+    {
+        $backup = app(DatabaseBackup::class);
+        $issues = collect();
+        $url = route('admin.backups.index');
+        $latest = $backup->all()->first();
+
+        if (! $latest || $latest['created_at']->lt(now()->subHours(36))) {
+            $issues->push((object) [
+                'shop' => 'Backup harian',
+                'problem' => $latest ? 'Tidak ada backup baru sejak '.$latest['created_at']->translatedFormat('d M Y H:i').'. Pastikan penjadwal (cron) berjalan.' : 'Belum ada backup sama sekali.',
+                'since' => $latest['created_at'] ?? null,
+                'severe' => true,
+                'url' => $url,
+            ]);
+        }
+
+        $offsite = $backup->offsiteEnabled() ? $backup->offsiteStatus() : null;
+        if ($offsite && ! $offsite['ok']) {
+            $issues->push((object) [
+                'shop' => 'Salinan offsite',
+                'problem' => 'Gagal disalin ke offsite'.($offsite['error'] ? ': '.$offsite['error'] : ''),
+                'since' => $offsite['at'],
+                'severe' => true,
+                'url' => $url,
+            ]);
+        }
+
+        return $issues;
     }
 
     /**
@@ -264,6 +315,19 @@ class AlertService
                 'since' => $row->last_at ? Carbon::parse($row->last_at) : null,
                 'severe' => false,
                 'url' => route('marketplace.sync-logs', ['tab' => 'push', 'status' => 'failed']),
+            ]);
+        }
+
+        // Job antrean yang gagal (kirim stok, sinkron toko, dsb.) tidak diulang otomatis.
+        $failedJobs = FailedJobs::count(now()->subDays(7));
+        if ($failedJobs > 0) {
+            $issues->push((object) [
+                'platform' => 'queue',
+                'shop' => 'Antrean latar',
+                'problem' => "{$failedJobs} job gagal dalam 7 hari terakhir. Buka untuk melihat penyebab dan mengulanginya.",
+                'since' => FailedJobs::lastFailedAt(),
+                'severe' => true,
+                'url' => route('marketplace.sync-logs', ['tab' => 'jobs']),
             ]);
         }
 

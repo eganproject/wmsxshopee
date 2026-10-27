@@ -8,6 +8,8 @@ use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use InvalidArgumentException;
 use RuntimeException;
 use Throwable;
@@ -117,6 +119,101 @@ class DatabaseBackup
     public function directory(): string
     {
         return rtrim(config('backup.path'), '/\\');
+    }
+
+    public function offsiteEnabled(): bool
+    {
+        return filled(config('backup.offsite.disk'));
+    }
+
+    /**
+     * Unggah backup ke penyimpanan offsite. Hasilnya (berhasil / gagal) dicatat supaya
+     * halaman Backup dan lonceng notifikasi bisa memperingatkan bila salinan offsite macet.
+     */
+    public function upload(string $name): void
+    {
+        $path = $this->path($name);
+        $stream = fopen($path, 'rb');
+
+        try {
+            Storage::disk(config('backup.offsite.disk'))->writeStream($this->offsitePath($name), $stream);
+        } catch (Throwable $e) {
+            $this->writeOffsiteStatus(['ok' => false, 'name' => $name, 'at' => now()->toIso8601String(), 'error' => Str::limit($e->getMessage(), 300)]);
+
+            throw $e;
+        } finally {
+            if (is_resource($stream)) {
+                fclose($stream);
+            }
+        }
+
+        $this->writeOffsiteStatus(['ok' => true, 'name' => $name, 'at' => now()->toIso8601String(), 'last_ok_at' => now()->toIso8601String(), 'error' => null]);
+    }
+
+    /** Hapus backup offsite yang lebih tua dari sekian hari; yang terbaru selalu disimpan. */
+    public function pruneOffsite(int $keepDays): int
+    {
+        $disk = Storage::disk(config('backup.offsite.disk'));
+        $cutoff = now()->subDays($keepDays)->getTimestamp();
+        $files = collect($disk->files(config('backup.offsite.folder')))
+            ->filter(fn ($file) => preg_match(self::NAME_PATTERN, basename($file)))
+            ->mapWithKeys(fn ($file) => [$file => $this->offsiteTimestamp($disk, $file)])
+            ->sortDesc();
+
+        return $files->skip(1)
+            ->filter(fn ($time) => $time < $cutoff)
+            ->each(fn ($time, $file) => $disk->delete($file))
+            ->count();
+    }
+
+    /**
+     * Hasil unggah offsite terakhir.
+     *
+     * @return array{ok: bool, name: string, at: Carbon, last_ok_at: ?Carbon, error: ?string}|null
+     */
+    public function offsiteStatus(): ?array
+    {
+        $file = $this->directory().DIRECTORY_SEPARATOR.'.offsite.json';
+        $data = File::isFile($file) ? json_decode((string) File::get($file), true) : null;
+
+        if (! is_array($data) || ! isset($data['at'])) {
+            return null;
+        }
+
+        return [
+            'ok' => (bool) ($data['ok'] ?? false),
+            'name' => (string) ($data['name'] ?? ''),
+            'at' => Carbon::parse($data['at']),
+            'last_ok_at' => filled($data['last_ok_at'] ?? null) ? Carbon::parse($data['last_ok_at']) : null,
+            'error' => $data['error'] ?? null,
+        ];
+    }
+
+    /** Waktu backup dari namanya (optima-db-YYYYmmdd-HHiiss), tanpa panggilan API per file. */
+    private function offsiteTimestamp($disk, string $file): int
+    {
+        if (preg_match('/-(\d{8}-\d{6})\.sql(\.gz)?$/', $file, $m)) {
+            return Carbon::createFromFormat('Ymd-His', $m[1])->getTimestamp();
+        }
+
+        return $disk->lastModified($file);
+    }
+
+    private function offsitePath(string $name): string
+    {
+        return ltrim(config('backup.offsite.folder').'/'.$name, '/');
+    }
+
+    /** @param  array<string, mixed>  $status */
+    private function writeOffsiteStatus(array $status): void
+    {
+        $status['last_ok_at'] ??= $this->offsiteStatus()['last_ok_at'] ?? null;
+        if ($status['last_ok_at'] instanceof Carbon) {
+            $status['last_ok_at'] = $status['last_ok_at']->toIso8601String();
+        }
+
+        File::ensureDirectoryExists($this->directory());
+        File::put($this->directory().DIRECTORY_SEPARATOR.'.offsite.json', json_encode($status));
     }
 
     private function dump(Connection $connection, callable $write): void
