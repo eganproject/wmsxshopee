@@ -473,6 +473,25 @@ class ShipmentFlowTest extends TestCase
         $this->get('/sales/orders?shipment=unarranged')->assertOk()->assertDontSee($order->number);
     }
 
+    public function test_label_print_is_counted_and_shown_in_order_list(): void
+    {
+        $order = $this->order(['shipping_method' => 'dropoff', 'dropoff_point' => 'JNE Kemang', 'shipment_arranged_at' => now(), 'tracking_number' => 'JNE900']);
+        $waiting = $this->order(['shipping_method' => 'dropoff', 'dropoff_point' => 'JNE Kemang', 'shipment_arranged_at' => now(), 'tracking_number' => 'JNE901']);
+
+        $this->get('/sales/orders?label=unprinted')->assertOk()->assertSee($order->number)->assertSee($waiting->number)->assertSee('Belum cetak resi');
+
+        $this->get("/sales/orders/{$order->id}/shipping-label")->assertOk();
+        $this->assertSame(1, $order->fresh()->shipping_label_print_count);
+
+        $this->get("/sales/orders/{$order->id}/shipping-label")->assertOk();
+        $order->refresh();
+        $this->assertSame(2, $order->shipping_label_print_count);
+
+        $this->get('/sales/orders?label=printed')->assertOk()->assertSee($order->number)->assertDontSee($waiting->number)
+            ->assertSee('Resi dicetak '.$order->shipping_label_printed_at->format('d/m H:i').' · 2x');
+        $this->get('/sales/orders?label=unprinted')->assertOk()->assertSee($waiting->number)->assertDontSee($order->number);
+    }
+
     public function test_qc_scan_must_match_before_packing(): void
     {
         $order = $this->order(['tracking_number' => 'JNE900'], [['product_variant_id' => $this->kaosM->id, 'qty' => 2, 'price' => 1], ['bundle_id' => $this->bundle->id, 'qty' => 1, 'price' => 1]]);
