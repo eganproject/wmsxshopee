@@ -39,6 +39,23 @@ class SalesOrder extends Model
             'next' => null],
     ];
 
+    /**
+     * Tab di daftar pesanan: status gudang, ditambah tab Selesai setelah Dikirim.
+     * Selesai bukan status gudang: pesanan berstatus Dikirim yang di Shopee / TikTok sudah selesai
+     * (pembeli sudah menerima pesanan). Tab Dikirim hanya berisi yang belum selesai.
+     */
+    public const LIST_TABS = [
+        'draft' => self::STATUSES['draft'],
+        'confirmed' => self::STATUSES['confirmed'],
+        'picking' => self::STATUSES['picking'],
+        'packed' => self::STATUSES['packed'],
+        'shipped' => self::STATUSES['shipped'],
+        'completed' => ['label' => 'Selesai', 'icon' => 'heroicon-o-check-circle', 'color' => 'emerald',
+            'hint' => 'Pesanan yang sudah dikirim dan di Shopee / TikTok sudah selesai, artinya pembeli sudah menerima pesanan.',
+            'next' => null],
+        'cancelled' => self::STATUSES['cancelled'],
+    ];
+
     /** Status pesanan di Shopee (order_status) dengan label Indonesia. */
     public const SHOPEE_STATUSES = [
         'UNPAID' => ['label' => 'Belum Bayar', 'color' => 'slate'],
@@ -595,6 +612,29 @@ class SalesOrder extends Model
         }
 
         return null;
+    }
+
+    /**
+     * Filter tab daftar pesanan. Tab Selesai = Dikirim + selesai di marketplace;
+     * tab Dikirim tidak lagi memuat pesanan yang sudah selesai.
+     *
+     * @param  Builder<SalesOrder>  $query
+     */
+    public function scopeInListTab(Builder $query, string $tab): void
+    {
+        // Kolom status dicek tidak null supaya NOT (...) tidak ikut membuang baris karena NULL.
+        $completed = fn ($q) => $q
+            ->where(fn ($s) => $s->whereNotNull('shopee_shop_id')->whereNotNull('shopee_order_status')
+                ->whereIn('shopee_order_status', self::MARKETPLACE_STATUSES['completed']['shopee']))
+            ->orWhere(fn ($t) => $t->whereNotNull('tiktok_shop_id')->whereNotNull('tiktok_order_status')
+                ->whereIn('tiktok_order_status', self::MARKETPLACE_STATUSES['completed']['tiktok'])
+                ->where('tiktok_cancel_requested', false));
+
+        match ($tab) {
+            'completed' => $query->where('status', 'shipped')->where($completed),
+            'shipped' => $query->where('status', 'shipped')->whereNot($completed),
+            default => $query->where('status', $tab),
+        };
     }
 
     /**

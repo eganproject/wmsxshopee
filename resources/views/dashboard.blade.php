@@ -69,7 +69,7 @@
                     <h2 class="text-base font-semibold text-slate-900">Pesanan per Status</h2>
                     <a href="{{ route('sales.orders.index', ['warehouse' => $wh]) }}" class="text-sm text-slate-600 hover:text-slate-900">Lihat pesanan</a>
                 </div>
-                <div class="grid grid-cols-2 divide-slate-100 sm:grid-cols-3 lg:grid-cols-6 lg:divide-x">
+                <div class="grid grid-cols-2 divide-slate-100 sm:grid-cols-4 lg:grid-cols-7 lg:divide-x">
                     @foreach ($orders['counts'] as $status => $total)
                         <a href="{{ route('sales.orders.index', ['status' => $status, 'warehouse' => $wh]) }}" class="flex flex-col gap-2 px-5 py-4 hover:bg-slate-50/60">
                             <span><x-sales.status-badge :status="$status" /></span>

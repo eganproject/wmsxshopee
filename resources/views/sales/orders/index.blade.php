@@ -26,7 +26,7 @@
            @class(['-mb-px border-b-2 px-3 py-2 whitespace-nowrap', 'border-brand-500 font-medium text-slate-900' => ! $statusFilter, 'border-transparent text-slate-500 hover:text-slate-700' => $statusFilter])>
             Semua <span class="ml-1 text-xs text-slate-400">{{ $counts->sum() }}</span>
         </a>
-        @foreach (\App\Models\SalesOrder::STATUSES as $value => $meta)
+        @foreach (\App\Models\SalesOrder::LIST_TABS as $value => $meta)
             <a href="{{ route('sales.orders.index', [...request()->except(['status', 'page']), 'status' => $value]) }}"
                data-hint-title="{{ $meta['label'] }}" data-hint="{{ $meta['hint'] }}" @if ($meta['next']) data-hint-next="{{ $meta['next'] }}" @endif
                @class(['-mb-px border-b-2 px-3 py-2 whitespace-nowrap', 'border-brand-500 font-medium text-slate-900' => $statusFilter === $value, 'border-transparent text-slate-500 hover:text-slate-700' => $statusFilter !== $value])>
@@ -215,7 +215,7 @@
         @php($quickDates = ['Hari Ini' => [$today, $today], '7 Hari' => [now()->subDays(6)->toDateString(), $today], '30 Hari' => [now()->subDays(29)->toDateString(), $today]])
         <form method="GET" class="space-y-3 border-b border-slate-100 p-4"
               x-data="{ multi: @js($searchTerms > 1 && str_contains((string) request('search'), "\n")) }">
-            @foreach (['status', 'mp', 'shopee', 'platform', 'channel', 'courier', 'per_page'] as $keep)
+            @foreach (['status', 'mp', 'shopee', 'platform', 'channel', 'courier'] as $keep)
                 @if (request()->filled($keep))
                     <input type="hidden" name="{{ $keep }}" value="{{ request($keep) }}">
                 @endif
@@ -272,7 +272,15 @@
                                 @class([$pill, 'py-1.5', $pillOn => $from === $start && $to === $end, $pillOff => ! ($from === $start && $to === $end)])>{{ $label }}</button>
                     @endforeach
                 </div>
-                <div class="flex items-center gap-2 lg:ml-auto">
+                <div class="flex flex-wrap items-center gap-2 lg:ml-auto">
+                    {{-- Jumlah data per halaman di atas daftar supaya mudah dijangkau. --}}
+                    <label for="order-per-page" class="text-xs whitespace-nowrap text-slate-500">Tampilkan</label>
+                    <select id="order-per-page" name="per_page" class="form-input w-36" onchange="this.form.submit()"
+                            data-hint-title="Jumlah per halaman" data-hint="Banyaknya pesanan yang ditampilkan dalam satu halaman. Total {{ number_format($orders->total(), 0, ',', '.') }} pesanan sesuai filter.">
+                        @foreach (\App\Http\Controllers\Sales\SalesOrderController::PER_PAGE as $size)
+                            <option value="{{ $loop->first ? '' : $size }}" @selected($orders->perPage() === $size)>{{ $size }} / halaman</option>
+                        @endforeach
+                    </select>
                     <label for="order-sort" class="text-xs whitespace-nowrap text-slate-500">Urutkan</label>
                     <select id="order-sort" name="sort" class="form-input lg:w-48" onchange="this.form.submit()">
                         @foreach (\App\Http\Controllers\Sales\SalesOrderController::SORTS as $value => $label)
@@ -495,14 +503,7 @@
 
         @if ($orders->total() > \App\Http\Controllers\Sales\SalesOrderController::PER_PAGE[0])
             <div class="flex flex-col gap-3 border-t border-slate-100 px-5 py-4 lg:flex-row lg:items-center">
-                <div class="flex items-center gap-2 text-sm text-slate-500">
-                    <span>Total {{ number_format($orders->total(), 0, ',', '.') }}</span>
-                    <select class="form-input w-32 py-1 text-xs" aria-label="Jumlah per halaman" onchange="window.location.href = this.value">
-                        @foreach (\App\Http\Controllers\Sales\SalesOrderController::PER_PAGE as $size)
-                            <option value="{{ route('sales.orders.index', [...request()->except(['per_page', 'page']), 'per_page' => $size === \App\Http\Controllers\Sales\SalesOrderController::PER_PAGE[0] ? null : $size]) }}" @selected($orders->perPage() === $size)>{{ $size }} / halaman</option>
-                        @endforeach
-                    </select>
-                </div>
+                <span class="text-sm text-slate-500">Total {{ number_format($orders->total(), 0, ',', '.') }}</span>
                 @if ($orders->hasPages())
                     <div class="flex-1">{{ $orders->links() }}</div>
                 @endif
