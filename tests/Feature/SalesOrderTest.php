@@ -10,6 +10,7 @@ use App\Models\SavedFilter;
 use App\Models\ShopeeShop;
 use App\Models\Stock;
 use App\Models\StockLedger;
+use App\Models\TiktokShop;
 use App\Models\Unit;
 use App\Models\User;
 use App\Models\Warehouse;
@@ -377,6 +378,36 @@ class SalesOrderTest extends TestCase
         return $order;
     }
 
+    public function test_completed_tab_holds_shipped_orders_finished_in_marketplace(): void
+    {
+        $shopee = ShopeeShop::create(['environment' => 'test', 'shop_id' => 778, 'shop_name' => 'Toko Oranye', 'warehouse_id' => $this->warehouse->id, 'status' => 'connected']);
+        $tiktok = TiktokShop::create(['shop_id' => '749500001', 'shop_name' => 'Toko Hitam', 'region' => 'ID', 'warehouse_id' => $this->warehouse->id, 'status' => 'connected']);
+
+        $this->listOrder('SO-DONE-SHP', ['status' => 'shipped', 'shopee_shop_id' => $shopee->id, 'shopee_order_status' => 'COMPLETED']);
+        $this->listOrder('SO-DONE-TT', ['status' => 'shipped', 'tiktok_shop_id' => $tiktok->id, 'tiktok_order_status' => 'COMPLETED']);
+        $this->listOrder('SO-OTW-SHP', ['status' => 'shipped', 'shopee_shop_id' => $shopee->id, 'shopee_order_status' => 'TO_CONFIRM_RECEIVE']);
+        $this->listOrder('SO-OTW-TT', ['status' => 'shipped', 'tiktok_shop_id' => $tiktok->id, 'tiktok_order_status' => 'DELIVERED']);
+        $this->listOrder('SO-NOSTAT', ['status' => 'shipped', 'shopee_shop_id' => $shopee->id]);
+        $this->listOrder('SO-MANUAL', ['status' => 'shipped']);
+        // Selesai di Shopee tapi gudang belum mengirim: tetap di tabnya (dan muncul di Tidak sinkron).
+        $this->listOrder('SO-AHEAD', ['status' => 'packed', 'shopee_shop_id' => $shopee->id, 'shopee_order_status' => 'COMPLETED']);
+
+        $this->get(route('sales.orders.index', ['status' => 'completed']))->assertOk()
+            ->assertSee('SO-DONE-SHP')->assertSee('SO-DONE-TT')
+            ->assertDontSee('SO-OTW-SHP')->assertDontSee('SO-OTW-TT')->assertDontSee('SO-NOSTAT')->assertDontSee('SO-MANUAL')->assertDontSee('SO-AHEAD');
+
+        $this->get(route('sales.orders.index', ['status' => 'shipped']))->assertOk()
+            ->assertSee('SO-OTW-SHP')->assertSee('SO-OTW-TT')->assertSee('SO-NOSTAT')->assertSee('SO-MANUAL')
+            ->assertDontSee('SO-DONE-SHP')->assertDontSee('SO-DONE-TT')->assertDontSee('SO-AHEAD');
+
+        // Jumlah tab: Selesai dipisah dari Dikirim, total Semua tetap.
+        $this->get(route('sales.orders.index'))->assertOk()
+            ->assertViewHas('counts', fn ($counts) => $counts['completed'] === 2 && $counts['shipped'] === 4 && $counts->sum() === 7);
+
+        $this->get(route('dashboard'))->assertOk()
+            ->assertViewHas('orders', fn ($orders) => $orders['counts']['completed'] === 2 && $orders['counts']['shipped'] === 4);
+    }
+
     public function test_order_list_filters_platform_shop_and_pasted_numbers(): void
     {
         $shop = ShopeeShop::create(['environment' => 'test', 'shop_id' => 777, 'shop_name' => 'Toko Oranye', 'warehouse_id' => $this->warehouse->id, 'status' => 'connected']);
@@ -429,6 +460,12 @@ class SalesOrderTest extends TestCase
         $this->get(route('sales.orders.index', ['per_page' => 50]))->assertOk()->assertSee('SO-P01');
         // Nilai di luar pilihan kembali ke 20.
         $this->get(route('sales.orders.index', ['per_page' => 5000]))->assertOk()->assertDontSee('SO-P01');
+
+        // Pilihan jumlah per halaman ada di atas daftar (di form filter), bukan di bawah, dan tetap muncul walau data sedikit.
+        $this->get(route('sales.orders.index', ['search' => 'SO-P01']))->assertOk()
+            ->assertSeeInOrder(['id="order-per-page"', 'name="per_page"', '<table'], false);
+        // Kosong = bawaan 20 per halaman.
+        $this->get(route('sales.orders.index', ['per_page' => '']))->assertOk()->assertDontSee('SO-P01');
     }
 
     public function test_saved_order_filters_are_private_and_reusable(): void

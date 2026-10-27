@@ -40,9 +40,14 @@ class DashboardController extends Controller
             $counts = SalesOrder::query()
                 ->when($warehouseId, fn ($q) => $q->where('warehouse_id', $warehouseId))
                 ->groupBy('status')->selectRaw('status, COUNT(*) as total')->pluck('total', 'status');
+            // Sama dengan tab di daftar pesanan: Selesai dipisah dari Dikirim.
+            $counts['completed'] = SalesOrder::query()
+                ->when($warehouseId, fn ($q) => $q->where('warehouse_id', $warehouseId))
+                ->inListTab('completed')->count();
+            $counts['shipped'] = ($counts['shipped'] ?? 0) - $counts['completed'];
 
             $orders = [
-                'counts' => collect(array_keys(SalesOrder::STATUSES))->mapWithKeys(fn ($status) => [$status => (int) ($counts[$status] ?? 0)]),
+                'counts' => collect(array_keys(SalesOrder::LIST_TABS))->mapWithKeys(fn ($status) => [$status => (int) ($counts[$status] ?? 0)]),
                 'open' => collect(SalesOrder::RESERVING)->sum(fn ($status) => (int) ($counts[$status] ?? 0)),
                 'shipped_today' => SalesOrder::query()
                     ->when($warehouseId, fn ($q) => $q->where('warehouse_id', $warehouseId))

@@ -70,7 +70,7 @@ class SalesOrderController extends Controller
         $query = $this->filtered($request)
             ->with(['warehouse', 'courier', 'looseItems.variant.product', 'bundles.bundle'])
             ->withSum('items', 'qty')
-            ->when($request->filled('status'), fn ($query) => $query->where('status', $request->input('status')));
+            ->when($request->filled('status'), fn ($query) => $query->inListTab((string) $request->input('status')));
         $this->sorted($query, (string) $request->input('sort'));
 
         if ($request->input('export') === 'xlsx') {
@@ -94,10 +94,13 @@ class SalesOrderController extends Controller
 
         // Jumlah per tab mengikuti filter yang sedang dipakai (selain tab status itu sendiri).
         $counts = $this->filtered($request)->toBase()->groupBy('status')->selectRaw('status, COUNT(*) as total')->pluck('total', 'status');
+        // Tab Selesai diambil dari tab Dikirim, supaya jumlah Semua tetap sama.
+        $counts['completed'] = $this->filtered($request)->inListTab('completed')->count();
+        $counts['shipped'] = ($counts['shipped'] ?? 0) - $counts['completed'];
 
         // Jumlah per chip status marketplace: ikut tab status gudang & filter lain, kecuali chip itu sendiri.
         $marketplaceBase = fn () => $this->filtered($request, false)
-            ->when($request->filled('status'), fn ($query) => $query->where('status', $request->input('status')));
+            ->when($request->filled('status'), fn ($query) => $query->inListTab((string) $request->input('status')));
         $marketplaceCounts = collect();
         $marketplaceBase()->toBase()
             ->where(fn ($q) => $q->whereNotNull('shopee_order_status')->orWhereNotNull('tiktok_order_status'))
@@ -616,7 +619,7 @@ class SalesOrderController extends Controller
         // Jumlah per kurir mengikuti semua filter lain (termasuk tab status), kecuali filter kurir itu sendiri.
         $others = $request->duplicate(collect($request->query())->except(['courier', 'page'])->all());
         $counts = $this->filtered($others)
-            ->when($request->filled('status'), fn ($query) => $query->where('status', $request->input('status')))
+            ->when($request->filled('status'), fn ($query) => $query->inListTab((string) $request->input('status')))
             ->toBase()
             ->groupBy('courier_id')
             ->selectRaw('courier_id, COUNT(*) as total')
