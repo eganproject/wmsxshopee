@@ -23,18 +23,18 @@
             <p class="mt-1"><x-inventory.count-status :status="$count->status" /></p>
         </div>
         <div>
-            <p class="text-xs text-slate-500">Dihitung</p>
+            <p class="text-xs text-slate-500"><span class="whitespace-nowrap">Dihitung <x-hint text="Jumlah baris yang sudah diisi hasil hitung dibanding total baris." /></span></p>
             <p class="mt-1 text-sm font-semibold tabular-nums text-slate-900">{{ $counted->count() }} / {{ $count->items->count() }} baris</p>
         </div>
         <div>
-            <p class="text-xs text-slate-500">Selisih Lebih / Kurang</p>
+            <p class="text-xs text-slate-500">Selisih Lebih / <span class="whitespace-nowrap">Kurang <x-hint text="Total pcs lebih (hasil hitung di atas sistem) dan kurang (di bawah sistem)." /></span></p>
             <p class="mt-1 text-sm font-semibold tabular-nums">
                 <span class="text-emerald-600">+{{ $variances->filter(fn ($v) => $v > 0)->sum() }}</span> /
                 <span class="text-rose-600">{{ $variances->filter(fn ($v) => $v < 0)->sum() }}</span>
             </p>
         </div>
         <div>
-            <p class="text-xs text-slate-500">Mutasi Penyesuaian</p>
+            <p class="text-xs text-slate-500">Mutasi <span class="whitespace-nowrap">Penyesuaian <x-hint text="Dokumen Penyesuaian stok yang dibuat otomatis dari selisih opname ini." /></span></p>
             @if ($count->movement)
                 @can('inventory.view')
                     <a href="{{ route('inventory.movements.show', $count->movement) }}" class="mt-1 inline-block font-mono text-sm text-brand-600 hover:underline">{{ $count->movement->number }}</a>
@@ -72,10 +72,10 @@
                         <th class="h-8 px-4 py-0 font-normal">Lokasi</th>
                         <th class="h-8 px-4 py-0 font-normal">SKU</th>
                         <th class="h-8 px-4 py-0 font-normal">Produk / Varian</th>
-                        <th class="h-8 px-4 py-0 text-right font-normal">Sistem</th>
-                        <th class="h-8 px-4 py-0 text-right font-normal">Hasil Hitung</th>
-                        <th class="h-8 px-4 py-0 text-right font-normal">Selisih</th>
-                        <th class="h-8 px-4 py-0 font-normal">Ditaruh ke Bin</th>
+                        <th class="h-8 px-4 py-0 text-right font-normal"><span class="whitespace-nowrap">Sistem <x-hint text="Saldo stok menurut sistem saat posting." /></span></th>
+                        <th class="h-8 px-4 py-0 text-right font-normal">Hasil <span class="whitespace-nowrap">Hitung <x-hint text="Jumlah fisik hasil hitung." /></span></th>
+                        <th class="h-8 px-4 py-0 text-right font-normal"><span class="whitespace-nowrap">Selisih <x-hint text="Hasil Hitung dikurangi Sistem. Plus berarti barang lebih, minus berarti barang kurang. Selisih dicatat sebagai Penyesuaian saat posting." /></span></th>
+                        <th class="h-8 px-4 py-0 font-normal">Ditaruh ke <span class="whitespace-nowrap">Bin <x-hint text="Bin tujuan untuk stok tanpa bin yang ikut dipindah saat posting." /></span></th>
                         <th class="h-8 px-4 py-0 font-normal">Catatan</th>
                     </tr>
                 </thead>

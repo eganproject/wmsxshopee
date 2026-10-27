@@ -34,19 +34,19 @@
 
     <div class="mb-6 grid gap-3 sm:grid-cols-4">
         <div class="card px-4 py-3">
-            <p class="text-xs text-slate-500">Total SKU Shopee</p>
+            <p class="text-xs text-slate-500">Total SKU <span class="whitespace-nowrap">Shopee <x-hint text="Semua SKU / variasi produk yang ditarik dari toko Shopee ini." /></span></p>
             <p class="text-xl font-semibold text-slate-900 tabular-nums">{{ $total }}</p>
         </div>
         <div class="card px-4 py-3">
-            <p class="text-xs text-slate-500">Sudah dipetakan</p>
+            <p class="text-xs text-slate-500">Sudah <span class="whitespace-nowrap">dipetakan <x-hint text="SKU Shopee yang sudah terhubung ke varian atau paket di gudang. Stoknya dikirim dan pesanannya bisa diproses." /></span></p>
             <p class="text-xl font-semibold text-emerald-600 tabular-nums">{{ $total - $unmapped }}</p>
         </div>
         <div class="card px-4 py-3">
-            <p class="text-xs text-slate-500">Belum dipetakan</p>
+            <p class="text-xs text-slate-500">Belum <span class="whitespace-nowrap">dipetakan <x-hint text="SKU Shopee yang belum terhubung. Stoknya tidak dikirim dan pesanan berisi SKU ini tertahan di Draft." next="Pilih SKU Optima di kolom kanan, atau samakan SKU di Shopee lalu Sinkron Produk." /></span></p>
             <p class="text-xl font-semibold tabular-nums {{ $unmapped ? 'text-amber-600' : 'text-slate-900' }}">{{ $unmapped }}</p>
         </div>
         <a href="{{ route('shopee.mappings.index', [$shop, 'status' => 'failed']) }}" class="card px-4 py-3 hover:border-slate-300">
-            <p class="text-xs text-slate-500">Gagal kirim stok</p>
+            <p class="text-xs text-slate-500">Gagal kirim <span class="whitespace-nowrap">stok <x-hint text="SKU yang stoknya ditolak Shopee saat terakhir dikirim. Arahkan kursor ke tanda merah di baris untuk alasannya." /></span></p>
             <p class="text-xl font-semibold tabular-nums {{ $failed ? 'text-rose-600' : 'text-slate-900' }}">{{ $failed }}</p>
         </a>
     </div>
@@ -69,8 +69,8 @@
             </summary>
             <form method="POST" action="{{ route('shopee.mappings.store', $shop) }}" class="grid gap-x-6 gap-y-4 border-t border-slate-100 p-5 sm:grid-cols-3">
                 @csrf
-                <x-input name="item_id" type="number" min="1" label="Item ID" required />
-                <x-input name="model_id" type="number" min="0" label="Model ID" hint="0 / kosong untuk produk tanpa variasi." />
+                <x-input name="item_id" type="number" tip="ID produk di Shopee, terlihat di URL produk Seller Centre." min="1" label="Item ID" required />
+                <x-input name="model_id" type="number" tip="ID variasi di Shopee. Isi 0 untuk produk tanpa variasi." min="0" label="Model ID" hint="0 / kosong untuk produk tanpa variasi." />
                 <x-input name="shopee_sku" label="SKU Shopee" hint="Dicocokkan otomatis ke SKU varian / paket." />
                 <x-input name="item_name" label="Nama produk" />
                 <x-input name="model_name" label="Nama variasi" />
@@ -112,10 +112,10 @@
             <table class="min-w-full text-sm">
                 <thead class="bg-slate-50 text-left text-[13px] text-slate-500">
                     <tr>
-                        <th class="h-8 px-4 py-0 font-normal">Produk Shopee</th>
-                        <th class="h-8 px-4 py-0 font-normal">SKU Shopee</th>
-                        <th class="h-8 px-4 py-0 font-normal">SKU Optima</th>
-                        <th class="h-8 px-4 py-0 text-right font-normal">Stok di Shopee</th>
+                        <th class="h-8 px-4 py-0 font-normal">Produk <span class="whitespace-nowrap">Shopee <x-hint text="Nama produk dan variasi di Shopee, beserta Item ID / Model ID." /></span></th>
+                        <th class="h-8 px-4 py-0 font-normal">SKU <span class="whitespace-nowrap">Shopee <x-hint text="SKU yang diisi penjual di Shopee. Bila sama dengan SKU di gudang, otomatis terhubung." /></span></th>
+                        <th class="h-8 px-4 py-0 font-normal">SKU <span class="whitespace-nowrap">Optima <x-hint text="Varian atau paket di gudang yang dihubungkan ke SKU marketplace ini. Kosong = Belum dipetakan." /></span></th>
+                        <th class="h-8 px-4 py-0 text-right font-normal">Stok di <span class="whitespace-nowrap">Shopee <x-hint text="Stok terakhir yang dikirim Optima ke Shopee untuk SKU ini, dan waktu pengirimannya." /></span></th>
                         <th class="h-8 w-16 px-4 py-0"></th>
                     </tr>
                 </thead>
@@ -129,8 +129,8 @@
                                     <span class="font-mono">{{ $mapping->item_id }}@if ($mapping->model_id)/{{ $mapping->model_id }}@endif</span>
                                 </p>
                                 @if ($mapping->isRemoved())
-                                    <span class="mt-1 inline-flex rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600"
-                                          title="Tidak muncul lagi saat produk ditarik dari Shopee. Stoknya tidak dikirim; pemetaan dipakai lagi bila SKU ini muncul kembali.">
+                                    <span class="mt-1 inline-flex cursor-help rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600"
+                                          data-hint-title="SKU tidak ada lagi" data-hint="Tidak muncul lagi saat produk ditarik dari Shopee. Stoknya tidak dikirim; pemetaan dipakai lagi bila SKU ini muncul kembali.">
                                         Tidak ada di Shopee sejak {{ $mapping->removed_at->format('d/m/Y') }}
                                     </span>
                                 @endif
@@ -150,7 +150,7 @@
                                             @endif
                                         </select>
                                         @if ($mapping->match_type === 'auto')
-                                            <span class="rounded-full bg-sky-50 px-2 py-0.5 text-xs text-sky-700" title="Dicocokkan otomatis dari SKU">Otomatis</span>
+                                            <span class="cursor-help rounded-full bg-sky-50 px-2 py-0.5 text-xs text-sky-700" data-hint-title="Otomatis" data-hint="Dicocokkan otomatis karena SKU di Shopee sama dengan SKU varian / paket di gudang. Ikut berubah bila SKU di Shopee diganti.">Otomatis</span>
                                         @endif
                                     </form>
                                 @else

@@ -16,11 +16,11 @@
             <p class="mt-0.5 text-sm text-slate-500">SKU paket dipakai saat input atau impor pesanan, dan nanti dicocokkan dengan SKU di Shopee.</p>
         </div>
         <div class="grid gap-5 p-6 sm:grid-cols-2">
-            <x-input name="sku" label="SKU Paket" icon="heroicon-o-hashtag" :value="$bundle->sku" placeholder="cth. PAKET-KAOS-3"
+            <x-input name="sku" label="SKU Paket" tip="SKU yang dipakai di Shopee / TikTok untuk listing paket. Saat paket terjual, stok barang isinya yang berkurang, bukan stok paket." icon="heroicon-o-hashtag" :value="$bundle->sku" placeholder="cth. PAKET-KAOS-3"
                      hint="Huruf, angka, - dan _. Tidak boleh sama dengan SKU varian." class="uppercase" required />
             <x-input name="name" label="Nama Paket" :value="$bundle->name" placeholder="cth. Paket Hemat 3 Kaos" required />
-            <x-input name="barcode" label="Barcode" icon="heroicon-o-qr-code" :value="$bundle->barcode" hint="Opsional, untuk scan di form pesanan." />
-            <x-input name="price" type="number" label="Harga Jual" :value="$bundle->price !== null ? (float) $bundle->price : ''" min="0" step="any"
+            <x-input name="barcode" label="Barcode" tip="Kode yang bisa di-scan untuk memilih paket di form pesanan dan QC kemas." icon="heroicon-o-qr-code" :value="$bundle->barcode" hint="Opsional, untuk scan di form pesanan." />
+            <x-input name="price" type="number" tip="Harga yang terisi otomatis saat paket dipilih di pesanan manual. Masih bisa diubah per pesanan." label="Harga Jual" :value="$bundle->price !== null ? (float) $bundle->price : ''" min="0" step="any"
                      hint="Harga default saat paket dipilih di pesanan." />
             <x-textarea name="description" label="Deskripsi" :value="$bundle->description" rows="2" class="sm:col-span-2" />
         </div>
@@ -47,8 +47,8 @@
             <table class="min-w-full text-sm">
                 <thead class="text-left text-[13px] text-slate-500">
                     <tr>
-                        <th class="py-2 pr-2 font-normal">Barang *</th>
-                        <th class="px-2 py-2 text-right font-normal">Jumlah per Paket *</th>
+                        <th class="py-2 pr-2 font-normal">Barang <span class="whitespace-nowrap">* <x-hint text="Varian (SKU) yang menjadi isi paket. Stok varian inilah yang dicadangkan dan dikurangi saat paket dipesan." /></span></th>
+                        <th class="px-2 py-2 text-right font-normal">Jumlah per Paket <span class="whitespace-nowrap">* <x-hint text="Berapa pcs varian ini dalam satu paket. Contoh paket isi 3 kaos: isi 3." /></span></th>
                         <th class="py-2 pl-2"></th>
                     </tr>
                 </thead>

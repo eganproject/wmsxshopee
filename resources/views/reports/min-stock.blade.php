@@ -17,11 +17,11 @@
 
     <div class="mb-6 grid gap-4 sm:grid-cols-3">
         <div class="card p-4">
-            <p class="text-xs text-slate-500">Perlu Diisi Ulang</p>
+            <p class="text-xs text-slate-500">Perlu Diisi <span class="whitespace-nowrap">Ulang <x-hint text="SKU yang stok tersedianya sudah sama atau di bawah stok minimum." /></span></p>
             <p @class(['mt-1 text-xl font-semibold tabular-nums', 'text-rose-600' => $belowCount > 0, 'text-slate-900' => ! $belowCount])>{{ $fmt($belowCount) }} SKU</p>
         </div>
         <div class="card p-4">
-            <p class="text-xs text-slate-500">SKU dengan Stok Minimum</p>
+            <p class="text-xs text-slate-500">SKU dengan Stok <span class="whitespace-nowrap">Minimum <x-hint text="Jumlah SKU yang sudah diberi batas stok minimum di Master Produk." /></span></p>
             <p class="mt-1 text-xl font-semibold tabular-nums text-slate-900">{{ $fmt($withMinCount) }}</p>
         </div>
         <div class="card flex items-start gap-2 p-4 text-xs text-slate-500">
@@ -60,11 +60,11 @@
                     <tr>
                         <th class="h-8 px-4 py-0 font-normal">SKU</th>
                         <th class="h-8 px-4 py-0 font-normal">Produk / Varian</th>
-                        <th class="h-8 px-4 py-0 text-right font-normal">Stok Min.</th>
-                        <th class="h-8 px-4 py-0 text-right font-normal">Fisik</th>
-                        <th class="h-8 px-4 py-0 text-right font-normal">Dicadangkan</th>
-                        <th class="h-8 px-4 py-0 text-right font-normal">Tersedia</th>
-                        <th class="h-8 px-4 py-0 text-right font-normal">Kekurangan</th>
+                        <th class="h-8 px-4 py-0 text-right font-normal">Stok <span class="whitespace-nowrap">Min. <x-hint text="Batas peringatan yang diisi di Master Produk." /></span></th>
+                        <th class="h-8 px-4 py-0 text-right font-normal"><span class="whitespace-nowrap">Fisik <x-hint text="Barang yang secara fisik ada di gudang." /></span></th>
+                        <th class="h-8 px-4 py-0 text-right font-normal"><span class="whitespace-nowrap">Dicadangkan <x-hint text="Stok yang sudah dicadangkan untuk pesanan yang belum dikirim." /></span></th>
+                        <th class="h-8 px-4 py-0 text-right font-normal"><span class="whitespace-nowrap">Tersedia <x-hint text="Fisik dikurangi Dicadangkan." /></span></th>
+                        <th class="h-8 px-4 py-0 text-right font-normal"><span class="whitespace-nowrap">Kekurangan <x-hint text="Stok Min. dikurangi Tersedia. Minimal sebanyak ini yang perlu diisi agar kembali di atas batas." /></span></th>
                         <th class="h-8 px-4 py-0 font-normal">Status</th>
                     </tr>
                 </thead>

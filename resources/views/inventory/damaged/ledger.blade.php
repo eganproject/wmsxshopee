@@ -54,13 +54,13 @@
                 <thead class="bg-slate-50 text-left text-[13px] text-slate-500">
                     <tr>
                         <th class="h-8 px-4 py-0 font-normal">Tanggal</th>
-                        <th class="h-8 px-4 py-0 font-normal">Jenis</th>
-                        <th class="h-8 px-4 py-0 font-normal">Dokumen</th>
+                        <th class="h-8 px-4 py-0 font-normal"><span class="whitespace-nowrap">Jenis <x-hint text="Sumber pergerakan stok rusak. Arahkan kursor ke label jenis untuk penjelasannya." /></span></th>
+                        <th class="h-8 px-4 py-0 font-normal"><span class="whitespace-nowrap">Dokumen <x-hint text="Dokumen asal pergerakan, misalnya penerimaan, retur atau dokumen barang rusak." /></span></th>
                         <th class="h-8 px-4 py-0 font-normal">SKU</th>
                         <th class="h-8 px-4 py-0 font-normal">Produk</th>
                         <th class="h-8 px-4 py-0 font-normal">Gudang</th>
-                        <th class="h-8 px-4 py-0 text-right font-normal">Masuk</th>
-                        <th class="h-8 px-4 py-0 text-right font-normal">Keluar</th>
+                        <th class="h-8 px-4 py-0 text-right font-normal"><span class="whitespace-nowrap">Masuk <x-hint text="Barang rusak yang bertambah." /></span></th>
+                        <th class="h-8 px-4 py-0 text-right font-normal"><span class="whitespace-nowrap">Keluar <x-hint text="Barang rusak yang berkurang karena diretur, dimusnahkan, diperbaiki atau dirakit." /></span></th>
                         <th class="h-8 px-4 py-0 font-normal">Keterangan</th>
                         <th class="h-8 px-4 py-0 font-normal">Oleh</th>
                     </tr>

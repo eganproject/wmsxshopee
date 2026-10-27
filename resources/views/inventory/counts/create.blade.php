@@ -30,17 +30,17 @@
                 <p class="mt-0.5 text-sm text-slate-500">Nomor dibuat otomatis, cth. {{ \App\Models\StockCount::PREFIX.now()->format('ym') }}-001.</p>
             </div>
             <div class="grid gap-x-6 gap-y-4 p-5 sm:grid-cols-3">
-                <x-select name="warehouse_id" label="Gudang" required x-model="warehouse">
+                <x-select name="warehouse_id" label="Gudang" tip="Gudang yang dihitung. Lembar hitung diisi dari saldo stok gudang ini saat dokumen dibuat." required x-model="warehouse">
                     <option value="">Pilih gudang</option>
                     @foreach ($warehouses as $warehouse)
                         <option value="{{ $warehouse->id }}">{{ $warehouse->code }} · {{ $warehouse->name }}</option>
                     @endforeach
                 </x-select>
-                <x-input name="count_date" type="date" label="Tanggal Opname" :value="now()->toDateString()" :max="now()->toDateString()" required />
+                <x-input name="count_date" type="date" tip="Tanggal pelaksanaan hitung fisik. Penyesuaian stok dicatat dengan tanggal ini." label="Tanggal Opname" :value="now()->toDateString()" :max="now()->toDateString()" required />
                 <div></div>
 
                 <div class="sm:col-span-3">
-                    <p class="form-label">Cakupan <span class="text-rose-500">*</span></p>
+                    <p class="form-label">Cakupan <span class="text-rose-500">*</span> <x-hint text="Bagian gudang yang dihitung. Opname per zona lebih cepat dan gudang lain tetap bisa beroperasi." /></p>
                     <div class="grid gap-2 sm:grid-cols-3">
                         @foreach ([
                             'all' => ['heroicon-o-building-office-2', 'Seluruh gudang', 'Semua bin dan stok tanpa bin.'],

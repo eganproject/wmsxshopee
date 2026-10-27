@@ -17,12 +17,12 @@
 
     <div class="mb-6 grid gap-4 sm:grid-cols-3">
         <div class="card p-4">
-            <p class="text-xs text-slate-500">SKU Perlu Dibeli</p>
+            <p class="text-xs text-slate-500">SKU Perlu <span class="whitespace-nowrap">Dibeli <x-hint text="Jumlah SKU yang saran belinya lebih dari nol." /></span></p>
             <p @class(['mt-1 text-xl font-semibold tabular-nums', 'text-rose-600' => $summary['skus'] > 0, 'text-slate-900' => ! $summary['skus']])>{{ $fmt($summary['skus']) }} SKU</p>
             <p class="text-xs text-slate-500">{{ $fmt($summary['below']) }} sudah di bawah stok minimum</p>
         </div>
         <div class="card p-4">
-            <p class="text-xs text-slate-500">Total Saran Beli</p>
+            <p class="text-xs text-slate-500">Total Saran <span class="whitespace-nowrap">Beli <x-hint text="Total pcs yang disarankan untuk dibeli dari semua SKU." /></span></p>
             <p class="mt-1 text-xl font-semibold tabular-nums text-slate-900">{{ $fmt($summary['qty']) }}</p>
             <p class="text-xs text-slate-500">unit, semua SKU</p>
         </div>
@@ -49,12 +49,12 @@
             </select>
             <label class="flex items-center gap-2 text-sm text-slate-600">
                 Penjualan
-                <input type="number" name="lookback" min="1" max="365" value="{{ $suggestions->lookbackDays }}" class="form-input w-20" title="Rata-rata penjualan dihitung dari N hari terakhir">
+                <input type="number" name="lookback" min="1" max="365" value="{{ $suggestions->lookbackDays }}" class="form-input w-20" data-hint-title="Periode penjualan" data-hint="Rata-rata penjualan harian dihitung dari sekian hari terakhir. Pakai periode lebih panjang untuk barang yang lakunya tidak menentu.">
                 hari
             </label>
             <label class="flex items-center gap-2 text-sm text-slate-600">
                 Stok untuk
-                <input type="number" name="cover" min="0" max="365" value="{{ $suggestions->coverDays }}" class="form-input w-20" title="Stok target cukup untuk N hari penjualan di atas stok minimum">
+                <input type="number" name="cover" min="0" max="365" value="{{ $suggestions->coverDays }}" class="form-input w-20" data-hint-title="Stok untuk berapa hari" data-hint="Target stok = stok minimum + rata-rata terjual per hari × jumlah hari ini. Sesuaikan dengan lama pengiriman dari supplier.">
                 hari
             </label>
             <select name="show" class="form-input lg:w-56" onchange="this.form.submit()">
@@ -75,14 +75,14 @@
                     <tr>
                         <th class="h-8 px-4 py-0 font-normal">SKU</th>
                         <th class="h-8 px-4 py-0 font-normal">Produk / Varian</th>
-                        <th class="h-8 px-4 py-0 text-right font-normal">Stok Min.</th>
-                        <th class="h-8 px-4 py-0 text-right font-normal">Tersedia</th>
-                        <th class="h-8 px-4 py-0 text-right font-normal" title="Qty di penerimaan barang yang masih draft">Draft Terima</th>
-                        <th class="h-8 px-4 py-0 text-right font-normal" title="Rata-rata terjual per hari, {{ $suggestions->lookbackDays }} hari terakhir">Terjual/Hari</th>
-                        <th class="h-8 px-4 py-0 text-right font-normal">Habis Dalam</th>
-                        <th class="h-8 px-4 py-0 text-right font-normal">Target</th>
-                        <th class="h-8 px-4 py-0 text-right font-normal">Saran Beli</th>
-                        <th class="h-8 px-4 py-0 font-normal">Supplier Terakhir</th>
+                        <th class="h-8 px-4 py-0 text-right font-normal">Stok <span class="whitespace-nowrap">Min. <x-hint text="Batas stok minimum dari Master Produk." /></span></th>
+                        <th class="h-8 px-4 py-0 text-right font-normal"><span class="whitespace-nowrap">Tersedia <x-hint text="Stok fisik dikurangi yang sudah dicadangkan pesanan." /></span></th>
+                        <th class="h-8 px-4 py-0 text-right font-normal">Draft <span class="whitespace-nowrap">Terima <x-hint text="Barang yang sudah dicatat di Penerimaan Barang tapi belum dikonfirmasi diterima. Dianggap akan datang, jadi mengurangi saran beli." /></span></th>
+                        <th class="h-8 px-4 py-0 text-right font-normal"><span class="whitespace-nowrap">Terjual/Hari <x-hint text="Rata-rata terjual per hari dalam {{ $suggestions->lookbackDays }} hari terakhir." /></span></th>
+                        <th class="h-8 px-4 py-0 text-right font-normal">Habis <span class="whitespace-nowrap">Dalam <x-hint text="Perkiraan berapa hari lagi stok tersedia habis dengan kecepatan jual saat ini." /></span></th>
+                        <th class="h-8 px-4 py-0 text-right font-normal"><span class="whitespace-nowrap">Target <x-hint text="Stok minimum + rata-rata terjual per hari × jumlah hari stok." /></span></th>
+                        <th class="h-8 px-4 py-0 text-right font-normal">Saran <span class="whitespace-nowrap">Beli <x-hint text="Target dikurangi Tersedia dan Draft Terima. Jumlah yang disarankan untuk dipesan ke supplier." /></span></th>
+                        <th class="h-8 px-4 py-0 font-normal">Supplier <span class="whitespace-nowrap">Terakhir <x-hint text="Supplier dari penerimaan barang terakhir untuk SKU ini, sebagai acuan pemesanan." /></span></th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-slate-100">

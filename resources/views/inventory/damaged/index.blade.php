@@ -28,7 +28,7 @@
 
     <div class="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <div class="card p-4">
-            <p class="text-xs text-slate-500">Total Barang Rusak</p>
+            <p class="text-xs text-slate-500">Total Barang <span class="whitespace-nowrap">Rusak <x-hint text="Jumlah pcs barang rusak yang masih tersimpan di gudang, terpisah dari stok jual." /></span></p>
             <p @class(['mt-1 text-2xl font-semibold tabular-nums', 'text-rose-600' => $summary['qty'] > 0, 'text-slate-400' => ! $summary['qty']])>{{ $fmt($summary['qty']) }}</p>
         </div>
         <div class="card p-4">
@@ -36,11 +36,11 @@
             <p class="mt-1 text-2xl font-semibold tabular-nums text-slate-900">{{ $fmt($summary['skus']) }}</p>
         </div>
         <div class="card p-4">
-            <p class="text-xs text-slate-500">Masuk Rusak Bulan Ini</p>
+            <p class="text-xs text-slate-500">Masuk Rusak Bulan <span class="whitespace-nowrap">Ini <x-hint text="Barang rusak yang masuk bulan ini dari penerimaan, retur penjualan atau dokumen Pindah ke Rusak." /></span></p>
             <p class="mt-1 text-2xl font-semibold tabular-nums text-slate-900">{{ $fmt($summary['in']) }}</p>
         </div>
         <div class="card p-4">
-            <p class="text-xs text-slate-500">Dialokasikan Bulan Ini</p>
+            <p class="text-xs text-slate-500">Dialokasikan Bulan <span class="whitespace-nowrap">Ini <x-hint text="Barang rusak yang keluar bulan ini karena diretur ke supplier, dimusnahkan, diperbaiki atau dirakit." /></span></p>
             <p class="mt-1 text-2xl font-semibold tabular-nums text-emerald-600">{{ $fmt($summary['out']) }}</p>
         </div>
     </div>
@@ -76,7 +76,7 @@
                         <th class="h-8 px-4 py-0 font-normal">SKU</th>
                         <th class="h-8 px-4 py-0 font-normal">Produk / Varian</th>
                         <th class="h-8 px-4 py-0 font-normal">Gudang</th>
-                        <th class="h-8 px-4 py-0 text-right font-normal">Qty Rusak</th>
+                        <th class="h-8 px-4 py-0 text-right font-normal">Qty <span class="whitespace-nowrap">Rusak <x-hint text="Jumlah barang rusak SKU ini di gudang. Tidak ikut dijual dan tidak dikirim ke marketplace." /></span></th>
                         <th class="h-8 px-4 py-0 text-right font-normal">Aksi</th>
                     </tr>
                 </thead>

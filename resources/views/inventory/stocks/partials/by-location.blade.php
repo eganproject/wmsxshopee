@@ -4,10 +4,10 @@
             <th class="px-5 py-3">SKU</th>
             <th class="px-5 py-3">Produk / Varian</th>
             <th class="px-5 py-3">Gudang</th>
-            <th class="px-5 py-3">Lokasi</th>
-            <th class="px-5 py-3 text-right">Fisik</th>
-            <th class="px-5 py-3 text-right" title="Sudah dialokasikan picking pesanan (diambil / dikemas) tapi belum dikirim">Sudah Diambil</th>
-            <th class="px-5 py-3 text-right" title="Fisik dikurangi Sudah Diambil">Bebas</th>
+            <th class="px-5 py-3"><span class="whitespace-nowrap">Lokasi <x-hint text="Kode lokasi bin. Tanpa bin berarti stok sudah tercatat di gudang tapi belum ditaruh di rak." /></span></th>
+            <th class="px-5 py-3 text-right"><span class="whitespace-nowrap">Fisik <x-hint text="Jumlah barang yang ada di lokasi bin ini." /></span></th>
+            <th class="px-5 py-3 text-right">Sudah <span class="whitespace-nowrap">Diambil <x-hint text="Barang di bin ini yang sudah dialokasikan ke picking pesanan (sedang diambil / sudah dikemas) tapi belum dikirim." /></span></th>
+            <th class="px-5 py-3 text-right"><span class="whitespace-nowrap">Bebas <x-hint text="Fisik dikurangi Sudah Diambil. Jumlah yang masih boleh dipindah, ditransfer atau diambil untuk pesanan lain." /></span></th>
             <th class="px-5 py-3 text-right">Aksi</th>
         </tr>
     </thead>

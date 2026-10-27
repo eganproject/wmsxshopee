@@ -65,13 +65,13 @@
                 <thead class="bg-slate-50 text-left text-[13px] text-slate-500">
                     <tr>
                         <x-labels.select-all :ids="$locations->pluck('id')" />
-                        <th class="h-8 px-4 py-0 font-normal">Kode Lokasi</th>
+                        <th class="h-8 px-4 py-0 font-normal">Kode <span class="whitespace-nowrap">Lokasi <x-hint text="Alamat bin dengan format RAK-LEVEL-POSISI. Kode ini dicetak sebagai label barcode dan di-scan saat menaruh / mengambil barang." /></span></th>
                         <th class="h-8 px-4 py-0 font-normal">Gudang / Zona / Rak</th>
-                        <th class="h-8 px-4 py-0 font-normal text-center">Level</th>
-                        <th class="h-8 px-4 py-0 font-normal text-center">Posisi</th>
+                        <th class="h-8 px-4 py-0 font-normal text-center"><span class="whitespace-nowrap">Level <x-hint text="Tingkat rak, dihitung dari bawah." /></span></th>
+                        <th class="h-8 px-4 py-0 font-normal text-center"><span class="whitespace-nowrap">Posisi <x-hint text="Urutan bin di level tersebut, dihitung dari kiri." /></span></th>
                         <th class="h-8 px-4 py-0 font-normal">Jenis</th>
-                        <th class="h-8 px-4 py-0 font-normal">Kapasitas</th>
-                        <th class="h-8 px-4 py-0 font-normal">Status</th>
+                        <th class="h-8 px-4 py-0 font-normal"><span class="whitespace-nowrap">Kapasitas <x-hint text="Batas jumlah pcs dan berat maksimal bin, bila diisi." /></span></th>
+                        <th class="h-8 px-4 py-0 font-normal"><span class="whitespace-nowrap">Status <x-hint text="Data nonaktif tidak bisa dipilih di transaksi baru, tapi riwayatnya tetap tersimpan." /></span></th>
                         <th class="h-8 px-4 py-0 font-normal text-right">Aksi</th>
                     </tr>
                 </thead>

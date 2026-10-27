@@ -30,7 +30,7 @@
         <div class="card mb-6" x-data="{ platform: @js($defaultConnect), configured: @js($configured), actions: @js($connectable->keys()->mapWithKeys(fn ($p) => [$p => route($p.'.shops.connect')])) }">
             <div class="flex flex-col gap-4 p-4 lg:flex-row lg:items-end">
                 <div>
-                    <p class="form-label">Platform</p>
+                    <p class="form-label"><span class="whitespace-nowrap">Platform <x-hint text="Pilih Shopee atau TikTok Shop. Kredensial app-nya harus sudah diisi di Pengaturan → Marketplace." /></span></p>
                     <div class="inline-flex rounded-lg border border-slate-200 p-0.5">
                         @foreach ($connectable as $key => $meta)
                             <button type="button" @click="platform = @js($key)"
@@ -50,7 +50,7 @@
                 <form method="POST" :action="actions[platform]" class="flex flex-1 flex-col gap-3 md:flex-row md:items-end" x-show="configured[platform]">
                     @csrf
                     <input type="hidden" name="platform" :value="platform">
-                    <x-select name="warehouse_id" label="Gudang pengirim" class="md:w-80" required>
+                    <x-select name="warehouse_id" label="Gudang pengirim" tip="Gudang yang memproses pesanan toko ini. Stok gudang ini (ditambah jatah gudang cadangan) yang dikirim ke toko." class="md:w-80" required>
                         <option value="">Pilih gudang</option>
                         @foreach ($warehouses as $warehouse)
                             <option value="{{ $warehouse->id }}" @selected(old('warehouse_id') == $warehouse->id || $warehouses->count() === 1)>{{ $warehouse->code }} · {{ $warehouse->name }}</option>
@@ -115,15 +115,15 @@
             </form>
         </div>
 
-        <div class="overflow-x-auto" x-data="hintTips">
+        <div class="overflow-x-auto">
             <table class="min-w-full text-sm">
                 <thead class="bg-slate-50 text-left text-[13px] text-slate-500">
                     <tr>
                         <th class="h-8 px-4 py-0 font-normal">Toko</th>
-                        <th class="h-8 px-4 py-0 font-normal">Gudang Pengirim</th>
-                        <th class="h-8 px-4 py-0 font-normal">Status</th>
-                        <th class="h-8 px-4 py-0 font-normal">Token & Sinkron</th>
-                        <th class="h-8 px-4 py-0 font-normal">Pemetaan SKU</th>
+                        <th class="h-8 px-4 py-0 font-normal">Gudang <span class="whitespace-nowrap">Pengirim <x-hint text="Gudang yang memproses pesanan toko. Centang Kirim stok supaya Optima memperbarui stok di marketplace." /></span></th>
+                        <th class="h-8 px-4 py-0 font-normal"><span class="whitespace-nowrap">Status <x-hint text="Terhubung: sinkron berjalan. Perlu otorisasi ulang: izin toko kedaluwarsa, sambungkan lagi. Diputus: koneksi dihapus dari marketplace." /></span></th>
+                        <th class="h-8 px-4 py-0 font-normal">Token & <span class="whitespace-nowrap">Sinkron <x-hint text="Akses: masa berlaku token harian (diperbarui otomatis). Refresh: batas akhir sebelum toko harus diotorisasi ulang. Sinkron: kapan data terakhir diambil." /></span></th>
+                        <th class="h-8 px-4 py-0 font-normal">Pemetaan <span class="whitespace-nowrap">SKU <x-hint text="Jumlah SKU marketplace yang sudah dihubungkan ke SKU gudang. SKU yang belum dipetakan tidak dikirim stoknya dan pesanannya tertahan." /></span></th>
                         <th class="h-8 px-4 py-0 text-right font-normal">Aksi</th>
                     </tr>
                 </thead>
@@ -174,7 +174,7 @@
                                             @csrf @method('PUT')
                                             <input type="hidden" name="is_active" value="{{ $shop->is_active ? 1 : 0 }}">
                                             <input type="hidden" name="warehouse_id" value="{{ $shop->warehouse_id }}">
-                                            <label class="inline-flex cursor-pointer items-center gap-1.5 text-xs text-slate-600" title="Mati: stok di {{ $platformName }} tidak diubah Optima. Nyalakan setelah stok gudang sudah dicek (stock opname).">
+                                            <label class="inline-flex cursor-pointer items-center gap-1.5 text-xs text-slate-600" data-hint-title="Kirim stok ke {{ $platformName }}" data-hint="Nyala: Optima memperbarui stok di {{ $platformName }} setiap ada perubahan. Mati: stok di {{ $platformName }} tidak diubah Optima." data-hint-next="Nyalakan setelah stok gudang sudah dicek (stock opname).">
                                                 <input type="checkbox" name="stock_push" value="1" class="form-checkbox" @checked($shop->stock_push) onchange="this.form.submit()">
                                                 Kirim stok ke {{ $platformName }}
                                             </label>

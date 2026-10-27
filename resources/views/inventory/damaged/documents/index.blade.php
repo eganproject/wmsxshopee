@@ -54,13 +54,13 @@
                     <tr>
                         <th class="h-8 px-4 py-0 font-normal">No.</th>
                         <th class="h-8 px-4 py-0 font-normal">Tanggal</th>
-                        <th class="h-8 px-4 py-0 font-normal">Jenis</th>
+                        <th class="h-8 px-4 py-0 font-normal"><span class="whitespace-nowrap">Jenis <x-hint text="Jenis proses barang rusak. Arahkan kursor ke label jenis untuk penjelasannya." /></span></th>
                         <th class="h-8 px-4 py-0 font-normal">Gudang</th>
-                        <th class="h-8 px-4 py-0 font-normal">Penerima</th>
+                        <th class="h-8 px-4 py-0 font-normal"><span class="whitespace-nowrap">Penerima <x-hint text="Supplier atau pihak lain yang menerima barang, khusus Retur ke Supplier." /></span></th>
                         <th class="h-8 px-4 py-0 font-normal">Referensi</th>
                         <th class="h-8 px-4 py-0 text-right font-normal">Baris</th>
-                        <th class="h-8 px-4 py-0 text-right font-normal">Total Qty</th>
-                        <th class="h-8 px-4 py-0 font-normal">Status</th>
+                        <th class="h-8 px-4 py-0 text-right font-normal">Total <span class="whitespace-nowrap">Qty <x-hint text="Total pcs semua baris di dokumen." /></span></th>
+                        <th class="h-8 px-4 py-0 font-normal"><span class="whitespace-nowrap">Status <x-hint text="Draft: stok belum berubah. Disetujui: perubahan stok sudah dicatat dan dokumen terkunci." /></span></th>
                         <th class="h-8 px-4 py-0 font-normal">Dibuat oleh</th>
                         <th class="h-8 px-4 py-0 text-right font-normal">Aksi</th>
                     </tr>

@@ -48,10 +48,10 @@
                     <tr>
                         <th class="px-5 py-3">No. Dokumen</th>
                         <th class="px-5 py-3">Tanggal</th>
-                        <th class="px-5 py-3">Jenis</th>
+                        <th class="px-5 py-3"><span class="whitespace-nowrap">Jenis <x-hint text="Jenis pergerakan stok. Arahkan kursor ke label jenis untuk penjelasannya." /></span></th>
                         <th class="px-5 py-3">Gudang</th>
-                        <th class="px-5 py-3">Referensi</th>
-                        <th class="px-5 py-3 text-right">Baris</th>
+                        <th class="px-5 py-3"><span class="whitespace-nowrap">Referensi <x-hint text="Nomor acuan, misalnya nomor PO, nomor pesanan, atau nomor transfer." /></span></th>
+                        <th class="px-5 py-3 text-right"><span class="whitespace-nowrap">Baris <x-hint text="Jumlah SKU / baris barang di dokumen ini." /></span></th>
                         <th class="px-5 py-3">Dibuat oleh</th>
                         <th class="px-5 py-3 text-right">Aksi</th>
                     </tr>

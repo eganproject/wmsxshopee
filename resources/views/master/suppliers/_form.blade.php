@@ -6,10 +6,10 @@
             </h2>
         </div>
         <div class="grid gap-x-6 gap-y-4 p-5 sm:grid-cols-2">
-            <x-input name="code" label="Kode Supplier" icon="heroicon-o-hashtag" :value="$supplier->code" placeholder="cth. SUP001" class="[&_input]:uppercase" required />
+            <x-input name="code" label="Kode Supplier" tip="Kode singkat supplier yang tampil di dokumen Penerimaan Barang." icon="heroicon-o-hashtag" :value="$supplier->code" placeholder="cth. SUP001" class="[&_input]:uppercase" required />
             <x-input name="name" label="Nama Supplier" :value="$supplier->name" placeholder="cth. CV Sumber Textile" required />
-            <x-input name="npwp" label="NPWP" :value="$supplier->npwp" placeholder="opsional" />
-            <x-input name="payment_term_days" type="number" min="0" max="365" label="Termin Bayar (hari)" icon="heroicon-o-calendar-days"
+            <x-input name="npwp" label="NPWP" tip="Nomor Pokok Wajib Pajak supplier, bila diperlukan untuk faktur pajak." :value="$supplier->npwp" placeholder="opsional" />
+            <x-input name="payment_term_days" type="number" tip="Lama waktu pembayaran ke supplier sejak barang diterima, dalam hari. 0 berarti dibayar tunai / COD." min="0" max="365" label="Termin Bayar (hari)" icon="heroicon-o-calendar-days"
                      :value="$supplier->payment_term_days" placeholder="cth. 30" hint="Isi 0 untuk tunai / COD." />
         </div>
     </div>

@@ -6,7 +6,7 @@
             </h2>
         </div>
         <div class="grid gap-5 p-6 sm:grid-cols-2">
-            <x-input name="code" label="Kode Satuan" icon="heroicon-o-hashtag" :value="$unit->code" placeholder="cth. PCS"
+            <x-input name="code" label="Kode Satuan" tip="Singkatan satuan yang tampil di samping angka stok, misalnya PCS, BOX, atau KG." icon="heroicon-o-hashtag" :value="$unit->code" placeholder="cth. PCS"
                      hint="Huruf, angka, - dan _. Otomatis huruf kapital." class="uppercase" required />
             <x-input name="name" label="Nama Satuan" :value="$unit->name" placeholder="cth. Pieces" required />
         </div>

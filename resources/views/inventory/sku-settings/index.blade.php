@@ -51,10 +51,10 @@
                             <tr>
                                 <th class="px-4 py-2.5">SKU</th>
                                 <th class="px-4 py-2.5 text-right">Stok di {{ $warehouse->code }}</th>
-                                <th class="px-4 py-2.5">Ada di bin</th>
-                                <th class="px-4 py-2.5">Lokasi Tetap</th>
-                                <th class="px-4 py-2.5">Min</th>
-                                <th class="px-4 py-2.5">Maks</th>
+                                <th class="px-4 py-2.5">Ada di <span class="whitespace-nowrap">bin <x-hint text="Bin yang saat ini benar-benar berisi stok SKU ini, belum tentu sama dengan lokasi tetapnya." /></span></th>
+                                <th class="px-4 py-2.5">Lokasi <span class="whitespace-nowrap">Tetap <x-hint text="Bin langganan SKU ini. Penerimaan & transfer menyarankan bin Utama sampai penuh (sesuai kapasitas), lalu bin Cadangan. Picking mengambil dari bin Utama dulu." /></span></th>
+                                <th class="px-4 py-2.5"><span class="whitespace-nowrap">Min <x-hint text="Stok minimum di gudang ini. Bila stok tersedia + dalam perjalanan sama atau di bawah angka ini, SKU masuk saran isi ulang dari gudang cadangan." /></span></th>
+                                <th class="px-4 py-2.5"><span class="whitespace-nowrap">Maks <x-hint text="Target stok saat isi ulang. Saran transfer mengisi sampai angka ini (dibulatkan per koli). Kosong = mengisi sampai Min." /></span></th>
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-slate-100">
@@ -80,7 +80,7 @@
                                                 <span class="w-20 shrink-0 whitespace-nowrap text-xs font-medium" :class="i === 0 ? 'text-brand-600' : 'text-slate-500'" x-text="i === 0 ? 'Utama' : 'Cadangan ' + i"></span>
                                                 <select class="form-input min-w-40" :name="`settings[{{ $variant->id }}][bins][${i}][location_id]`" x-model="bin.location_id"
                                                         x-tom-select="{ options: locationOptions, value: bin.location_id }" data-placeholder="Pilih bin"></select>
-                                                <input type="number" min="1" class="form-input w-24" placeholder="Kapasitas" title="Kapasitas bin (pcs). Kosong = tanpa batas."
+                                                <input type="number" min="1" class="form-input w-24" placeholder="Kapasitas" title="Kapasitas bin (pcs). Kosong = tanpa batas." data-hint-title="Kapasitas bin" data-hint="Jumlah pcs maksimal SKU ini di bin tersebut. Setelah penuh, barang disarankan ke bin cadangan berikutnya. Kosong = tanpa batas."
                                                        :name="`settings[{{ $variant->id }}][bins][${i}][capacity]`" x-model="bin.capacity">
                                                 <button type="button" class="btn-icon" title="Naikkan prioritas" x-show="i > 0" @click="bins.splice(i - 1, 2, bins[i], bins[i - 1])">
                                                     <x-heroicon-o-arrow-up class="size-4" />

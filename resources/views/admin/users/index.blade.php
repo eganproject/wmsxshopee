@@ -48,9 +48,9 @@
                 <thead class="bg-slate-50 text-left text-[13px] text-slate-500">
                     <tr>
                         <th class="h-8 px-4 py-0 font-normal">User</th>
-                        <th class="h-8 px-4 py-0 font-normal">Role</th>
-                        <th class="h-8 px-4 py-0 font-normal">Gudang</th>
-                        <th class="h-8 px-4 py-0 font-normal">Status</th>
+                        <th class="h-8 px-4 py-0 font-normal"><span class="whitespace-nowrap">Role <x-hint text="Kelompok hak akses user. Menentukan menu dan tombol apa saja yang bisa dipakai." /></span></th>
+                        <th class="h-8 px-4 py-0 font-normal"><span class="whitespace-nowrap">Gudang <x-hint text="Gudang yang datanya bisa dilihat dan dikelola user ini." /></span></th>
+                        <th class="h-8 px-4 py-0 font-normal"><span class="whitespace-nowrap">Status <x-hint text="Nonaktif berarti user tidak bisa login, tapi riwayat aktivitasnya tetap tersimpan." /></span></th>
                         <th class="h-8 px-4 py-0 font-normal">Login Terakhir</th>
                         <th class="h-8 px-4 py-0 font-normal text-right">Aksi</th>
                     </tr>

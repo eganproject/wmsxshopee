@@ -64,11 +64,11 @@
                     <tr>
                         <th class="h-8 px-4 py-0 font-normal">SKU</th>
                         <th class="h-8 px-4 py-0 font-normal">Produk / Varian</th>
-                        <th class="h-8 px-4 py-0 text-right font-normal">Saldo Awal</th>
-                        <th class="h-8 px-4 py-0 text-right font-normal">Masuk</th>
-                        <th class="h-8 px-4 py-0 text-right font-normal">Keluar</th>
-                        <th class="h-8 px-4 py-0 text-right font-normal">Penyesuaian</th>
-                        <th class="h-8 px-4 py-0 text-right font-normal">Saldo Akhir</th>
+                        <th class="h-8 px-4 py-0 text-right font-normal">Saldo <span class="whitespace-nowrap">Awal <x-hint text="Stok di awal rentang tanggal yang dipilih." /></span></th>
+                        <th class="h-8 px-4 py-0 text-right font-normal"><span class="whitespace-nowrap">Masuk <x-hint text="Barang Masuk (penerimaan, retur penjualan, stok awal), hasil perbaikan dan hasil rakitan." /></span></th>
+                        <th class="h-8 px-4 py-0 text-right font-normal"><span class="whitespace-nowrap">Keluar <x-hint text="Pesanan dikirim, barang pindah ke rusak, dan bahan yang dipakai untuk rakitan." /></span></th>
+                        <th class="h-8 px-4 py-0 text-right font-normal"><span class="whitespace-nowrap">Penyesuaian <x-hint text="Koreksi stok dari penyesuaian manual dan hasil stock opname (bisa plus atau minus)." /></span></th>
+                        <th class="h-8 px-4 py-0 text-right font-normal">Saldo <span class="whitespace-nowrap">Akhir <x-hint text="Stok di akhir rentang tanggal. Selain kolom di kiri, ikut menghitung transfer antar gudang yang masuk / keluar." /></span></th>
                         <th class="h-8 px-4 py-0 text-right font-normal">Aksi</th>
                     </tr>
                 </thead>

@@ -57,11 +57,11 @@
                         <th class="h-8 px-4 py-0 font-normal">No.</th>
                         <th class="h-8 px-4 py-0 font-normal">Tanggal</th>
                         <th class="h-8 px-4 py-0 font-normal">Supplier</th>
-                        <th class="h-8 px-4 py-0 font-normal">PO / Surat Jalan</th>
+                        <th class="h-8 px-4 py-0 font-normal">PO / Surat <span class="whitespace-nowrap">Jalan <x-hint text="Nomor dokumen dari supplier." /></span></th>
                         <th class="h-8 px-4 py-0 font-normal">Gudang</th>
-                        <th class="h-8 px-4 py-0 font-normal text-right">Diterima</th>
-                        <th class="h-8 px-4 py-0 font-normal text-right">Rusak</th>
-                        <th class="h-8 px-4 py-0 font-normal">Status</th>
+                        <th class="h-8 px-4 py-0 font-normal text-right"><span class="whitespace-nowrap">Diterima <x-hint text="Total barang kondisi baik yang masuk stok." /></span></th>
+                        <th class="h-8 px-4 py-0 font-normal text-right"><span class="whitespace-nowrap">Rusak <x-hint text="Total barang rusak yang masuk Stok Rusak." /></span></th>
+                        <th class="h-8 px-4 py-0 font-normal"><span class="whitespace-nowrap">Status <x-hint text="Draft: belum menambah stok dan masih bisa diubah. Diterima: stok sudah masuk dan dokumen terkunci." /></span></th>
                         <th class="h-8 px-4 py-0 font-normal text-right">Aksi</th>
                     </tr>
                 </thead>

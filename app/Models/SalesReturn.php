@@ -16,8 +16,10 @@ class SalesReturn extends Model
     public const PREFIX = 'RT';
 
     public const STATUSES = [
-        'draft' => ['label' => 'Draft', 'color' => 'slate'],
-        'received' => ['label' => 'Diterima', 'color' => 'emerald'],
+        'draft' => ['label' => 'Draft', 'color' => 'slate',
+            'hint' => 'Retur sudah dicatat tapi barangnya belum dikonfirmasi diterima. Stok belum bertambah dan dokumen masih bisa diubah.'],
+        'received' => ['label' => 'Diterima', 'color' => 'emerald',
+            'hint' => 'Barang retur sudah diterima: barang baik kembali ke stok, barang rusak masuk Stok Rusak. Dokumen terkunci.'],
     ];
 
     public const SOURCES = [

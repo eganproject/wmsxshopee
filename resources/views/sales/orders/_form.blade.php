@@ -87,15 +87,15 @@
             </p>
         </div>
         <div class="grid gap-x-6 gap-y-4 p-5 sm:grid-cols-3">
-            <x-input name="order_date" type="date" label="Tanggal Pesanan" :value="$order->order_date?->toDateString()" :max="now()->toDateString()" required />
-            <x-select name="warehouse_id" label="Gudang Pengirim" required>
+            <x-input name="order_date" type="date" tip="Tanggal pesanan diterima dari pembeli." label="Tanggal Pesanan" :value="$order->order_date?->toDateString()" :max="now()->toDateString()" required />
+            <x-select name="warehouse_id" label="Gudang Pengirim" tip="Gudang yang menyiapkan dan mengirim pesanan. Stok gudang ini yang dicadangkan saat pesanan dikonfirmasi." required>
                 <option value="">Pilih gudang</option>
                 @foreach ($warehouses as $warehouse)
                     <option value="{{ $warehouse->id }}" @selected((string) old('warehouse_id', $defaultWarehouse) === (string) $warehouse->id)>{{ $warehouse->code }} · {{ $warehouse->name }}</option>
                 @endforeach
             </x-select>
             @php($channel = old('channel_name', $order->channel_name))
-            <x-select name="channel_name" label="Saluran Penjualan" data-create data-placeholder="Pilih atau ketik baru"
+            <x-select name="channel_name" label="Saluran Penjualan" tip="Asal pesanan, misalnya WhatsApp atau Toko Offline. Dipakai untuk filter dan laporan penjualan." data-create data-placeholder="Pilih atau ketik baru"
                       hint="cth. WhatsApp, Toko Offline. Pesanan Shopee masuk otomatis dari API.">
                 <option value="">Tanpa saluran</option>
                 @foreach ($channels->concat(['WhatsApp', 'Instagram', 'TikTok', 'Toko Offline', 'Reseller'])->push($channel)->filter()->reject(fn ($name) => $name === 'Lainnya')->unique()->sort()->push('Lainnya') as $name)
@@ -104,7 +104,7 @@
             </x-select>
             <x-input name="customer_name" label="Nama Pembeli" :value="$order->customer_name" required maxlength="150" />
             <x-input name="customer_phone" label="Telepon / WhatsApp" :value="$order->customer_phone" maxlength="30" placeholder="08xx" />
-            <x-input name="external_number" label="No. Referensi" :value="$order->external_number" placeholder="cth. INV-0012" maxlength="100"
+            <x-input name="external_number" label="No. Referensi" tip="Nomor nota / invoice dari luar Optima. Sistem menolak nomor yang sama di saluran penjualan yang sama, jadi pesanan tidak tercatat dua kali." :value="$order->external_number" placeholder="cth. INV-0012" maxlength="100"
                      hint="Opsional: no. nota, invoice atau pesanan marketplace. Mencegah input ganda." />
             <x-textarea name="notes" label="Catatan" :value="$order->notes" rows="2" class="sm:col-span-3" />
         </div>
@@ -137,15 +137,15 @@
             @enderror
             <div class="grid gap-x-6 gap-y-4 sm:grid-cols-3" x-show="delivery === 'courier'" x-cloak>
                 <x-textarea name="shipping_address" label="Alamat Kirim" :value="$order->shipping_address" rows="2" class="sm:col-span-3" />
-                <x-select name="courier_id" label="Kurir">
+                <x-select name="courier_id" label="Kurir" tip="Jasa kirim yang membawa paket. Daftar kurir diatur di Master Data → Kurir.">
                     <option value="">Belum ditentukan</option>
                     @foreach ($couriers as $courier)
                         <option value="{{ $courier->id }}" @selected((string) old('courier_id', $order->courier_id) === (string) $courier->id)>{{ $courier->name }}</option>
                     @endforeach
                 </x-select>
-                <x-input name="courier_service" label="Layanan" :value="$order->courier_service" placeholder="cth. REG" maxlength="50" />
+                <x-input name="courier_service" label="Layanan" tip="Jenis layanan kurir, misalnya REG atau YES." :value="$order->courier_service" placeholder="cth. REG" maxlength="50" />
                 <div>
-                    <label for="shipping_fee" class="form-label">Ongkir</label>
+                    <label for="shipping_fee" class="form-label"><span class="whitespace-nowrap">Ongkir <x-hint text="Ongkos kirim yang dibayar pembeli. Ikut dihitung di total pesanan." /></span></label>
                     <input id="shipping_fee" name="shipping_fee" type="number" min="0" step="any" x-model="shippingFee" placeholder="0"
                            @class(['form-input text-right', 'form-input-error' => $errors->has('shipping_fee')])>
                     @error('shipping_fee')
@@ -170,14 +170,14 @@
                     <option value="{{ $value }}" @selected(old('payment_method', $order->payment_method) === $value)>{{ $label }}</option>
                 @endforeach
             </x-select>
-            <x-select name="payment_status" label="Status Bayar">
+            <x-select name="payment_status" label="Status Bayar" tip="Catatan apakah pembeli sudah lunas. Hanya informasi, tidak memengaruhi stok.">
                 <option value="">Belum dicatat</option>
                 @foreach (\App\Models\SalesOrder::PAYMENT_STATUSES as $value => $status)
                     <option value="{{ $value }}" @selected(old('payment_status', $order->payment_status) === $value)>{{ $status['label'] }}</option>
                 @endforeach
             </x-select>
             <div>
-                <label for="discount" class="form-label">Diskon (Rp)</label>
+                <label for="discount" class="form-label">Diskon <span class="whitespace-nowrap">(Rp) <x-hint text="Potongan harga untuk seluruh pesanan, mengurangi total." /></span></label>
                 <input id="discount" name="discount" type="number" min="0" step="any" x-model="discount" placeholder="0"
                        @class(['form-input text-right', 'form-input-error' => $errors->has('discount')])>
                 @error('discount')
@@ -213,8 +213,8 @@
                 <thead class="text-left text-[13px] text-slate-500">
                     <tr>
                         <th class="py-2 pr-2 font-normal">Barang *</th>
-                        <th class="px-2 py-2 text-right font-normal">Jumlah *</th>
-                        <th class="px-2 py-2 text-right font-normal">Harga Satuan</th>
+                        <th class="px-2 py-2 text-right font-normal">Jumlah <span class="whitespace-nowrap">* <x-hint text="Jumlah yang dipesan. Stok dicadangkan sejumlah ini saat pesanan dikonfirmasi." /></span></th>
+                        <th class="px-2 py-2 text-right font-normal">Harga <span class="whitespace-nowrap">Satuan <x-hint text="Harga jual per pcs / paket. Untuk produk paket terisi otomatis dari Harga Jual paket." /></span></th>
                         <th class="px-2 py-2 text-right font-normal">Subtotal</th>
                         <th class="px-2 py-2 font-normal">Keterangan</th>
                         <th class="py-2 pl-2"></th>

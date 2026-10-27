@@ -42,8 +42,8 @@
                     <tr>
                         <th class="px-5 py-3">Kode</th>
                         <th class="px-5 py-3">Nama Satuan</th>
-                        <th class="px-5 py-3 text-center">Produk</th>
-                        <th class="px-5 py-3">Status</th>
+                        <th class="px-5 py-3 text-center"><span class="whitespace-nowrap">Produk <x-hint text="Jumlah produk yang memakai satuan ini. Satuan yang masih dipakai tidak bisa dihapus." /></span></th>
+                        <th class="px-5 py-3"><span class="whitespace-nowrap">Status <x-hint text="Data nonaktif tidak bisa dipilih di transaksi baru, tapi riwayatnya tetap tersimpan." /></span></th>
                         <th class="px-5 py-3 text-right">Aksi</th>
                     </tr>
                 </thead>

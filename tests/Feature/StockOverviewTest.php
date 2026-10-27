@@ -119,7 +119,7 @@ class StockOverviewTest extends TestCase
     {
         $this->get('/inventory/stocks')->assertDontSee('Stok Jual');
 
-        $response = $this->get("/inventory/stocks?warehouse={$this->warehouse->id}")->assertOk()->assertSee('Stok Jual');
+        $response = $this->get("/inventory/stocks?warehouse={$this->warehouse->id}")->assertOk()->assertSeeText('Stok Jual');
         $this->assertSame(5, $response->viewData('sellable')[$this->medium->id]);
     }
 

@@ -19,8 +19,9 @@
     @endphp
     <div {{ $attributes->class('space-y-0.5') }}>
         @if ($raw)
-            <span class="inline-flex items-center gap-1.5 rounded-full border bg-white px-2 py-0.5 text-xs whitespace-nowrap {{ $colors[$color] }}"
-                  title="Status di {{ $platformName }}: {{ $platform === 'shopee' ? $order->shopeeStatusLabel() : $order->tiktokStatusLabel() }}{{ $order->tiktok_cancel_requested ? ' · pembeli mengajukan batal' : '' }}">
+            <span class="inline-flex cursor-help items-center gap-1.5 rounded-full border bg-white px-2 py-0.5 text-xs whitespace-nowrap {{ $colors[$color] }}"
+                  data-hint-title="Status di {{ $platformName }}: {{ $platform === 'shopee' ? $order->shopeeStatusLabel() : $order->tiktokStatusLabel() }}"
+                  data-hint="{{ \App\Models\SalesOrder::MARKETPLACE_STATUSES[$key]['hint'] ?? 'Status pesanan terakhir yang diambil dari '.$platformName.'.' }}{{ $order->tiktok_cancel_requested ? ' Pembeli mengajukan batal.' : '' }}">
                 <x-marketplace-logo :platform="$platform" class="size-3.5" />
                 {{ $order->marketplaceStatusLabel() }}
             </span>
@@ -38,11 +39,11 @@
                 <x-heroicon-o-exclamation-triangle class="size-3.5 shrink-0" /> {{ $issue }}
             </p>
         @elseif ($order->status === 'shipped' && ($order->shopee_shipped_at ?? $order->tiktok_shipped_at))
-            <p class="flex items-center gap-1 text-[11px] whitespace-nowrap text-emerald-600" title="Marketplace melaporkan paket sudah di tangan kurir">
+            <p class="flex cursor-help items-center gap-1 text-[11px] whitespace-nowrap text-emerald-600" data-hint="Marketplace melaporkan paket sudah di tangan kurir.">
                 <x-heroicon-o-check-circle class="size-3.5" /> Diterima kurir {{ ($order->shopee_shipped_at ?? $order->tiktok_shipped_at)->format('d/m H:i') }}
             </p>
         @elseif ($order->awaitingCourierScan() || $order->tiktokAwaitingCourierScan())
-            <p class="flex items-center gap-1 text-[11px] whitespace-nowrap text-amber-600" title="Sudah serah terima {{ $order->shipped_at?->diffForHumans() }}, kurir belum scan paket">
+            <p class="flex cursor-help items-center gap-1 text-[11px] whitespace-nowrap text-amber-600" data-hint-title="Belum discan kurir" data-hint="Paket sudah diserahkan {{ $order->shipped_at?->diffForHumans() }}, tapi marketplace belum mencatat scan kurir." data-hint-next="Bila lebih dari sehari, cek ke kurir apakah paket sudah benar diterima.">
                 <x-heroicon-o-clock class="size-3.5" /> Belum discan kurir
             </p>
         @endif

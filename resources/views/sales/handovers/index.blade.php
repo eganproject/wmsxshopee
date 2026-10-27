@@ -13,7 +13,7 @@
         <div class="card lg:col-span-2">
             <form method="POST" action="{{ route('sales.handovers.scan') }}" class="p-5">
                 @csrf
-                <label for="code" class="form-label">Scan Resi / No. Pesanan</label>
+                <label for="code" class="form-label">Scan Resi / No. <span class="whitespace-nowrap">Pesanan <x-hint text="Scan resi setiap paket saat diserahkan ke kurir. Pesanan langsung berstatus Dikirim, stok berkurang, dan paket masuk manifest kurir hari ini." /></span></label>
                 <div class="relative">
                     <x-heroicon-o-qr-code class="pointer-events-none absolute top-1/2 left-3 size-5 -translate-y-1/2 text-slate-400" />
                     <input id="code" name="code" data-auto-scan autofocus autocomplete="off" required maxlength="100"
@@ -77,8 +77,8 @@
                         <th class="h-8 px-4 py-0 font-normal">Tanggal</th>
                         <th class="h-8 px-4 py-0 font-normal">Gudang</th>
                         <th class="h-8 px-4 py-0 font-normal">Kurir</th>
-                        <th class="h-8 px-4 py-0 text-right font-normal">Paket</th>
-                        <th class="h-8 px-4 py-0 font-normal">Status</th>
+                        <th class="h-8 px-4 py-0 text-right font-normal"><span class="whitespace-nowrap">Paket <x-hint text="Jumlah paket yang sudah di-scan ke manifest ini." /></span></th>
+                        <th class="h-8 px-4 py-0 font-normal"><span class="whitespace-nowrap">Status <x-hint text="Hari ini: manifest masih terbuka dan bisa bertambah. Selesai: manifest hari sebelumnya yang sudah ditutup." /></span></th>
                         <th class="h-8 px-4 py-0 text-right font-normal">Aksi</th>
                     </tr>
                 </thead>

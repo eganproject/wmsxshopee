@@ -31,7 +31,7 @@
             <p class="mt-1 text-sm font-medium text-slate-900">{{ $movement->warehouse->code }} · {{ $movement->warehouse->name }}</p>
         </div>
         <div>
-            <p class="text-xs font-medium tracking-wider text-slate-500 uppercase">Referensi</p>
+            <p class="text-xs font-medium tracking-wider text-slate-500 uppercase"><span class="whitespace-nowrap">Referensi <x-hint text="Nomor acuan dokumen asal, misalnya nomor pesanan, PO atau transfer." /></span></p>
             <p class="mt-1 text-sm font-medium text-slate-900">{{ $movement->reference ?? '—' }}</p>
         </div>
         <div>

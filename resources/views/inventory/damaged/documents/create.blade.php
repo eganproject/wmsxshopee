@@ -98,22 +98,22 @@
                 <p class="mt-0.5 text-sm text-slate-500">Nomor dokumen dibuat otomatis saat disimpan.</p>
             </div>
             <div class="grid gap-5 p-6 sm:grid-cols-3">
-                <x-select name="warehouse_id" label="Gudang" required x-model="warehouse">
+                <x-select name="warehouse_id" label="Gudang" tip="Gudang pemilik stok rusak / stok baik yang diproses di dokumen ini." required x-model="warehouse">
                     <option value="">Pilih gudang</option>
                     @foreach ($warehouses as $warehouse)
                         <option value="{{ $warehouse->id }}">{{ $warehouse->code }} · {{ $warehouse->name }}</option>
                     @endforeach
                 </x-select>
                 <x-input name="document_date" type="date" label="Tanggal" :value="$document?->document_date->toDateString() ?? now()->toDateString()" :max="now()->toDateString()" required />
-                <x-input name="reference" label="Referensi" :value="$document?->reference" :placeholder="$type === 'supplier_return' ? 'cth. no. surat jalan retur' : 'opsional'" />
+                <x-input name="reference" label="Referensi" tip="Nomor acuan, misalnya nomor surat jalan retur atau berita acara pemusnahan." :value="$document?->reference" :placeholder="$type === 'supplier_return' ? 'cth. no. surat jalan retur' : 'opsional'" />
                 @if ($type === 'supplier_return')
-                    <x-select name="supplier_id" label="Supplier" hint="Kosongkan bila diretur ke pihak lain.">
+                    <x-select name="supplier_id" label="Supplier" tip="Supplier yang menerima barang rusak kembali." hint="Kosongkan bila diretur ke pihak lain.">
                         <option value="">Bukan supplier / pihak lain</option>
                         @foreach ($suppliers as $supplier)
                             <option value="{{ $supplier->id }}" @selected(old('supplier_id', $document?->supplier_id) == $supplier->id)>{{ $supplier->code }} · {{ $supplier->name }}</option>
                         @endforeach
                     </x-select>
-                    <x-input name="recipient" label="Penerima Lain" :value="$document?->recipient" placeholder="cth. distributor, service center" hint="Diisi bila tidak memilih supplier." class="sm:col-span-2" />
+                    <x-input name="recipient" label="Penerima Lain" tip="Pihak lain yang menerima barang rusak, misalnya distributor atau service center." :value="$document?->recipient" placeholder="cth. distributor, service center" hint="Diisi bila tidak memilih supplier." class="sm:col-span-2" />
                 @endif
                 <x-textarea name="notes" label="Catatan" rows="2" class="sm:col-span-3" :value="$document?->notes" />
             </div>
@@ -162,16 +162,16 @@
                         <tr>
                             <th class="py-2 pr-2 font-normal">Varian *</th>
                             @if ($type === 'assembly')
-                                <th class="px-2 py-2 font-normal">Asal *</th>
+                                <th class="px-2 py-2 font-normal">Asal <span class="whitespace-nowrap">* <x-hint text="Ambil dari Stok Rusak gudang atau dari stok baik di bin sebagai bahan rakitan." /></span></th>
                             @endif
                             @if (in_array($type, ['intake', 'assembly'], true))
-                                <th class="px-2 py-2 font-normal">Lokasi Asal</th>
+                                <th class="px-2 py-2 font-normal">Lokasi <span class="whitespace-nowrap">Asal <x-hint text="Bin tempat barang baik diambil. Hanya untuk barang yang diambil dari stok baik." /></span></th>
                             @endif
                             @if ($type !== 'intake')
-                                <th class="px-2 py-2 text-right font-normal">Stok Rusak</th>
+                                <th class="px-2 py-2 text-right font-normal">Stok <span class="whitespace-nowrap">Rusak <x-hint text="Jumlah stok rusak varian ini yang ada di gudang saat ini. Jumlah yang diproses tidak boleh melebihi angka ini." /></span></th>
                             @endif
                             @if ($type === 'repair')
-                                <th class="px-2 py-2 font-normal">Lokasi Tujuan</th>
+                                <th class="px-2 py-2 font-normal">Lokasi <span class="whitespace-nowrap">Tujuan <x-hint text="Bin tempat barang yang sudah diperbaiki ditaruh kembali sebagai stok baik." /></span></th>
                             @endif
                             <th class="px-2 py-2 font-normal">Jumlah *</th>
                             <th class="px-2 py-2 font-normal">Keterangan</th>
@@ -266,8 +266,8 @@
                     <table class="min-w-full text-sm">
                         <thead class="text-left text-[13px] text-slate-500">
                             <tr>
-                                <th class="py-2 pr-2 font-normal">Varian Hasil *</th>
-                                <th class="px-2 py-2 font-normal">Lokasi Tujuan</th>
+                                <th class="py-2 pr-2 font-normal">Varian Hasil <span class="whitespace-nowrap">* <x-hint text="Barang baru hasil rakit / campur yang masuk stok baik." /></span></th>
+                                <th class="px-2 py-2 font-normal">Lokasi <span class="whitespace-nowrap">Tujuan <x-hint text="Bin tempat barang hasil rakitan ditaruh." /></span></th>
                                 <th class="px-2 py-2 font-normal">Jumlah *</th>
                                 <th class="px-2 py-2 font-normal">Keterangan</th>
                                 <th class="py-2 pl-2"></th>

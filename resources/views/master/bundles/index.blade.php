@@ -55,12 +55,13 @@
                     <tr>
                         <x-labels.select-all :ids="$bundles->pluck('id')" />
                         <th class="px-5 py-3">Paket</th>
-                        <th class="px-5 py-3">Isi per Paket</th>
-                        <th class="px-5 py-3 text-right">Harga Jual</th>
-                        <th class="px-5 py-3 text-right" title="Jumlah paket yang bisa dipenuhi dari stok tersedia isi paket">
+                        <th class="px-5 py-3">Isi per <span class="whitespace-nowrap">Paket <x-hint text="Daftar varian dan jumlahnya di dalam satu paket." /></span></th>
+                        <th class="px-5 py-3 text-right">Harga <span class="whitespace-nowrap">Jual <x-hint text="Harga default saat paket dipilih di pesanan manual." /></span></th>
+                        <th class="px-5 py-3 text-right">
                             Tersedia{{ $warehouse && $warehouses->count() > 1 ? ' di '.$warehouse->code : '' }}
+                            <x-hint text="Jumlah paket yang bisa dipenuhi dari stok tersedia barang isinya. Paket tidak punya stok sendiri." />
                         </th>
-                        <th class="px-5 py-3">Status</th>
+                        <th class="px-5 py-3"><span class="whitespace-nowrap">Status <x-hint text="Data nonaktif tidak bisa dipilih di transaksi baru, tapi riwayatnya tetap tersimpan." /></span></th>
                         <th class="px-5 py-3 text-right">Aksi</th>
                     </tr>
                 </thead>

@@ -180,19 +180,19 @@
                 <p class="mt-1"><x-inventory.count-status :status="$count->status" /></p>
             </div>
             <div>
-                <p class="text-xs text-slate-500">Dihitung</p>
+                <p class="text-xs text-slate-500"><span class="whitespace-nowrap">Dihitung <x-hint text="Jumlah baris yang sudah diisi hasil hitung dibanding total baris." /></span></p>
                 <p class="mt-1 text-sm font-semibold tabular-nums text-slate-900"><span x-text="summary.counted"></span> / <span x-text="summary.total"></span> baris</p>
             </div>
             <div>
-                <p class="text-xs text-slate-500">Belum Dihitung</p>
+                <p class="text-xs text-slate-500">Belum <span class="whitespace-nowrap">Dihitung <x-hint text="Baris yang belum diisi. Saat posting baris kosong dianggap tidak berubah." /></span></p>
                 <p class="mt-1 text-sm font-semibold tabular-nums" :class="summary.uncounted ? 'text-amber-600' : 'text-slate-900'" x-text="summary.uncounted"></p>
             </div>
             <div>
-                <p class="text-xs text-slate-500">Baris Selisih</p>
+                <p class="text-xs text-slate-500">Baris <span class="whitespace-nowrap">Selisih <x-hint text="Jumlah baris yang hasil hitungnya berbeda dari sistem." /></span></p>
                 <p class="mt-1 text-sm font-semibold tabular-nums text-slate-900" x-text="summary.withVariance"></p>
             </div>
             <div>
-                <p class="text-xs text-slate-500">Selisih Lebih / Kurang</p>
+                <p class="text-xs text-slate-500">Selisih Lebih / <span class="whitespace-nowrap">Kurang <x-hint text="Total pcs lebih (hasil hitung di atas sistem) dan kurang (di bawah sistem)." /></span></p>
                 <p class="mt-1 text-sm font-semibold tabular-nums">
                     <span class="text-emerald-600" x-text="'+' + summary.plus"></span> /
                     <span class="text-rose-600" x-text="summary.minus"></span>
@@ -253,10 +253,10 @@
                                 <th class="h-8 px-3 py-0 font-normal">#</th>
                                 <th class="h-8 px-3 py-0 font-normal">Lokasi</th>
                                 <th class="h-8 px-3 py-0 font-normal">Barang</th>
-                                <th class="h-8 px-3 py-0 text-right font-normal">Sistem</th>
-                                <th class="h-8 px-3 py-0 text-right font-normal">Hasil Hitung</th>
-                                <th class="h-8 px-3 py-0 text-right font-normal">Selisih</th>
-                                <th class="h-8 px-3 py-0 font-normal" title="Khusus stok tanpa bin: hasil hitung langsung ditaruh ke bin ini saat posting">Taruh ke Bin</th>
+                                <th class="h-8 px-3 py-0 text-right font-normal"><span class="whitespace-nowrap">Sistem <x-hint text="Saldo stok menurut sistem di lokasi ini. Bila ada transaksi selama opname, posting memakai saldo terbaru." /></span></th>
+                                <th class="h-8 px-3 py-0 text-right font-normal">Hasil <span class="whitespace-nowrap">Hitung <x-hint text="Jumlah fisik yang benar-benar dihitung di lokasi ini. Baris kosong tidak mengubah stok." /></span></th>
+                                <th class="h-8 px-3 py-0 text-right font-normal"><span class="whitespace-nowrap">Selisih <x-hint text="Hasil Hitung dikurangi Sistem. Plus berarti barang lebih, minus berarti barang kurang. Selisih dicatat sebagai Penyesuaian saat posting." /></span></th>
+                                <th class="h-8 px-3 py-0 font-normal">Taruh ke <span class="whitespace-nowrap">Bin <x-hint text="Khusus stok tanpa bin: hasil hitung langsung dipindah ke bin ini saat posting, jadi tidak perlu transfer lokasi terpisah." /></span></th>
                                 <th class="h-8 px-3 py-0 font-normal">Catatan</th>
                                 <th class="h-8 px-3 py-0"></th>
                             </tr>
@@ -302,7 +302,7 @@
                                                 <span x-text="line.current_qty.toLocaleString('id-ID')"></span>
                                                 <span class="text-xs text-slate-400" x-text="unit(line)"></span>
                                                 <p class="text-xs text-amber-600" x-show="line.current_qty !== line.system_qty" x-text="`awal ${line.system_qty}`"
-                                                   title="Saldo berubah sejak lembar dibuat (ada transaksi selama opname). Posting memakai saldo terbaru."></p>
+                                                   data-hint-title="Saldo berubah" data-hint="Saldo berubah sejak lembar dibuat karena ada transaksi selama opname. Posting memakai saldo terbaru."></p>
                                             </div>
                                         </template>
                                         <template x-if="line.id === null"><span class="text-slate-400">—</span></template>

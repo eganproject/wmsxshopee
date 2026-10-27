@@ -14,14 +14,14 @@
         <tr>
             <th class="px-5 py-3">SKU</th>
             <th class="px-5 py-3">Produk / Varian</th>
-            <th class="px-5 py-3 text-right" title="Barang di rak, termasuk yang sudah diambil tapi belum dikirim">Fisik</th>
-            <th class="px-5 py-3 text-right" title="Dicadangkan pesanan Dikonfirmasi, Sedang Diambil dan Dikemas">Dipesan</th>
-            <th class="px-5 py-3 text-right" title="Fisik dikurangi Dipesan">Tersedia</th>
-            <th class="px-5 py-3 text-right" title="Qty di pesanan Draft yang belum mencadangkan stok, mis. gagal dikonfirmasi karena stok kurang">Tertahan</th>
+            <th class="px-5 py-3 text-right"><span class="whitespace-nowrap">Fisik <x-hint text="Jumlah barang yang secara fisik ada di rak gudang, termasuk yang sudah diambil picker tapi belum dikirim." /></span></th>
+            <th class="px-5 py-3 text-right"><span class="whitespace-nowrap">Dipesan <x-hint text="Stok yang sudah dicadangkan untuk pesanan Dikonfirmasi, Sedang Diambil dan Sudah Dikemas. Berkurang dari fisik saat pesanan dikirim." /></span></th>
+            <th class="px-5 py-3 text-right"><span class="whitespace-nowrap">Tersedia <x-hint text="Fisik dikurangi Dipesan. Inilah stok yang masih bisa menerima pesanan baru." /></span></th>
+            <th class="px-5 py-3 text-right"><span class="whitespace-nowrap">Tertahan <x-hint text="Jumlah barang di pesanan Draft yang belum mencadangkan stok, misalnya gagal dikonfirmasi karena stok kurang atau SKU belum terhubung." next="Lengkapi stok atau SKU, lalu konfirmasi pesanan draftnya." /></span></th>
             @if ($showSellable)
-                <th class="px-5 py-3 text-right" title="Stok yang dikirim ke Shopee / TikTok, termasuk jatah gudang cadangan">Stok Jual</th>
+                <th class="px-5 py-3 text-right">Stok <span class="whitespace-nowrap">Jual <x-hint text="Stok yang dikirim ke Shopee / TikTok: tersedia di gudang ini ditambah jatah gudang cadangan dan barang yang sedang dalam perjalanan." /></span></th>
             @endif
-            <th class="px-5 py-3">Status</th>
+            <th class="px-5 py-3"><span class="whitespace-nowrap">Status <x-hint text="Aman: stok cukup. Menipis: tersedia sama atau di bawah stok minimum. Habis: tidak ada stok tersedia. Kurang: pesanan melebihi stok tersedia." /></span></th>
             <th class="px-5 py-3 text-right">Aksi</th>
         </tr>
     </thead>
@@ -76,7 +76,7 @@
                     <td class="px-5 py-3.5 text-right tabular-nums text-slate-700">{{ $fmt($sellable[$row->id] ?? 0) }}</td>
                 @endif
                 <td class="px-5 py-3.5">
-                    <span class="inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] whitespace-nowrap {{ $badge[$info['color']] }}" title="{{ $info['hint'] }}">{{ $info['label'] }}</span>
+                    <span class="inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] cursor-help whitespace-nowrap {{ $badge[$info['color']] }}" data-hint-title="{{ $info['label'] }}" data-hint="{{ $info['hint'] }}">{{ $info['label'] }}</span>
                     @if ($row->minimum !== null)
                         <p class="mt-0.5 text-[11px] text-slate-500">Min. {{ $fmt($row->minimum) }}</p>
                     @endif

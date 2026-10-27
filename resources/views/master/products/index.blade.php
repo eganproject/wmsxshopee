@@ -55,9 +55,9 @@
                         <x-labels.select-all :ids="$products->pluck('id')" />
                         <th class="px-5 py-3">Produk</th>
                         <th class="px-5 py-3">Kategori / Merek</th>
-                        <th class="px-5 py-3 text-center">Varian</th>
-                        <th class="px-5 py-3">Satuan</th>
-                        <th class="px-5 py-3">Status</th>
+                        <th class="px-5 py-3 text-center"><span class="whitespace-nowrap">Varian <x-hint text="Jumlah varian (SKU) produk ini. Stok dicatat per varian." /></span></th>
+                        <th class="px-5 py-3"><span class="whitespace-nowrap">Satuan <x-hint text="Satuan hitung stok, misalnya PCS atau BOX." /></span></th>
+                        <th class="px-5 py-3"><span class="whitespace-nowrap">Status <x-hint text="Data nonaktif tidak bisa dipilih di transaksi baru, tapi riwayatnya tetap tersimpan." /></span></th>
                         <th class="px-5 py-3 text-right">Aksi</th>
                     </tr>
                 </thead>

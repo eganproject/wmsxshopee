@@ -67,7 +67,7 @@
         </template>
 
         <div class="card mb-6 p-5">
-            <label for="scan-code" class="form-label">Scan Barcode / QR SKU</label>
+            <label for="scan-code" class="form-label">Scan Barcode / QR <span class="whitespace-nowrap">SKU <x-hint text="Scan barcode atau SKU setiap barang yang dimasukkan ke paket. Paket ditandai Sudah Dikemas bila jumlah semua barang cocok dengan pesanan." /></span></label>
             <div class="relative">
                 <x-heroicon-o-qr-code class="pointer-events-none absolute top-1/2 left-3 size-5 -translate-y-1/2 text-slate-400" />
                 <input id="scan-code" x-ref="code" x-model="code" @keydown.enter.prevent="scan()" data-auto-scan="enter" autofocus autocomplete="off" data-native
@@ -91,7 +91,7 @@
                             <th class="h-8 px-4 py-0 font-normal">SKU</th>
                             <th class="h-8 px-4 py-0 font-normal">Barcode</th>
                             <th class="h-8 px-4 py-0 font-normal">Produk / Varian</th>
-                            <th class="h-8 px-4 py-0 text-right font-normal">Di-scan</th>
+                            <th class="h-8 px-4 py-0 text-right font-normal"><span class="whitespace-nowrap">Di-scan <x-hint text="Jumlah yang sudah di-scan dibanding jumlah yang dipesan." /></span></th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-slate-100">
