@@ -351,7 +351,7 @@ class ShipmentController extends Controller
                 $pdf = $documents[0];
             } elseif ($orders->every(fn (SalesOrder $order) => ! $order->isMarketplace())) {
                 // Label manual digambar di browser dari data ini (PDF-nya dibuat di sisi klien).
-                $orders->each->update(['shipping_label_printed_at' => now()]);
+                SalesOrder::markLabelsPrinted($orders->modelKeys());
 
                 return response()->json(['labels' => $orders->map(fn (SalesOrder $order) => $this->manualLabelData($order))->values()]);
             } else {
@@ -381,7 +381,7 @@ class ShipmentController extends Controller
         }
 
         if (! $printable->first()->isShopee()) {
-            $printable->each->update(['shipping_label_printed_at' => now()]);
+            SalesOrder::markLabelsPrinted($printable->modelKeys());
 
             return view('sales.orders.shipping-label', [
                 'orders' => $printable,

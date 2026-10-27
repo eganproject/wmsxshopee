@@ -338,7 +338,7 @@
             <div>
                 <p class="text-xs text-slate-500">QC & Serah <span class="whitespace-nowrap">Terima <x-hint text="Jejak pengecekan: label resi dicetak, barang di-scan saat QC kemas, lalu resi di-scan saat serah terima ke kurir." /></span></p>
                 <div class="mt-1 space-y-0.5 text-xs text-slate-600">
-                    <p>Label resi: {{ $order->shipping_label_printed_at ? 'dicetak '.$order->shipping_label_printed_at->format('d/m H:i') : 'belum dicetak' }}</p>
+                    <p>Label resi: {{ $order->shipping_label_printed_at ? 'dicetak '.$order->shipping_label_printed_at->format('d/m H:i').($order->shipping_label_print_count > 1 ? ' ('.$order->shipping_label_print_count.'x)' : '') : 'belum dicetak' }}</p>
                     @if ($order->qc_checked_by)
                         <p>QC scan: {{ $order->qcChecker?->name }}</p>
                     @endif
