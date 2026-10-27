@@ -7,6 +7,7 @@ use App\Models\GoodsReceipt;
 use App\Models\ProductVariant;
 use App\Models\SalesOrder;
 use App\Models\SalesReturn;
+use App\Models\StockAdjustment;
 use App\Models\StockCount;
 use App\Models\StockMovement;
 use App\Models\Supplier;
@@ -55,6 +56,7 @@ class GlobalSearch
             ['returns', 'Retur Penjualan', 'returns.view', fn () => $this->returns()],
             ['receipts', 'Penerimaan Barang', 'receipts.view', fn () => $this->receipts()],
             ['movements', 'Mutasi Stok', 'inventory.view', fn () => $this->movements()],
+            ['adjustments', 'Penyesuaian Stok', 'adjustments.view', fn () => $this->adjustments()],
             ['counts', 'Stock Opname', 'opname.view', fn () => $this->counts()],
             ['locations', 'Lokasi Bin', 'warehouses.view', fn () => $this->locations()],
             ['suppliers', 'Supplier', 'suppliers.view', fn () => $this->suppliers()],
@@ -248,6 +250,27 @@ class GlobalSearch
                 ])->filter()->join(' · '),
                 'badge' => $movement->typeLabel(),
                 'url' => route('inventory.movements.show', $movement),
+            ]);
+    }
+
+    private function adjustments(): Collection
+    {
+        $query = StockAdjustment::query()
+            ->with('warehouse:id,code')
+            ->where(fn (Builder $query) => $query
+                ->where('number', 'like', $this->like)
+                ->orWhere('reference', 'like', $this->like));
+
+        return $this->exactFirst($query, ['number', 'reference'])
+            ->latest('adjustment_date')
+            ->latest('id')
+            ->limit(self::PER_GROUP)
+            ->get()
+            ->map(fn (StockAdjustment $adjustment) => [
+                'title' => $adjustment->number,
+                'subtitle' => collect([$adjustment->reasonLabel(), $adjustment->warehouse?->code, $adjustment->adjustment_date?->format('d/m/Y')])->filter()->join(' · '),
+                'badge' => $adjustment->statusLabel(),
+                'url' => route('inventory.adjustments.show', $adjustment),
             ]);
     }
 

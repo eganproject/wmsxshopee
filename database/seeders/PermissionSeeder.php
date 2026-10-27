@@ -20,7 +20,8 @@ class PermissionSeeder extends Seeder
             'warehouses.view', 'warehouses.create', 'warehouses.edit', 'warehouses.delete',
             'products.view', 'products.create', 'products.edit', 'products.delete',
             'couriers.view', 'couriers.create', 'couriers.edit', 'couriers.delete',
-            'inventory.view', 'inventory.create', 'inventory.adjust',
+            'inventory.view', 'inventory.create',
+            'adjustments.view', 'adjustments.create', 'adjustments.approve',
             'suppliers.view', 'suppliers.create', 'suppliers.edit', 'suppliers.delete',
             'receipts.view', 'receipts.create', 'receipts.receive', 'receipts.delete',
             'sales.view', 'sales.create', 'sales.confirm', 'sales.fulfill', 'sales.skip_scan', 'sales.cancel', 'sales.delete',
@@ -32,6 +33,7 @@ class PermissionSeeder extends Seeder
         ],
         'Staff Gudang' => [
             'dashboard.view', 'warehouses.view', 'products.view', 'couriers.view', 'inventory.view', 'inventory.create',
+            'adjustments.view', 'adjustments.create',
             'suppliers.view', 'receipts.view', 'receipts.create', 'receipts.receive',
             'sales.view', 'sales.fulfill', 'returns.view', 'returns.create', 'returns.receive',
             'damaged.view', 'damaged.move', 'opname.view', 'opname.create',

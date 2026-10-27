@@ -1,24 +1,33 @@
 {{-- Tombol "Catat Mutasi" dengan pilihan jenis sesuai hak akses. Barang masuk/keluar
-     tidak dicatat manual: masuk lewat Penerimaan Barang, keluar lewat pesanan/retur. --}}
+     tidak dicatat manual: masuk lewat Penerimaan Barang, keluar lewat pesanan/retur.
+     Penyesuaian dibuat sebagai dokumen Penyesuaian Stok yang perlu approval. --}}
 @php
     $options = collect(\App\Models\StockMovement::TYPES)
         ->only(\App\Models\StockMovement::MANUAL_TYPES)
-        ->filter(fn ($meta, $type) => auth()->user()->can($type === 'adjustment' ? 'inventory.adjust' : 'inventory.create'));
+        ->filter(fn ($meta, $type) => auth()->user()->can('inventory.create'));
+    $canAdjust = auth()->user()->can('adjustments.create');
 @endphp
 
-@if ($options->isNotEmpty())
+@if ($options->isNotEmpty() || $canAdjust)
     <div class="relative" x-data="{ open: false }" @click.outside="open = false">
         <button type="button" class="btn-primary" @click="open = !open">
             <x-heroicon-o-plus class="size-5" /> Catat Mutasi <x-heroicon-o-chevron-down class="size-4" />
         </button>
         <div x-cloak x-show="open" x-transition.origin.top.right
-             class="absolute right-0 z-20 mt-2 w-56 overflow-hidden rounded-xl border border-slate-200 bg-white p-1.5 shadow-lg">
+             class="absolute right-0 z-20 mt-2 w-64 overflow-hidden rounded-xl border border-slate-200 bg-white p-1.5 shadow-lg">
             @foreach ($options as $type => $meta)
                 <a href="{{ route('inventory.movements.create', ['type' => $type]) }}"
                    class="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-slate-700 hover:bg-slate-100">
                     <x-dynamic-component :component="$meta['icon']" class="size-5 text-slate-400" /> {{ $meta['label'] }}
                 </a>
             @endforeach
+            @if ($canAdjust)
+                <a href="{{ route('inventory.adjustments.create') }}"
+                   class="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-slate-700 hover:bg-slate-100">
+                    <x-heroicon-o-adjustments-horizontal class="size-5 text-slate-400" />
+                    <span>Penyesuaian <span class="block text-xs text-slate-400">Perlu approval sebelum stok berubah</span></span>
+                </a>
+            @endif
             @can('inventory.create')
                 <div class="my-1 border-t border-slate-100"></div>
                 <a href="{{ route('inventory.opening-stock.create') }}"

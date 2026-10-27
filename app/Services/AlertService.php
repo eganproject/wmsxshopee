@@ -7,6 +7,7 @@ use App\Models\GoodsReceipt;
 use App\Models\MarketplaceWebhookEvent;
 use App\Models\SalesOrder;
 use App\Models\ShopeeShop;
+use App\Models\StockAdjustment;
 use App\Models\TiktokShop;
 use App\Models\User;
 use App\Models\Warehouse;
@@ -186,6 +187,20 @@ class AlertService
                 'icon' => 'heroicon-o-inbox-arrow-down',
                 'tone' => 'slate',
                 'items' => $limit ? $receipts->with(['supplier:id,name', 'warehouse:id,code'])->oldest('created_at')->limit($limit)->get() : collect(),
+            ];
+        }
+
+        if ($user->can('adjustments.approve')) {
+            $adjustments = StockAdjustment::query()->where('status', 'pending');
+
+            $groups['pending_adjustments'] = [
+                'key' => 'pending_adjustments',
+                'label' => 'Penyesuaian stok menunggu approval',
+                'hint' => 'Stok belum berubah sampai disetujui',
+                'count' => (clone $adjustments)->count(),
+                'icon' => 'heroicon-o-adjustments-horizontal',
+                'tone' => 'amber',
+                'items' => $limit ? $adjustments->with(['warehouse:id,code', 'submitter:id,name'])->oldest('submitted_at')->limit($limit)->get() : collect(),
             ];
         }
 

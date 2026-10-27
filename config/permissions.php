@@ -53,7 +53,16 @@ return [
             'actions' => [
                 'view' => 'Lihat stok serta tab Kartu Stok & Mutasi Stok',
                 'create' => 'Catat transfer lokasi & impor stok awal',
-                'adjust' => 'Catat mutasi penyesuaian stok',
+            ],
+        ],
+
+        'adjustments' => [
+            'label' => 'Penyesuaian Stok',
+            'icon' => 'heroicon-o-adjustments-horizontal',
+            'actions' => [
+                'view' => 'Lihat dokumen penyesuaian stok',
+                'create' => 'Buat, ubah, ajukan & hapus draft penyesuaian',
+                'approve' => 'Setujui / tolak penyesuaian (stok berubah)',
             ],
         ],
 
