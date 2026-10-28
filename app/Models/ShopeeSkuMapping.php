@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Support\BundleLikeSku;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -58,6 +59,17 @@ class ShopeeSkuMapping extends Model
     public function scopeActive(Builder $query): Builder
     {
         return $query->whereNull('removed_at');
+    }
+
+    /** SKU yang namanya seperti paket tapi dipetakan ke produk biasa (lihat BundleLikeSku). */
+    public function scopeBundleLike(Builder $query): Builder
+    {
+        return BundleLikeSku::apply($query, 'shopee_sku');
+    }
+
+    public function looksLikeBundle(): bool
+    {
+        return $this->product_variant_id !== null && BundleLikeSku::matches($this->shopee_sku);
     }
 
     public function isRemoved(): bool

@@ -116,6 +116,27 @@ class SalesOrder extends Model
     /** Status yang menahan (mencadangkan) stok di gudang. */
     public const RESERVING = ['confirmed', 'picking', 'packed'];
 
+    /** Status Shopee yang berarti pesanan harus disiapkan gudang. */
+    public const SHOPEE_TO_FULFIL = ['READY_TO_SHIP', 'PROCESSED', 'RETRY_SHIP'];
+
+    /** Awal catatan sinkron untuk pesanan marketplace yang tertahan karena stok kurang. */
+    public const STOCK_HELD_PREFIX = 'Belum bisa dikonfirmasi: ';
+
+    /**
+     * Pesanan marketplace yang masih draft karena stok kurang (SKU sudah terhubung
+     * semua, marketplace masih menunggu dikirim). Dicoba dikonfirmasi ulang otomatis.
+     *
+     * @param  Builder<SalesOrder>  $query
+     */
+    public function scopeStockHeld(Builder $query): void
+    {
+        $like = self::STOCK_HELD_PREFIX.'%';
+
+        $query->where('status', 'draft')->whereNull('unmapped_skus')->where(fn ($q) => $q
+            ->orWhere(fn ($s) => $s->whereNotNull('shopee_shop_id')->whereIn('shopee_order_status', self::SHOPEE_TO_FULFIL)->where('shopee_sync_error', 'like', $like))
+            ->orWhere(fn ($t) => $t->whereNotNull('tiktok_shop_id')->whereIn('tiktok_order_status', self::TIKTOK_TO_FULFIL)->where('tiktok_sync_error', 'like', $like)));
+    }
+
     /** Cara paket diserahkan ke kurir. */
     public const SHIPPING_METHODS = [
         'pickup' => ['label' => 'Pickup', 'description' => 'Kurir menjemput paket di gudang', 'icon' => 'heroicon-o-truck'],

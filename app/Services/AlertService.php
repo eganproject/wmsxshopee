@@ -131,6 +131,26 @@ class AlertService
                 'items' => $limit ? $courier->with('warehouse:id,code')->oldest('shipped_at')->limit($limit)->get() : collect(),
             ];
 
+            // Pesanan marketplace tertahan karena stok kurang (dicoba ulang otomatis saat stok bertambah).
+            $held = SalesOrder::query()->stockHeld();
+            $heldItems = $limit ? (clone $held)->with(['warehouse:id,code,supply_warehouse_id', 'shopeeShop', 'tiktokShop'])
+                ->orderByRaw('COALESCE(ordered_at, created_at)')->limit($limit)->get() : collect();
+            $retry = app(HeldOrderRetry::class);
+            $heldItems->each(function (SalesOrder $order) use ($retry) {
+                $order->shortages = $retry->shortages($order);
+                $order->transferFrom = $retry->bestSource($order, $order->shortages);
+            });
+
+            $groups['held_orders'] = [
+                'key' => 'held_orders',
+                'label' => 'Pesanan tertahan stok',
+                'hint' => 'Masuk dari marketplace tapi stok gudang kurang. Dikonfirmasi otomatis begitu stok cukup.',
+                'count' => (clone $held)->count(),
+                'icon' => 'heroicon-o-archive-box-x-mark',
+                'tone' => 'rose',
+                'items' => $heldItems,
+            ];
+
             $ahead = SalesOrder::query()->shopeeFilter('shopee_ahead');
 
             $groups['shopee_ahead'] = [
@@ -165,7 +185,7 @@ class AlertService
             $groups['marketplace'] = [
                 'key' => 'marketplace',
                 'label' => 'Koneksi marketplace',
-                'hint' => 'Toko perlu otorisasi ulang, sinkron terhenti, stok gagal terkirim atau push gagal diproses',
+                'hint' => 'Toko perlu otorisasi ulang, sinkron terhenti, stok tidak dikirim / gagal terkirim, atau push gagal diproses',
                 'count' => $issues->count(),
                 'icon' => 'heroicon-o-signal-slash',
                 'tone' => $issues->contains('severe', true) ? 'rose' : 'amber',
@@ -228,7 +248,10 @@ class AlertService
 
         foreach (['shopee' => ShopeeShop::class, 'tiktok' => TiktokShop::class] as $platform => $model) {
             $shops = $model::where('is_active', true)->whereIn('status', ['connected', 'expired'])
-                ->withCount(['mappings as failed_stock' => fn ($q) => $q->whereNotNull('stock_error')])
+                ->withCount([
+                    'mappings as failed_stock' => fn ($q) => $q->whereNotNull('stock_error'),
+                    'mappings as bundle_like' => fn ($q) => $q->whereNull('removed_at')->bundleLike(),
+                ])
                 ->get();
 
             foreach ($shops as $shop) {
@@ -245,6 +268,15 @@ class AlertService
 
                 if ($shop->isSyncable() && ($shop->last_synced_at ?? $shop->connected_at)?->lt($stale)) {
                     $add($platform, $shop, 'Sinkron pesanan terhenti'.($shop->last_error ? ': '.$shop->last_error : ''), $shop->last_synced_at, true);
+                }
+
+                // Kirim stok mati: marketplace memakai angka stoknya sendiri, pesanan bisa masuk walau gudang kosong.
+                if (! $shop->stock_push && $shop->warehouse_id) {
+                    $add($platform, $shop, 'Kirim stok mati: stok di '.($platform === 'shopee' ? 'Shopee' : 'TikTok').' tidak mengikuti Optima, jadi pesanan tetap masuk walau stok gudang habis lalu tertahan "Perlu dicek". Nyalakan setelah stok gudang dicek.', null, false, route('marketplace.shops', ['platform' => $platform]));
+                }
+
+                if ($shop->bundle_like > 0) {
+                    $add($platform, $shop, "{$shop->bundle_like} SKU mirip paket dipetakan ke produk biasa, jadi stoknya tidak dihitung dari isi paket", null, false, route("{$platform}.mappings.index", [$shop, 'status' => 'bundle_like']));
                 }
 
                 if ($shop->failed_stock > 0) {
