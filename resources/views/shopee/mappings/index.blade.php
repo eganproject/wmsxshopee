@@ -20,7 +20,7 @@
                 @csrf
                 <button type="submit" class="btn-secondary"><x-heroicon-o-sparkles class="size-5" /> Cocokkan Otomatis</button>
             </form>
-            <form method="POST" action="{{ route('shopee.mappings.pull', $shop) }}" x-data="{ busy: false }" @submit="busy = true">
+            <form method="POST" action="{{ route('shopee.mappings.pull', $shop) }}" x-data="{ busy: false }" @submit="busy = true" @pageshow.window="busy = false">
                 @csrf
                 <button type="submit" class="btn-primary" :disabled="busy" @disabled(! $shop->isConnected())
                         title="{{ $shop->isConnected() ? 'Ambil daftar produk & variasi dari toko' : 'Toko perlu diotorisasi ulang' }}">

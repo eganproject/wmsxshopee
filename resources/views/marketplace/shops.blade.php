@@ -229,7 +229,7 @@
                                 <div class="flex items-center justify-end gap-1">
                                     <a href="{{ route($p.'.mappings.index', $shop) }}" class="btn-icon" title="Pemetaan SKU"><x-heroicon-o-arrows-right-left class="size-5" /></a>
                                     @if ($can('sync'))
-                                        <form method="POST" action="{{ route($p.'.shops.sync', $shop) }}" x-data="{ busy: false }" @submit="busy = true">
+                                        <form method="POST" action="{{ route($p.'.shops.sync', $shop) }}" x-data="{ busy: false }" @submit="busy = true" @pageshow.window="busy = false">
                                             @csrf
                                             <button type="submit" class="btn-icon" title="{{ $p === 'shopee' ? 'Sinkron pesanan, resi, retur & stok sekarang' : 'Sinkron pesanan, retur & stok sekarang' }}" :disabled="busy" @disabled(! $shop->isSyncable())>
                                                 <x-heroicon-o-arrows-up-down class="size-5" />
