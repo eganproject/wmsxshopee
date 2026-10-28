@@ -12,7 +12,7 @@
     $dots = ['connected' => 'bg-emerald-500', 'attention' => 'bg-amber-500', 'expired' => 'bg-rose-500', 'inactive' => 'bg-slate-400'];
 @endphp
 
-<div class="relative" x-data="{ open: false, busy: null }" @click.outside="open = false" @keydown.escape="open = false" data-testid="marketplace-shops-menu">
+<div class="relative" x-data="{ open: false, busy: null }" @pageshow.window="busy = null" @click.outside="open = false" @keydown.escape="open = false" data-testid="marketplace-shops-menu">
     <button type="button" class="btn-icon relative" @click="open = !open"
             title="Toko terhubung" aria-label="Toko terhubung ({{ $rows->count() }}){{ $problems ? ', '.$problems.' perlu perhatian' : '' }}">
         <x-heroicon-o-building-storefront />

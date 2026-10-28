@@ -9,7 +9,7 @@
 
     <x-page-header title="Backup Database" description="Salinan seluruh data Optima. Dibuat otomatis tiap hari pukul {{ $time }} dan disimpan {{ $keepDays }} hari." icon="heroicon-o-circle-stack">
         @can('backups.create')
-            <form method="POST" action="{{ route('admin.backups.store') }}" x-data="{ busy: false }" @submit="busy = true">
+            <form method="POST" action="{{ route('admin.backups.store') }}" x-data="{ busy: false }" @submit="busy = true" @pageshow.window="busy = false">
                 @csrf
                 <button type="submit" class="btn-primary" :disabled="busy">
                     <x-heroicon-o-arrow-path class="size-5 animate-spin" x-show="busy" x-cloak />

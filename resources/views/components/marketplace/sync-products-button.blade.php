@@ -5,7 +5,7 @@
 @endphp
 
 @if (auth()->user()->can('shopee.mapping') || auth()->user()->can('tiktok.mapping'))
-    <form method="POST" action="{{ route('marketplace.sync-products') }}" x-data="{ busy: false }" @submit="busy = true">
+    <form method="POST" action="{{ route('marketplace.sync-products') }}" x-data="{ busy: false }" @submit="busy = true" @pageshow.window="busy = false">
         @csrf
         <button type="submit" class="btn-primary" title="{{ $title }}" :disabled="busy">
             <span class="inline-flex" :class="busy && 'animate-spin'"><x-heroicon-o-arrow-path class="size-5" /></span>
