@@ -4,12 +4,14 @@ namespace App\Http\Controllers\Inventory;
 
 use App\Http\Controllers\Controller;
 use App\Models\ProductVariant;
+use App\Models\SalesOrder;
 use App\Models\Stock;
 use App\Models\Warehouse;
 use App\Models\WarehouseLocation;
 use App\Models\WarehouseTransfer;
 use App\Rules\AccessibleRecord;
 use App\Services\FixedBins;
+use App\Services\HeldOrderRetry;
 use App\Services\WarehouseSupply;
 use App\Services\WarehouseTransferService;
 use App\Support\WarehouseAccess;
@@ -65,7 +67,27 @@ class WarehouseTransferController extends Controller
             $items = $this->prefill($from, $to, $supply->suggestions($target)->filter(fn ($row) => $row->qty > 0));
         }
 
+        // ?held={pesanan}: tutup kekurangan pesanan marketplace yang tertahan stok.
+        if ($request->filled('held') && ($order = SalesOrder::find($request->integer('held')))) {
+            $retry = app(HeldOrderRetry::class);
+            $shortages = $retry->shortages($order);
+            $source = $retry->bestSource($order, $shortages);
+
+            if ($source && $sources->contains('id', $source->id)) {
+                $from = $source->id;
+                $to = $order->warehouse_id;
+                $items = $this->prefill($from, $to, $shortages->map(fn ($row) => (object) [
+                    'variant' => $row->variant,
+                    'qty' => min($row->short, (int) ($row->sources->firstWhere('warehouse.id', $source->id)?->available ?? 0)),
+                    'urgent' => true,
+                    'note' => "Untuk pesanan {$order->number} yang tertahan stok",
+                ])->filter(fn ($row) => $row->qty > 0)->values());
+                $heldOrder = $order;
+            }
+        }
+
         return view('inventory.transfers.create', [
+            'heldOrder' => $heldOrder ?? null,
             'sources' => $sources,
             'destinations' => $destinations,
             'from' => $from,
@@ -189,7 +211,7 @@ class WarehouseTransferController extends Controller
                 'from_location_id' => (string) ($bins[$row->variant->id][0]->warehouse_location_id ?? ''),
                 'to_location_id' => (string) ($part['location_id'] ?? ''),
                 'qty' => $part['qty'],
-                'notes' => $row->urgent ? 'Untuk pesanan yang menunggu' : '',
+                'notes' => $row->urgent ? ($row->note ?? 'Untuk pesanan yang menunggu') : '',
             ]);
         })->values()->all();
     }

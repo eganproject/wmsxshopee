@@ -33,6 +33,7 @@ class TiktokSkuMappingController extends Controller
             ->when($request->input('status') === 'mapped', fn ($q) => $q->where(fn ($q) => $q->whereNotNull('product_variant_id')->orWhereNotNull('bundle_id')))
             ->when($request->input('status') === 'unmapped', fn ($q) => $q->whereNull('product_variant_id')->whereNull('bundle_id'))
             ->when($request->input('status') === 'failed', fn ($q) => $q->whereNotNull('stock_error'))
+            ->when($request->input('status') === 'bundle_like', fn ($q) => $q->bundleLike())
             ->orderBy('product_name')->orderBy('sku_name')
             ->paginate(25)->withQueryString();
 
@@ -43,6 +44,7 @@ class TiktokSkuMappingController extends Controller
             'unmapped' => $shop->mappings()->whereNull('removed_at')->whereNull('product_variant_id')->whereNull('bundle_id')->count(),
             'failed' => $shop->mappings()->whereNull('removed_at')->whereNotNull('stock_error')->count(),
             'removed' => $shop->mappings()->whereNotNull('removed_at')->count(),
+            'bundleLike' => $shop->mappings()->whereNull('removed_at')->bundleLike()->count(),
         ]);
     }
 

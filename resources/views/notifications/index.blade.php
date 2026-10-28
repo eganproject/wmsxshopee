@@ -75,6 +75,9 @@
                                 <a href="{{ route('master.bundles.index') }}" class="text-sm text-slate-600 hover:text-slate-900">Lihat paket</a>
                             @endcan
                             @break
+                        @case('held_orders')
+                            <a href="{{ route('sales.orders.index', ['status' => 'draft']) }}" class="text-sm text-slate-600 hover:text-slate-900">Lihat pesanan</a>
+                            @break
                         @case('courier_pending')
                         @case('shopee_ahead')
                             <a href="{{ route('sales.orders.index', ['shopee' => $group['key'] === 'courier_pending' ? 'courier_overdue' : 'shopee_ahead']) }}" class="text-sm text-slate-600 hover:text-slate-900">Lihat pesanan</a>
@@ -127,6 +130,40 @@
                                         <p class="truncate text-xs text-slate-500">{{ $item->name }}</p>
                                     </div>
                                     <p class="max-w-[50%] truncate text-right text-xs text-slate-500" title="Komponen">{{ $item->items->map(fn ($component) => $component->qty.'× '.$component->variant?->sku)->join(', ') }}</p>
+                                    @break
+                                @case('held_orders')
+                                    <div class="min-w-0 flex-1">
+                                        <a href="{{ route('sales.orders.show', $item) }}" class="text-sm font-medium text-slate-900 hover:text-brand-600">{{ $item->number }}</a>
+                                        <p class="truncate text-xs text-slate-500">{{ $item->channel_name }} · {{ $item->warehouse?->code }}{{ $item->external_number ? ' · '.$item->external_number : '' }}</p>
+                                        @forelse ($item->shortages as $short)
+                                            <p class="text-xs">
+                                                <span class="font-mono font-medium text-slate-800">{{ $short->variant->sku }}</span>
+                                                <span class="text-rose-600">kurang {{ $fmt($short->short) }}</span>
+                                                <span class="text-slate-500">(dipesan {{ $fmt($short->needed) }}, tersedia {{ $fmt($short->sellable) }})</span>
+                                                @if ($short->sources->isNotEmpty())
+                                                    <span class="text-slate-500">· stok ada di {{ $short->sources->map(fn ($s) => $s->warehouse->code.' '.$fmt($s->available))->join(', ') }}</span>
+                                                @else
+                                                    <span class="text-slate-500">· habis di semua gudang</span>
+                                                @endif
+                                            </p>
+                                        @empty
+                                            <p class="text-xs text-emerald-700">Stok sudah cukup, segera dikonfirmasi otomatis.</p>
+                                        @endforelse
+                                    </div>
+                                    <div class="shrink-0 text-right">
+                                        @if ($item->transferFrom)
+                                            @can('inventory.create')
+                                                <a href="{{ route('inventory.transfers.create', ['held' => $item->id]) }}" class="btn-secondary px-2.5 py-1 text-xs">
+                                                    <x-heroicon-o-truck class="size-4" /> Transfer dari {{ $item->transferFrom->code }}
+                                                </a>
+                                            @endcan
+                                        @elseif ($item->shortages->isNotEmpty())
+                                            @can('receipts.create')
+                                                <a href="{{ route('inventory.receipts.create') }}" class="text-xs font-medium text-brand-600 hover:text-brand-700">Catat penerimaan</a>
+                                            @endcan
+                                        @endif
+                                        <p class="mt-1 text-xs text-slate-500" title="{{ $item->ordered_at?->translatedFormat('d M Y H:i') }}">{{ ($item->ordered_at ?? $item->created_at)?->diffForHumans() }}</p>
+                                    </div>
                                     @break
                                 @case('courier_pending')
                                 @case('shopee_ahead')

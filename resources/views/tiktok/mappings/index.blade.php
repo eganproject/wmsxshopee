@@ -61,6 +61,16 @@
         </div>
     @endif
 
+    @if ($bundleLike && request('status') !== 'bundle_like')
+        <div class="mb-6 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+            <x-heroicon-o-gift class="mt-0.5 size-5 shrink-0 text-amber-500" />
+            <p>
+                {{ $bundleLike }} SKU terlihat seperti paket (berawalan {{ implode(', ', \App\Support\BundleLikeSku::prefixes()) }}) tapi dipetakan ke produk biasa. Stok yang dikirim ke TikTok dan dicek saat pesanan masuk dihitung dari produk itu, bukan dari isi paket. Bila memang paket, petakan ke Produk Paket.
+                <a href="{{ route('tiktok.mappings.index', [$shop, 'status' => 'bundle_like']) }}" class="font-medium underline underline-offset-2">Lihat</a>
+            </p>
+        </div>
+    @endif
+
     @can('tiktok.mapping')
         <details class="card mb-6" @if ($errors->any()) open @endif>
             <summary class="flex cursor-pointer items-center gap-2 px-5 py-3 text-sm font-medium text-slate-900">
@@ -98,6 +108,7 @@
                 <option value="unmapped" @selected(request('status') === 'unmapped')>Belum dipetakan</option>
                 <option value="mapped" @selected(request('status') === 'mapped')>Sudah dipetakan</option>
                 <option value="failed" @selected(request('status') === 'failed')>Gagal kirim stok</option>
+                <option value="bundle_like" @selected(request('status') === 'bundle_like')>Mirip paket, dipetakan ke produk ({{ $bundleLike }})</option>
                 <option value="removed" @selected(request('status') === 'removed')>Tidak ada di toko ({{ $removed }})</option>
             </select>
             <div class="flex gap-2">
@@ -135,7 +146,13 @@
                                     </span>
                                 @endif
                             </td>
-                            <td class="px-4 py-2.5 font-mono text-[13px] text-slate-700">{{ $mapping->seller_sku ?? '—' }}</td>
+                            <td class="px-4 py-2.5 font-mono text-[13px] text-slate-700">
+                                {{ $mapping->seller_sku ?? '—' }}
+                                @if ($mapping->looksLikeBundle())
+                                    <span class="ml-1 inline-flex cursor-help rounded-full bg-amber-50 px-2 py-0.5 font-sans text-xs text-amber-700"
+                                          data-hint-title="Mirip paket" data-hint="SKU ini terlihat seperti paket, tapi dipetakan ke produk biasa. Stoknya dihitung dari produk itu, bukan dari isi paket. Bila memang paket, pilih Produk Paket di kolom kanan.">Mirip paket</span>
+                                @endif
+                            </td>
                             <td class="px-4 py-2.5">
                                 @can('tiktok.mapping')
                                     <form method="POST" action="{{ route('tiktok.mappings.update', [$shop, $mapping]) }}" class="flex items-center gap-2">

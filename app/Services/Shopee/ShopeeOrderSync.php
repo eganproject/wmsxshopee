@@ -35,7 +35,7 @@ use Throwable;
 class ShopeeOrderSync
 {
     /** Status Shopee yang berarti pesanan harus disiapkan gudang. */
-    public const TO_FULFIL = ['READY_TO_SHIP', 'PROCESSED', 'RETRY_SHIP'];
+    public const TO_FULFIL = SalesOrder::SHOPEE_TO_FULFIL;
 
     /** Status yang biasanya sudah punya resi. */
     public const HAS_TRACKING = ['PROCESSED', 'RETRY_SHIP', 'SHIPPED', 'TO_CONFIRM_RECEIVE', 'COMPLETED'];
@@ -359,7 +359,7 @@ class ShopeeOrderSync
             $this->orders->confirm($order);
             $order->refresh()->update(['shopee_sync_error' => null]);
         } catch (ValidationException $e) {
-            $order->update(['shopee_sync_error' => mb_substr('Belum bisa dikonfirmasi: '.implode(' ', $e->validator->errors()->all()), 0, 500)]);
+            $order->update(['shopee_sync_error' => mb_substr(SalesOrder::STOCK_HELD_PREFIX.implode(' ', $e->validator->errors()->all()), 0, 500)]);
         }
     }
 

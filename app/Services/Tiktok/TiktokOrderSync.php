@@ -311,7 +311,7 @@ class TiktokOrderSync
             $this->orders->confirm($order);
             $order->refresh()->update(['tiktok_sync_error' => null]);
         } catch (ValidationException $e) {
-            $order->update(['tiktok_sync_error' => mb_substr('Belum bisa dikonfirmasi: '.implode(' ', $e->validator->errors()->all()), 0, 500)]);
+            $order->update(['tiktok_sync_error' => mb_substr(SalesOrder::STOCK_HELD_PREFIX.implode(' ', $e->validator->errors()->all()), 0, 500)]);
         }
     }
 

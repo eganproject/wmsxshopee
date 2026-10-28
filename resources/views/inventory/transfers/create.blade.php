@@ -17,6 +17,13 @@
         <a href="{{ route('inventory.transfers.index') }}" class="btn-secondary"><x-heroicon-o-arrow-left class="size-5" /> Kembali</a>
     </x-page-header>
 
+    @if ($heldOrder ?? null)
+        <div class="mb-6 flex items-start gap-2 rounded-lg border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-800">
+            <x-heroicon-o-information-circle class="mt-0.5 size-5 shrink-0 text-sky-500" />
+            <p>Diisi dari kekurangan pesanan <a href="{{ route('sales.orders.show', $heldOrder) }}" class="font-medium underline underline-offset-2">{{ $heldOrder->number }}</a>. Pesanan dikonfirmasi otomatis begitu stoknya cukup: saat transfer dikirim bila asalnya gudang cadangan gudang tujuan, atau saat transfer diterima.</p>
+        </div>
+    @endif
+
     <form method="POST" action="{{ route('inventory.transfers.store') }}" data-dirty-guard class="space-y-6"
           x-data="{
               from: @js((string) old('from_warehouse_id', $from ?? '')),
