@@ -15,6 +15,7 @@ use App\Models\TiktokShop;
 use App\Models\Unit;
 use App\Models\User;
 use App\Models\Warehouse;
+use App\Services\AlertService;
 use App\Services\FulfillmentScan;
 use App\Services\SalesOrderService;
 use App\Services\StockService;
@@ -418,6 +419,38 @@ class TiktokIntegrationTest extends TestCase
         $this->assertSame(0, MarketplaceStockHold::count());
         $this->assertSame('confirmed', SalesOrder::where('external_number', '590002')->value('status'));
         $this->assertSame(['KAOS-M' => 10, 'KAOS-L' => 3, 'PAKET-2' => 3], $levels());
+    }
+
+    public function test_handed_over_tiktok_order_is_flagged_until_courier_scan(): void
+    {
+        $this->shop();
+        $this->fakeSearch([$this->order('600001', 'AWAITING_SHIPMENT', $this->units('2001', 1))]);
+        $this->artisan('tiktok:sync --only=orders')->assertSuccessful();
+
+        $order = SalesOrder::where('external_number', '600001')->firstOrFail();
+        $service = app(SalesOrderService::class);
+        $service->pick($order, $service->suggestPicks($order));
+        $service->pack($order);
+        $service->ship($order, [], null);
+        SalesOrder::whereKey($order->id)->update(['shipped_at' => now()->subHours(30)]);
+
+        $order->refresh();
+        $this->assertTrue($order->tiktokAwaitingCourierScan());
+        $this->assertTrue($order->courierScanOverdue());
+        $this->assertSame([$order->id], SalesOrder::shopeeFilter('courier_overdue')->pluck('id')->all());
+
+        $admin = User::where('email', 'superadmin@wms.local')->firstOrFail();
+        $this->assertSame(1, app(AlertService::class)->groups($admin)['courier_pending']['count']);
+        $this->actingAs($admin)->get(route('notifications.index'))->assertOk()->assertSee($order->number)->assertSee('TikTok: Perlu Dikirim');
+        $this->actingAs($admin)->get(route('sales.orders.show', $order))->assertOk()->assertSee('belum discan kurir');
+
+        $this->refake();
+        $this->fakeSearch([$this->order('600001', 'IN_TRANSIT', $this->units('2001', 1))]);
+        $this->artisan('tiktok:sync --only=orders')->assertSuccessful();
+
+        $this->assertFalse($order->refresh()->tiktokAwaitingCourierScan());
+        $this->assertSame([], SalesOrder::shopeeFilter('courier_overdue')->pluck('id')->all());
+        $this->assertSame(0, app(AlertService::class)->groups($admin)['courier_pending']['count']);
     }
 
     public function test_unmapped_sku_keeps_order_draft_until_mapped(): void

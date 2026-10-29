@@ -59,7 +59,7 @@
             {{-- Filter lama dari tautan notifikasi (?shopee=...). --}}
             <a href="{{ route('sales.orders.index', request()->except(['shopee', 'page'])) }}" class="{{ $chip }} border-sky-200 bg-sky-50 text-sky-700" title="Hapus filter">
                 @php($legacy = ['courier_pending' => 'Belum discan kurir', 'courier_overdue' => 'Belum discan kurir > '.config('alerts.courier_scan_hours').' jam', 'shopee_ahead' => 'Dikirim di Shopee, belum di gudang'])
-                Shopee: {{ $legacy[request('shopee')] ?? (\App\Models\SalesOrder::SHOPEE_STATUSES[request('shopee')]['label'] ?? request('shopee')) }}
+                {{ in_array(request('shopee'), ['courier_pending', 'courier_overdue'], true) ? '' : 'Shopee: ' }}{{ $legacy[request('shopee')] ?? (\App\Models\SalesOrder::SHOPEE_STATUSES[request('shopee')]['label'] ?? request('shopee')) }}
                 <x-heroicon-o-x-mark class="size-3.5" />
             </a>
         @endif

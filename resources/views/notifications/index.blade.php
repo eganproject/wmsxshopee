@@ -176,7 +176,7 @@
                                         <p class="truncate text-xs text-slate-500">{{ $item->tracking_number ?? $item->external_number }} · {{ $item->warehouse?->code }}</p>
                                     </div>
                                     <div class="text-right">
-                                        <p class="text-xs font-medium text-slate-700">Gudang: {{ $item->statusLabel() }} · Shopee: {{ $item->shopeeStatusLabel() }}</p>
+                                        <p class="text-xs font-medium text-slate-700">Gudang: {{ $item->statusLabel() }} · {{ $item->isTiktok() ? 'TikTok: '.$item->tiktokStatusLabel() : 'Shopee: '.$item->shopeeStatusLabel() }}</p>
                                         <p class="text-xs text-slate-500" title="{{ $since?->translatedFormat('d M Y H:i') }}">{{ $since?->diffForHumans() }}</p>
                                     </div>
                                     @break

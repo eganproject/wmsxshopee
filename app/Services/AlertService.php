@@ -124,7 +124,7 @@ class AlertService
             $groups['courier_pending'] = [
                 'key' => 'courier_pending',
                 'label' => 'Paket belum discan kurir',
-                'hint' => "Sudah serah terima lebih dari {$courierHours} jam, tapi di Shopee masih Diproses",
+                'hint' => "Sudah serah terima lebih dari {$courierHours} jam, tapi Shopee / TikTok belum mencatat scan kurir",
                 'count' => (clone $courier)->count(),
                 'icon' => 'heroicon-o-truck',
                 'tone' => 'rose',
