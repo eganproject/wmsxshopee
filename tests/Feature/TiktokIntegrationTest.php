@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\Bundle;
 use App\Models\Courier;
+use App\Models\MarketplaceStockHold;
 use App\Models\Product;
 use App\Models\ProductVariant;
 use App\Models\SalesOrder;
@@ -20,6 +21,7 @@ use App\Services\StockService;
 use App\Services\Tiktok\TiktokClient;
 use App\Services\Tiktok\TiktokException;
 use App\Services\Tiktok\TiktokOrderSync;
+use App\Services\Tiktok\TiktokStockSync;
 use App\Services\Tiktok\TiktokSync;
 use App\Support\ConnectionError;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -385,6 +387,37 @@ class TiktokIntegrationTest extends TestCase
         $this->get("/sales/orders/{$order->id}")->assertOk()->assertSee('Pesanan TikTok')->assertSee('Perlu Dikirim')
             ->assertSee('Rincian Pembayaran TikTok')->assertSee('Rp 154.000');
         $this->get('/sales/orders')->assertOk()->assertSee('Perlu Dikirim')->assertSee('AWAITING_SHIPMENT');
+    }
+
+    public function test_unpaid_and_on_hold_orders_hold_pushed_stock(): void
+    {
+        $shop = $this->shop();
+        $levels = function () use ($shop) {
+            $mappings = $shop->mappings()->get();
+            $level = app(TiktokStockSync::class)->levels($shop, $mappings);
+
+            return $mappings->mapWithKeys(fn ($row) => [$row->seller_sku => $level($row)])->all();
+        };
+
+        $this->fakeSearch([
+            $this->order('590001', 'UNPAID', $this->units('2001', 2)),
+            $this->order('590002', 'ON_HOLD', $this->units('2002', 1)),
+        ]);
+        $this->artisan('tiktok:sync --only=orders')->assertSuccessful();
+
+        $this->assertSame(0, SalesOrder::count());
+        $this->assertSame(['KAOS-M' => 8, 'KAOS-L' => 3, 'PAKET-2' => 3], $levels());
+
+        $this->refake();
+        $this->fakeSearch([
+            $this->order('590001', 'CANCELLED', $this->units('2001', 2)),
+            $this->order('590002', 'AWAITING_SHIPMENT', $this->units('2002', 1)),
+        ]);
+        $this->artisan('tiktok:sync --only=orders')->assertSuccessful();
+
+        $this->assertSame(0, MarketplaceStockHold::count());
+        $this->assertSame('confirmed', SalesOrder::where('external_number', '590002')->value('status'));
+        $this->assertSame(['KAOS-M' => 10, 'KAOS-L' => 3, 'PAKET-2' => 3], $levels());
     }
 
     public function test_unmapped_sku_keeps_order_draft_until_mapped(): void

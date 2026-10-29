@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Marketplace;
 
 use App\Http\Controllers\Controller;
 use App\Models\Bundle;
+use App\Models\MarketplaceStockHold;
 use App\Models\ProductVariant;
 use App\Models\ShopeeShop;
 use App\Models\ShopeeSkuMapping;
@@ -148,7 +149,8 @@ class MarketplaceProductStatusController extends Controller
     }
 
     /**
-     * Rincian stok jual saat ini untuk toko yang gudangnya punya gudang cadangan,
+     * Rincian stok jual saat ini untuk toko yang gudangnya punya gudang cadangan
+     * atau stok yang ditahan pesanan belum bayar,
      * per gudang toko lalu per varian (lihat WarehouseSupply::sellable).
      *
      * @return Collection<int, Collection<int, array<string, int>>>
@@ -158,8 +160,10 @@ class MarketplaceProductStatusController extends Controller
         $supply = app(WarehouseSupply::class);
 
         return $columns->pluck('shop.warehouse_id')->filter()->unique()
-            ->filter(fn ($warehouseId) => $supply->supplyOf($warehouseId))
-            ->mapWithKeys(fn ($warehouseId) => [$warehouseId => $supply->sellable($warehouseId, $rows->pluck('id')->all())]);
+            // Gudang dengan gudang cadangan, atau yang stoknya sedang ditahan pesanan belum bayar.
+            ->filter(fn ($warehouseId) => $supply->supplyOf($warehouseId) || MarketplaceStockHold::active()->where('warehouse_id', $warehouseId)->exists())
+            ->mapWithKeys(fn ($warehouseId) => [$warehouseId => $supply->sellable($warehouseId, $rows->pluck('id')->all())
+                ->map(fn ($split) => [...$split, 'has_supply' => (bool) $supply->supplyOf($warehouseId)])]);
     }
 
     /**

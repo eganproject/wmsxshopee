@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\ActivityLog;
 use App\Models\Bundle;
 use App\Models\Courier;
+use App\Models\MarketplaceStockHold;
 use App\Models\MarketplaceWebhookEvent;
 use App\Models\Product;
 use App\Models\ProductVariant;
@@ -518,6 +519,66 @@ class ShopeeSyncTest extends TestCase
         $this->resync([$this->order('E1', 'COMPLETED', [$this->line(11, 101, 2)])]);
         $this->assertSame(1, StockMovement::where('reference', $order->number)->count());
         $this->assertSame('COMPLETED', $order->fresh()->shopee_order_status);
+    }
+
+    /** @return array<string, int> stok yang akan dikirim ke Shopee per SKU */
+    private function pushLevels(): array
+    {
+        $mappings = $this->shop->mappings()->get();
+        $level = app(ShopeeStockSync::class)->levels($this->shop, $mappings);
+
+        return $mappings->mapWithKeys(fn ($row) => [$row->shopee_sku => $level($row)])->all();
+    }
+
+    public function test_unpaid_order_holds_pushed_stock_until_paid_or_cancelled(): void
+    {
+        // Belum bayar: belum jadi pesanan Optima, stok gudang tetap, tapi stok kirim ke marketplace dikurangi.
+        $this->fakeOrders([$this->order('U1', 'UNPAID', [$this->line(11, 101, 3), $this->line(22, 0, 1)])]);
+        $this->artisan('shopee:sync --only=orders')->assertSuccessful();
+
+        $this->assertSame(0, SalesOrder::count());
+        $this->assertSame(10, $this->available($this->kaosM));
+        $this->assertSame(['KAOS-M' => 6, 'KAOS-L' => 3, 'PAKET-2' => 3], $this->pushLevels());
+        $this->assertSame(2, MarketplaceStockHold::count());
+        $admin = User::where('email', 'superadmin@wms.local')->firstOrFail();
+        $this->actingAs($admin)->get(route('marketplace.products'))->assertOk()->assertSee('belum bayar 4');
+
+        // Sinkron ulang tanpa perubahan tidak menggandakan cadangan.
+        $this->resync([$this->order('U1', 'UNPAID', [$this->line(11, 101, 3), $this->line(22, 0, 1)])]);
+        $this->assertSame(['KAOS-M' => 6, 'KAOS-L' => 3, 'PAKET-2' => 3], $this->pushLevels());
+
+        // Dibayar: cadangan sementara lepas, berganti cadangan pesanan Optima (angka kirim sama).
+        $this->resync([$this->order('U1', 'READY_TO_SHIP', [$this->line(11, 101, 3), $this->line(22, 0, 1)])]);
+        $this->assertSame(0, MarketplaceStockHold::count());
+        $this->assertSame('confirmed', SalesOrder::where('external_number', 'U1')->value('status'));
+        $this->assertSame(['KAOS-M' => 6, 'KAOS-L' => 3, 'PAKET-2' => 3], $this->pushLevels());
+
+        // Pesanan belum bayar lain dibatalkan: cadangan lepas tanpa membuat pesanan.
+        $this->resync([$this->order('U2', 'UNPAID', [$this->line(11, 102, 2)])]);
+        $this->assertSame(1, $this->pushLevels()['KAOS-L']);
+        $this->resync([$this->order('U2', 'CANCELLED', [$this->line(11, 102, 2)])]);
+        $this->assertSame(3, $this->pushLevels()['KAOS-L']);
+        $this->assertNull(SalesOrder::where('external_number', 'U2')->first());
+    }
+
+    public function test_unpaid_hold_does_not_block_paid_orders_and_expires(): void
+    {
+        $this->fakeOrders([$this->order('U3', 'UNPAID', [$this->line(11, 102, 4)])]);
+        $this->artisan('shopee:sync --only=orders')->assertSuccessful();
+        $this->assertSame(0, $this->pushLevels()['KAOS-L']);
+
+        // Pesanan yang sudah dibayar tetap dikonfirmasi walau stoknya sedang ditahan pesanan belum bayar.
+        $this->resync([$this->order('P1', 'READY_TO_SHIP', [$this->line(11, 102, 2)])]);
+        $this->assertSame('confirmed', SalesOrder::where('external_number', 'P1')->value('status'));
+        $this->assertSame(0, $this->pushLevels()['KAOS-L']);
+
+        // Status batal tidak pernah sampai: cadangan lepas sendiri setelah batas waktunya.
+        $this->travel((int) config('marketplace.unpaid_hold_hours') + 1)->hours();
+        $this->assertSame(2, $this->pushLevels()['KAOS-L']);
+        $this->artisan('model:prune', ['--model' => [MarketplaceStockHold::class]])->assertSuccessful();
+        $this->travel(25)->hours();
+        $this->artisan('model:prune', ['--model' => [MarketplaceStockHold::class]])->assertSuccessful();
+        $this->assertSame(0, MarketplaceStockHold::count());
     }
 
     public function test_order_shipped_automatically_is_flagged_as_skipped_qc_until_checked(): void
