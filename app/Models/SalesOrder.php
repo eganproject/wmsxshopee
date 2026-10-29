@@ -108,6 +108,9 @@ class SalesOrder extends Model
     ];
 
     /** Status TikTok yang berarti pesanan harus disiapkan gudang. */
+    /** Status TikTok setelah serah terima tapi kurir belum scan paket. */
+    public const TIKTOK_AWAITING_COURIER = ['AWAITING_SHIPMENT', 'AWAITING_COLLECTION'];
+
     public const TIKTOK_TO_FULFIL = ['AWAITING_SHIPMENT', 'PARTIALLY_SHIPPING', 'AWAITING_COLLECTION'];
 
     /** Status TikTok yang berarti paket sudah di tangan kurir. */
@@ -555,7 +558,7 @@ class SalesOrder extends Model
 
     public function courierScanOverdue(): bool
     {
-        return $this->awaitingCourierScan() && $this->shipped_at?->lte(now()->subHours((int) config('alerts.courier_scan_hours', 24)));
+        return ($this->awaitingCourierScan() || $this->tiktokAwaitingCourierScan()) && $this->shipped_at?->lte(now()->subHours((int) config('alerts.courier_scan_hours', 24)));
     }
 
     /**
@@ -645,7 +648,7 @@ class SalesOrder extends Model
     public function tiktokAwaitingCourierScan(): bool
     {
         return $this->isTiktok() && $this->status === 'shipped' && $this->tiktok_shipped_at === null
-            && in_array($this->tiktok_order_status, ['AWAITING_SHIPMENT', 'AWAITING_COLLECTION'], true);
+            && in_array($this->tiktok_order_status, self::TIKTOK_AWAITING_COURIER, true);
     }
 
     /**
@@ -785,10 +788,11 @@ class SalesOrder extends Model
     public function scopeShopeeFilter(Builder $query, string $filter): void
     {
         match ($filter) {
-            'courier_pending', 'courier_overdue' => $query->whereNotNull('shopee_shop_id')
-                ->where('status', 'shipped')
-                ->whereNull('shopee_shipped_at')
-                ->whereIn('shopee_order_status', self::SHOPEE_AWAITING_COURIER)
+            // Shopee & TikTok: sudah serah terima di gudang, tapi marketplace belum mencatat scan kurir.
+            'courier_pending', 'courier_overdue' => $query->where('status', 'shipped')
+                ->where(fn ($q) => $q
+                    ->where(fn ($q) => $q->whereNotNull('shopee_shop_id')->whereNull('shopee_shipped_at')->whereIn('shopee_order_status', self::SHOPEE_AWAITING_COURIER))
+                    ->orWhere(fn ($q) => $q->whereNotNull('tiktok_shop_id')->whereNull('tiktok_shipped_at')->whereIn('tiktok_order_status', self::TIKTOK_AWAITING_COURIER)))
                 ->when($filter === 'courier_overdue', fn ($q) => $q->where('shipped_at', '<=', now()->subHours((int) config('alerts.courier_scan_hours', 24)))),
             'shopee_ahead' => $query->whereNotNull('shopee_shop_id')
                 ->whereIn('status', ['draft', ...self::RESERVING])

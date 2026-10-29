@@ -197,6 +197,11 @@
                     @if ($order->tiktok_ship_by && ! $order->hasStatus('shipped', 'cancelled'))
                         · siap kirim sebelum {{ $order->tiktok_ship_by->format('d/m/Y H:i') }}
                     @endif
+                    @if ($order->tiktok_shipped_at)
+                        · diterima kurir {{ $order->tiktok_shipped_at->translatedFormat('d M Y H:i') }}
+                    @elseif ($order->tiktokAwaitingCourierScan())
+                        · <span class="font-medium">belum discan kurir</span> (serah terima {{ $order->shipped_at?->diffForHumans() }})
+                    @endif
                     @if ($order->shipped_automatically)
                         · dikirim otomatis mengikuti status TikTok
                     @endif
