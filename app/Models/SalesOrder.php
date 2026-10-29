@@ -191,6 +191,9 @@ class SalesOrder extends Model
         'shopee_ship_by',
         'shopee_shipped_at',
         'shipped_automatically',
+        'qc_skip_checked_at',
+        'qc_skip_checked_by',
+        'qc_skip_note',
         'shopee_income',
         'shopee_escrow_amount',
         'shopee_income_final',
@@ -256,6 +259,7 @@ class SalesOrder extends Model
             'shopee_ship_by' => 'datetime',
             'shopee_shipped_at' => 'datetime',
             'shipped_automatically' => 'boolean',
+            'qc_skip_checked_at' => 'datetime',
             'pickup_at' => 'datetime',
             'shipment_arranged_at' => 'datetime',
             'shipping_label_printed_at' => 'datetime',
@@ -312,6 +316,37 @@ class SalesOrder extends Model
     public function shipper(): BelongsTo
     {
         return $this->belongsTo(User::class, 'shipped_by');
+    }
+
+    public function qcSkipChecker(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'qc_skip_checked_by');
+    }
+
+    /**
+     * Dikirim otomatis karena marketplace melaporkan paket sudah di tangan kurir,
+     * padahal di gudang belum lewat QC kemas / serah terima.
+     */
+    public function skippedQc(): bool
+    {
+        return $this->status === 'shipped' && $this->shipped_automatically;
+    }
+
+    /** Terlewat QC dan belum dicek supervisor. */
+    public function needsQcSkipCheck(): bool
+    {
+        return $this->skippedQc() && ! $this->qc_skip_checked_at;
+    }
+
+    /**
+     * Filter pesanan terlewat QC: 'unchecked' (belum dicek supervisor),
+     * 'checked' (sudah dicek) atau 'all'.
+     */
+    public function scopeQcSkipped(Builder $query, string $filter = 'all'): void
+    {
+        $query->where('status', 'shipped')->where('shipped_automatically', true)
+            ->when($filter === 'unchecked', fn ($q) => $q->whereNull('qc_skip_checked_at'))
+            ->when($filter === 'checked', fn ($q) => $q->whereNotNull('qc_skip_checked_at'));
     }
 
     public function handover(): BelongsTo

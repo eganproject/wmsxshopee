@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\ActivityLog;
 use App\Models\Bundle;
 use App\Models\Courier;
 use App\Models\MarketplaceWebhookEvent;
@@ -517,6 +518,58 @@ class ShopeeSyncTest extends TestCase
         $this->resync([$this->order('E1', 'COMPLETED', [$this->line(11, 101, 2)])]);
         $this->assertSame(1, StockMovement::where('reference', $order->number)->count());
         $this->assertSame('COMPLETED', $order->fresh()->shopee_order_status);
+    }
+
+    public function test_order_shipped_automatically_is_flagged_as_skipped_qc_until_checked(): void
+    {
+        $this->fakeOrders([$this->order('Q1', 'READY_TO_SHIP', [$this->line(11, 101, 1)])]);
+        $this->artisan('shopee:sync --only=orders')->assertSuccessful();
+        $this->resync([$this->order('Q1', 'SHIPPED', [$this->line(11, 101, 1)])]);
+
+        $order = SalesOrder::where('external_number', 'Q1')->firstOrFail();
+        $this->assertTrue($order->needsQcSkipCheck());
+        $this->assertSame([$order->id], SalesOrder::qcSkipped('unchecked')->pluck('id')->all());
+
+        $admin = User::where('email', 'superadmin@wms.local')->firstOrFail();
+        $this->assertSame(1, app(AlertService::class)->groups($admin)['qc_skipped']['count']);
+        $this->actingAs($admin)->get(route('sales.orders.index', ['qc' => 'unchecked']))
+            ->assertOk()->assertSee($order->number)->assertSee('Terlewat QC, belum dicek');
+        $this->actingAs($admin)->get(route('sales.orders.show', $order))
+            ->assertOk()->assertSee('Terlewat QC kemas dan serah terima')->assertSee('Tandai Sudah Dicek');
+
+        $this->actingAs($admin)->post(route('sales.orders.qc-skip-check', $order), ['qc_skip_note' => 'Barang & bin sesuai'])
+            ->assertRedirect();
+
+        $order->refresh();
+        $this->assertFalse($order->needsQcSkipCheck());
+        $this->assertSame($admin->id, $order->qc_skip_checked_by);
+        $this->assertSame('Barang & bin sesuai', $order->qc_skip_note);
+        $this->assertSame([], SalesOrder::qcSkipped('unchecked')->pluck('id')->all());
+        $this->assertSame(0, app(AlertService::class)->groups($admin)['qc_skipped']['count']);
+        $log = ActivityLog::where('subject_type', $order->getMorphClass())->where('subject_id', $order->id)->latest('id')->firstOrFail();
+        $this->assertSame($admin->id, $log->user_id);
+        $this->assertStringContainsString('Barang & bin sesuai', json_encode($log->properties, JSON_UNESCAPED_UNICODE));
+        $this->actingAs($admin)->get(route('sales.orders.show', $order))->assertOk()->assertSee('Sudah dicek oleh');
+
+        // Dua kali tidak bisa; pesanan yang lewat proses gudang biasa juga tidak.
+        $this->actingAs($admin)->post(route('sales.orders.qc-skip-check', $order))->assertSessionHasErrors('order');
+    }
+
+    public function test_qc_skip_check_rejects_orders_shipped_through_the_warehouse(): void
+    {
+        $this->fakeOrders([$this->order('Q2', 'PROCESSED', [$this->line(11, 101, 1)])]);
+        $this->artisan('shopee:sync --only=orders')->assertSuccessful();
+
+        $order = SalesOrder::where('external_number', 'Q2')->firstOrFail();
+        $service = app(SalesOrderService::class);
+        $service->pick($order, $service->suggestPicks($order));
+        $service->pack($order);
+        $service->ship($order, [], null);
+
+        $admin = User::where('email', 'superadmin@wms.local')->firstOrFail();
+        $this->assertFalse($order->refresh()->skippedQc());
+        $this->actingAs($admin)->post(route('sales.orders.qc-skip-check', $order))->assertSessionHasErrors('order');
+        $this->assertNull($order->refresh()->qc_skip_checked_at);
     }
 
     public function test_handed_over_order_is_flagged_until_courier_scan_reaches_shopee(): void

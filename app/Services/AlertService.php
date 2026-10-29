@@ -163,6 +163,20 @@ class AlertService
                 'items' => $limit ? $ahead->with('warehouse:id,code')->oldest('shopee_synced_at')->limit($limit)->get() : collect(),
             ];
 
+            if ($user->can('sales.skip_scan')) {
+                $skipped = SalesOrder::query()->qcSkipped('unchecked');
+
+                $groups['qc_skipped'] = [
+                    'key' => 'qc_skipped',
+                    'label' => 'Terlewat QC, belum dicek',
+                    'hint' => 'Kurir sudah mengambil paket sebelum QC kemas / serah terima; stok keluar dari bin usulan',
+                    'count' => (clone $skipped)->count(),
+                    'icon' => 'heroicon-o-shield-exclamation',
+                    'tone' => 'amber',
+                    'items' => $limit ? $skipped->with('warehouse:id,code')->oldest('shipped_at')->limit($limit)->get() : collect(),
+                ];
+            }
+
             $draftHours = (int) config('alerts.draft_order_hours', 24);
             $drafts = SalesOrder::query()
                 ->where('status', 'draft')

@@ -265,6 +265,7 @@ Route::middleware(['auth', 'active'])->group(function () {
         Route::get('orders/{order}/pick-list', [SalesOrderController::class, 'pickList'])->middleware('can:sales.view')->name('orders.pick-list');
         Route::post('orders/{order}/pack', [SalesOrderController::class, 'pack'])->middleware('can:sales.skip_scan')->name('orders.pack');
         Route::post('orders/{order}/ship', [SalesOrderController::class, 'ship'])->middleware('can:sales.skip_scan')->name('orders.ship');
+        Route::post('orders/{order}/qc-skip-check', [SalesOrderController::class, 'checkQcSkip'])->middleware('can:sales.skip_scan')->name('orders.qc-skip-check');
         Route::post('orders/{order}/hand-to-customer', [SalesOrderController::class, 'handToCustomer'])->middleware('can:sales.fulfill')->name('orders.hand-to-customer');
         Route::get('orders/{order}/shipment', [ShipmentController::class, 'create'])->middleware('can:sales.fulfill')->name('orders.shipment');
         Route::post('orders/{order}/shipment', [ShipmentController::class, 'store'])->middleware('can:sales.fulfill')->name('orders.shipment.store');
