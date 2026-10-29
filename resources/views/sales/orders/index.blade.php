@@ -72,6 +72,22 @@
                'border-slate-200 bg-white text-slate-400' => $marketplaceFilter !== 'out_of_sync' && ! $outOfSyncCount])>
             <x-heroicon-o-exclamation-triangle class="size-3.5" /> Tidak sinkron <span class="opacity-70">{{ $outOfSyncCount }}</span>
         </a>
+        @php($qcFilter = in_array(request('qc'), ['skipped', 'unchecked', 'checked'], true) ? request('qc') : null)
+        <a href="{{ route('sales.orders.index', [...request()->except(['qc', 'page']), 'qc' => $qcFilter ? null : 'unchecked']) }}"
+           data-hint-title="Terlewat QC" data-hint="Pesanan yang dikirim otomatis karena marketplace melaporkan paket sudah di tangan kurir, padahal di gudang belum lewat QC kemas / serah terima. Stok sudah keluar dari bin usulan."
+           data-hint-next="Buka pesanannya, cek barang & bin yang dipakai, lalu tekan Tandai Sudah Dicek."
+           @class([$chip, 'font-medium',
+               'border-amber-600 bg-amber-600 text-white dark:border-amber-700 dark:bg-amber-700' => $qcFilter,
+               'border-amber-200 bg-amber-50 text-amber-700 hover:border-amber-300' => ! $qcFilter && $qcSkipCount,
+               'border-slate-200 bg-white text-slate-400' => ! $qcFilter && ! $qcSkipCount])>
+            <x-heroicon-o-shield-exclamation class="size-3.5" />
+            {{ ['skipped' => 'Terlewat QC: semua', 'checked' => 'Terlewat QC: sudah dicek'][$qcFilter] ?? 'Terlewat QC' }}
+            @if ($qcFilter)
+                <x-heroicon-o-x-mark class="size-3.5" />
+            @else
+                <span class="opacity-70">{{ $qcSkipCount }}</span>
+            @endif
+        </a>
     </div>
 
     @foreach (['shipment_failures' => 'belum bisa diatur pengirimannya', 'pick_failures' => 'belum bisa ditandai Sedang Diambil'] as $key => $title)

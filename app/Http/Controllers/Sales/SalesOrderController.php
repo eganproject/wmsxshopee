@@ -11,6 +11,7 @@ use App\Models\SavedFilter;
 use App\Models\Warehouse;
 use App\Models\WarehouseLocation;
 use App\Rules\AccessibleRecord;
+use App\Services\AlertService;
 use App\Services\FulfillmentScan;
 use App\Services\MarketplaceOrderRelink;
 use App\Services\OrderSkuResolver;
@@ -120,6 +121,10 @@ class SalesOrderController extends Controller
             'counts' => $counts,
             'marketplaceCounts' => $marketplaceCounts,
             'outOfSyncCount' => $marketplaceBase()->outOfSync()->count(),
+            // Chip "Terlewat QC": belum dicek supervisor, mengikuti filter lain kecuali filter QC itu sendiri.
+            'qcSkipCount' => $this->filtered($request->duplicate(collect($request->query())->except(['qc', 'page'])->all()))
+                ->when($request->filled('status'), fn ($query) => $query->inListTab((string) $request->input('status')))
+                ->qcSkipped('unchecked')->count(),
             // Data per baris untuk aksi massal: tombol hanya muncul untuk pesanan yang bisa diproses.
             'bulkRows' => $orders->getCollection()->mapWithKeys(fn (SalesOrder $order) => [$order->id => [
                 'arrange' => $order->canBulkArrangeShipment(),
@@ -392,6 +397,32 @@ class SalesOrderController extends Controller
             ->with('success', "Pesanan {$order->number} dikirim. Stok keluar lewat {$order->movement->number}.");
     }
 
+    /**
+     * Supervisor menandai pesanan yang terlewat QC (dikirim otomatis mengikuti
+     * marketplace) sudah dicek. Tercatat di log aktivitas pesanan.
+     */
+    public function checkQcSkip(Request $request, SalesOrder $order): RedirectResponse
+    {
+        $data = $request->validate(['qc_skip_note' => ['nullable', 'string', 'max:255']], [], ['qc_skip_note' => 'catatan']);
+
+        if (! $order->skippedQc()) {
+            throw ValidationException::withMessages(['order' => "{$order->number} tidak terlewat QC; pesanan ini dikirim lewat proses gudang biasa."]);
+        }
+
+        if ($order->qc_skip_checked_at) {
+            throw ValidationException::withMessages(['order' => "{$order->number} sudah dicek oleh {$order->qcSkipChecker?->name} pada {$order->qc_skip_checked_at->format('d/m/Y H:i')}."]);
+        }
+
+        $order->update([
+            'qc_skip_checked_at' => now(),
+            'qc_skip_checked_by' => $request->user()->id,
+            'qc_skip_note' => filled($data['qc_skip_note'] ?? null) ? trim($data['qc_skip_note']) : null,
+        ]);
+        AlertService::forget($request->user());
+
+        return redirect()->back()->with('success', "Pesanan {$order->number} ditandai sudah dicek.");
+    }
+
     /** Pesanan diambil pembeli: setelah dikemas langsung diserahkan, tanpa kurir dan resi. */
     public function handToCustomer(Request $request, SalesOrder $order, SalesOrderService $service): RedirectResponse
     {
@@ -499,6 +530,7 @@ class SalesOrderController extends Controller
                 ->where(fn ($q) => $q->whereNull('tiktok_shop_id')->orWhere('tiktok_order_status', 'AWAITING_SHIPMENT')))
             ->when(isset(SalesOrder::DELIVERY_SPEEDS[(string) $request->input('speed')]), fn ($query) => $query->deliverySpeed((string) $request->input('speed')))
             ->when($request->filled('shopee'), fn ($query) => $query->shopeeFilter((string) $request->input('shopee')))
+            ->when(in_array($request->input('qc'), ['skipped', 'unchecked', 'checked'], true), fn ($query) => $query->qcSkipped($request->input('qc') === 'skipped' ? 'all' : (string) $request->input('qc')))
             ->when(in_array($request->input('label'), ['printed', 'unprinted'], true), fn ($query) => $query->labelPrintFilter((string) $request->input('label')))
             ->when($withMarketplaceStatus && $marketplace === 'out_of_sync', fn ($query) => $query->outOfSync())
             ->when($withMarketplaceStatus && isset(SalesOrder::MARKETPLACE_STATUSES[$marketplace]), fn ($query) => $query->whereMarketplaceStatus($marketplace))

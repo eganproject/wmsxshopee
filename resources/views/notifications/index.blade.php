@@ -82,6 +82,9 @@
                         @case('shopee_ahead')
                             <a href="{{ route('sales.orders.index', ['shopee' => $group['key'] === 'courier_pending' ? 'courier_overdue' : 'shopee_ahead']) }}" class="text-sm text-slate-600 hover:text-slate-900">Lihat pesanan</a>
                             @break
+                        @case('qc_skipped')
+                            <a href="{{ route('sales.orders.index', ['qc' => 'unchecked']) }}" class="text-sm text-slate-600 hover:text-slate-900">Lihat pesanan</a>
+                            @break
                         @case('pending_orders')
                         @case('draft_orders')
                             <a href="{{ route('sales.orders.index', $group['key'] === 'draft_orders' ? ['status' => 'draft'] : []) }}" class="text-sm text-slate-600 hover:text-slate-900">Lihat pesanan</a>
@@ -175,6 +178,16 @@
                                     <div class="text-right">
                                         <p class="text-xs font-medium text-slate-700">Gudang: {{ $item->statusLabel() }} · Shopee: {{ $item->shopeeStatusLabel() }}</p>
                                         <p class="text-xs text-slate-500" title="{{ $since?->translatedFormat('d M Y H:i') }}">{{ $since?->diffForHumans() }}</p>
+                                    </div>
+                                    @break
+                                @case('qc_skipped')
+                                    <div class="min-w-0 flex-1">
+                                        <a href="{{ route('sales.orders.show', $item) }}" class="text-sm font-medium text-slate-900 hover:text-brand-600">{{ $item->number }}</a>
+                                        <p class="truncate text-xs text-slate-500">{{ $item->tracking_number ?? $item->external_number }} · {{ $item->warehouse?->code }}</p>
+                                    </div>
+                                    <div class="text-right">
+                                        <p class="text-xs font-medium text-slate-700">Dikirim otomatis dari {{ $item->isTiktok() ? 'TikTok' : 'Shopee' }}</p>
+                                        <p class="text-xs text-slate-500" title="{{ $item->shipped_at?->translatedFormat('d M Y H:i') }}">{{ $item->shipped_at?->diffForHumans() }}</p>
                                     </div>
                                     @break
                                 @case('pending_orders')

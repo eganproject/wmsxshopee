@@ -49,6 +49,13 @@
         @endif
         @if ($order->shipped_automatically)
             <p class="text-[11px] whitespace-nowrap text-slate-500">Dikirim otomatis dari {{ $platform === 'shopee' ? 'Shopee' : 'TikTok' }}</p>
+            @if ($order->needsQcSkipCheck())
+                <p class="flex cursor-help items-center gap-1 text-[11px] font-medium whitespace-nowrap text-amber-600" data-hint-title="Terlewat QC" data-hint="Paket diambil kurir sebelum QC kemas / serah terima di gudang. Stok keluar dari bin usulan otomatis." data-hint-next="Buka pesanan, cek barang & bin, lalu tandai sudah dicek.">
+                    <x-heroicon-o-shield-exclamation class="size-3.5" /> Terlewat QC, belum dicek
+                </p>
+            @elseif ($order->qc_skip_checked_at)
+                <p class="text-[11px] whitespace-nowrap text-emerald-600">Terlewat QC · sudah dicek</p>
+            @endif
         @endif
     </div>
 @else
