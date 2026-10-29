@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\MarketplaceStockHold;
 use App\Models\MarketplaceSyncLog;
 use App\Models\MarketplaceWebhookEvent;
 use App\Support\BackgroundHealth;
@@ -18,6 +19,8 @@ Schedule::call(fn () => BackgroundHealth::beat())->everyMinute()->name('schedule
 // Task Scheduler yang memanggil `php artisan schedule:run` tiap menit).
 Schedule::command('db:backup --prune')->dailyAt(config('backup.time'))->withoutOverlapping();
 Schedule::command('stock:check')->dailyAt('01:30');
+// Cadangan pesanan belum bayar yang sudah kedaluwarsa.
+Schedule::command('model:prune', ['--model' => [MarketplaceStockHold::class]])->dailyAt('01:45');
 // Access token Shopee berumur ± 4 jam; diperbarui sebelum kedaluwarsa.
 Schedule::command('shopee:refresh-tokens')->everyThirtyMinutes()->withoutOverlapping();
 // Sinkron Shopee: pesanan & resi tiap 5 menit, retur tiap jam (stok: lihat marketplace:push-stock di bawah).

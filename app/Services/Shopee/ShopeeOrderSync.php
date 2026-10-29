@@ -7,6 +7,7 @@ use App\Models\SalesOrder;
 use App\Models\ShopeeShop;
 use App\Models\ShopeeSkuMapping;
 use App\Services\SalesOrderService;
+use App\Services\UnpaidOrderHolds;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
@@ -25,7 +26,8 @@ use Throwable;
  * Status Shopee -> Optima:
  *   READY_TO_SHIP / PROCESSED / RETRY_SHIP  pesanan dibuat & dikonfirmasi (stok dicadangkan)
  *   CANCELLED                               pesanan dibatalkan (cadangan lepas) bila belum dikirim
- *   UNPAID                                  diabaikan sampai dibayar
+ *   UNPAID                                  belum masuk Optima sampai dibayar; stoknya
+ *                                           ditahan dari stok yang dikirim ke marketplace
  *   SHIPPED / TO_CONFIRM_RECEIVE / COMPLETED paket di tangan kurir: dicatat sebagai tanda
  *                                           resi berhasil dikirim; pesanan yang belum Dikirim
  *                                           di Optima otomatis di-pick, dikemas & dikirim.
@@ -198,6 +200,7 @@ class ShopeeOrderSync
         $orderSn = (string) $detail['order_sn'];
         $status = (string) ($detail['order_status'] ?? '');
         $order = $this->find($shop, $orderSn);
+        $this->syncUnpaidHold($shop, $orderSn, $status, $detail, $order !== null);
 
         if (! $order) {
             if (! in_array($status, self::TO_FULFIL, true)) {
@@ -297,6 +300,28 @@ class ShopeeOrderSync
     /**
      * @param  array<string, mixed>  $detail
      */
+    /**
+     * Pesanan belum dibayar belum masuk Optima, tapi stoknya ditahan dari stok
+     * yang dikirim ke marketplace (lihat UnpaidOrderHolds). Status lain melepasnya.
+     *
+     * @param  array<string, mixed>  $detail
+     */
+    private function syncUnpaidHold(ShopeeShop $shop, string $ref, string $status, array $detail, bool $inOptima): void
+    {
+        $holds = app(UnpaidOrderHolds::class);
+
+        if ($inOptima || ! $shop->warehouse_id || ! UnpaidOrderHolds::applies('shopee', $status)) {
+            $holds->release('shopee', $shop->id, $ref);
+
+            return;
+        }
+
+        [$items, $bundles] = $this->lines($shop, $detail['item_list'] ?? []);
+        $orderedAt = isset($detail['create_time']) ? Carbon::createFromTimestamp((int) $detail['create_time'], config('app.timezone')) : null;
+
+        $holds->hold('shopee', $shop->id, $ref, $status, (int) $shop->warehouse_id, $items, $bundles, $orderedAt);
+    }
+
     private function create(ShopeeShop $shop, array $detail): SalesOrder
     {
         $address = $detail['recipient_address'] ?? [];

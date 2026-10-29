@@ -59,10 +59,12 @@ class WarehouseSupply
     }
 
     /**
-     * Rincian stok jual per varian.
+     * Rincian stok jual per varian. held = qty yang ditahan pesanan marketplace
+     * belum bayar; pushable = sellable dikurangi held, yaitu angka yang dikirim
+     * ke Shopee & TikTok.
      *
      * @param  array<int, int>  $variantIds
-     * @return Collection<int, array{own: int, supply: int, supply_raw: int, transit: int, sellable: int}>
+     * @return Collection<int, array{own: int, supply: int, supply_raw: int, transit: int, sellable: int, held: int, pushable: int}>
      */
     public function sellable(int $warehouseId, array $variantIds, ?int $exceptOrderId = null): Collection
     {
@@ -73,35 +75,42 @@ class WarehouseSupply
         $supplyAvailable = $supply ? $this->orders->availability($supply->id, $variantIds) : collect();
         $transit = $supply ? $this->inTransit($warehouseId, $variantIds) : collect();
         $percent = $supply ? max(0, min(100, (int) $supply->percent)) : 0;
+        $held = app(UnpaidOrderHolds::class)->held($warehouseId, $variantIds);
 
-        return collect($variantIds)->mapWithKeys(function ($id) use ($own, $supplyAvailable, $transit, $percent) {
+        return collect($variantIds)->mapWithKeys(function ($id) use ($own, $supplyAvailable, $transit, $percent, $held) {
             $ownQty = (int) ($own[$id]['available'] ?? 0);
             $raw = max(0, (int) ($supplyAvailable[$id]['available'] ?? 0));
             $supplyQty = intdiv($raw * $percent, 100);
             $transitQty = (int) ($transit[$id] ?? 0);
+            $sellable = max(0, $ownQty + $supplyQty + $transitQty);
+            $heldQty = (int) ($held[$id] ?? 0);
 
             return [$id => [
                 'own' => $ownQty,
                 'supply' => $supplyQty,
                 'supply_raw' => $raw,
                 'transit' => $transitQty,
-                'sellable' => max(0, $ownQty + $supplyQty + $transitQty),
+                'sellable' => $sellable,
+                'held' => $heldQty,
+                'pushable' => max(0, $sellable - $heldQty),
             ]];
         });
     }
 
     /**
      * Stok jual paket virtual: komponen paling sedikit yang menentukan.
+     * $pushable: pakai stok yang dikirim ke marketplace (dikurangi pesanan belum bayar).
      *
      * @return Collection<int, int> per bundle id
      */
-    public function bundleSellable(int $warehouseId, iterable $bundles): Collection
+    public function bundleSellable(int $warehouseId, iterable $bundles, bool $pushable = false): Collection
     {
+        $key = $pushable ? 'pushable' : 'sellable';
         $bundles = collect($bundles);
         $levels = $this->sellable($warehouseId, $bundles->flatMap(fn (Bundle $bundle) => $bundle->items->pluck('product_variant_id'))->unique()->values()->all());
 
         return $bundles->mapWithKeys(fn (Bundle $bundle) => [$bundle->id => $bundle->items->isEmpty() ? 0 : (int) max(0, $bundle->items->min(
-            fn ($component) => intdiv(max(0, $levels[$component->product_variant_id]['sellable'] ?? 0), max(1, $component->qty))
+            fn ($component) => intdiv(max(0, $levels[$component->product_variant_id][$key] ?? 0), max(1, $component->qty))
         ))]);
     }
 

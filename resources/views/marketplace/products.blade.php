@@ -116,10 +116,10 @@
                                             @endif
                                         </p>
                                     @endif
-                                    @if ($cell->isNotEmpty() && ($split = $breakdowns[$column['shop']->warehouse_id][$row->id] ?? null))
-                                        <p class="mt-1 cursor-help text-xs text-slate-500" data-hint-title="Stok jual sekarang" data-hint="Gudang kecil (gudang toko) + jatah gudang besar (cadangan) + barang yang sedang dalam perjalanan transfer.">
-                                            Sekarang <span class="font-medium tabular-nums text-slate-700">{{ number_format($split['sellable'], 0, ',', '.') }}</span>
-                                            = kecil {{ number_format($split['own'], 0, ',', '.') }} + besar {{ number_format($split['supply'], 0, ',', '.') }}{{ $split['transit'] ? ' + jalan '.number_format($split['transit'], 0, ',', '.') : '' }}
+                                    @if ($cell->isNotEmpty() && ($split = $breakdowns[$column['shop']->warehouse_id][$row->id] ?? null) && ($split['has_supply'] || $split['held']))
+                                        <p class="mt-1 cursor-help text-xs text-slate-500" data-hint-title="Stok jual sekarang" data-hint="Gudang kecil (gudang toko) + jatah gudang besar (cadangan) + barang yang sedang dalam perjalanan transfer, dikurangi pesanan marketplace yang belum dibayar.">
+                                            Sekarang <span class="font-medium tabular-nums text-slate-700">{{ number_format($split['pushable'], 0, ',', '.') }}</span>
+                                            = {{ $split['has_supply'] ? 'kecil '.number_format($split['own'], 0, ',', '.').' + besar '.number_format($split['supply'], 0, ',', '.') : 'tersedia '.number_format($split['own'], 0, ',', '.') }}{{ $split['transit'] ? ' + jalan '.number_format($split['transit'], 0, ',', '.') : '' }}{{ $split['held'] ? ' − belum bayar '.number_format($split['held'], 0, ',', '.') : '' }}
                                         </p>
                                     @endif
                                     @if ($cell->count() > 1)
