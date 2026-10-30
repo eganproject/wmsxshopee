@@ -108,6 +108,9 @@ class SalesOrder extends Model
     ];
 
     /** Status TikTok yang berarti pesanan harus disiapkan gudang. */
+    /** Status TikTok setelah serah terima tapi kurir belum scan paket. */
+    public const TIKTOK_AWAITING_COURIER = ['AWAITING_SHIPMENT', 'AWAITING_COLLECTION'];
+
     public const TIKTOK_TO_FULFIL = ['AWAITING_SHIPMENT', 'PARTIALLY_SHIPPING', 'AWAITING_COLLECTION'];
 
     /** Status TikTok yang berarti paket sudah di tangan kurir. */
@@ -115,6 +118,27 @@ class SalesOrder extends Model
 
     /** Status yang menahan (mencadangkan) stok di gudang. */
     public const RESERVING = ['confirmed', 'picking', 'packed'];
+
+    /** Status Shopee yang berarti pesanan harus disiapkan gudang. */
+    public const SHOPEE_TO_FULFIL = ['READY_TO_SHIP', 'PROCESSED', 'RETRY_SHIP'];
+
+    /** Awal catatan sinkron untuk pesanan marketplace yang tertahan karena stok kurang. */
+    public const STOCK_HELD_PREFIX = 'Belum bisa dikonfirmasi: ';
+
+    /**
+     * Pesanan marketplace yang masih draft karena stok kurang (SKU sudah terhubung
+     * semua, marketplace masih menunggu dikirim). Dicoba dikonfirmasi ulang otomatis.
+     *
+     * @param  Builder<SalesOrder>  $query
+     */
+    public function scopeStockHeld(Builder $query): void
+    {
+        $like = self::STOCK_HELD_PREFIX.'%';
+
+        $query->where('status', 'draft')->whereNull('unmapped_skus')->where(fn ($q) => $q
+            ->orWhere(fn ($s) => $s->whereNotNull('shopee_shop_id')->whereIn('shopee_order_status', self::SHOPEE_TO_FULFIL)->where('shopee_sync_error', 'like', $like))
+            ->orWhere(fn ($t) => $t->whereNotNull('tiktok_shop_id')->whereIn('tiktok_order_status', self::TIKTOK_TO_FULFIL)->where('tiktok_sync_error', 'like', $like)));
+    }
 
     /** Cara paket diserahkan ke kurir. */
     public const SHIPPING_METHODS = [
@@ -170,6 +194,9 @@ class SalesOrder extends Model
         'shopee_ship_by',
         'shopee_shipped_at',
         'shipped_automatically',
+        'qc_skip_checked_at',
+        'qc_skip_checked_by',
+        'qc_skip_note',
         'shopee_income',
         'shopee_escrow_amount',
         'shopee_income_final',
@@ -235,6 +262,7 @@ class SalesOrder extends Model
             'shopee_ship_by' => 'datetime',
             'shopee_shipped_at' => 'datetime',
             'shipped_automatically' => 'boolean',
+            'qc_skip_checked_at' => 'datetime',
             'pickup_at' => 'datetime',
             'shipment_arranged_at' => 'datetime',
             'shipping_label_printed_at' => 'datetime',
@@ -291,6 +319,37 @@ class SalesOrder extends Model
     public function shipper(): BelongsTo
     {
         return $this->belongsTo(User::class, 'shipped_by');
+    }
+
+    public function qcSkipChecker(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'qc_skip_checked_by');
+    }
+
+    /**
+     * Dikirim otomatis karena marketplace melaporkan paket sudah di tangan kurir,
+     * padahal di gudang belum lewat QC kemas / serah terima.
+     */
+    public function skippedQc(): bool
+    {
+        return $this->status === 'shipped' && $this->shipped_automatically;
+    }
+
+    /** Terlewat QC dan belum dicek supervisor. */
+    public function needsQcSkipCheck(): bool
+    {
+        return $this->skippedQc() && ! $this->qc_skip_checked_at;
+    }
+
+    /**
+     * Filter pesanan terlewat QC: 'unchecked' (belum dicek supervisor),
+     * 'checked' (sudah dicek) atau 'all'.
+     */
+    public function scopeQcSkipped(Builder $query, string $filter = 'all'): void
+    {
+        $query->where('status', 'shipped')->where('shipped_automatically', true)
+            ->when($filter === 'unchecked', fn ($q) => $q->whereNull('qc_skip_checked_at'))
+            ->when($filter === 'checked', fn ($q) => $q->whereNotNull('qc_skip_checked_at'));
     }
 
     public function handover(): BelongsTo
@@ -499,7 +558,7 @@ class SalesOrder extends Model
 
     public function courierScanOverdue(): bool
     {
-        return $this->awaitingCourierScan() && $this->shipped_at?->lte(now()->subHours((int) config('alerts.courier_scan_hours', 24)));
+        return ($this->awaitingCourierScan() || $this->tiktokAwaitingCourierScan()) && $this->shipped_at?->lte(now()->subHours((int) config('alerts.courier_scan_hours', 24)));
     }
 
     /**
@@ -589,7 +648,7 @@ class SalesOrder extends Model
     public function tiktokAwaitingCourierScan(): bool
     {
         return $this->isTiktok() && $this->status === 'shipped' && $this->tiktok_shipped_at === null
-            && in_array($this->tiktok_order_status, ['AWAITING_SHIPMENT', 'AWAITING_COLLECTION'], true);
+            && in_array($this->tiktok_order_status, self::TIKTOK_AWAITING_COURIER, true);
     }
 
     /**
@@ -729,10 +788,11 @@ class SalesOrder extends Model
     public function scopeShopeeFilter(Builder $query, string $filter): void
     {
         match ($filter) {
-            'courier_pending', 'courier_overdue' => $query->whereNotNull('shopee_shop_id')
-                ->where('status', 'shipped')
-                ->whereNull('shopee_shipped_at')
-                ->whereIn('shopee_order_status', self::SHOPEE_AWAITING_COURIER)
+            // Shopee & TikTok: sudah serah terima di gudang, tapi marketplace belum mencatat scan kurir.
+            'courier_pending', 'courier_overdue' => $query->where('status', 'shipped')
+                ->where(fn ($q) => $q
+                    ->where(fn ($q) => $q->whereNotNull('shopee_shop_id')->whereNull('shopee_shipped_at')->whereIn('shopee_order_status', self::SHOPEE_AWAITING_COURIER))
+                    ->orWhere(fn ($q) => $q->whereNotNull('tiktok_shop_id')->whereNull('tiktok_shipped_at')->whereIn('tiktok_order_status', self::TIKTOK_AWAITING_COURIER)))
                 ->when($filter === 'courier_overdue', fn ($q) => $q->where('shipped_at', '<=', now()->subHours((int) config('alerts.courier_scan_hours', 24)))),
             'shopee_ahead' => $query->whereNotNull('shopee_shop_id')
                 ->whereIn('status', ['draft', ...self::RESERVING])

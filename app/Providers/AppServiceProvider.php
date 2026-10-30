@@ -11,6 +11,7 @@ use App\Models\TiktokSkuMapping;
 use App\Models\User;
 use App\Models\Warehouse;
 use App\Models\WarehouseTransfer;
+use App\Services\HeldOrderRetry;
 use App\Services\MarketplaceOrderRelink;
 use App\Services\MarketplaceStockPush;
 use App\Support\Activity;
@@ -34,6 +35,7 @@ class AppServiceProvider extends ServiceProvider
         // Satu instance per request supaya penghubungan ulang pesanan hanya dijadwalkan sekali.
         $this->app->singleton(MarketplaceOrderRelink::class);
         $this->app->singleton(MarketplaceStockPush::class);
+        $this->app->singleton(HeldOrderRetry::class);
     }
 
     /**
@@ -70,6 +72,15 @@ class AppServiceProvider extends ServiceProvider
         SalesOrder::saved(fn (SalesOrder $order) => $order->wasChanged(['status', 'warehouse_id']) || ($created($order) && in_array($order->status, SalesOrder::RESERVING, true)) ? $pushStock() : null);
         WarehouseTransfer::saved(fn (WarehouseTransfer $transfer) => $transfer->wasChanged('status') ? $pushStock() : null);
         Warehouse::saved(fn (Warehouse $warehouse) => $warehouse->wasChanged(['supply_warehouse_id', 'supply_stock_percent']) ? $pushStock() : null);
+
+        // Stok bertambah / cadangan dilepas: pesanan marketplace yang tertahan karena
+        // stok kurang dicoba dikonfirmasi lagi di akhir request (jadwal tiap menit sebagai cadangan).
+        $retryHeld = fn () => $this->app->make(HeldOrderRetry::class)->queue();
+        Stock::saved(fn (Stock $stock) => (int) $stock->qty > (int) ($stock->wasRecentlyCreated ? 0 : $stock->getOriginal('qty')) ? $retryHeld() : null);
+        SalesOrder::saved(fn (SalesOrder $order) => $order->wasChanged('warehouse_id')
+            || ($order->wasChanged('status') && in_array($order->getOriginal('status'), SalesOrder::RESERVING, true)) ? $retryHeld() : null);
+        WarehouseTransfer::saved(fn (WarehouseTransfer $transfer) => $transfer->wasChanged('status') ? $retryHeld() : null);
+        Warehouse::saved(fn (Warehouse $warehouse) => $warehouse->wasChanged(['supply_warehouse_id', 'supply_stock_percent']) ? $retryHeld() : null);
 
         Password::defaults(fn () => Password::min(8)->letters()->numbers());
 

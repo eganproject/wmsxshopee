@@ -25,7 +25,7 @@
         {{-- Kirim ulang & proses ulang butuh hak sinkron (shopee.sync / tiktok.sync). --}}
         @php($canRetry = auth()->user()->canAny(['shopee.sync', 'tiktok.sync']))
         @if ($canRetry && $summary['failed_stock'])
-            <form method="POST" action="{{ route('marketplace.sync-logs.retry-stock') }}" x-data="{ busy: false }" @submit="busy = true">
+            <form method="POST" action="{{ route('marketplace.sync-logs.retry-stock') }}" x-data="{ busy: false }" @submit="busy = true" @pageshow.window="busy = false">
                 @csrf
                 <button type="submit" class="btn-secondary" :disabled="busy">
                     <span class="inline-flex" :class="busy && 'animate-spin'"><x-heroicon-o-arrow-path class="size-5" /></span>

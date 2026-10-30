@@ -99,8 +99,8 @@ class TiktokStockSync
     {
         // Stok jual: gudang toko + gudang cadangannya (bila ada), lihat WarehouseSupply.
         $variants = $this->supply->sellable($shop->warehouse_id, $mappings->pluck('product_variant_id')->filter()->unique()->values()->all())
-            ->map(fn ($row) => ['available' => $row['sellable']]);
-        $bundles = $this->supply->bundleSellable($shop->warehouse_id, Bundle::with('items')->whereIn('id', $mappings->pluck('bundle_id')->filter()->unique())->get());
+            ->map(fn ($row) => ['available' => $row['pushable']]);
+        $bundles = $this->supply->bundleSellable($shop->warehouse_id, Bundle::with('items')->whereIn('id', $mappings->pluck('bundle_id')->filter()->unique())->get(), pushable: true);
 
         return fn (TiktokSkuMapping $row) => $row->product_variant_id
             ? (int) ($variants[$row->product_variant_id]['available'] ?? 0)

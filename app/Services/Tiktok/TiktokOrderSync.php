@@ -7,6 +7,7 @@ use App\Models\SalesOrder;
 use App\Models\TiktokShop;
 use App\Models\TiktokSkuMapping;
 use App\Services\SalesOrderService;
+use App\Services\UnpaidOrderHolds;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
@@ -26,8 +27,9 @@ use Throwable;
  * Status TikTok -> Optima:
  *   AWAITING_SHIPMENT / PARTIALLY_SHIPPING / AWAITING_COLLECTION
  *                                 pesanan dibuat & dikonfirmasi (stok dicadangkan)
- *   UNPAID / ON_HOLD              diabaikan sampai siap dikirim (ON_HOLD = masa
- *                                 pembeli masih bisa batal tanpa persetujuan)
+ *   UNPAID / ON_HOLD              belum masuk Optima sampai siap dikirim (ON_HOLD = masa
+ *                                 pembeli masih bisa batal tanpa persetujuan); stoknya
+ *                                 ditahan dari stok yang dikirim ke marketplace
  *   CANCELLED                     pesanan dibatalkan (cadangan lepas) bila belum dikirim
  *   IN_TRANSIT / DELIVERED / COMPLETED
  *                                 paket di tangan kurir: pesanan yang belum Dikirim di
@@ -178,6 +180,8 @@ class TiktokOrderSync
             return 'skipped';
         }
 
+        $this->syncUnpaidHold($shop, $orderId, $status, $detail, $order !== null);
+
         if (! $order) {
             if (! in_array($status, SalesOrder::TIKTOK_TO_FULFIL, true)) {
                 return 'skipped';
@@ -244,6 +248,28 @@ class TiktokOrderSync
     /**
      * @param  array<string, mixed>  $detail
      */
+    /**
+     * Pesanan belum dibayar belum masuk Optima, tapi stoknya ditahan dari stok
+     * yang dikirim ke marketplace (lihat UnpaidOrderHolds). Status lain melepasnya.
+     *
+     * @param  array<string, mixed>  $detail
+     */
+    private function syncUnpaidHold(TiktokShop $shop, string $ref, string $status, array $detail, bool $inOptima): void
+    {
+        $holds = app(UnpaidOrderHolds::class);
+
+        if ($inOptima || ! $shop->warehouse_id || ! UnpaidOrderHolds::applies('tiktok', $status)) {
+            $holds->release('tiktok', $shop->id, $ref);
+
+            return;
+        }
+
+        [$items, $bundles] = $this->lines($shop, $detail['line_items'] ?? []);
+        $orderedAt = isset($detail['create_time']) ? Carbon::createFromTimestamp((int) $detail['create_time'], config('app.timezone')) : null;
+
+        $holds->hold('tiktok', $shop->id, $ref, $status, (int) $shop->warehouse_id, $items, $bundles, $orderedAt);
+    }
+
     private function create(TiktokShop $shop, array $detail): SalesOrder
     {
         $address = $detail['recipient_address'] ?? [];
@@ -311,7 +337,7 @@ class TiktokOrderSync
             $this->orders->confirm($order);
             $order->refresh()->update(['tiktok_sync_error' => null]);
         } catch (ValidationException $e) {
-            $order->update(['tiktok_sync_error' => mb_substr('Belum bisa dikonfirmasi: '.implode(' ', $e->validator->errors()->all()), 0, 500)]);
+            $order->update(['tiktok_sync_error' => mb_substr(SalesOrder::STOCK_HELD_PREFIX.implode(' ', $e->validator->errors()->all()), 0, 500)]);
         }
     }
 

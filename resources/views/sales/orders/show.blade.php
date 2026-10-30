@@ -106,6 +106,41 @@
         @endif
     </x-page-header>
 
+    @if ($order->skippedQc())
+        <div @class([
+            'mb-5 flex items-start gap-3 rounded-lg border px-4 py-3 text-sm',
+            'border-amber-200 bg-amber-50 text-amber-800' => ! $order->qc_skip_checked_at,
+            'border-emerald-200 bg-emerald-50 text-emerald-800' => $order->qc_skip_checked_at,
+        ])>
+            <x-heroicon-o-shield-exclamation class="mt-0.5 size-5 shrink-0" />
+            <div class="min-w-0 flex-1">
+                <p class="font-medium">Terlewat QC kemas dan serah terima</p>
+                <p class="mt-0.5">
+                    Paket sudah diambil kurir ({{ $order->isTiktok() ? 'TikTok' : 'Shopee' }} melaporkan dikirim) sebelum di-scan di gudang, jadi pesanan dikirim otomatis
+                    {{ $order->shipped_at?->translatedFormat('d M Y H:i') }}. Stok keluar dari bin di kolom "Diambil dari" di bawah.
+                </p>
+                @if ($order->qc_skip_checked_at)
+                    <p class="mt-1">
+                        Sudah dicek oleh <span class="font-medium">{{ $order->qcSkipChecker?->name ?? '—' }}</span> pada {{ $order->qc_skip_checked_at->translatedFormat('d M Y H:i') }}{{ $order->qc_skip_note ? ': '.$order->qc_skip_note : '.' }}
+                    </p>
+                @else
+                    <p class="mt-1">Cek ke packer barang & jumlah yang terkirim, dan apakah barangnya diambil dari bin yang sama. Bila bin berbeda, betulkan stok lewat Penyesuaian Stok. Bila barang salah kirim, tangani lewat Retur.</p>
+                    @can('sales.skip_scan')
+                        <form method="POST" action="{{ route('sales.orders.qc-skip-check', $order) }}" class="mt-2 flex flex-wrap items-center gap-2">
+                            @csrf
+                            <input name="qc_skip_note" maxlength="255" value="{{ old('qc_skip_note') }}" class="form-input max-w-md flex-1 bg-white" placeholder="Catatan, cth. barang & bin sesuai" aria-label="Catatan pengecekan">
+                            <button type="submit" class="btn-primary"><x-heroicon-o-check-badge class="size-5" /> Tandai Sudah Dicek</button>
+                            @can('adjustments.create')
+                                <a href="{{ route('inventory.adjustments.create', ['warehouse' => $order->warehouse_id]) }}" class="btn-secondary">Penyesuaian Stok</a>
+                            @endcan
+                        </form>
+                        @error('qc_skip_note')<p class="mt-1 text-xs text-rose-600">{{ $message }}</p>@enderror
+                    @endcan
+                @endif
+            </div>
+        </div>
+    @endif
+
     @if ($order->shopee_shop_id)
         <div @class([
             'mb-5 flex items-start gap-3 rounded-lg border px-4 py-3 text-sm',
@@ -161,6 +196,11 @@
                     · status di TikTok <span class="font-medium">{{ $order->tiktokStatusLabel() ?? '—' }}</span>
                     @if ($order->tiktok_ship_by && ! $order->hasStatus('shipped', 'cancelled'))
                         · siap kirim sebelum {{ $order->tiktok_ship_by->format('d/m/Y H:i') }}
+                    @endif
+                    @if ($order->tiktok_shipped_at)
+                        · diterima kurir {{ $order->tiktok_shipped_at->translatedFormat('d M Y H:i') }}
+                    @elseif ($order->tiktokAwaitingCourierScan())
+                        · <span class="font-medium">belum discan kurir</span> (serah terima {{ $order->shipped_at?->diffForHumans() }})
                     @endif
                     @if ($order->shipped_automatically)
                         · dikirim otomatis mengikuti status TikTok

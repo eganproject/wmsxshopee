@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\MarketplaceStockHold;
 use App\Models\MarketplaceSyncLog;
 use App\Models\MarketplaceWebhookEvent;
 use App\Support\BackgroundHealth;
@@ -18,6 +19,8 @@ Schedule::call(fn () => BackgroundHealth::beat())->everyMinute()->name('schedule
 // Task Scheduler yang memanggil `php artisan schedule:run` tiap menit).
 Schedule::command('db:backup --prune')->dailyAt(config('backup.time'))->withoutOverlapping();
 Schedule::command('stock:check')->dailyAt('01:30');
+// Cadangan pesanan belum bayar yang sudah kedaluwarsa.
+Schedule::command('model:prune', ['--model' => [MarketplaceStockHold::class]])->dailyAt('01:45');
 // Access token Shopee berumur ± 4 jam; diperbarui sebelum kedaluwarsa.
 Schedule::command('shopee:refresh-tokens')->everyThirtyMinutes()->withoutOverlapping();
 // Sinkron Shopee: pesanan & resi tiap 5 menit, retur tiap jam (stok: lihat marketplace:push-stock di bawah).
@@ -29,6 +32,9 @@ Schedule::command('shopee:sync --only=returns --queue')->hourly()->withoutOverla
 Schedule::command('tiktok:refresh-tokens')->hourly()->withoutOverlapping();
 Schedule::command('tiktok:sync --only=orders --queue')->everyFiveMinutes()->withoutOverlapping();
 Schedule::command('tiktok:sync --only=returns --queue')->hourly()->withoutOverlapping();
+
+// Pesanan marketplace yang tertahan karena stok kurang dicoba dikonfirmasi lagi (juga langsung saat stok bertambah).
+Schedule::command('orders:retry-held')->everyMinute()->withoutOverlapping(5)->runInBackground();
 
 // Produk semua toko (Shopee & TikTok): tarik produk baru, cocokkan SKU otomatis, lalu kirim stok. Tiap jam.
 Schedule::command('marketplace:sync-products')->hourlyAt(20)->withoutOverlapping();
