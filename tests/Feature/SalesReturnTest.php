@@ -165,6 +165,46 @@ class SalesReturnTest extends TestCase
         $this->assertSame(3, $return->items()->sum('qty_good'));
     }
 
+    public function test_receiving_a_draft_rechecks_returns_received_meanwhile(): void
+    {
+        // Retur manual 2 sudah diterima, lalu ada draft otomatis lama (dibuat sebelum ada batas sisa) berisi 3.
+        $this->post(route('sales.returns.store'), $this->orderPayload([
+            ['sales_order_item_id' => $this->line($this->variant), 'qty_good' => 2, 'warehouse_location_id' => $this->bin->id, 'reason' => 'changed_mind'],
+        ], ['action' => 'receive']))->assertSessionHasNoErrors();
+        $this->assertSame(2, $this->qty($this->bin));
+
+        $auto = SalesReturn::create(['number' => 'RT-AUTO', 'status' => 'draft', 'source' => 'order', 'sales_order_id' => $this->order->id,
+            'warehouse_id' => $this->warehouse->id, 'return_date' => now()->toDateString(), 'sender_name' => 'Budi']);
+        $auto->items()->create(['sales_order_item_id' => $this->line($this->variant), 'product_variant_id' => $this->variant->id, 'qty_good' => 3, 'warehouse_location_id' => $this->bin->id, 'reason' => 'damaged']);
+
+        $this->post(route('sales.returns.receive', $auto))->assertSessionHasErrors('items');
+        $this->assertSame('draft', $auto->fresh()->status);
+        $this->assertSame(2, $this->qty($this->bin));
+
+        // Setelah jumlahnya disesuaikan ke sisa (1), draft bisa diterima.
+        $auto->items()->update(['qty_good' => 1]);
+        $this->post(route('sales.returns.receive', $auto))->assertSessionHasNoErrors();
+        $this->assertSame('received', $auto->fresh()->status);
+        $this->assertSame(3, $this->qty($this->bin));
+    }
+
+    public function test_auto_return_rows_are_capped_to_what_is_left(): void
+    {
+        $line = $this->line($this->variant);
+        $other = $this->line($this->other);
+        $draft = SalesReturn::create(['number' => 'RT-X', 'status' => 'draft', 'source' => 'order', 'sales_order_id' => $this->order->id,
+            'warehouse_id' => $this->warehouse->id, 'return_date' => now()->toDateString(), 'sender_name' => 'Budi']);
+        $draft->items()->create(['sales_order_item_id' => $line, 'product_variant_id' => $this->variant->id, 'qty_good' => 2, 'reason' => 'damaged']);
+
+        $rows = SalesReturn::capToRemaining([
+            ['sales_order_item_id' => $line, 'qty_good' => 3],
+            ['sales_order_item_id' => $line, 'qty_good' => 1],
+            ['sales_order_item_id' => $other, 'qty_good' => 1],
+        ], [$line => 3, $other => 1]);
+
+        $this->assertSame([[$line, 1], [$other, 1]], array_map(fn ($r) => [$r['sales_order_item_id'], $r['qty_good']], $rows));
+    }
+
     public function test_order_return_rejects_lines_from_another_order_and_requires_a_reason(): void
     {
         $foreign = SalesOrder::create(['number' => 'SO2610-002', 'status' => 'shipped', 'warehouse_id' => $this->warehouse->id, 'order_date' => now()->toDateString(), 'customer_name' => 'Ani']);

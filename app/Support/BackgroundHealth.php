@@ -5,6 +5,7 @@ namespace App\Support;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Queue;
 use Throwable;
 
 /**
@@ -39,12 +40,26 @@ class BackgroundHealth
     /**
      * Job tertua yang belum diambil worker (hanya untuk antrean database).
      *
-     * @return array{count: int, oldest: ?Carbon}|null null bila antrean bukan database
+     * @return array{count: int, oldest: ?Carbon}|null null bila antrean bukan database / redis
      */
     public static function queueBacklog(): ?array
     {
         $connection = config('queue.default');
-        if (config("queue.connections.{$connection}.driver") !== 'database') {
+        $driver = config("queue.connections.{$connection}.driver");
+
+        if ($driver === 'redis') {
+            try {
+                $queue = Queue::connection($connection);
+                $count = $queue->pendingSize();
+                $oldest = $count ? $queue->creationTimeOfOldestPendingJob() : null;
+            } catch (Throwable) {
+                return null;
+            }
+
+            return ['count' => $count, 'oldest' => $oldest ? Carbon::createFromTimestamp((int) $oldest, config('app.timezone')) : null];
+        }
+
+        if ($driver !== 'database') {
             return null;
         }
 

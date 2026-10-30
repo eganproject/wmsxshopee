@@ -51,7 +51,7 @@
         </div>
     @endforeach
 
-    <div class="mb-6 grid gap-3 sm:grid-cols-4">
+    <div class="mb-6 grid gap-3 sm:grid-cols-3 lg:grid-cols-5">
         <a href="{{ route('marketplace.sync-logs', ['status' => 'failed']) }}" class="card px-4 py-3 hover:bg-slate-50/60">
             <p class="text-xs text-slate-500">Sinkron gagal hari <span class="whitespace-nowrap">ini <x-hint text="Jumlah proses sinkron hari ini yang gagal, misalnya karena token kedaluwarsa atau API marketplace error." /></span></p>
             <p @class(['text-xl font-semibold tabular-nums', 'text-rose-600' => $summary['failed_today'], 'text-slate-900' => ! $summary['failed_today']])>{{ $fmt($summary['failed_today']) }}</p>
@@ -70,16 +70,38 @@
                 {{ $summary['last_push'] ? \Illuminate\Support\Carbon::parse($summary['last_push'])->diffForHumans() : 'Belum ada' }}
             </p>
         </a>
+        <a href="{{ route('marketplace.sync-logs', ['tab' => 'jobs']) }}" class="card px-4 py-3 hover:bg-slate-50/60">
+            <p class="text-xs text-slate-500">Job antrean <span class="whitespace-nowrap">gagal <x-hint text="Pekerjaan latar (kirim stok, sinkron toko, proses push, tarik produk) yang berhenti karena error. Buka untuk melihat penyebab dan mengulanginya." /></span></p>
+            <p @class(['text-xl font-semibold tabular-nums', 'text-rose-600' => $summary['failed_jobs'], 'text-slate-900' => ! $summary['failed_jobs']])>{{ $fmt($summary['failed_jobs']) }}</p>
+        </a>
     </div>
 
     <div class="mb-4 flex gap-1 border-b border-slate-200">
-        @foreach (['logs' => 'Riwayat Sinkron', 'push' => 'Push Masuk'] as $value => $label)
-            <a href="{{ route('marketplace.sync-logs', array_filter(['tab' => $value === 'push' ? 'push' : null, 'shop' => request('shop')])) }}"
-               @class(['-mb-px border-b-2 px-3 py-2 text-sm', 'border-slate-900 font-medium text-slate-900' => $tab === $value, 'border-transparent text-slate-500 hover:text-slate-700' => $tab !== $value])>{{ $label }}</a>
+        @foreach (['logs' => 'Riwayat Sinkron', 'push' => 'Push Masuk', 'jobs' => 'Job Gagal'] as $value => $label)
+            <a href="{{ route('marketplace.sync-logs', array_filter(['tab' => $value === 'logs' ? null : $value, 'shop' => $value === 'jobs' ? null : request('shop')])) }}"
+               @class(['-mb-px border-b-2 px-3 py-2 text-sm', 'border-slate-900 font-medium text-slate-900' => $tab === $value, 'border-transparent text-slate-500 hover:text-slate-700' => $tab !== $value])>{{ $label }}@if ($value === 'jobs' && $summary['failed_jobs'])<span class="ml-1.5 rounded-full bg-rose-50 px-1.5 text-xs text-rose-700 tabular-nums">{{ $fmt($summary['failed_jobs']) }}</span>@endif</a>
         @endforeach
     </div>
 
     <div class="card">
+        @if ($tab === 'jobs')
+            <div class="flex flex-col gap-3 border-b border-slate-100 p-4 md:flex-row md:items-center md:justify-between">
+                <p class="text-sm text-slate-500">Job yang gagal tidak diulang otomatis. Perbaiki penyebabnya (misalnya token toko kedaluwarsa), lalu ulangi.</p>
+                @if ($canRetry && $summary['failed_jobs'])
+                    <div class="flex gap-2">
+                        <form method="POST" action="{{ route('marketplace.sync-logs.retry-job') }}">
+                            @csrf
+                            <button type="submit" class="btn-secondary"><x-heroicon-o-arrow-path class="size-5" /> Ulangi Semua</button>
+                        </form>
+                        <form method="POST" action="{{ route('marketplace.sync-logs.forget-job') }}" onsubmit="return confirm('Hapus semua job gagal dari daftar? Job tidak akan diulang.')">
+                            @csrf
+                            @method('DELETE')
+                            <button type="submit" class="btn-secondary"><x-heroicon-o-trash class="size-5" /> Hapus Semua</button>
+                        </form>
+                    </div>
+                @endif
+            </div>
+        @else
         <form method="GET" class="flex flex-col gap-3 border-b border-slate-100 p-4 md:flex-row md:items-center">
             @if ($tab === 'push')
                 <input type="hidden" name="tab" value="push">
@@ -116,6 +138,7 @@
                 @endif
             </div>
         </form>
+        @endif
 
         <div class="overflow-x-auto">
             <table class="min-w-full text-sm">
@@ -128,6 +151,13 @@
                             <th class="h-8 px-4 py-0 font-normal"><span class="whitespace-nowrap">Pemicu <x-hint text="Terjadwal: otomatis berkala. Manual: tombol sinkron. Otomatis: setelah ada perubahan stok. Push: notifikasi dari marketplace." /></span></th>
                             <th class="h-8 px-4 py-0 font-normal"><span class="whitespace-nowrap">Hasil <x-hint text="Berhasil atau Gagal, beserta ringkasan jumlah data yang diproses atau pesan error." /></span></th>
                             <th class="h-8 px-4 py-0 text-right font-normal"><span class="whitespace-nowrap">Durasi <x-hint text="Lama proses sinkron." /></span></th>
+                        </tr>
+                    @elseif ($tab === 'jobs')
+                        <tr>
+                            <th class="h-8 px-4 py-0 font-normal">Gagal</th>
+                            <th class="h-8 px-4 py-0 font-normal">Job</th>
+                            <th class="h-8 px-4 py-0 font-normal">Penyebab</th>
+                            <th class="h-8 px-4 py-0 text-right font-normal">Aksi</th>
                         </tr>
                     @else
                         <tr>
@@ -165,6 +195,34 @@
                                 </td>
                                 <td class="px-4 py-2.5 text-right whitespace-nowrap text-slate-500 tabular-nums">{{ $duration($row->duration_ms) }}</td>
                             </tr>
+                        @elseif ($tab === 'jobs')
+                            <tr class="align-top hover:bg-slate-50/60">
+                                <td class="px-4 py-2.5 whitespace-nowrap text-slate-700" title="{{ $row->failed_at->translatedFormat('d M Y H:i:s') }}">
+                                    {{ $row->failed_at->translatedFormat('d M H:i') }}
+                                    <p class="text-xs text-slate-400">{{ $row->failed_at->diffForHumans() }}</p>
+                                </td>
+                                <td class="px-4 py-2.5 text-slate-700">{{ $row->label }}</td>
+                                <td class="max-w-xl px-4 py-2.5">
+                                    <p class="text-xs break-words text-rose-600">{{ $row->error }}</p>
+                                    <details class="mt-1">
+                                        <summary class="cursor-pointer text-xs text-slate-400 hover:text-slate-600">Detail teknis</summary>
+                                        <pre class="mt-1 max-h-48 overflow-auto rounded bg-slate-50 p-2 text-[11px] whitespace-pre-wrap text-slate-600">{{ $row->detail }}</pre>
+                                    </details>
+                                </td>
+                                <td class="px-4 py-2.5 text-right whitespace-nowrap">
+                                    @if ($canRetry)
+                                        <form method="POST" action="{{ route('marketplace.sync-logs.retry-job', $row->id) }}" class="inline">
+                                            @csrf
+                                            <button type="submit" class="btn-icon" title="Ulangi"><x-heroicon-o-arrow-path class="size-5" /></button>
+                                        </form>
+                                        <form method="POST" action="{{ route('marketplace.sync-logs.forget-job', $row->id) }}" class="inline">
+                                            @csrf
+                                            @method('DELETE')
+                                            <button type="submit" class="btn-icon" title="Hapus dari daftar"><x-heroicon-o-trash class="size-5" /></button>
+                                        </form>
+                                    @endif
+                                </td>
+                            </tr>
                         @else
                             <tr class="align-top hover:bg-slate-50/60">
                                 <td class="px-4 py-2.5 whitespace-nowrap text-slate-700" title="{{ $row->created_at->translatedFormat('d M Y H:i:s') }}">
@@ -187,8 +245,8 @@
                             </tr>
                         @endif
                     @empty
-                        <x-empty-state colspan="6" icon="heroicon-o-arrow-path" :title="$tab === 'logs' ? 'Belum ada riwayat sinkron' : 'Belum ada push masuk'"
-                            :description="$tab === 'logs' ? 'Riwayat muncul setelah sinkron terjadwal atau manual berjalan.' : 'Push muncul bila URL webhook sudah didaftarkan di Shopee / TikTok dan Optima bisa diakses dari internet.'" :ignore="['tab']" />
+                        <x-empty-state colspan="6" icon="heroicon-o-arrow-path" :title="['logs' => 'Belum ada riwayat sinkron', 'push' => 'Belum ada push masuk', 'jobs' => 'Tidak ada job gagal'][$tab]"
+                            :description="['logs' => 'Riwayat muncul setelah sinkron terjadwal atau manual berjalan.', 'push' => 'Push muncul bila URL webhook sudah didaftarkan di Shopee / TikTok dan Optima bisa diakses dari internet.', 'jobs' => 'Semua pekerjaan latar berjalan normal.'][$tab]" :ignore="['tab']" />
                     @endforelse
                 </tbody>
             </table>

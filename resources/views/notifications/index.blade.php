@@ -95,6 +95,9 @@
                         @case('marketplace')
                             <a href="{{ route('marketplace.sync-logs') }}" class="text-sm text-slate-600 hover:text-slate-900">Riwayat sinkron</a>
                             @break
+                        @case('backup')
+                            <a href="{{ route('admin.backups.index') }}" class="text-sm text-slate-600 hover:text-slate-900">Backup database</a>
+                            @break
                         @case('pending_adjustments')
                             <a href="{{ route('inventory.adjustments.index', ['status' => 'pending']) }}" class="text-sm text-slate-600 hover:text-slate-900">Lihat penyesuaian</a>
                             @break
@@ -203,6 +206,7 @@
                                     </div>
                                     @break
                                 @case('marketplace')
+                                @case('backup')
                                     <div class="min-w-0 flex-1">
                                         <a href="{{ $item->url }}" class="text-sm font-medium text-slate-900 hover:text-brand-600">{{ $item->shop }}</a>
                                         <p @class(['text-xs', 'text-rose-600' => $item->severe, 'text-slate-500' => ! $item->severe])>{{ $item->problem }}</p>

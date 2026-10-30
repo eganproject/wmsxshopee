@@ -2,10 +2,9 @@
 
 namespace App\Services\Tiktok;
 
-use App\Models\Bundle;
-use App\Models\ProductVariant;
 use App\Models\TiktokShop;
 use App\Models\TiktokSkuMapping;
+use App\Support\SkuLookup;
 
 /**
  * Daftar produk & SKU toko TikTok untuk pemetaan SKU.
@@ -78,17 +77,13 @@ class TiktokCatalog
     public function autoMatch(TiktokShop $shop): int
     {
         $matched = 0;
+        $lookup = null;
 
         $shop->mappings()->whereNull('removed_at')->whereNull('product_variant_id')->whereNull('bundle_id')->whereNotNull('seller_sku')
-            ->each(function (TiktokSkuMapping $mapping) use (&$matched) {
-                $sku = mb_strtoupper(trim($mapping->seller_sku));
-
-                if ($sku === '') {
-                    return;
-                }
-
-                $variantId = ProductVariant::whereRaw('UPPER(sku) = ?', [$sku])->value('id');
-                $bundleId = $variantId ? null : Bundle::whereRaw('UPPER(sku) = ?', [$sku])->value('id');
+            ->each(function (TiktokSkuMapping $mapping) use (&$matched, &$lookup) {
+                // Peta SKU dimuat sekali, hanya bila memang ada baris yang perlu dicocokkan.
+                $lookup ??= new SkuLookup;
+                [$variantId, $bundleId] = $lookup->find($mapping->seller_sku);
 
                 if ($variantId || $bundleId) {
                     $mapping->update(['product_variant_id' => $variantId, 'bundle_id' => $bundleId, 'match_type' => 'auto']);

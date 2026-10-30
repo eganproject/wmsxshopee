@@ -20,6 +20,32 @@
         @endcan
     </x-page-header>
 
+    @if ($offsite === null)
+        <div class="mb-4 flex gap-3 rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800" role="alert">
+            <x-heroicon-o-exclamation-triangle class="mt-0.5 size-5 shrink-0" />
+            <div>
+                <p class="font-medium">Backup hanya tersimpan di server ini</p>
+                <p class="mt-0.5 text-xs">Bila server rusak, backup ikut hilang. Atur salinan offsite dengan mengisi <code class="rounded bg-white/70 px-1 font-mono">BACKUP_OFFSITE_DISK=offsite</code> dan <code class="rounded bg-white/70 px-1 font-mono">BACKUP_S3_*</code> di .env (Cloudflare R2, Backblaze B2 atau S3), atau unduh backup secara berkala.</p>
+            </div>
+        </div>
+    @elseif ($offsite['ok'] === false)
+        <div class="mb-4 flex gap-3 rounded-md border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800" role="alert">
+            <x-heroicon-o-x-circle class="mt-0.5 size-5 shrink-0" />
+            <div>
+                <p class="font-medium">Salinan offsite gagal {{ $offsite['at']->diffForHumans() }}</p>
+                <p class="mt-0.5 text-xs break-words">{{ $offsite['error'] }}@if ($offsite['last_ok_at']) · Terakhir berhasil {{ $offsite['last_ok_at']->translatedFormat('d M Y H:i') }}@endif</p>
+            </div>
+        </div>
+    @else
+        <div class="mb-4 flex gap-3 rounded-md border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+            <x-heroicon-o-cloud-arrow-up class="mt-0.5 size-5 shrink-0" />
+            <div>
+                <p class="font-medium">Salinan offsite aktif</p>
+                <p class="mt-0.5 text-xs">{{ $offsite['ok'] ? 'Terakhir disalin '.$offsite['at']->translatedFormat('d M Y H:i').' ('.$offsite['name'].').' : 'Belum ada backup yang disalin; akan disalin pada backup berikutnya.' }} Disimpan {{ $offsiteKeepDays }} hari di offsite.</p>
+            </div>
+        </div>
+    @endif
+
     <div class="card">
         <div class="overflow-x-auto">
             <table class="min-w-full text-sm">

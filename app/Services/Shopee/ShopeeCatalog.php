@@ -2,10 +2,9 @@
 
 namespace App\Services\Shopee;
 
-use App\Models\Bundle;
-use App\Models\ProductVariant;
 use App\Models\ShopeeShop;
 use App\Models\ShopeeSkuMapping;
+use App\Support\SkuLookup;
 
 /**
  * Daftar item & variasi (model) toko Shopee untuk pemetaan SKU.
@@ -100,17 +99,13 @@ class ShopeeCatalog
     public function autoMatch(ShopeeShop $shop): int
     {
         $matched = 0;
+        $lookup = null;
 
         $shop->mappings()->whereNull('removed_at')->whereNull('product_variant_id')->whereNull('bundle_id')->whereNotNull('shopee_sku')
-            ->each(function (ShopeeSkuMapping $mapping) use (&$matched) {
-                $sku = mb_strtoupper(trim($mapping->shopee_sku));
-
-                if ($sku === '') {
-                    return;
-                }
-
-                $variantId = ProductVariant::whereRaw('UPPER(sku) = ?', [$sku])->value('id');
-                $bundleId = $variantId ? null : Bundle::whereRaw('UPPER(sku) = ?', [$sku])->value('id');
+            ->each(function (ShopeeSkuMapping $mapping) use (&$matched, &$lookup) {
+                // Peta SKU dimuat sekali, hanya bila memang ada baris yang perlu dicocokkan.
+                $lookup ??= new SkuLookup;
+                [$variantId, $bundleId] = $lookup->find($mapping->shopee_sku);
 
                 if ($variantId || $bundleId) {
                     $mapping->update(['product_variant_id' => $variantId, 'bundle_id' => $bundleId, 'match_type' => 'auto']);

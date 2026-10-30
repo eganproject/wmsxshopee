@@ -295,6 +295,8 @@ Route::middleware(['auth', 'active'])->group(function () {
         Route::get('sync-logs', [MarketplaceSyncLogController::class, 'index'])->middleware('can:marketplace.view')->name('sync-logs');
         Route::post('sync-logs/retry-stock', [MarketplaceSyncLogController::class, 'retryStock'])->middleware('can:marketplace.view')->name('sync-logs.retry-stock');
         Route::post('sync-logs/retry-push', [MarketplaceSyncLogController::class, 'retryPush'])->middleware('can:marketplace.view')->name('sync-logs.retry-push');
+        Route::post('sync-logs/failed-jobs/retry/{job?}', [MarketplaceSyncLogController::class, 'retryJob'])->middleware('can:marketplace.view')->name('sync-logs.retry-job');
+        Route::delete('sync-logs/failed-jobs/{job?}', [MarketplaceSyncLogController::class, 'forgetJob'])->middleware('can:marketplace.view')->name('sync-logs.forget-job');
         Route::get('settings', [MarketplaceController::class, 'settings'])->middleware('can:marketplace.settings')->name('settings');
     });
 

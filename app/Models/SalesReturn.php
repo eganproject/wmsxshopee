@@ -139,7 +139,7 @@ class SalesReturn extends Model
      * @param  array<int, int>  $orderItemIds
      * @return array<int, int> [sales_order_item_id => qty]
      */
-    public static function returnedQty(array $orderItemIds, ?int $exceptReturnId = null): array
+    public static function returnedQty(array $orderItemIds, ?int $exceptReturnId = null, bool $receivedOnly = false): array
     {
         if (! $orderItemIds) {
             return [];
@@ -148,11 +148,39 @@ class SalesReturn extends Model
         return SalesReturnItem::query()
             ->whereIn('sales_order_item_id', $orderItemIds)
             ->when($exceptReturnId, fn ($q) => $q->where('sales_return_id', '!=', $exceptReturnId))
+            ->when($receivedOnly, fn ($q) => $q->whereHas('salesReturn', fn ($r) => $r->withoutGlobalScopes()->where('status', 'received')))
             ->groupBy('sales_order_item_id')
             ->selectRaw('sales_order_item_id, SUM(qty_good + qty_damaged + qty_missing) as total')
             ->pluck('total', 'sales_order_item_id')
             ->map(fn ($total) => (int) $total)
             ->all();
+    }
+
+    /**
+     * Batasi baris retur otomatis (Shopee/TikTok) ke sisa yang belum diretur, supaya
+     * barang yang sudah pernah diretur tidak menambah stok lagi. Baris yang sisanya 0 dibuang.
+     *
+     * @param  list<array<string, mixed>>  $rows  berisi sales_order_item_id, qty_good
+     * @param  array<int, int>  $orderedQty  sales_order_item_id => qty dikirim
+     * @return list<array<string, mixed>>
+     */
+    public static function capToRemaining(array $rows, array $orderedQty): array
+    {
+        $returned = self::returnedQty(array_keys($orderedQty));
+        $result = [];
+
+        foreach ($rows as $row) {
+            $id = $row['sales_order_item_id'];
+            $left = ($orderedQty[$id] ?? 0) - ($returned[$id] ?? 0);
+            $qty = min((int) $row['qty_good'], max($left, 0));
+
+            if ($qty > 0) {
+                $returned[$id] = ($returned[$id] ?? 0) + $qty;
+                $result[] = [...$row, 'qty_good' => $qty];
+            }
+        }
+
+        return $result;
     }
 
     public function activityModule(): string

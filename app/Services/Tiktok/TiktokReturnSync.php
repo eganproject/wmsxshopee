@@ -115,6 +115,8 @@ class TiktokReturnSync
         }
 
         $items = $this->items($shop, $order, $data['return_line_items'] ?? [], $this->reason($data));
+        // Barang yang sudah pernah diretur tidak dihitung lagi (cegah stok bertambah dua kali).
+        $items = SalesReturn::capToRemaining($items, $order->items->pluck('qty', 'id')->all());
 
         if (! $items) {
             return 'skipped';

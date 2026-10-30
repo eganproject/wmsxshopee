@@ -13,6 +13,7 @@ use App\Services\Shopee\ShopeeStockSync;
 use App\Services\Tiktok\TiktokException;
 use App\Services\Tiktok\TiktokStockSync;
 use App\Support\BackgroundHealth;
+use App\Support\FailedJobs;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -38,7 +39,7 @@ class MarketplaceSyncLogController extends Controller
         $user = $request->user();
         $shops = MarketplaceShopSync::shopsFor($user);
         $platforms = collect(['shopee', 'tiktok'])->filter(fn ($p) => $user->can("{$p}.view"))->values()->all();
-        $tab = $request->input('tab') === 'push' ? 'push' : 'logs';
+        $tab = in_array($request->input('tab'), ['push', 'jobs'], true) ? $request->input('tab') : 'logs';
         [$platform, $shopId] = array_pad(explode('-', (string) $request->input('shop'), 2), 2, null);
         $shop = $shops->first(fn ($row) => $row['platform'] === $platform && (string) $row['shop']->id === $shopId);
 
@@ -50,6 +51,8 @@ class MarketplaceSyncLogController extends Controller
                 ->when(isset(MarketplaceSyncLog::PARTS[$request->input('part')]), fn ($q) => $q->where('part', 'like', '%'.$request->input('part').'%'))
                 ->latest('started_at')->latest('id')
                 ->paginate(50)->withQueryString();
+        } elseif ($tab === 'jobs') {
+            $rows = FailedJobs::paginate();
         } else {
             $rows = MarketplaceWebhookEvent::query()
                 ->whereIn('platform', $platforms)
@@ -72,6 +75,7 @@ class MarketplaceSyncLogController extends Controller
                 'failed_stock' => $shops->sum(fn ($row) => $row['shop']->mappings()->whereNotNull('stock_error')->count()),
                 'failed_push' => MarketplaceWebhookEvent::whereIn('platform', $platforms)->where('status', 'failed')->count(),
                 'last_push' => MarketplaceWebhookEvent::whereIn('platform', $platforms)->max('created_at'),
+                'failed_jobs' => FailedJobs::count(),
             ],
         ]);
     }
@@ -125,5 +129,25 @@ class MarketplaceSyncLogController extends Controller
         }
 
         return back()->with('success', $events->isEmpty() ? 'Tidak ada push gagal yang perlu diproses ulang.' : "{$events->count()} push dimasukkan ke antrean untuk diproses ulang.");
+    }
+
+    /** Ulangi satu job gagal, atau semua bila tanpa id. */
+    public function retryJob(Request $request, ?string $job = null): RedirectResponse
+    {
+        abort_unless($request->user()->canAny(['shopee.sync', 'tiktok.sync']), 403, 'Anda tidak punya izin menyinkron toko marketplace.');
+
+        $count = FailedJobs::retry($job);
+
+        return back()->with('success', $count ? "{$count} job dimasukkan lagi ke antrean." : 'Tidak ada job gagal yang perlu diulang.');
+    }
+
+    /** Hapus satu job gagal dari daftar, atau semua bila tanpa id. */
+    public function forgetJob(Request $request, ?string $job = null): RedirectResponse
+    {
+        abort_unless($request->user()->canAny(['shopee.sync', 'tiktok.sync']), 403, 'Anda tidak punya izin menyinkron toko marketplace.');
+
+        $count = FailedJobs::forget($job);
+
+        return back()->with('success', "{$count} job gagal dihapus dari daftar.");
     }
 }
