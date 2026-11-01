@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <WebView
+        android:id="@+id/web"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent" />
+
+    <!-- Panel kamera scan: penuh layar, atau bagian atas saja saat scan beruntun. -->
+    <FrameLayout
+        android:id="@+id/scannerPanel"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="#000000"
+        android:visibility="gone">
+
+        <androidx.camera.view.PreviewView
+            android:id="@+id/preview"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent" />
+
+        <FrameLayout
+            android:id="@+id/scanFrame"
+            android:layout_width="280dp"
+            android:layout_height="170dp"
+            android:layout_gravity="center"
+            android:background="@drawable/scan_frame">
+
+            <View
+                android:id="@+id/scanLine"
+                android:layout_width="match_parent"
+                android:layout_height="3dp"
+                android:layout_gravity="center_vertical"
+                android:layout_marginStart="14dp"
+                android:layout_marginEnd="14dp"
+                android:background="@drawable/scan_line" />
+        </FrameLayout>
+
+        <ImageButton
+            android:id="@+id/scanClose"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:layout_gravity="top|start"
+            android:layout_margin="14dp"
+            android:background="@drawable/scan_button_bg"
+            android:contentDescription="Tutup"
+            android:src="@drawable/ic_close" />
+
+        <ImageButton
+            android:id="@+id/scanTorch"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:layout_gravity="top|end"
+            android:layout_margin="14dp"
+            android:background="@drawable/scan_button_bg"
+            android:contentDescription="Senter"
+            android:src="@drawable/ic_torch" />
+
+        <TextView
+            android:id="@+id/scanHint"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="bottom|center_horizontal"
+            android:layout_marginBottom="18dp"
+            android:background="@drawable/scan_toast_bg"
+            android:paddingStart="16dp"
+            android:paddingTop="10dp"
+            android:paddingEnd="16dp"
+            android:paddingBottom="10dp"
+            android:textColor="#FFFFFF"
+            android:textSize="14sp" />
+    </FrameLayout>
+</FrameLayout>
