@@ -210,7 +210,7 @@ class SalesReturnController extends Controller
     }
 
     /** Tombol "Simpan & Terima" langsung memposting stok setelah draft tersimpan. */
-    private function afterSave(Request $request, SalesReturn $return, StockService $stock, string $verb): RedirectResponse
+    protected function afterSave(Request $request, SalesReturn $return, StockService $stock, string $verb): RedirectResponse
     {
         if ($request->input('action') === 'receive') {
             abort_unless($request->user()->can('returns.receive'), 403);
@@ -229,7 +229,7 @@ class SalesReturnController extends Controller
             ->with('success', "Retur {$return->number} berhasil {$verb}.");
     }
 
-    private function receivedMessage(SalesReturn $return): string
+    protected function receivedMessage(SalesReturn $return): string
     {
         $damaged = (int) $return->items()->sum('qty_damaged');
 
@@ -245,7 +245,7 @@ class SalesReturnController extends Controller
      *
      * @throws ValidationException
      */
-    private function post(Request $request, SalesReturn $return, StockService $stock): void
+    protected function post(Request $request, SalesReturn $return, StockService $stock): void
     {
         DB::transaction(function () use ($request, $return, $stock) {
             $return = SalesReturn::whereKey($return->id)->lockForUpdate()->firstOrFail();
@@ -326,7 +326,7 @@ class SalesReturnController extends Controller
      * melebihi jumlah yang dikirim. Draft otomatis Shopee/TikTok bisa tumpang tindih dengan
      * retur manual, jadi tanpa cek ini stok bisa bertambah dua kali.
      */
-    private function ensureNotReturnedTwice(SalesReturn $return): void
+    protected function ensureNotReturnedTwice(SalesReturn $return): void
     {
         if (! $return->sales_order_id) {
             return;
@@ -362,7 +362,7 @@ class SalesReturnController extends Controller
      *
      * @param  array<int, array<string, mixed>>  $items  indeks = indeks baris di form
      */
-    private function fillItems(Request $request, SalesReturn $return, array $items): void
+    protected function fillItems(Request $request, SalesReturn $return, array $items): void
     {
         $oldPhotos = $return->items()->whereNotNull('photo_path')->pluck('photo_path');
         $return->items()->delete();
@@ -393,7 +393,7 @@ class SalesReturnController extends Controller
      *
      * @return array<string, mixed>
      */
-    private function orderPayload(SalesOrder $order, ?int $exceptReturnId = null): array
+    protected function orderPayload(SalesOrder $order, ?int $exceptReturnId = null): array
     {
         $order->loadMissing(['items.variant.product', 'items.bundleLine.bundle', 'returns']);
         $returned = SalesReturn::returnedQty($order->items->pluck('id')->all(), $exceptReturnId);
@@ -426,7 +426,7 @@ class SalesReturnController extends Controller
     /**
      * @return array<string, mixed>
      */
-    private function formData(?SalesReturn $return = null): array
+    protected function formData(?SalesReturn $return = null): array
     {
         $warehouses = Warehouse::query()
             ->where(fn ($q) => $q->where('is_active', true)->when($return, fn ($q) => $q->orWhere('id', $return->warehouse_id)))
@@ -456,7 +456,7 @@ class SalesReturnController extends Controller
     /**
      * @return array{header: array<string, mixed>, items: array<int, array<string, mixed>>}
      */
-    private function validated(Request $request, ?SalesReturn $return = null): array
+    protected function validated(Request $request, ?SalesReturn $return = null): array
     {
         $warehouseId = $request->integer('warehouse_id');
         $fromOrder = $request->input('source', 'order') === 'order';

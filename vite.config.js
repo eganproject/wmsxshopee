@@ -5,7 +5,7 @@ import tailwindcss from '@tailwindcss/vite';
 export default defineConfig({
     plugins: [
         laravel({
-            input: ['resources/css/app.css', 'resources/js/app.js', 'resources/js/label-batch.js'],
+            input: ['resources/css/app.css', 'resources/js/app.js', 'resources/js/label-batch.js', 'resources/css/mobile.css', 'resources/js/mobile.js'],
             refresh: true,
         }),
         tailwindcss(),

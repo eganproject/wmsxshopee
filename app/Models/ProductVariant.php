@@ -66,9 +66,13 @@ class ProductVariant extends Model
     /** "SKU · Nama Produk / Varian" untuk pilihan & label. */
     public function displayName(): string
     {
-        $name = $this->product?->name.($this->name ? ' / '.$this->name : '');
+        return "{$this->sku} · {$this->fullName()}";
+    }
 
-        return "{$this->sku} · {$name}";
+    /** "Nama Produk / Varian" tanpa SKU (SKU sudah tampil terpisah). */
+    public function fullName(): string
+    {
+        return $this->product?->name.($this->name ? ' / '.$this->name : '');
     }
 
     /** "12 koli + 5 pcs" bila isi per koli diisi, selain itu null. */

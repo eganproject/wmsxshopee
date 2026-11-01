@@ -162,7 +162,7 @@ class GoodsReceiptController extends Controller
     }
 
     /** Tombol "Simpan & Terima" langsung memposting stok setelah draft tersimpan. */
-    private function afterSave(Request $request, GoodsReceipt $receipt, StockService $stock, string $verb): RedirectResponse
+    protected function afterSave(Request $request, GoodsReceipt $receipt, StockService $stock, string $verb): RedirectResponse
     {
         if ($request->input('action') === 'receive') {
             abort_unless($request->user()->can('receipts.receive'), 403);
@@ -187,7 +187,7 @@ class GoodsReceiptController extends Controller
      *
      * @throws ValidationException
      */
-    private function post(Request $request, GoodsReceipt $receipt, StockService $stock): void
+    protected function post(Request $request, GoodsReceipt $receipt, StockService $stock): void
     {
         DB::transaction(function () use ($request, $receipt, $stock) {
             $receipt = GoodsReceipt::whereKey($receipt->id)->lockForUpdate()->firstOrFail();
@@ -246,7 +246,7 @@ class GoodsReceiptController extends Controller
         $receipt->refresh()->load('movement');
     }
 
-    private function receivedMessage(GoodsReceipt $receipt): string
+    protected function receivedMessage(GoodsReceipt $receipt): string
     {
         $damaged = (int) $receipt->items()->sum('qty_damaged');
 
@@ -255,7 +255,7 @@ class GoodsReceiptController extends Controller
             .($damaged ? " {$damaged} barang rusak masuk Stok Rusak." : '');
     }
 
-    private function storeAttachment(Request $request, GoodsReceipt $receipt): void
+    protected function storeAttachment(Request $request, GoodsReceipt $receipt): void
     {
         if ($request->hasFile('attachment')) {
             $receipt->update(['attachment_path' => $request->file('attachment')->store("receipts/{$receipt->id}", 'public')]);
@@ -265,7 +265,7 @@ class GoodsReceiptController extends Controller
     /**
      * @return array<string, mixed>
      */
-    private function formData(?GoodsReceipt $receipt = null): array
+    protected function formData(?GoodsReceipt $receipt = null): array
     {
         $warehouses = Warehouse::query()
             ->where(fn ($q) => $q->where('is_active', true)->when($receipt, fn ($q) => $q->orWhere('id', $receipt->warehouse_id)))
@@ -302,7 +302,7 @@ class GoodsReceiptController extends Controller
     /**
      * @return array{header: array<string, mixed>, items: array<int, array<string, mixed>>}
      */
-    private function validated(Request $request, ?GoodsReceipt $receipt = null): array
+    protected function validated(Request $request, ?GoodsReceipt $receipt = null): array
     {
         $warehouseId = $request->integer('warehouse_id');
         $active = fn (string $table, ?int $current) => Rule::exists($table, 'id')

@@ -102,6 +102,14 @@ return [
             ],
         ],
 
+        'mobile' => [
+            'label' => 'Aplikasi Android',
+            'icon' => 'heroicon-o-device-phone-mobile',
+            'actions' => [
+                'access' => 'Download & login aplikasi Android Optima Gudang (menu di dalamnya tetap mengikuti hak akses lain)',
+            ],
+        ],
+
         'reports' => [
             'label' => 'Laporan',
             'icon' => 'heroicon-o-chart-bar',

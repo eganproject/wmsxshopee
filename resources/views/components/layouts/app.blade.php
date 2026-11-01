@@ -39,6 +39,7 @@
                 ['label' => 'Stock Opname', 'route' => 'inventory.counts.index', 'active' => 'inventory.counts.*', 'icon' => 'heroicon-o-clipboard-document-check', 'can' => 'opname.view'],
                 // Label produk butuh hak lihat produk, label lokasi butuh hak lihat gudang.
                 ['label' => 'Cetak Label', 'route' => auth()->user()?->can('products.view') ? 'labels.products' : 'labels.locations', 'active' => 'labels.*', 'icon' => 'heroicon-o-qr-code', 'can' => ['products.view', 'warehouses.view']],
+                ['label' => 'Aplikasi Android', 'route' => 'mobile.app', 'active' => 'mobile.app', 'icon' => 'heroicon-o-device-phone-mobile', 'can' => 'mobile.access'],
             ],
         ],
         [

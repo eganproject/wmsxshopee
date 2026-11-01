@@ -19,6 +19,14 @@
         <div><p class="text-xs text-slate-500">Scan Terakhir</p><p class="mt-1 text-sm font-medium text-slate-900">{{ ($handover->closed_at ?? $handover->orders->max('shipped_at'))?->format('d/m/Y H:i') ?? '—' }}</p></div>
         <div><p class="text-xs text-slate-500">Dibuat Oleh</p><p class="mt-1 text-sm font-medium text-slate-900">{{ $handover->creator?->name ?? '—' }}</p></div>
         <div><p class="text-xs text-slate-500">Jumlah Paket</p><p class="mt-1 text-sm font-medium text-slate-900">{{ $handover->orders->count() }}</p></div>
+        @if ($handover->signed_at)
+            <div class="sm:col-span-4 flex items-center gap-4 border-t border-slate-100 pt-4">
+                @if ($handover->receiver_signature_path)
+                    <img src="{{ Storage::disk('public')->url($handover->receiver_signature_path) }}" alt="Tanda tangan kurir" class="h-16 rounded-lg border border-slate-200 bg-white p-1">
+                @endif
+                <div><p class="text-xs text-slate-500">Diterima Kurir (tanda tangan dari aplikasi)</p><p class="mt-1 text-sm font-medium text-slate-900">{{ $handover->receiver_name }} · {{ $handover->signed_at->format('d/m/Y H:i') }}</p></div>
+            </div>
+        @endif
     </div>
 
     <div class="card">

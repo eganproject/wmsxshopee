@@ -27,6 +27,8 @@ class ShipmentHandover extends Model
         'shipping_method',
         'status',
         'receiver_name',
+        'receiver_signature_path',
+        'signed_at',
         'notes',
         'created_by',
         'closed_at',
@@ -36,6 +38,7 @@ class ShipmentHandover extends Model
     {
         return [
             'closed_at' => 'datetime',
+            'signed_at' => 'datetime',
         ];
     }
 

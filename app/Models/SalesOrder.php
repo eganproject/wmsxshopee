@@ -233,6 +233,7 @@ class SalesOrder extends Model
         'shipping_label_printed_at',
         'shipping_label_print_count',
         'qc_checked_by',
+        'packing_photo_path',
         'shipment_handover_id',
         'shipped_by',
         'notes',

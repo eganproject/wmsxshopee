@@ -234,7 +234,7 @@ class StockAdjustmentController extends Controller
     /**
      * @return array{0: array<string, mixed>, 1: array<int, array<string, mixed>>} [header, baris]
      */
-    private function validated(Request $request): array
+    protected function validated(Request $request): array
     {
         $warehouseId = $request->integer('warehouse_id');
         $location = Rule::exists('warehouse_locations', 'id')->where('warehouse_id', $warehouseId);
