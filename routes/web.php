@@ -34,6 +34,17 @@ use App\Http\Controllers\Master\SupplierController;
 use App\Http\Controllers\Master\UnitController;
 use App\Http\Controllers\Master\WarehouseController;
 use App\Http\Controllers\Master\ZoneController;
+use App\Http\Controllers\Mobile\AppController as MobileAppController;
+use App\Http\Controllers\Mobile\CatalogController as MobileCatalogController;
+use App\Http\Controllers\Mobile\HandoverController as MobileHandoverController;
+use App\Http\Controllers\Mobile\HomeController as MobileHomeController;
+use App\Http\Controllers\Mobile\OpnameController as MobileOpnameController;
+use App\Http\Controllers\Mobile\PrintController as MobilePrintController;
+use App\Http\Controllers\Mobile\QcController as MobileQcController;
+use App\Http\Controllers\Mobile\ReceiptController as MobileReceiptController;
+use App\Http\Controllers\Mobile\ReturnController as MobileReturnController;
+use App\Http\Controllers\Mobile\ScanController as MobileScanController;
+use App\Http\Controllers\Mobile\StockCheckController as MobileStockCheckController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\ReportController;
@@ -346,6 +357,54 @@ Route::middleware(['auth', 'active'])->group(function () {
         Route::post('shops/{shop}/mappings/pull', [TiktokSkuMappingController::class, 'pull'])->middleware('can:tiktok.mapping')->name('mappings.pull');
         Route::put('shops/{shop}/mappings/{mapping}', [TiktokSkuMappingController::class, 'update'])->middleware('can:tiktok.mapping')->name('mappings.update');
         Route::delete('shops/{shop}/mappings/{mapping}', [TiktokSkuMappingController::class, 'destroy'])->middleware('can:tiktok.mapping')->name('mappings.destroy');
+    });
+
+    // Aplikasi Android Optima Gudang: halaman download di web, dan halaman mobile (/m)
+    // yang dimuat aplikasi. Login aplikasi butuh mobile.access; tiap menu di dalamnya
+    // tetap dijaga permission fiturnya masing-masing.
+    Route::get('aplikasi-android', [MobileAppController::class, 'page'])->middleware('can:mobile.access')->name('mobile.app');
+
+    Route::prefix('m')->name('mobile.')->middleware('can:mobile.access')->group(function () {
+        Route::get('/', [MobileHomeController::class, 'index'])->name('home');
+        Route::post('warehouse', [MobileHomeController::class, 'warehouse'])->name('warehouse');
+        Route::get('account', [MobileHomeController::class, 'account'])->name('account');
+        Route::get('outbox', [MobileHomeController::class, 'outbox'])->name('outbox');
+        Route::get('offline', [MobileHomeController::class, 'offline'])->name('offline');
+        Route::get('session', [MobileHomeController::class, 'session'])->name('session');
+        Route::get('app-version', [MobileAppController::class, 'version'])->name('version');
+        Route::get('catalog', MobileCatalogController::class)->name('catalog');
+        Route::get('scan', MobileScanController::class)->name('scan');
+        Route::get('print', MobilePrintController::class)->name('print');
+
+        Route::middleware('can:sales.fulfill')->group(function () {
+            Route::get('qc', [MobileQcController::class, 'index'])->name('qc');
+            Route::get('qc/queue', [MobileQcController::class, 'queue'])->name('qc.queue');
+            Route::get('qc/find', [MobileQcController::class, 'find'])->name('qc.find');
+            Route::post('qc/{order}', [MobileQcController::class, 'store'])->name('qc.store');
+            Route::get('handover', [MobileHandoverController::class, 'index'])->name('handover');
+            Route::post('handover/scan', [MobileHandoverController::class, 'scan'])->name('handover.scan');
+            Route::get('handover/{handover}', [MobileHandoverController::class, 'show'])->name('handover.show');
+            Route::post('handover/{handover}/sign', [MobileHandoverController::class, 'sign'])->name('handover.sign');
+            Route::get('handover/{handover}/manifest', [MobileHandoverController::class, 'manifest'])->name('handover.manifest');
+        });
+
+        Route::get('receipts', [MobileReceiptController::class, 'mobileIndex'])->middleware('can:receipts.create')->name('receipts');
+        Route::get('receipts/create', [MobileReceiptController::class, 'mobileCreate'])->middleware('can:receipts.create')->name('receipts.create');
+        Route::post('receipts', [MobileReceiptController::class, 'mobileStore'])->middleware('can:receipts.create')->name('receipts.store');
+        Route::get('receipts/{receipt}', [MobileReceiptController::class, 'mobileShow'])->middleware('can:receipts.view')->name('receipts.show');
+        Route::post('receipts/{receipt}/receive', [MobileReceiptController::class, 'mobileReceive'])->middleware('can:receipts.receive')->name('receipts.receive');
+
+        Route::get('opname', [MobileOpnameController::class, 'index'])->middleware('can:opname.create')->name('opname');
+        Route::get('opname/{count}', [MobileOpnameController::class, 'show'])->middleware('can:opname.create')->name('opname.show');
+        Route::get('opname/{count}/lines', [MobileOpnameController::class, 'lines'])->middleware('can:opname.create')->name('opname.lines');
+        Route::post('opname/{count}', [MobileOpnameController::class, 'save'])->middleware('can:opname.create')->name('opname.save');
+
+        Route::get('stock-check', [MobileStockCheckController::class, 'mobileIndex'])->middleware('can:adjustments.create')->name('stock-check');
+        Route::get('stock-check/bin', [MobileStockCheckController::class, 'bin'])->middleware('can:adjustments.create')->name('stock-check.bin');
+        Route::post('stock-check', [MobileStockCheckController::class, 'mobileStore'])->middleware('can:adjustments.create')->name('stock-check.store');
+
+        Route::get('returns', [MobileReturnController::class, 'mobileIndex'])->middleware('can:returns.create')->name('returns');
+        Route::post('returns', [MobileReturnController::class, 'mobileStore'])->middleware('can:returns.create')->name('returns.store');
     });
 
     Route::prefix('admin')->name('admin.')->group(function () {

@@ -24,7 +24,7 @@
                              placeholder="••••••••" autocomplete="current-password" required />
 
                     <label class="flex items-center gap-2 text-sm text-slate-600">
-                        <input type="checkbox" name="remember" class="form-checkbox" @checked(old('remember'))>
+                        <input type="checkbox" name="remember" class="form-checkbox" @checked(old('remember', \App\Support\MobileApp::isApp()))>
                         Ingat saya
                     </label>
 

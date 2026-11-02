@@ -59,13 +59,17 @@ class StockCountService
      * Simpan hasil hitung. Baris tanpa id adalah barang yang ditemukan tapi belum
      * tercatat di lembar; baris yang tidak dikirim ulang dihapus dari lembar.
      *
+     * $prune = false (aplikasi Android): hanya baris yang dikirim yang disimpan, baris
+     * lain dibiarkan, supaya beberapa petugas bisa menghitung rak berbeda bersamaan.
+     * Barang baru yang ternyata sudah ada di lembar (varian + lokasi sama) ikut diperbarui.
+     *
      * @param  array<int, array{id?: ?int, product_variant_id: int, warehouse_location_id?: ?int, counted_qty?: ?int, target_location_id?: ?int, notes?: ?string}>  $lines
      *
      * @throws ValidationException
      */
-    public function save(StockCount $count, array $lines): void
+    public function save(StockCount $count, array $lines, bool $prune = true): void
     {
-        DB::transaction(function () use ($count, $lines) {
+        DB::transaction(function () use ($count, $lines, $prune) {
             $count = $this->lockDraft($count);
             $existing = $count->items()->get()->keyBy('id');
             $seen = [];
@@ -73,6 +77,11 @@ class StockCountService
 
             foreach (array_values($lines) as $index => $line) {
                 $item = filled($line['id'] ?? null) ? $existing->get((int) $line['id']) : null;
+                if (! $prune && ! $item && ! filled($line['id'] ?? null)) {
+                    $location = filled($line['warehouse_location_id'] ?? null) ? (int) $line['warehouse_location_id'] : null;
+                    $item = $existing->first(fn ($row) => (int) $row->product_variant_id === (int) $line['product_variant_id']
+                        && ($row->warehouse_location_id === null ? null : (int) $row->warehouse_location_id) === $location);
+                }
                 if (filled($line['id'] ?? null) && ! $item) {
                     throw ValidationException::withMessages(["lines.{$index}.id" => 'Baris sudah tidak ada di lembar ini, muat ulang halaman.']);
                 }
@@ -110,7 +119,9 @@ class StockCountService
                 $keep[] = $item->id;
             }
 
-            $count->items()->whereNotIn('id', $keep)->delete();
+            if ($prune) {
+                $count->items()->whereNotIn('id', $keep)->delete();
+            }
         });
     }
 

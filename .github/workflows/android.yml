@@ -1,0 +1,87 @@
+name: Android APK
+
+# Build APK Optima Gudang. Di main, APK diterbitkan sebagai GitHub Release
+# "android-v<versionName>" yang dipakai tombol download di Optima web.
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'android/**'
+      - '.github/workflows/android.yml'
+  pull_request:
+    paths:
+      - 'android/**'
+      - '.github/workflows/android.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      # Kunci tanda tangan rilis disimpan sebagai secret repo (lihat android/README.md).
+      # Tanpa secret, APK tetap dibuat dengan kunci sementara: bisa dipasang, tapi
+      # update berikutnya harus uninstall dulu karena kuncinya berbeda.
+      - name: Kunci tanda tangan
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+        run: |
+          if [ -n "$KEYSTORE_BASE64" ]; then
+            echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/release.jks"
+            echo "OPTIMA_KEYSTORE_PASSWORD=$KEYSTORE_PASSWORD" >> "$GITHUB_ENV"
+            echo "OPTIMA_KEY_ALIAS=${{ secrets.ANDROID_KEY_ALIAS || 'optima' }}" >> "$GITHUB_ENV"
+            echo "OPTIMA_KEY_PASSWORD=${{ secrets.ANDROID_KEY_PASSWORD || secrets.ANDROID_KEYSTORE_PASSWORD }}" >> "$GITHUB_ENV"
+          else
+            echo "::warning::Secret ANDROID_KEYSTORE_BASE64 belum diisi; APK ditandatangani kunci sementara."
+            PASS=$(openssl rand -hex 16)
+            keytool -genkeypair -keystore "$RUNNER_TEMP/release.jks" -alias optima -keyalg RSA -keysize 2048 -validity 10000 \
+              -storepass "$PASS" -keypass "$PASS" -dname "CN=Optima Gudang, O=Optima, C=ID"
+            echo "OPTIMA_KEYSTORE_PASSWORD=$PASS" >> "$GITHUB_ENV"
+            echo "OPTIMA_KEY_ALIAS=optima" >> "$GITHUB_ENV"
+            echo "OPTIMA_KEY_PASSWORD=$PASS" >> "$GITHUB_ENV"
+          fi
+          echo "OPTIMA_KEYSTORE=$RUNNER_TEMP/release.jks" >> "$GITHUB_ENV"
+
+      - name: Build APK
+        working-directory: android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleRelease --no-daemon --stacktrace
+
+      - name: Siapkan file APK
+        id: apk
+        run: |
+          VERSION=$(grep '^versionName=' android/version.properties | cut -d= -f2)
+          mkdir -p dist
+          cp android/app/build/outputs/apk/release/app-release.apk dist/optima-gudang.apk
+          cp dist/optima-gudang.apk "dist/optima-gudang-$VERSION.apk"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: optima-gudang-${{ steps.apk.outputs.version }}
+          path: dist/optima-gudang.apk
+
+      - name: Terbitkan release
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: android-v${{ steps.apk.outputs.version }}
+          name: Optima Gudang ${{ steps.apk.outputs.version }}
+          body: APK aplikasi Android Optima Gudang. Download juga tersedia dari menu Aplikasi Android di Optima web.
+          make_latest: false
+          files: |
+            dist/optima-gudang.apk
+            dist/optima-gudang-${{ steps.apk.outputs.version }}.apk

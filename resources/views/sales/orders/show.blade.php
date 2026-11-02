@@ -382,6 +382,9 @@
                     @if ($order->qc_checked_by)
                         <p>QC scan: {{ $order->qcChecker?->name }}</p>
                     @endif
+                    @if ($order->packing_photo_path)
+                        <p><a href="{{ Storage::disk('public')->url($order->packing_photo_path) }}" target="_blank" class="text-brand-600 hover:underline">Lihat foto paket (QC)</a></p>
+                    @endif
                     @if ($order->handover)
                         <p>Serah terima:
                             @can('sales.fulfill')

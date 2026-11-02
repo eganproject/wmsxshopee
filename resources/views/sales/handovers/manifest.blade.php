@@ -85,7 +85,11 @@
 
         <div class="sign">
             <div>Diserahkan oleh<br><strong>{{ $handover->creator?->name }}</strong></div>
-            <div>Diterima kurir<br><strong>{{ $handover->receiver_name ?? '' }}</strong>&nbsp;</div>
+            <div>Diterima kurir<br>
+                @if ($handover->receiver_signature_path)
+                    <img src="{{ Storage::disk('public')->url($handover->receiver_signature_path) }}" alt="" style="height:48px;display:block;margin:4px 0">
+                @endif
+                <strong>{{ $handover->receiver_name ?? '' }}</strong>&nbsp;</div>
         </div>
     </div>
 </body>

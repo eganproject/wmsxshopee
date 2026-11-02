@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
+use App\Support\MobileApp;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -55,11 +56,20 @@ class LoginController extends Controller
         }
 
         RateLimiter::clear($throttleKey);
+
+        if (MobileApp::isApp($request) && ! $request->user()->can('mobile.access')) {
+            Auth::guard('web')->logout();
+
+            throw ValidationException::withMessages([
+                'login' => 'Akun ini belum diberi akses aplikasi Android. Minta admin menambahkan hak "Aplikasi Android" di role Anda.',
+            ]);
+        }
+
         $request->session()->regenerate();
 
         $request->user()->forceFill(['last_login_at' => now()])->saveQuietly();
 
-        return redirect()->intended(route('dashboard'));
+        return redirect()->intended(route(MobileApp::isApp($request) ? 'mobile.home' : 'dashboard'));
     }
 
     public function destroy(Request $request): RedirectResponse
