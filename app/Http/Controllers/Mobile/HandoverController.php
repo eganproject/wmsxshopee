@@ -9,6 +9,7 @@ use App\Services\FulfillmentScan;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 
@@ -104,7 +105,7 @@ class HandoverController extends Controller
             throw ValidationException::withMessages(['signature' => 'Tanda tangan tidak terbaca, ulangi.']);
         }
 
-        $path = "handovers/{$handover->id}/ttd-".now()->format('YmdHis').'.png';
+        $path = "handovers/{$handover->id}/ttd-".now()->format('YmdHis').'-'.Str::random(16).'.png';
         Storage::disk('public')->put($path, $png);
 
         $old = $handover->receiver_signature_path;
