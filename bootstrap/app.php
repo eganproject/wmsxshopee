@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Middleware\EnsureUserIsActive;
+use App\Http\Middleware\IdempotentRequest;
 use App\Support\DatabaseConflict;
 use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Application;
@@ -26,6 +27,7 @@ return Application::configure(basePath: dirname(__DIR__))
 
         $middleware->alias([
             'active' => EnsureUserIsActive::class,
+            'idempotent' => IdempotentRequest::class,
             'role' => RoleMiddleware::class,
             'permission' => PermissionMiddleware::class,
             'role_or_permission' => RoleOrPermissionMiddleware::class,

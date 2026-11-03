@@ -245,6 +245,39 @@ class MobileAppTest extends TestCase
         $this->assertSame('draft', GoodsReceipt::latest('id')->value('status'));
     }
 
+    public function test_offline_resend_with_same_key_does_not_receive_twice(): void
+    {
+        $supplier = Supplier::create(['code' => 'SUP1', 'name' => 'PT Kain', 'is_active' => true]);
+        $payload = [
+            'supplier_id' => $supplier->id,
+            'warehouse_id' => $this->warehouse->id,
+            'action' => 'receive',
+            'items' => [['product_variant_id' => $this->kaosL->id, 'qty_received' => 5, 'qty_damaged' => 0]],
+        ];
+
+        // Jawaban pertama tidak sampai ke HP, antrean offline mengirim ulang dengan kunci yang sama.
+        $first = $this->postJson('/m/receipts', $payload, ['X-Idempotency-Key' => 'hp-1'])->assertOk()->json('number');
+        $this->postJson('/m/receipts', $payload, ['X-Idempotency-Key' => 'hp-1'])->assertOk()
+            ->assertJsonPath('number', $first)
+            ->assertJsonPath('duplicate', true);
+
+        $this->assertSame(1, GoodsReceipt::count());
+        $this->assertSame(25, (int) Stock::where('product_variant_id', $this->kaosL->id)->whereNull('warehouse_location_id')->value('qty'));
+
+        // Kunci lain = aksi baru; kunci sama dari akun lain tidak memakai jawaban akun ini.
+        $this->postJson('/m/receipts', $payload, ['X-Idempotency-Key' => 'hp-2'])->assertOk();
+        $this->actingAs($this->staff(['mobile.access', 'receipts.create', 'receipts.receive']))
+            ->postJson('/m/receipts', $payload, ['X-Idempotency-Key' => 'hp-1'])->assertOk()->assertJsonMissing(['duplicate' => true]);
+        $this->assertSame(3, GoodsReceipt::count());
+
+        // Stock check & retur juga terlindungi.
+        $this->actingAs($this->admin);
+        $check = ['reason' => 'lost', 'items' => [['product_variant_id' => $this->kaosM->id, 'warehouse_location_id' => $this->bin->id, 'qty' => -1]]];
+        $this->postJson('/m/stock-check', $check, ['X-Idempotency-Key' => 'hp-3'])->assertOk();
+        $this->postJson('/m/stock-check', $check, ['X-Idempotency-Key' => 'hp-3'])->assertOk()->assertJsonPath('duplicate', true);
+        $this->assertSame(1, StockAdjustment::count());
+    }
+
     public function test_two_counters_can_save_the_same_opname_sheet(): void
     {
         $this->post(route('inventory.counts.store'), [

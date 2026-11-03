@@ -364,7 +364,7 @@ Route::middleware(['auth', 'active'])->group(function () {
     // tetap dijaga permission fiturnya masing-masing.
     Route::get('aplikasi-android', [MobileAppController::class, 'page'])->middleware('can:mobile.access')->name('mobile.app');
 
-    Route::prefix('m')->name('mobile.')->middleware('can:mobile.access')->group(function () {
+    Route::prefix('m')->name('mobile.')->middleware(['can:mobile.access', 'idempotent'])->group(function () {
         Route::get('/', [MobileHomeController::class, 'index'])->name('home');
         Route::post('warehouse', [MobileHomeController::class, 'warehouse'])->name('warehouse');
         Route::get('account', [MobileHomeController::class, 'account'])->name('account');

@@ -1,0 +1,41 @@
+name: Tes Laravel
+
+# Menjalankan seluruh tes otomatis tiap ada PR / push ke main, supaya bug
+# ketahuan sebelum di-deploy ke optisync.tech.
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mbstring, pdo_sqlite, intl, gd, zip
+          coverage: none
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install dependensi
+        run: |
+          composer install --no-interaction --prefer-dist --no-progress
+          npm ci
+
+      - name: Build aset (dibutuhkan halaman yang dites)
+        run: npm run build
+
+      - name: Siapkan .env
+        run: |
+          cp .env.example .env
+          php artisan key:generate
+
+      - name: Jalankan tes
+        run: php artisan test
