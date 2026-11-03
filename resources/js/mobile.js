@@ -1207,6 +1207,9 @@ Alpine.data('accountApp', () => ({
         if (confirm('Ganti alamat server? Anda perlu login lagi.')) bridge.changeServer();
     },
     async logout(form) {
+        // Antrean yang belum terkirim akan dikirim atas nama akun yang login berikutnya.
+        const waiting = (await outbox.items().catch(() => [])).length;
+        if (waiting && !confirm(`Masih ada ${waiting} aksi di Antrean yang belum terkirim. Kirim dulu dari menu Antrean sebelum keluar. Tetap keluar?`)) return;
         // Bersihkan halaman tersimpan supaya akun berikutnya tidak melihat data akun ini.
         try {
             const keys = await caches.keys();

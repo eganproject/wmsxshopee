@@ -30,7 +30,7 @@ async function changed() {
     emit('outbox', { count: items.length, failed: items.filter((i) => i.status === 'failed').length });
 }
 
-const isNetworkError = (e) => !(e instanceof ApiError) || e.status === 0 || e.status >= 500 || e.status === 401 || e.status === 419;
+const isNetworkError = (e) => !(e instanceof ApiError) || e.status === 0 || e.status >= 500 || e.status === 401 || e.status === 409 || e.status === 419;
 
 /**
  * Kirim sekarang, atau antre bila offline.
@@ -53,7 +53,7 @@ export async function send({ url, body, label, kind = 'umum' }) {
 
     if (navigator.onLine) {
         try {
-            const data = await request(url, { method: 'POST', body });
+            const data = await request(url, { method: 'POST', body, idempotencyKey: item.id });
             return { queued: false, data };
         } catch (e) {
             if (!isNetworkError(e)) throw e;
@@ -79,7 +79,7 @@ export async function flush({ includeFailed = false } = {}) {
 
         for (const item of todo) {
             try {
-                const data = await request(item.url, { method: 'POST', body: bodyOf(item) });
+                const data = await request(item.url, { method: 'POST', body: bodyOf(item), idempotencyKey: item.id });
                 await outboxDelete(item.id);
                 emit('outbox-sent', { item, data });
             } catch (e) {

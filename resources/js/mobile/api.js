@@ -29,8 +29,10 @@ export async function refreshSession() {
  * body: objek (dikirim JSON) atau FormData. Melempar ApiError untuk status 4xx/5xx
  * dan TypeError bila jaringan putus (dipakai antrean offline).
  */
-export async function request(url, { method = 'GET', body, retried = false } = {}) {
+export async function request(url, { method = 'GET', body, retried = false, idempotencyKey = null } = {}) {
     const headers = { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' };
+    // Kunci yang sama untuk kiriman ulang dari antrean: server tidak memproses aksi yang sama dua kali.
+    if (idempotencyKey) headers['X-Idempotency-Key'] = idempotencyKey;
     let payload;
     if (body instanceof FormData) {
         payload = body;
@@ -44,7 +46,7 @@ export async function request(url, { method = 'GET', body, retried = false } = {
 
     if (response.status === 419 && !retried) {
         await refreshSession();
-        return request(url, { method, body, retried: true });
+        return request(url, { method, body, retried: true, idempotencyKey });
     }
 
     const type = response.headers.get('content-type') || '';
