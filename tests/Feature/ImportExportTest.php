@@ -13,6 +13,7 @@ use App\Models\WarehouseLocation;
 use App\Models\WarehouseRack;
 use App\Models\WarehouseZone;
 use App\Services\ProductImporter;
+use App\Support\XlsxExport;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use OpenSpout\Common\Entity\Row;
@@ -396,7 +397,7 @@ class ImportExportTest extends TestCase
 
     public function test_export_writes_text_starting_with_equals_as_text_not_formula(): void
     {
-        $file = \App\Support\XlsxExport::download('x.xlsx', ['Nama'], [['=HYPERLINK("http://contoh.test","klik")'], ['Budi'], [5]])->getFile()->getPathname();
+        $file = XlsxExport::download('x.xlsx', ['Nama'], [['=HYPERLINK("http://contoh.test","klik")'], ['Budi'], [5]])->getFile()->getPathname();
 
         $zip = new \ZipArchive;
         $zip->open($file);
