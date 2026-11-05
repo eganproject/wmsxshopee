@@ -42,6 +42,7 @@ use App\Http\Controllers\Mobile\OpnameController as MobileOpnameController;
 use App\Http\Controllers\Mobile\PrintController as MobilePrintController;
 use App\Http\Controllers\Mobile\QcController as MobileQcController;
 use App\Http\Controllers\Mobile\ReceiptController as MobileReceiptController;
+use App\Http\Controllers\Mobile\ReleaseController as MobileReleaseController;
 use App\Http\Controllers\Mobile\ReturnController as MobileReturnController;
 use App\Http\Controllers\Mobile\ScanController as MobileScanController;
 use App\Http\Controllers\Mobile\StockCheckController as MobileStockCheckController;
@@ -74,6 +75,11 @@ Route::redirect('/', '/dashboard');
 Route::post('shopee/webhook', ShopeeWebhookController::class)->name('shopee.webhook');
 // Webhook TikTok Shop (tanpa login; diverifikasi lewat tanda tangan app secret).
 Route::post('tiktok/webhook', TiktokWebhookController::class)->name('tiktok.webhook');
+
+// Unduh APK aplikasi Android lewat link bertanda tangan (dibuat di halaman/cek versi
+// untuk user yang login), supaya browser HP & aplikasi versi lama bisa mengunduhnya.
+Route::get('aplikasi-android/download/{release}/optima-gudang.apk', [MobileAppController::class, 'download'])
+    ->middleware(['signed', 'throttle:30,1'])->name('mobile.download');
 
 // Tidak ada route register: akun hanya dibuat lewat admin panel.
 Route::middleware('guest')->group(function () {
@@ -363,6 +369,14 @@ Route::middleware(['auth', 'active'])->group(function () {
     // yang dimuat aplikasi. Login aplikasi butuh mobile.access; tiap menu di dalamnya
     // tetap dijaga permission fiturnya masing-masing.
     Route::get('aplikasi-android', [MobileAppController::class, 'page'])->middleware('can:mobile.access')->name('mobile.app');
+    // Versi APK: upload APK baru, catatan perubahan & tanda wajib update.
+    Route::prefix('aplikasi-android/versi')->name('mobile.releases.')->middleware('can:mobile.releases')->group(function () {
+        Route::get('create', [MobileReleaseController::class, 'create'])->name('create');
+        Route::post('/', [MobileReleaseController::class, 'store'])->name('store');
+        Route::get('{release}/edit', [MobileReleaseController::class, 'edit'])->name('edit');
+        Route::put('{release}', [MobileReleaseController::class, 'update'])->name('update');
+        Route::delete('{release}', [MobileReleaseController::class, 'destroy'])->name('destroy');
+    });
 
     Route::prefix('m')->name('mobile.')->middleware(['can:mobile.access', 'idempotent'])->group(function () {
         Route::get('/', [MobileHomeController::class, 'index'])->name('home');

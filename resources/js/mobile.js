@@ -93,6 +93,109 @@ bridge.on('outbox', ({ count, failed }) => {
 });
 bridge.on('outbox-sent', ({ item }) => toast(`Terkirim: ${item.label}`, 'ok', 2200));
 
+/*
+ * Update aplikasi: cek versi terbaru ke server setiap halaman dibuka (online).
+ * Versi biasa ditawarkan sekali per sesi (bisa "Nanti"); versi wajib menutup
+ * layar sampai update dipasang. Info terakhir disimpan supaya tetap berlaku offline.
+ */
+const UPDATE_KEY = 'optima-update';
+
+Alpine.store('update', {
+    latest: null,
+    open: false,
+    status: 'idle', // idle | downloading | installing | error
+    received: 0,
+    total: 0,
+    error: '',
+    get installed() {
+        return Number(bridge.appInfo()?.versionCode || 0);
+    },
+    get installedName() {
+        return bridge.appInfo()?.versionName || '';
+    },
+    get available() {
+        return !!this.latest && this.installed > 0 && Number(this.latest.versionCode) > this.installed;
+    },
+    get mandatory() {
+        return this.available && !!this.latest.mandatory;
+    },
+    get percent() {
+        return this.total > 0 ? Math.min(100, Math.round((this.received / this.total) * 100)) : 0;
+    },
+    get sizeLabel() {
+        const size = Number(this.latest?.size || 0);
+        return size ? `${(size / 1048576).toFixed(1)} MB` : '';
+    },
+    async check() {
+        if (!bridge.isApp) return;
+        try {
+            this.apply(JSON.parse(localStorage.getItem(UPDATE_KEY) || 'null'));
+        } catch (e) {
+            // abaikan data rusak
+        }
+        if (!navigator.onLine) return;
+        try {
+            const latest = await getJson('/m/app-version');
+            localStorage.setItem(UPDATE_KEY, JSON.stringify(latest));
+            this.apply(latest);
+        } catch (e) {
+            // server tidak terjangkau: pakai info terakhir
+        }
+    },
+    apply(latest) {
+        if (!latest || this.status === 'downloading') return;
+        this.latest = latest;
+        if (!this.available) {
+            this.open = false;
+            return;
+        }
+        const dismissed = sessionStorage.getItem(`${UPDATE_KEY}-later`) === String(latest.versionCode);
+        if (this.mandatory || !dismissed) this.open = true;
+    },
+    later() {
+        if (this.mandatory || this.status === 'downloading') return;
+        sessionStorage.setItem(`${UPDATE_KEY}-later`, String(this.latest.versionCode));
+        this.open = false;
+    },
+    async start() {
+        if (!this.latest || this.status === 'downloading') return;
+        if (!bridge.canSelfUpdate) {
+            // Aplikasi versi lama: unduh lewat browser HP lalu buka file APK-nya.
+            bridge.openExternal(this.latest.url);
+            return;
+        }
+        this.status = 'downloading';
+        this.error = '';
+        this.received = 0;
+        this.total = Number(this.latest.size || 0);
+        try {
+            await bridge.installUpdate({
+                url: this.latest.url,
+                versionCode: Number(this.latest.versionCode),
+                versionName: this.latest.versionName,
+                sha256: this.latest.sha256 || '',
+                size: Number(this.latest.size || 0),
+            });
+            this.status = 'installing';
+        } catch (e) {
+            this.status = 'error';
+            this.error = e.message || 'Gagal mengunduh update.';
+        }
+    },
+});
+
+bridge.on('update-progress', ({ received, total }) => {
+    const store = Alpine.store('update');
+    store.received = Number(received || 0);
+    if (Number(total) > 0) store.total = Number(total);
+});
+
+// Kembali dari layar pasang Android tanpa memasang: tombol bisa ditekan lagi.
+document.addEventListener('visibilitychange', () => {
+    const store = Alpine.store('update');
+    if (document.visibilityState === 'visible' && store.status === 'installing') store.status = 'idle';
+});
+
 /* ---------- Kerangka: menu bawah, tombol scan, kolom scan cadangan ---------- */
 
 Alpine.data('mobileShell', () => ({
@@ -102,6 +205,7 @@ Alpine.data('mobileShell', () => ({
     init() {
         outbox.refreshCount();
         outbox.flush();
+        Alpine.store('update').check();
         bridge.on('scanner-fallback', (options) => {
             this.fallbackHint = options.hint || 'Ketik atau tempel kode';
             this.fallbackCode = '';
@@ -133,18 +237,10 @@ Alpine.data('mobileShell', () => ({
 
 /* ---------- Beranda ---------- */
 
-Alpine.data('mobileHome', (latest) => ({
-    update: null,
+Alpine.data('mobileHome', () => ({
     init() {
-        const info = bridge.appInfo();
-        if (info && latest && Number(latest.versionCode) > Number(info.versionCode)) {
-            this.update = latest;
-        }
         // Siapkan data barang & antrean QC di HP selagi online.
         catalog().catch(() => null);
-    },
-    download() {
-        bridge.openExternal(this.update.url);
     },
 }));
 
@@ -1202,6 +1298,16 @@ Alpine.data('accountApp', () => ({
     setTheme(theme) {
         this.theme = theme;
         window.optimaTheme?.set(theme);
+    },
+    checking: false,
+    async checkUpdate() {
+        this.checking = true;
+        const store = Alpine.store('update');
+        sessionStorage.removeItem('optima-update-later');
+        await store.check();
+        this.checking = false;
+        if (store.available) store.open = true;
+        else toast(navigator.onLine ? 'Aplikasi sudah versi terbaru.' : 'Offline. Coba cek lagi saat ada sinyal.', 'ok');
     },
     changeServer() {
         if (confirm('Ganti alamat server? Anda perlu login lagi.')) bridge.changeServer();
