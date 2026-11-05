@@ -124,6 +124,19 @@ class NativeBridge(private val activity: MainActivity, private val prefs: Prefs)
         }
     }
 
+    /**
+     * Unduh & pasang update. release (JSON): {url, versionCode, sha256, size}.
+     * Progres dikirim lewat event 'update-progress'; selesai saat layar pasang Android terbuka.
+     */
+    @JavascriptInterface
+    fun installUpdate(id: String, release: String) {
+        val json = try { JSONObject(release) } catch (e: Exception) {
+            resolve(id, false, "Data update tidak valid.", null)
+            return
+        }
+        activity.startUpdate(AppUpdater.Release.from(json)) { ok, message -> resolve(id, ok, message, null) }
+    }
+
     private fun resolve(id: String, ok: Boolean, message: String, data: JSONArray?) {
         val payload = JSONObject().put("ok", ok).put("message", message).put("data", data ?: JSONObject.NULL)
         activity.js("window.OptimaBridge && OptimaBridge._resolve(${JSONObject.quote(id)}, $payload)")

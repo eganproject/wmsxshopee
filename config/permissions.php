@@ -107,6 +107,7 @@ return [
             'icon' => 'heroicon-o-device-phone-mobile',
             'actions' => [
                 'access' => 'Download & login aplikasi Android Optima Gudang (menu di dalamnya tetap mengikuti hak akses lain)',
+                'releases' => 'Upload versi APK baru, catatan update & atur update wajib',
             ],
         ],
 

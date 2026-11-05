@@ -28,10 +28,28 @@ APK dibangun otomatis oleh GitHub Actions (`.github/workflows/android.yml`):
   GitHub Release `android-v{versionName}` berisi `optima-gudang.apk`.
 
 Halaman web **Aplikasi Android** (`/aplikasi-android`) menautkan APK dari rilis itu
-(URL bisa diganti lewat `MOBILE_APK_URL` di `.env`, `{version}` diganti versi).
+(URL bisa diganti lewat `MOBILE_APK_URL` di `.env`, `{version}` diganti versi) selama
+belum ada versi yang diunggah.
 
-Untuk rilis baru, naikkan `versionCode` (wajib) dan `versionName` di
-`android/version.properties`. Beranda aplikasi menampilkan tombol update otomatis.
+## Update dari dalam aplikasi
+
+1. Naikkan `versionCode` (wajib, harus lebih besar) dan `versionName` di
+   `android/version.properties`, merge ke `main`, tunggu GitHub Actions selesai.
+2. Deploy web seperti biasa, lalu buka **Aplikasi Android → Upload Versi Baru**
+   (hak `mobile.releases`). Pilih **Ambil dari GitHub Release** (server mengunduh APK
+   sendiri, tidak terkena batas upload) atau upload file `.apk`. Isi catatan perubahan
+   dan nyalakan **Wajib update** bila versi lama tidak boleh dipakai lagi.
+3. Saat aplikasi dibuka, halaman `/m` mengecek `/m/app-version`. Bila ada versi baru,
+   muncul layar **Update tersedia** dengan catatan perubahan. **Update sekarang**
+   mengunduh APK di dalam aplikasi, mencocokkan checksum, nama paket dan nomor build,
+   lalu membuka layar pasang Android. Pertama kali, Android meminta izin
+   *Instal aplikasi tidak dikenal* untuk Optima Gudang.
+4. Versi wajib menutup aplikasi sampai update dipasang, termasuk bila HP melewatkan
+   versi wajib lalu ada versi biasa sesudahnya.
+
+APK disimpan di `storage/app/private/mobile-releases` dan diunduh lewat link bertanda
+tangan (berlaku 1 hari dari aplikasi, 7 hari dari halaman web), jadi browser HP dan
+aplikasi versi 1.0.0 (yang belum bisa update sendiri) tetap bisa mengunduhnya.
 
 ## Kunci tanda tangan (sekali saja)
 

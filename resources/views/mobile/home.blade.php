@@ -1,5 +1,5 @@
 <x-layouts.mobile title="Beranda" active="home" :header="false">
-    <div x-data="mobileHome(@js(\App\Support\MobileApp::version()))">
+    <div x-data="mobileHome">
         <header class="top">
             <span style="color:var(--text)"><x-m-logo size="28" /></span>
             <div class="grow">
@@ -13,10 +13,10 @@
         </header>
 
         <div class="content stack">
-            <div class="banner info" x-cloak x-show="update">
+            <div class="banner info" x-cloak x-show="$store.update.available">
                 <x-m-icon name="zap" size="s" />
-                <div class="grow"><b>Versi baru <span x-text="update?.versionName"></span> tersedia</b>Perbarui aplikasi untuk fitur & perbaikan terbaru.</div>
-                <button class="btn sm p" @click="download()">Unduh</button>
+                <div class="grow"><b>Versi baru <span x-text="$store.update.latest?.versionName"></span> tersedia</b>Perbarui aplikasi untuk fitur & perbaikan terbaru.</div>
+                <button class="btn sm p" @click="$store.update.open = true">Update</button>
             </div>
 
             @if (! $warehouse)

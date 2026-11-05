@@ -98,6 +98,18 @@ export function openExternal(url) {
     native ? native.openExternal(url) : window.open(url, '_blank');
 }
 
+/** Aplikasi ini bisa mengunduh & memasang update sendiri (APK 1.1.0 ke atas). */
+export const canSelfUpdate = !!native && typeof native.installUpdate === 'function';
+
+/**
+ * Unduh APK update lalu buka layar pasang Android. Progres datang lewat
+ * event 'update-progress' {received, total}. Selesai saat layar pasang terbuka.
+ */
+export function installUpdate(release) {
+    if (!canSelfUpdate) return Promise.reject(new Error('Versi aplikasi ini belum bisa update sendiri.'));
+    return call('installUpdate', JSON.stringify(release));
+}
+
 export function changeServer() {
     native?.changeServer();
 }

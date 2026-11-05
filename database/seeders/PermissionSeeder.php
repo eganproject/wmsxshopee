@@ -29,7 +29,7 @@ class PermissionSeeder extends Seeder
             'damaged.view', 'damaged.move', 'damaged.return', 'damaged.dispose', 'damaged.repair', 'damaged.assemble', 'damaged.approve',
             'opname.view', 'opname.create', 'opname.post', 'opname.delete', 'reports.view',
             'activity.view', 'shopee.view', 'shopee.mapping', 'shopee.sync',
-            'tiktok.view', 'tiktok.mapping', 'tiktok.sync', 'mobile.access',
+            'tiktok.view', 'tiktok.mapping', 'tiktok.sync', 'mobile.access', 'mobile.releases',
         ],
         'Staff Gudang' => [
             'dashboard.view', 'warehouses.view', 'products.view', 'couriers.view', 'inventory.view', 'inventory.create',
