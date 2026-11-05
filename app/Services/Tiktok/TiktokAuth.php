@@ -77,7 +77,9 @@ class TiktokAuth
         return Cache::lock('tiktok:refresh:'.($shop->open_id ?: $shop->id), 30)->block(15, function () use ($shop, $client, $onlyIfExpiringWithin) {
             $shop->refresh();
 
-            if (! $shop->isConnected()) {
+            // Toko yang sempat ditandai perlu otorisasi ulang tetap dicoba selama refresh token
+            // masih ada: bila TikTok menerimanya, toko kembali terhubung tanpa otorisasi ulang.
+            if (blank($shop->refresh_token)) {
                 throw new TiktokException("Toko {$shop->displayName()} belum terhubung atau perlu diotorisasi ulang.");
             }
 
@@ -94,7 +96,7 @@ class TiktokAuth
             } catch (TiktokException $e) {
                 $siblings->each->update([
                     'last_error' => mb_substr($e->getMessage(), 0, 500),
-                    'status' => $e->needsReauthorization() ? 'expired' : $shop->status,
+                    'status' => $e->refreshRejected() ? 'expired' : $shop->status,
                 ]);
 
                 throw $e;

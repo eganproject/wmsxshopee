@@ -22,20 +22,37 @@ class TiktokException extends RuntimeException
     /** Kode TikTok untuk "Too many requests" (batas panggilan API terlampaui). */
     public const RATE_LIMIT_CODES = [36009002, 36009004];
 
+    /** Kode TikTok yang berarti app belum punya izin (paket API) untuk panggilan ini. */
+    public const MISSING_SCOPE_CODES = [105005];
+
+    /** Kode grup 360 yang pasti berarti otorisasi toko tidak berlaku (cipher toko tidak valid). */
+    public const REVOKED_CODES = [36004004];
+
     /**
-     * Error yang berarti toko harus diotorisasi ulang. Kode grup 105xxx
-     * (access/refresh token tidak valid / kedaluwarsa) dan 360xxx (otorisasi
-     * toko dicabut / cipher tidak valid) menurut daftar error TikTok.
-     * Batas panggilan (36009002 dst.) juga berawalan 360, tapi itu gangguan
-     * sementara: token & otorisasinya tetap sah, jadi tidak dihitung.
+     * Error yang berarti toko harus diotorisasi ulang: token ditolak (grup 105xxx) atau
+     * cipher toko tidak valid. Kode lain berawalan 360 (batas panggilan, parameter salah,
+     * gangguan server TikTok) hanya gangguan atau salah isi: token tetap sah, jadi toko
+     * tidak ditandai "Perlu otorisasi ulang" (yang menghentikan semua sinkron toko itu).
+     * Izin API yang belum disetujui (105005) juga bukan masalah token: cukup error
+     * di panggilan itu, sinkron lain jalan terus.
      */
     public function needsReauthorization(): bool
     {
-        if ($this->isRateLimited()) {
+        if ($this->isRateLimited() || in_array($this->tiktokCode, self::MISSING_SCOPE_CODES, true)) {
             return false;
         }
 
-        return in_array(substr((string) $this->tiktokCode, 0, 3), ['105', '360'], true);
+        return str_starts_with((string) $this->tiktokCode, '105') || in_array($this->tiktokCode, self::REVOKED_CODES, true);
+    }
+
+    /**
+     * Perbarui token ditolak TikTok (refresh token tidak berlaku / otorisasi dicabut).
+     * Dipakai hanya untuk balasan host auth, yang errornya hampir selalu soal token.
+     */
+    public function refreshRejected(): bool
+    {
+        return $this->needsReauthorization()
+            || (! $this->isRateLimited() && str_starts_with((string) $this->tiktokCode, '360'));
     }
 
     /** TikTok menolak karena terlalu banyak panggilan; cukup tunggu lalu ulangi. */
