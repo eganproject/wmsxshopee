@@ -19,6 +19,7 @@ use App\Services\AlertService;
 use App\Services\FulfillmentScan;
 use App\Services\SalesOrderService;
 use App\Services\StockService;
+use App\Services\Tiktok\TiktokAuth;
 use App\Services\Tiktok\TiktokClient;
 use App\Services\Tiktok\TiktokException;
 use App\Services\Tiktok\TiktokOrderSync;
@@ -355,6 +356,56 @@ class TiktokIntegrationTest extends TestCase
         Http::fake(['auth.tiktok-shops.com/api/v2/token/refresh*' => Http::response(['code' => 105002, 'message' => 'refresh token is expired'])]);
         $this->artisan('tiktok:refresh-tokens --force')->assertFailed();
         $this->assertSame('expired', $shop->fresh()->status);
+    }
+
+    public function test_api_errors_that_are_not_about_the_token_keep_the_shop_connected(): void
+    {
+        $shop = $this->shop();
+        // Izin API belum disetujui (105005) / gangguan server TikTok: bukan alasan otorisasi ulang.
+        foreach ([105005 => 'you should apply auth pkg for this api', 36009003 => 'Internal error'] as $code => $message) {
+            $this->refake();
+            Http::fake(['*/order/202309/orders/search*' => Http::response(['code' => $code, 'message' => $message])]);
+
+            try {
+                app(TiktokSync::class)->run($shop->fresh(), ['orders']);
+                $this->fail('Error API harus tetap dilaporkan.');
+            } catch (TiktokException $e) {
+                $this->assertFalse($e->needsReauthorization());
+            }
+
+            $this->assertSame('connected', $shop->fresh()->status);
+            $this->assertStringContainsString((string) $code, $shop->fresh()->last_error);
+        }
+
+        $this->assertTrue((new TiktokException('expired', 105002))->needsReauthorization());
+    }
+
+    public function test_refresh_button_reconnects_a_shop_wrongly_flagged_expired(): void
+    {
+        $shop = $this->shop(['status' => 'expired', 'last_error' => 'TikTok: Internal error (36009003)']);
+        Http::fake(['auth.tiktok-shops.com/api/v2/token/refresh*' => Http::response(['code' => 0, 'data' => [
+            'access_token' => 'baru', 'refresh_token' => 'refresh-baru',
+            'access_token_expire_in' => now()->addDays(7)->getTimestamp(), 'refresh_token_expire_in' => now()->addDays(60)->getTimestamp(),
+        ]])]);
+
+        $this->assertTrue(app(TiktokAuth::class)->refresh($shop));
+        $this->assertSame(['connected', null, 'baru'], [$shop->fresh()->status, $shop->fresh()->last_error, $shop->fresh()->access_token]);
+    }
+
+    public function test_address_change_before_shipping_updates_the_order(): void
+    {
+        $shop = $this->shop();
+        $this->fakeSearch([$this->order('615001', 'AWAITING_SHIPMENT', $this->units('2001', 1))]);
+        app(TiktokSync::class)->run($shop->fresh(), ['orders']);
+
+        $this->refake();
+        Http::fake(['*/order/202309/orders?*' => Http::response(['code' => 0, 'data' => ['orders' => [$this->order('615001', 'AWAITING_SHIPMENT', $this->units('2001', 1), [
+            'recipient_address' => ['name' => 'Siti Aminah', 'phone_number' => '(+62)813****', 'full_address' => 'Jl. Braga 10, Bandung'],
+        ])]]])]);
+        app(TiktokOrderSync::class)->syncOne($shop->fresh(), '615001');
+
+        $order = SalesOrder::where('external_number', '615001')->first();
+        $this->assertSame(['Siti Aminah', '(+62)813****', 'Jl. Braga 10, Bandung'], [$order->customer_name, $order->customer_phone, $order->shipping_address]);
     }
 
     public function test_awaiting_shipment_orders_are_created_grouped_per_sku_and_reserve_stock(): void

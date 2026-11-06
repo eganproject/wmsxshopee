@@ -202,6 +202,11 @@ class TiktokOrderSync
             'tiktok_cancel_requested' => (bool) ($detail['is_buyer_request_cancel'] ?? false),
         ]);
 
+        // Alamat bisa diubah pembeli sebelum paket dikirim (webhook RECIPIENT_ADDRESS_UPDATE).
+        if (! in_array($order->status, ['shipped', 'cancelled'], true)) {
+            $order->fill($this->recipient($detail));
+        }
+
         if (filled($tracking = $this->trackingNumber($detail)) && $order->status !== 'cancelled') {
             $order->tracking_number = $tracking;
         }
@@ -272,8 +277,6 @@ class TiktokOrderSync
 
     private function create(TiktokShop $shop, array $detail): SalesOrder
     {
-        $address = $detail['recipient_address'] ?? [];
-
         $order = DB::transaction(fn () => SalesOrder::create([
             'number' => SalesOrder::nextNumber(),
             'status' => 'draft',
@@ -290,9 +293,8 @@ class TiktokOrderSync
             'tiktok_payment' => $detail['payment'] ?? null,
             'tiktok_cancel_requested' => (bool) ($detail['is_buyer_request_cancel'] ?? false),
             'tracking_number' => $this->trackingNumber($detail),
-            'customer_name' => mb_substr($address['name'] ?? 'Pembeli TikTok', 0, 150),
-            'customer_phone' => isset($address['phone_number']) ? mb_substr($address['phone_number'], 0, 30) : null,
-            'shipping_address' => $address['full_address'] ?? $address['address_detail'] ?? null,
+            'customer_name' => 'Pembeli TikTok',
+            ...$this->recipient($detail),
             'courier_id' => $this->courierFor($detail),
             'courier_service' => isset($detail['delivery_option_name']) ? mb_substr($detail['delivery_option_name'], 0, 50) : null,
             'shipping_fee' => (float) ($detail['payment']['shipping_fee'] ?? 0),
@@ -529,6 +531,24 @@ class TiktokOrderSync
         $time = $detail['rts_sla_time'] ?? $detail['shipping_due_time'] ?? null;
 
         return filled($time) ? Carbon::createFromTimestamp((int) $time, config('app.timezone')) : null;
+    }
+
+    /**
+     * Nama, telepon & alamat penerima dari recipient_address. Field yang tidak dikirim
+     * TikTok tidak ikut, supaya data yang sudah ada tidak terhapus.
+     *
+     * @param  array<string, mixed>  $detail
+     * @return array<string, string>
+     */
+    private function recipient(array $detail): array
+    {
+        $address = $detail['recipient_address'] ?? [];
+
+        return array_filter([
+            'customer_name' => filled($address['name'] ?? null) ? mb_substr((string) $address['name'], 0, 150) : null,
+            'customer_phone' => filled($address['phone_number'] ?? null) ? mb_substr((string) $address['phone_number'], 0, 30) : null,
+            'shipping_address' => ($address['full_address'] ?? null) ?: (($address['address_detail'] ?? null) ?: null),
+        ], fn ($value) => $value !== null);
     }
 
     /** @param  array<string, mixed>  $detail */
