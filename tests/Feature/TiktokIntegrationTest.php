@@ -326,13 +326,38 @@ class TiktokIntegrationTest extends TestCase
         $this->get('/marketplace/shops?platform=tiktok')->assertOk()->assertSee('Optima Official')->assertSee('Optima Outlet');
     }
 
-    public function test_callback_rejects_wrong_state(): void
+    public function test_callback_without_matching_session_asks_for_confirmation(): void
     {
         $this->configure();
         $this->post('/tiktok/shops/connect', ['warehouse_id' => $this->warehouse->id]);
 
-        $this->get('/tiktok/callback?state=salah&code=x')->assertRedirect(route('marketplace.shops', ['platform' => 'tiktok']))->assertSessionHas('error');
+        // State tidak cocok / otorisasi dimulai dari sisi TikTok: belum ada toko, minta konfirmasi.
+        $this->get('/tiktok/callback?state=salah&code=x')->assertOk()->assertSee('Simpan Toko');
         $this->assertSame(0, TiktokShop::count());
+
+        Http::fake([
+            'auth.tiktok-shops.com/api/v2/token/get*' => Http::response(['code' => 0, 'message' => 'success', 'data' => [
+                'access_token' => 'akses-1', 'refresh_token' => 'refresh-1', 'open_id' => 'open-9',
+            ]]),
+            '*/authorization/202309/shops*' => Http::response(['code' => 0, 'message' => 'Success', 'data' => ['shops' => [
+                ['id' => '7495000000000000009', 'name' => 'Toko Live', 'region' => 'ID', 'cipher' => 'ROW_z'],
+            ]]]),
+        ]);
+
+        $this->post('/tiktok/callback', ['warehouse_id' => $this->warehouse->id])->assertRedirect(route('marketplace.shops', ['platform' => 'tiktok']))->assertSessionHas('success');
+        $this->assertSame([$this->warehouse->id, 'ROW_z'], [TiktokShop::firstOrFail()->warehouse_id, TiktokShop::firstOrFail()->shop_cipher]);
+        Http::assertSent(fn (Request $r) => str_contains($r->url(), '/api/v2/token/get') && $r['auth_code'] === 'x');
+
+        // Kode hanya bisa dipakai sekali.
+        $this->post('/tiktok/callback', ['warehouse_id' => $this->warehouse->id])->assertSessionHas('error');
+    }
+
+    public function test_callback_from_tiktok_without_any_session_shows_confirmation(): void
+    {
+        $this->configure();
+
+        $this->get('/tiktok/callback?code=kode-dari-tiktok&app_key=appkey123')->assertOk()->assertSee('Simpan Toko');
+        $this->assertSame('kode-dari-tiktok', session('tiktok_auth_code.code'));
     }
 
     public function test_refresh_updates_all_shops_of_the_same_seller_and_marks_revoked(): void

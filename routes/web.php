@@ -351,6 +351,7 @@ Route::middleware(['auth', 'active'])->group(function () {
         Route::get('shops', fn () => redirect()->route('marketplace.shops', ['platform' => 'tiktok']))->name('shops.index');
         Route::post('shops/connect', [TiktokShopController::class, 'connect'])->middleware('can:tiktok.connect')->name('shops.connect');
         Route::get('callback', [TiktokShopController::class, 'callback'])->middleware('can:tiktok.connect')->name('callback');
+        Route::post('callback', [TiktokShopController::class, 'confirm'])->middleware('can:tiktok.connect')->name('callback.confirm');
         Route::put('shops/{shop}', [TiktokShopController::class, 'update'])->middleware('can:tiktok.connect')->name('shops.update');
         Route::post('shops/{shop}/refresh', [TiktokShopController::class, 'refresh'])->middleware('can:tiktok.connect')->name('shops.refresh');
         Route::post('shops/{shop}/sync', [TiktokShopController::class, 'sync'])->middleware('can:tiktok.sync')->name('shops.sync');
