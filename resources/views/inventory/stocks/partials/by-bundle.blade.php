@@ -37,7 +37,7 @@
                         <x-heroicon-o-sparkles class="size-3.5" /> Virtual
                     </span>
                 </td>
-                <td class="px-5 py-3.5 align-top">
+                <td class="cell-wrap px-5 py-3.5 align-top">
                     <p class="font-medium text-slate-900">{{ $bundle->name }}</p>
                     <ul class="mt-1 space-y-0.5 text-xs text-slate-500">
                         @foreach ($bundle->items as $index => $item)

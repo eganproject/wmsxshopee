@@ -53,7 +53,7 @@
                 <tbody class="divide-y divide-slate-100">
                     @forelse ($warehouses as $warehouse)
                         <tr class="hover:bg-slate-50/60">
-                            <td class="px-4 py-2.5">
+                            <td class="cell-wrap px-4 py-2.5">
                                 <p class="font-medium text-slate-900">{{ $warehouse->name }}</p>
                                 <p class="font-mono text-xs text-slate-500">{{ $warehouse->code }}</p>
                                 @if ($warehouse->supplyWarehouse)

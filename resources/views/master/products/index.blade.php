@@ -65,7 +65,7 @@
                     @forelse ($products as $product)
                         <tr class="hover:bg-slate-50/60">
                             <td class="w-10 py-3.5 pr-0 pl-4"><input type="checkbox" class="form-checkbox block" value="{{ $product->id }}" x-model="selected" aria-label="Pilih"></td>
-                            <td class="px-5 py-3.5">
+                            <td class="cell-wrap px-5 py-3.5">
                                 <div class="flex items-center gap-3">
                                     @if ($product->primaryImage)
                                         <img src="{{ $product->primaryImage->url() }}" alt="{{ $product->name }}" loading="lazy"

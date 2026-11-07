@@ -69,7 +69,7 @@
                         <tr>
                             <td class="px-5 py-3.5 text-slate-400">{{ $loop->iteration }}</td>
                             <td class="px-5 py-3.5 font-mono font-medium text-slate-900">{{ $item->variant->sku }}</td>
-                            <td class="px-5 py-3.5">
+                            <td class="cell-wrap px-5 py-3.5">
                                 <p class="font-medium text-slate-900">{{ $item->variant->product->name }}</p>
                                 @if ($item->variant->name)
                                     <p class="text-xs text-slate-500">{{ $item->variant->name }}</p>
@@ -90,7 +90,7 @@
                                 {{ $signed && $item->qty > 0 ? '+' : '' }}{{ number_format($item->qty, 0, ',', '.') }}
                                 <span class="text-xs font-normal text-slate-500">{{ $item->variant->product->unit->code }}</span>
                             </td>
-                            <td class="px-5 py-3.5 text-slate-600">{{ $item->notes ?? '—' }}</td>
+                            <td class="cell-wrap px-5 py-3.5 text-slate-600">{{ $item->notes ?? '—' }}</td>
                         </tr>
                     @endforeach
                 </tbody>

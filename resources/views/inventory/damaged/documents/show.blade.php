@@ -128,7 +128,7 @@
                             <tr>
                                 <td class="px-4 py-2.5 text-slate-400">{{ $loop->iteration }}</td>
                                 <td class="px-4 py-2.5 font-mono font-medium text-slate-900">{{ $item->variant->sku }}</td>
-                                <td class="px-4 py-2.5">
+                                <td class="cell-wrap px-4 py-2.5">
                                     <p class="font-medium text-slate-900">{{ $item->variant->product->name }}</p>
                                     @if ($item->variant->name)
                                         <p class="text-xs text-slate-500">{{ $item->variant->name }}</p>
@@ -151,7 +151,7 @@
                                 <td class="px-4 py-2.5 text-right font-semibold tabular-nums text-slate-900">
                                     {{ $fmt($item->qty) }} <span class="text-xs font-normal text-slate-500">{{ $item->variant->product->unit?->code }}</span>
                                 </td>
-                                <td class="px-4 py-2.5 text-slate-600">{{ $item->notes ?? '—' }}</td>
+                                <td class="cell-wrap px-4 py-2.5 text-slate-600">{{ $item->notes ?? '—' }}</td>
                             </tr>
                         @endforeach
                     </tbody>

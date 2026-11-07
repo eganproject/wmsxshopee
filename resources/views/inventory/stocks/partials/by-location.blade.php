@@ -19,7 +19,7 @@
             @endphp
             <tr class="hover:bg-slate-50/60">
                 <td class="px-5 py-3.5 font-mono font-medium text-slate-900">{{ $stock->variant->sku }}</td>
-                <td class="px-5 py-3.5">
+                <td class="cell-wrap px-5 py-3.5">
                     <p class="font-medium text-slate-900">{{ $stock->variant->product->name }}</p>
                     @if ($stock->variant->name)
                         <p class="text-xs text-slate-500">{{ $stock->variant->name }}</p>

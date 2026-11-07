@@ -34,7 +34,7 @@
             @endphp
             <tr class="hover:bg-slate-50/60">
                 <td class="px-5 py-3.5 font-mono font-medium text-slate-900">{{ $row->sku }}</td>
-                <td class="px-5 py-3.5">
+                <td class="cell-wrap px-5 py-3.5">
                     <p class="font-medium text-slate-900">{{ $row->product?->name }}</p>
                     @if ($row->name)
                         <p class="text-xs text-slate-500">{{ $row->name }}</p>

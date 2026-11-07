@@ -42,6 +42,9 @@
 @layer base {
     body {
         letter-spacing: 0.02em;
+        /* Teks panjang tanpa spasi (alamat bersensor "****", SKU, catatan, ID) dipatahkan
+           agar tidak keluar dari kartu atau kolom. Kata biasa tetap utuh. */
+        overflow-wrap: break-word;
     }
 }
 
@@ -275,6 +278,13 @@
 }
 @utility form-checkbox {
     @apply size-3.5 shrink-0 cursor-pointer rounded border-slate-300 accent-slate-900;
+}
+
+/* Sel tabel berisi teks bebas (nama, catatan, alamat): teks panjang tanpa spasi dipatahkan
+   supaya tabel tidak melebar, tapi kolom tidak menyempit di bawah 10rem. */
+@utility cell-wrap {
+    min-width: 10rem;
+    overflow-wrap: anywhere;
 }
 
 @utility card {

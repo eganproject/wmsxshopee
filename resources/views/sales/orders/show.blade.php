@@ -576,7 +576,7 @@
                             @endif
                             <td class="px-4 py-2.5 text-right tabular-nums text-slate-600">{{ $money($bundleLine->price) }}</td>
                             <td class="px-4 py-2.5 text-right tabular-nums text-slate-900">{{ $money($bundleLine->qty * $bundleLine->price) }}</td>
-                            <td class="px-4 py-2.5 text-slate-600">{{ $bundleLine->notes ?? '—' }}</td>
+                            <td class="cell-wrap px-4 py-2.5 text-slate-600">{{ $bundleLine->notes ?? '—' }}</td>
                         </tr>
                         @foreach ($order->items->where('sales_order_bundle_id', $bundleLine->id) as $item)
                             @include('sales.orders._item-row', ['item' => $item, 'number' => null])
