@@ -20,6 +20,7 @@ use App\Services\StockService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use OpenSpout\Common\Entity\Row;
+use OpenSpout\Reader\XLSX\Reader;
 use OpenSpout\Writer\XLSX\Writer;
 use Tests\TestCase;
 
@@ -598,5 +599,68 @@ class SalesOrderTest extends TestCase
         $page = $this->get(route('sales.orders.index'))->assertOk();
         $this->assertSame(3, substr_count($page->getContent(), 'data-testid="label-unprinted"'));
         $this->assertSame(1, substr_count($page->getContent(), 'data-testid="label-printed"'));
+    }
+
+    /** @return array<string, list<list<mixed>>> Isi tiap sheet hasil ekspor, per nama sheet. */
+    private function exportedSheets(array $query): array
+    {
+        $reader = new Reader;
+        $reader->open($this->get(route('sales.orders.index', [...$query, 'export' => 'xlsx']))->assertOk()->assertDownload()->getFile()->getPathname());
+        $sheets = [];
+        foreach ($reader->getSheetIterator() as $sheet) {
+            foreach ($sheet->getRowIterator() as $row) {
+                $sheets[$sheet->getName()][] = $row->toArray();
+            }
+        }
+        $reader->close();
+
+        return $sheets;
+    }
+
+    public function test_order_export_follows_filters_and_selection_with_item_sheet(): void
+    {
+        $shop = ShopeeShop::create(['environment' => 'test', 'shop_id' => 779, 'shop_name' => 'Toko Oranye', 'warehouse_id' => $this->warehouse->id, 'status' => 'connected']);
+        $a = $this->listOrder('SO-EXA', ['channel_name' => 'Toko Oranye', 'shopee_shop_id' => $shop->id, 'tracking_number' => '0012345', 'customer_phone' => '08123', 'shipping_fee' => 10000, 'ordered_at' => now()->setTime(9, 30)]);
+        $a->items()->create(['product_variant_id' => $this->variant->id, 'qty' => 2, 'price' => 50000]);
+        $b = $this->listOrder('SO-EXB', ['channel_name' => 'Toko Oranye', 'shopee_shop_id' => $shop->id]);
+        $b->items()->create(['product_variant_id' => $this->other->id, 'qty' => 1, 'price' => 70000]);
+        $this->listOrder('SO-EXC', ['channel_name' => 'Offline', 'status' => 'draft']);
+
+        // Filter platform: hanya pesanan Shopee, lengkap dengan sheet Item dan Info.
+        $sheets = $this->exportedSheets(['platform' => 'shopee']);
+        $this->assertSame(['Pesanan', 'Item', 'Info'], array_keys($sheets));
+        $header = $sheets['Pesanan'][0];
+        $numbers = array_column(array_slice($sheets['Pesanan'], 1), 0);
+        $this->assertEqualsCanonicalizing(['SO-EXA', 'SO-EXB'], $numbers);
+
+        $rowA = collect($sheets['Pesanan'])->firstWhere(0, 'SO-EXA');
+        $col = fn (string $label) => $rowA[array_search($label, $header, true)];
+        // Tanggal & angka tersimpan sebagai nilai asli, nomor resi / HP tetap teks (nol di depan tidak hilang).
+        $this->assertInstanceOf(\DateTimeInterface::class, $col('Tanggal'));
+        $this->assertSame('09:30', $col('Waktu Pesanan')->format('H:i'));
+        $this->assertSame('0012345', $col('No. Resi'));
+        $this->assertSame('08123', $col('Telepon'));
+        $this->assertEquals(110000, $col('Total'));
+        $this->assertSame('KAOS-M x2', $col('SKU (Qty)'));
+
+        $items = collect(array_slice($sheets['Item'], 1));
+        $this->assertSame(['KAOS-M', 'KAOS-L'], $items->sortBy(0)->pluck(8)->values()->all());
+        $this->assertContains(['Platform', 'Shopee'], $sheets['Info']);
+
+        // Tab status + pencarian ikut terbawa.
+        $this->assertSame(['SO-EXC'], array_column(array_slice($this->exportedSheets(['status' => 'draft'])['Pesanan'], 1), 0));
+        $this->assertSame(['SO-EXB'], array_column(array_slice($this->exportedSheets(['search_by' => 'sku', 'search' => 'KAOS-L'])['Pesanan'], 1), 0));
+
+        // Hanya pesanan yang dicentang, tetap dibatasi filter yang aktif.
+        $selected = $this->exportedSheets(['platform' => 'shopee', 'ids' => "{$a->id},999999"]);
+        $this->assertSame(['SO-EXA'], array_column(array_slice($selected['Pesanan'], 1), 0));
+        $this->assertContains(['Isi', 'Pesanan yang dipilih'], $selected['Info']);
+        $this->assertSame([], array_column(array_slice($this->exportedSheets(['status' => 'draft', 'ids' => $a->id])['Pesanan'], 1), 0));
+    }
+
+    public function test_order_export_needs_view_permission(): void
+    {
+        $staff = User::factory()->create();
+        $this->actingAs($staff)->get(route('sales.orders.index', ['export' => 'xlsx']))->assertForbidden();
     }
 }
