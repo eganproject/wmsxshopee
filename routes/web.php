@@ -91,7 +91,8 @@ Route::middleware(['auth', 'active'])->group(function () {
     Route::post('logout', [LoginController::class, 'destroy'])->name('logout');
 
     Route::get('dashboard', DashboardController::class)->name('dashboard');
-    Route::get('notifications', NotificationController::class)->name('notifications.index');
+    Route::get('notifications', [NotificationController::class, 'index'])->name('notifications.index');
+    Route::post('notifications/read', [NotificationController::class, 'read'])->middleware('throttle:60,1')->name('notifications.read');
     Route::get('settings', SettingsController::class)->name('settings');
 
     // Pencarian global (Ctrl+K). Tiap grup dicek hak lihatnya di App\Support\GlobalSearch.

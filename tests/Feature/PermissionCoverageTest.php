@@ -32,7 +32,7 @@ class PermissionCoverageTest extends TestCase
      * atau dicek per jenis di controller (mutasi stok: inventory.create / inventory.adjust).
      */
     private const OPEN_ROUTES = [
-        'logout', 'dashboard', 'notifications.index', 'settings', 'search',
+        'logout', 'dashboard', 'notifications.index', 'notifications.read', 'settings', 'search',
         'profile.edit', 'profile.update', 'profile.password',
         'inventory.movements.create', 'inventory.movements.store',
         'shopee.settings.edit', 'shopee.shops.index', 'shopee.products.index',
