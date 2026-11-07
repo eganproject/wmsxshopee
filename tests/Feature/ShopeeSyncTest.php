@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Jobs\RunMarketplaceTask;
 use App\Models\ActivityLog;
 use App\Models\Bundle;
 use App\Models\Courier;
@@ -28,12 +29,14 @@ use App\Services\Shopee\ShopeeStockSync;
 use App\Services\Shopee\ShopeeSync;
 use App\Services\StockService;
 use App\Services\WarehouseSupply;
+use App\Support\BackgroundTasks;
 use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Factory;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Queue;
 use OpenSpout\Reader\XLSX\Reader;
 use Tests\TestCase;
 
@@ -1057,6 +1060,34 @@ class ShopeeSyncTest extends TestCase
         Http::assertSent(fn ($r) => count($r['stock_list']) === 10);
     }
 
+    public function test_sync_buttons_run_in_queue_and_report_back(): void
+    {
+        $this->actingAs(User::where('username', 'superadmin')->first());
+        Queue::fake();
+
+        // Tombol tidak menunggu API Shopee (504 di nginx), cukup masuk antrean.
+        $this->post("/shopee/shops/{$this->shop->id}/sync")->assertSessionHas('success', fn ($m) => str_contains($m, 'latar belakang'));
+        $this->post("/shopee/shops/{$this->shop->id}/mappings/pull")->assertSessionHas('success');
+        Queue::assertPushed(RunMarketplaceTask::class, 2);
+        Http::assertNothingSent();
+
+        // Tombol yang sama ditekan lagi sebelum selesai: tidak dobel.
+        $this->post("/shopee/shops/{$this->shop->id}/sync")->assertSessionHas('warning');
+        Queue::assertPushed(RunMarketplaceTask::class, 2);
+
+        // Selama berjalan, halaman menampilkan pil status dan endpoint melaporkannya.
+        $this->get('/dashboard')->assertOk()->assertSee('Sinkron berjalan', false);
+        $this->getJson('/marketplace/background-tasks')->assertOk()->assertJsonCount(2, 'running')->assertJsonCount(0, 'finished');
+
+        // Job selesai / mati di tengah jalan: hasilnya dilaporkan sekali, lalu boleh ditekan lagi.
+        BackgroundTasks::finish(auth()->id(), RunMarketplaceTask::key('orders', 'shopee', $this->shop->id), true, 'Pesanan: 1 baru.');
+        (new RunMarketplaceTask('pull', 'shopee', $this->shop->id, auth()->id()))->failed(null);
+        $this->getJson('/marketplace/background-tasks')->assertOk()->assertJsonCount(0, 'running')
+            ->assertJsonPath('finished.0.type', 'success')->assertJsonPath('finished.1.type', 'error');
+        $this->getJson('/marketplace/background-tasks')->assertJsonCount(0, 'finished');
+        $this->post("/shopee/shops/{$this->shop->id}/sync")->assertSessionHas('success');
+    }
+
     public function test_sync_button_and_order_page(): void
     {
         $this->actingAs(User::where('username', 'superadmin')->first());
@@ -1189,7 +1220,8 @@ class ShopeeSyncTest extends TestCase
         // (diganti variasi baru 103), item 22 (paket) dihapus.
         $this->fakeCatalog([11 => [101 => 'POD2', 103 => 'KAOS-L']]);
 
-        $this->post('/marketplace/sync-products')->assertSessionHas('success', fn ($m) => str_contains($m, '2 SKU sudah tidak ada di toko'));
+        $this->post('/marketplace/sync-products')->assertSessionHas('success');
+        $this->assertStringContainsString('2 SKU sudah tidak ada di toko', $this->backgroundResult());
 
         $rows = $this->shop->mappings()->get()->keyBy('model_id');
         $this->assertSame([$pod2->id, 'auto', 'POD2'], [$rows[101]->product_variant_id, $rows[101]->match_type, $rows[101]->shopee_sku]);

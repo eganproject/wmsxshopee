@@ -4,11 +4,10 @@ namespace App\Http\Controllers\Tiktok;
 
 use App\Http\Controllers\Concerns\ResolvesSkuTarget;
 use App\Http\Controllers\Controller;
+use App\Jobs\RunMarketplaceTask;
 use App\Models\TiktokShop;
 use App\Models\TiktokSkuMapping;
-use App\Services\MarketplaceProductSync;
 use App\Services\Tiktok\TiktokCatalog;
-use App\Services\Tiktok\TiktokException;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -97,14 +96,15 @@ class TiktokSkuMappingController extends Controller
     }
 
     /** Tarik daftar produk & SKU dari TikTok lalu cocokkan otomatis. */
-    public function pull(TiktokShop $shop, TiktokCatalog $catalog): RedirectResponse
+    public function pull(Request $request, TiktokShop $shop): RedirectResponse
     {
-        try {
-            $result = $catalog->pull($shop);
-        } catch (TiktokException $e) {
-            return back()->with('error', 'Gagal menarik produk dari TikTok. '.$e->getMessage());
+        if (! $shop->isConnected()) {
+            return back()->with('error', 'Toko perlu diotorisasi ulang sebelum produk bisa ditarik.');
         }
 
-        return back()->with('success', "{$result['products']} produk ({$result['rows']} baris SKU) ditarik dari TikTok".($result['inactive'] ? " ({$result['inactive']} belum aktif)" : '').", {$result['matched']} cocok otomatis".MarketplaceProductSync::removedNote($result).'.'.$this->relinkOrders());
+        // Lewat antrean: toko dengan ribuan SKU bisa lebih lama dari batas waktu nginx (504).
+        return RunMarketplaceTask::start('pull', 'tiktok', $shop, $request->user()->id)
+            ? back()->with('success', RunMarketplaceTask::queuedMessage())
+            : back()->with('warning', RunMarketplaceTask::busyMessage());
     }
 }
