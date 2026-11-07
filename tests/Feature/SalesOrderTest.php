@@ -617,6 +617,14 @@ class SalesOrderTest extends TestCase
         return $sheets;
     }
 
+    /** Nomor SO di sheet Pesanan, tanpa baris judul dan baris Total. */
+    private function exportedNumbers(array $query): array
+    {
+        $rows = $this->exportedSheets($query)['Pesanan'];
+
+        return array_values(array_filter(array_column(array_slice($rows, 1), 0), fn ($value) => $value !== 'Total'));
+    }
+
     public function test_order_export_follows_filters_and_selection_with_item_sheet(): void
     {
         $shop = ShopeeShop::create(['environment' => 'test', 'shop_id' => 779, 'shop_name' => 'Toko Oranye', 'warehouse_id' => $this->warehouse->id, 'status' => 'connected']);
@@ -628,9 +636,12 @@ class SalesOrderTest extends TestCase
 
         // Filter platform: hanya pesanan Shopee, lengkap dengan sheet Item dan Info.
         $sheets = $this->exportedSheets(['platform' => 'shopee']);
-        $this->assertSame(['Pesanan', 'Item', 'Info'], array_keys($sheets));
+        $this->assertSame(['Pesanan', 'Item', 'Rekap SKU', 'Info'], array_keys($sheets));
+        // Baris terakhir tiap tabel = Total dengan rumus SUBTOTAL, ikut filter Excel.
+        $this->assertSame('Total', end($sheets['Pesanan'])[0]);
+        $this->assertSame(['KAOS-L', 'Kaos Polos / L', 1, 1], $sheets['Rekap SKU'][1]);
         $header = $sheets['Pesanan'][0];
-        $numbers = array_column(array_slice($sheets['Pesanan'], 1), 0);
+        $numbers = $this->exportedNumbers(['platform' => 'shopee']);
         $this->assertEqualsCanonicalizing(['SO-EXA', 'SO-EXB'], $numbers);
 
         $rowA = collect($sheets['Pesanan'])->firstWhere(0, 'SO-EXA');
@@ -642,20 +653,21 @@ class SalesOrderTest extends TestCase
         $this->assertSame('08123', $col('Telepon'));
         $this->assertEquals(110000, $col('Total'));
         $this->assertSame('KAOS-M x2', $col('SKU (Qty)'));
+        $this->assertSame('Belum', $col('Cetak Resi'));
 
-        $items = collect(array_slice($sheets['Item'], 1));
+        $items = collect(array_slice($sheets['Item'], 1, -1));
         $this->assertSame(['KAOS-M', 'KAOS-L'], $items->sortBy(0)->pluck(8)->values()->all());
         $this->assertContains(['Platform', 'Shopee'], $sheets['Info']);
 
         // Tab status + pencarian ikut terbawa.
-        $this->assertSame(['SO-EXC'], array_column(array_slice($this->exportedSheets(['status' => 'draft'])['Pesanan'], 1), 0));
-        $this->assertSame(['SO-EXB'], array_column(array_slice($this->exportedSheets(['search_by' => 'sku', 'search' => 'KAOS-L'])['Pesanan'], 1), 0));
+        $this->assertSame(['SO-EXC'], $this->exportedNumbers(['status' => 'draft']));
+        $this->assertSame(['SO-EXB'], $this->exportedNumbers(['search_by' => 'sku', 'search' => 'KAOS-L']));
 
         // Hanya pesanan yang dicentang, tetap dibatasi filter yang aktif.
         $selected = $this->exportedSheets(['platform' => 'shopee', 'ids' => "{$a->id},999999"]);
-        $this->assertSame(['SO-EXA'], array_column(array_slice($selected['Pesanan'], 1), 0));
+        $this->assertSame(['SO-EXA'], $this->exportedNumbers(['platform' => 'shopee', 'ids' => "{$a->id},999999"]));
         $this->assertContains(['Isi', 'Pesanan yang dipilih'], $selected['Info']);
-        $this->assertSame([], array_column(array_slice($this->exportedSheets(['status' => 'draft', 'ids' => $a->id])['Pesanan'], 1), 0));
+        $this->assertSame([], $this->exportedNumbers(['status' => 'draft', 'ids' => $a->id]));
     }
 
     public function test_order_export_needs_view_permission(): void

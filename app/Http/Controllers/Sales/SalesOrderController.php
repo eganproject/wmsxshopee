@@ -7,6 +7,7 @@ use App\Models\Bundle;
 use App\Models\Courier;
 use App\Models\ProductVariant;
 use App\Models\SalesOrder;
+use App\Models\SalesOrderItem;
 use App\Models\SavedFilter;
 use App\Models\Warehouse;
 use App\Models\WarehouseLocation;
@@ -19,6 +20,7 @@ use App\Services\SalesOrderService;
 use App\Services\WarehouseSupply;
 use App\Support\Activity;
 use App\Support\ShopeeIncome;
+use App\Support\XlsxCell;
 use App\Support\XlsxExport;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
@@ -502,6 +504,8 @@ class SalesOrderController extends Controller
         $ids = $this->exportIds($request);
         $query->when($ids !== [], fn ($q) => $q->whereIn('sales_orders.id', $ids))
             ->with(['items.variant.product', 'items.bundleLine.bundle', 'bundles.bundle']);
+        // Id pesanan yang diekspor, untuk rekap SKU & ringkasan tanpa memuat ulang semua baris.
+        $orderIds = fn () => (clone $query)->reorder()->setEagerLoads([])->select('sales_orders.id');
 
         // Kolom pendapatan Shopee hanya untuk user dengan hak sales.income.
         $income = $request->user()->can('sales.income');
@@ -510,37 +514,58 @@ class SalesOrderController extends Controller
 
         $orders = (clone $query)->lazy(500)->map(fn (SalesOrder $o) => [
             $o->number, $o->external_number, $o->order_date, $o->createdTime(),
-            $o->statusLabel(), $o->marketplaceStatusLabel(), $o->marketplaceRawStatus(),
+            XlsxCell::tone($o->statusLabel(), SalesOrder::STATUSES[$o->status]['color'] ?? null),
+            XlsxCell::tone($o->marketplaceStatusLabel(), SalesOrder::MARKETPLACE_STATUSES[$o->marketplaceStatus()]['color'] ?? null),
+            $o->marketplaceRawStatus(),
             $platforms[$o->marketplacePlatform()] ?? 'Manual', $o->channel_name,
             $o->customer_name, $o->customer_phone, $o->shipping_address,
             $o->deliveryTypeLabel(), $o->shippingMethodLabel(), $o->warehouse?->code, $o->courier?->name, $o->courier_service, $o->tracking_number,
             $o->shopee_ship_by ?? $o->tiktok_ship_by, $o->shipped_at,
-            $o->shipping_label_printed_at, $o->shipping_label_print_count ?: null,
+            $o->shipping_label_printed_at
+                ? new XlsxCell('Sudah'.($o->shipping_label_print_count > 1 ? " ({$o->shipping_label_print_count}x)" : ''), '047857')
+                : new XlsxCell('Belum', 'B45309'),
+            $o->shipping_label_printed_at,
             $o->bundles->toBase()->map(fn ($line) => ($line->bundle?->sku ?? '-').' x'.$line->qty)
                 ->merge($o->items->whereNull('sales_order_bundle_id')->map(fn ($item) => ($item->variant?->sku ?? '-').' x'.$item->qty))
                 ->implode(', '),
             (int) $o->items_sum_qty, $o->subtotal(), (float) $o->discount, (float) $o->shipping_fee, $o->grandTotal(),
-            $o->paymentMethodLabel(), $o->paymentStatusLabel(),
+            $o->paymentMethodLabel(),
+            XlsxCell::tone($o->paymentStatusLabel(), SalesOrder::PAYMENT_STATUSES[$o->payment_status]['color'] ?? null),
             ...($income ? [$o->shopee_income ? ShopeeIncome::fees($o->shopee_income) : null, $o->shopee_escrow_amount !== null ? (float) $o->shopee_escrow_amount : null] : []),
             $o->notes,
         ]);
 
         // Satu baris per SKU: barang biasa, paket, lalu isi paketnya (harga isi paket 0, harga ada di baris paket).
         $items = (clone $query)->lazy(200)->flatMap(function (SalesOrder $o) {
-            $head = fn () => [$o->number, $o->external_number, $o->order_date, $o->statusLabel(), $o->channel_name, $o->warehouse?->code, $o->tracking_number];
+            $head = fn () => [$o->number, $o->external_number, $o->order_date, XlsxCell::tone($o->statusLabel(), SalesOrder::STATUSES[$o->status]['color'] ?? null), $o->channel_name, $o->warehouse?->code, $o->tracking_number];
             $rows = [];
             foreach ($o->items->whereNull('sales_order_bundle_id') as $item) {
                 $rows[] = [...$head(), 'Barang', $item->variant?->sku, $item->variant?->fullName(), null, $item->qty, (float) $item->price, $item->qty * (float) $item->price, $item->notes];
             }
             foreach ($o->bundles as $line) {
-                $rows[] = [...$head(), 'Paket', $line->bundle?->sku, $line->bundle?->name, null, $line->qty, (float) $line->price, $line->qty * (float) $line->price, $line->notes];
+                $rows[] = [...$head(), new XlsxCell('Paket', '6D28D9', null, true), $line->bundle?->sku, $line->bundle?->name, null, $line->qty, (float) $line->price, $line->qty * (float) $line->price, $line->notes];
                 foreach ($o->items->where('sales_order_bundle_id', $line->id) as $item) {
-                    $rows[] = [...$head(), 'Isi paket', $item->variant?->sku, $item->variant?->fullName(), $line->bundle?->sku, $item->qty, 0.0, 0.0, $item->notes];
+                    $rows[] = [...$head(), new XlsxCell('Isi paket', '64748B'), $item->variant?->sku, $item->variant?->fullName(), $line->bundle?->sku, $item->qty, 0.0, 0.0, $item->notes];
                 }
             }
 
             return $rows;
         });
+
+        // Rekap barang fisik yang perlu diambil dari rak: barang biasa + isi paket, dijumlah per SKU.
+        $recap = SalesOrderItem::query()
+            ->whereIn('sales_order_id', $orderIds())
+            ->groupBy('product_variant_id')
+            ->selectRaw('product_variant_id, SUM(qty) as qty, COUNT(DISTINCT sales_order_id) as orders')
+            ->with('variant.product')
+            ->get()
+            ->sortBy(fn ($row) => $row->variant?->sku)
+            ->map(fn ($row) => [$row->variant?->sku, $row->variant?->fullName(), (int) $row->orders, (int) $row->qty]);
+
+        // Ringkasan untuk sheet Info: jumlah per status gudang & per toko.
+        $byStatus = SalesOrder::whereIn('id', $orderIds())->toBase()->groupBy('status')->selectRaw('status, COUNT(*) as total')->pluck('total', 'status');
+        $byShop = SalesOrder::whereIn('id', $orderIds())->toBase()->groupBy('channel_name')->selectRaw('channel_name, COUNT(*) as total')
+            ->orderByDesc('total')->pluck('total', 'channel_name');
 
         $money = fn (string $label) => [$label, 'money'];
 
@@ -549,16 +574,26 @@ class SalesOrderController extends Controller
                 'name' => 'Pesanan',
                 'header' => ['No. SO', 'No. Referensi', ['Tanggal', 'date'], ['Waktu Pesanan', 'datetime'], 'Status Gudang', 'Status Marketplace', 'Kode Status Marketplace',
                     'Platform', 'Saluran / Toko', 'Pembeli', ['Telepon', 'text'], 'Alamat', 'Pengiriman', 'Metode Kirim', 'Gudang', 'Kurir', 'Layanan', ['No. Resi', 'text'],
-                    ['Batas Kirim', 'datetime'], ['Tanggal Dikirim', 'datetime'], ['Resi Dicetak', 'datetime'], ['Jumlah Cetak', 'number'],
+                    ['Batas Kirim', 'datetime'], ['Tanggal Dikirim', 'datetime'], 'Cetak Resi', ['Waktu Cetak Resi', 'datetime'],
                     'SKU (Qty)', ['Total Qty', 'number'], $money('Subtotal'), $money('Diskon'), $money('Ongkir'), $money('Total'), 'Metode Bayar', 'Status Bayar',
                     ...($income ? [$money('Biaya Shopee'), $money('Dana Diterima Shopee')] : []), 'Catatan'],
                 'rows' => $orders,
+                'totals' => ['Total Qty', 'Subtotal', 'Diskon', 'Ongkir', 'Total', 'Biaya Shopee', 'Dana Diterima Shopee'],
+                'freeze' => 'B',
             ],
             [
                 'name' => 'Item',
                 'header' => ['No. SO', 'No. Referensi', ['Tanggal', 'date'], 'Status Gudang', 'Saluran / Toko', 'Gudang', ['No. Resi', 'text'],
                     'Jenis', ['SKU', 'text'], 'Nama Barang', ['Dari Paket', 'text'], ['Qty', 'number'], $money('Harga'), $money('Subtotal'), 'Catatan'],
                 'rows' => $items,
+                'totals' => ['Qty', 'Subtotal'],
+                'freeze' => 'B',
+            ],
+            [
+                'name' => 'Rekap SKU',
+                'header' => [['SKU', 'text'], 'Nama Barang', ['Jumlah Pesanan', 'number'], ['Total Qty', 'number']],
+                'rows' => $recap,
+                'totals' => ['Total Qty'],
             ],
             [
                 'name' => 'Info',
@@ -572,6 +607,17 @@ class SalesOrderController extends Controller
                     [''],
                     ['Filter yang dipakai'],
                     ...($this->exportFilters($request) ?: [['Filter', 'Tanpa filter']]),
+                    [''],
+                    ['Jumlah per status gudang'],
+                    ...collect(SalesOrder::STATUSES)->filter(fn ($meta, $key) => isset($byStatus[$key]))->map(fn ($meta, $key) => [$meta['label'], (int) $byStatus[$key]])->values(),
+                    [''],
+                    ['Jumlah per toko'],
+                    ...$byShop->map(fn ($count, $shop) => [$shop ?: 'Tanpa toko', (int) $count])->values(),
+                    [''],
+                    ['Petunjuk'],
+                    ['Pesanan', '1 baris per pesanan. Baris Total di paling bawah ikut berubah saat kolom difilter.'],
+                    ['Item', '1 baris per SKU: barang, paket, dan isi paket (harga isi paket 0, harga ada di baris paket).'],
+                    ['Rekap SKU', 'Total barang fisik per SKU (barang biasa + isi paket) untuk persiapan ambil barang.'],
                 ],
             ],
         ]);

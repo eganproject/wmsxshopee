@@ -57,8 +57,10 @@ class XlsxExport
 
     /**
      * Beberapa sheet sekaligus. Sheet bertipe "info" berisi pasangan label → nilai (tanpa baris judul berwarna).
+     * Pilihan sheet tabel: "totals" = judul kolom yang dijumlah di baris Total paling bawah (ikut filter Excel),
+     * "freeze" = huruf kolom pertama yang ikut digulir, misalnya "B" supaya kolom A (nomor) tetap terlihat.
      *
-     * @param  list<array{name: string, header?: array<int, string|array{0: string, 1: string}>, rows: iterable<array<int, mixed>>, type?: string}>  $sheets
+     * @param  list<array{name: string, header?: array<int, string|array{0: string, 1: string}>, rows: iterable<array<int, mixed>>, type?: string, totals?: list<string>, freeze?: string}>  $sheets
      */
     public static function workbook(string $filename, array $sheets): BinaryFileResponse
     {
@@ -73,7 +75,7 @@ class XlsxExport
 
             ($sheet['type'] ?? 'table') === 'info'
                 ? self::writeInfo($writer, $current, $sheet['rows'])
-                : self::writeTable($writer, $current, $sheet['header'] ?? [], $sheet['rows']);
+                : self::writeTable($writer, $current, $sheet['header'] ?? [], $sheet['rows'], $sheet['totals'] ?? [], $sheet['freeze'] ?? null);
         }
 
         // Buka file di sheet pertama.
@@ -86,8 +88,9 @@ class XlsxExport
     /**
      * @param  array<int, string|array{0: string, 1: string}>  $header
      * @param  iterable<array<int, mixed>>  $rows
+     * @param  list<string>  $totals
      */
-    private static function writeTable(Writer $writer, Sheet $sheet, array $header, iterable $rows): void
+    private static function writeTable(Writer $writer, Sheet $sheet, array $header, iterable $rows, array $totals = [], ?string $freeze = null): void
     {
         $labels = array_map(fn ($column) => is_array($column) ? $column[0] : $column, array_values($header));
         $forced = array_map(fn ($column) => is_array($column) ? ($column[1] ?? null) : null, array_values($header));
@@ -107,12 +110,30 @@ class XlsxExport
             $count++;
         }
 
+        // Baris Total di luar area filter: SUBTOTAL(109) hanya menjumlah baris yang terlihat setelah difilter.
+        if ($totals !== [] && $count > 0) {
+            $style = (new Style)->withFontBold(true)->withBackgroundColor('F1F5F9')
+                ->withBorder(new Border(new BorderPart(BorderName::TOP, '334155', BorderWidth::MEDIUM), new BorderPart(BorderName::BOTTOM, 'CBD5E1', BorderWidth::THIN)));
+            $cells = [];
+            foreach ($labels as $column => $label) {
+                $letter = self::columnLetter($column);
+                $cells[] = match (true) {
+                    in_array($label, $totals, true) => new Cell\FormulaCell("=SUBTOTAL(109,{$letter}2:{$letter}".($count + 1).')', null,
+                        $style->withFormat(self::FORMATS[($forced[$column] ?? null) === 'decimal' ? 'decimal' : 'number'])->withCellAlignment(CellAlignment::RIGHT)),
+                    $column === 0 => Cell::fromValue('Total', $style),
+                    default => Cell::fromValue(null, $style),
+                };
+            }
+            $writer->addRow(new Row($cells, 20));
+        }
+
         foreach ($widths as $column => $width) {
             $sheet->setColumnWidth(max(self::MIN_WIDTH, min(self::MAX_WIDTH, $width)), $column + 1);
         }
 
-        // Baris judul tetap terlihat saat digulir, dan tiap kolom bisa difilter / diurutkan di Excel.
-        $sheet->setSheetView((new SheetView)->withFreezeRow(2));
+        // Baris judul (dan kolom pertama bila diminta) tetap terlihat saat digulir; tiap kolom bisa difilter / diurutkan di Excel.
+        $view = (new SheetView)->withFreezeRow(2);
+        $sheet->setSheetView($freeze ? $view->withFreezeColumn($freeze) : $view);
         if ($labels !== []) {
             $sheet->setAutoFilter(new AutoFilter(0, 1, count($labels) - 1, $count + 1));
         }
@@ -145,6 +166,15 @@ class XlsxExport
     /** @return array{0: Cell, 1: int} Sel beserta perkiraan lebar tampilannya. */
     private static function cell(mixed $value, ?string $format): array
     {
+        if ($value instanceof XlsxCell) {
+            [$cell, $length] = self::cell($value->value, $format);
+            $style = self::cellStyle($cell->getValue(), $format);
+            $style = $value->color ? $style->withFontColor($value->color) : $style;
+            $style = $value->fill ? $style->withBackgroundColor($value->fill) : $style;
+
+            return [$cell->withStyle($value->bold ? $style->withFontBold(true) : $style), $length];
+        }
+
         if ($value instanceof \BackedEnum) {
             $value = $value->value;
         } elseif ($value instanceof \Stringable && ! $value instanceof DateTimeInterface) {
@@ -214,6 +244,17 @@ class XlsxExport
     private static function hasFraction(int|float $value, ?string $format): bool
     {
         return $format === 'decimal' || ($format !== 'number' && $format !== 'money' && is_float($value) && floor($value) != $value);
+    }
+
+    /** 0 → A, 25 → Z, 26 → AA. */
+    private static function columnLetter(int $index): string
+    {
+        $letter = '';
+        for ($index++; $index > 0; $index = intdiv($index - 1, 26)) {
+            $letter = chr(65 + ($index - 1) % 26).$letter;
+        }
+
+        return $letter;
     }
 
     /** Nama sheet Excel maks. 31 karakter dan tanpa \ / ? * [ ] : */
