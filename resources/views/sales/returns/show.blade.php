@@ -170,7 +170,7 @@
                                 @endif
                             </td>
                             <td class="px-4 py-2.5 font-mono font-medium text-slate-900">{{ $item->variant->sku }}</td>
-                            <td class="px-4 py-2.5">
+                            <td class="cell-wrap px-4 py-2.5">
                                 <p class="font-medium text-slate-900">{{ $item->variant->product->name }}</p>
                                 @if ($item->variant->name)
                                     <p class="text-xs text-slate-500">{{ $item->variant->name }}</p>
@@ -193,7 +193,7 @@
                                 {{ $item->qty_good ? ($item->location?->code ?? 'Tanpa bin') : '—' }}
                             </td>
                             <td class="px-4 py-2.5 text-slate-700">{{ $item->reasonLabel() }}</td>
-                            <td class="px-4 py-2.5 text-slate-600">{{ $item->notes ?? '—' }}</td>
+                            <td class="cell-wrap px-4 py-2.5 text-slate-600">{{ $item->notes ?? '—' }}</td>
                         </tr>
                     @endforeach
                 </tbody>

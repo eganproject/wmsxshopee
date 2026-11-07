@@ -97,7 +97,7 @@
                                     <span class="inline-flex items-center rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700">Tanpa pesanan</span>
                                 @endif
                             </td>
-                            <td class="px-4 py-2.5 text-slate-700">{{ $return->sender_name }}</td>
+                            <td class="cell-wrap px-4 py-2.5 text-slate-700">{{ $return->sender_name }}</td>
                             <td class="px-4 py-2.5 font-mono text-xs text-slate-600">{{ $return->tracking_number ?? '—' }}</td>
                             <td class="px-4 py-2.5 text-slate-600">{{ $return->warehouse->code }}</td>
                             <td class="px-4 py-2.5 text-right tabular-nums text-slate-700">{{ number_format((int) $return->items_sum_qty_good, 0, ',', '.') }}</td>

@@ -98,7 +98,7 @@
                                 @endif
                             </td>
                             <td class="px-4 py-2.5 font-mono font-medium text-slate-900">{{ $row->variant?->sku }}</td>
-                            <td class="px-4 py-2.5">
+                            <td class="cell-wrap px-4 py-2.5">
                                 <p class="text-slate-900">{{ $row->variant?->product?->name }}</p>
                                 @if ($row->variant?->name)
                                     <p class="text-xs text-slate-500">{{ $row->variant->name }}</p>

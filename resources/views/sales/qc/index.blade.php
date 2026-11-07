@@ -45,7 +45,7 @@
                             <td class="px-4 py-2.5 font-mono font-medium text-slate-900">{{ $order->number }}
                                 @if ($order->external_number)<p class="text-xs font-normal text-slate-500">{{ $order->external_number }}</p>@endif
                             </td>
-                            <td class="px-4 py-2.5 text-slate-700">{{ $order->customer_name }}</td>
+                            <td class="cell-wrap px-4 py-2.5 text-slate-700">{{ $order->customer_name }}</td>
                             <td class="px-4 py-2.5">
                                 <p class="text-slate-700">{{ $order->courier?->name ?? '—' }}</p>
                                 <p class="font-mono text-xs text-slate-500">{{ $order->tracking_number ?? 'Belum ada resi' }}</p>

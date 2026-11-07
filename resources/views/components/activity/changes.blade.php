@@ -51,10 +51,10 @@
                         @endunless
                     @else
                         @unless ($isCreate)
-                            <td @class(['px-3 py-1.5 break-words whitespace-pre-line', 'text-rose-600' => ! $isDelete, 'text-slate-700' => $isDelete])>{{ $format($change['old']) }}</td>
+                            <td @class(['cell-wrap px-3 py-1.5 whitespace-pre-line', 'text-rose-600' => ! $isDelete, 'text-slate-700' => $isDelete])>{{ $format($change['old']) }}</td>
                         @endunless
                         @unless ($isDelete)
-                            <td @class(['px-3 py-1.5 break-words whitespace-pre-line', 'text-emerald-700' => ! $isCreate, 'text-slate-700' => $isCreate])>{{ $format($change['new']) }}</td>
+                            <td @class(['cell-wrap px-3 py-1.5 whitespace-pre-line', 'text-emerald-700' => ! $isCreate, 'text-slate-700' => $isCreate])>{{ $format($change['new']) }}</td>
                         @endunless
                     @endif
                 </tr>

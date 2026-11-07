@@ -65,7 +65,7 @@
                                 <p class="font-medium text-slate-900">{{ $zone->name }}</p>
                                 <p class="font-mono text-xs text-slate-500">{{ $zone->code }}</p>
                             </td>
-                            <td class="px-4 py-2.5 text-slate-600">{{ $zone->warehouse->code }} · {{ $zone->warehouse->name }}</td>
+                            <td class="cell-wrap px-4 py-2.5 text-slate-600">{{ $zone->warehouse->code }} · {{ $zone->warehouse->name }}</td>
                             <td class="px-4 py-2.5">
                                 <span class="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-700">{{ $zone->typeLabel() }}</span>
                             </td>

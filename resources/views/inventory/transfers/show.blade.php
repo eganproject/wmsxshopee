@@ -99,7 +99,7 @@
                     @foreach ($transfer->items as $item)
                         <tr class="align-top">
                             <td class="px-5 py-3 font-mono font-medium text-slate-900">{{ $item->variant->sku }}</td>
-                            <td class="px-5 py-3">
+                            <td class="cell-wrap px-5 py-3">
                                 <p class="font-medium text-slate-900">{{ $item->variant->product->name }}</p>
                                 <p class="text-xs text-slate-500">{{ $item->variant->name }}{{ $item->notes ? ' · '.$item->notes : '' }}</p>
                             </td>
