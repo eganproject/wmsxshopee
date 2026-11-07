@@ -8,7 +8,11 @@
     </x-slot:breadcrumb>
 
     <x-page-header title="Pesanan" description="Pesanan manual, Shopee dan TikTok. Konfirmasi untuk mencadangkan stok, lalu atur pengiriman, picking, kemas dan kirim." icon="heroicon-o-shopping-cart">
-        <x-reports.export-button />
+        {{-- Ekspor mengikuti tab, pencarian, filter & urutan yang sedang dipakai. --}}
+        <a href="{{ request()->fullUrlWithQuery(['export' => 'xlsx', 'page' => null, 'ids' => null]) }}" class="btn-secondary" data-no-loading
+           data-hint-title="Ekspor Excel" data-hint="Mengunduh {{ number_format($orders->total(), 0, ',', '.') }} pesanan sesuai tab, pencarian dan filter yang sedang dipakai. Isi file: sheet Pesanan, sheet Item (per SKU) dan sheet Info (filter yang dipakai). Centang pesanan untuk mengekspor yang dipilih saja.">
+            <x-heroicon-o-arrow-down-tray class="size-5" /> Ekspor Excel <span class="text-slate-500">({{ number_format($orders->total(), 0, ',', '.') }})</span>
+        </a>
         @can('sales.create')
             <a href="{{ route('sales.orders.import') }}" class="btn-secondary">
                 <x-heroicon-o-arrow-up-tray class="size-5" /> Impor Excel / CSV
@@ -369,7 +373,10 @@
                                 <template x-for="id in ids('pick')" :key="id"><input type="hidden" name="orders[]" :value="id"></template>
                                 <button type="submit" class="btn-secondary"><x-heroicon-o-hand-raised class="size-5" /> Tandai Sedang Diambil <span class="text-slate-500" x-text="'(' + count('pick') + ')'"></span></button>
                             </form>
-                            <p class="text-xs text-slate-500" x-show="! count('arrange') && ! count('label') && ! count('pick')">Tidak ada aksi untuk pesanan terpilih.</p>
+                            <a :href="@js(request()->fullUrlWithQuery(['export' => 'xlsx', 'page' => null, 'ids' => null])) + '&ids=' + selected.join(',')" class="btn-secondary" data-no-loading
+                               title="Unduh Excel untuk pesanan yang dicentang saja">
+                                <x-heroicon-o-arrow-down-tray class="size-5" /> Ekspor Excel <span class="text-slate-500" x-text="'(' + selected.length + ')'"></span>
+                            </a>
                         </div>
                         <button type="button" class="btn-secondary ml-auto" title="Batal pilih (Esc)" @click="selected = []"><x-heroicon-o-x-mark class="size-5" /> Batal</button>
                     </div>
