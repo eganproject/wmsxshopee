@@ -308,6 +308,7 @@ Route::middleware(['auth', 'active'])->group(function () {
         Route::get('products', MarketplaceProductStatusController::class)->middleware('can:marketplace.view')->name('products');
         Route::post('sync-products', [MarketplaceController::class, 'syncProducts'])->middleware('can:marketplace.view')->name('sync-products');
         Route::post('sync-all', [MarketplaceController::class, 'syncAll'])->middleware('can:marketplace.view')->name('sync-all');
+        Route::get('background-tasks', [MarketplaceController::class, 'backgroundTasks'])->middleware('can:marketplace.view')->name('background-tasks');
         Route::post('shops/{platform}/{shop}/sync-all', [MarketplaceController::class, 'syncShop'])->whereIn('platform', ['shopee', 'tiktok'])->whereNumber('shop')->middleware('can:marketplace.view')->name('shops.sync-all');
         Route::get('sync-logs', [MarketplaceSyncLogController::class, 'index'])->middleware('can:marketplace.view')->name('sync-logs');
         Route::post('sync-logs/retry-stock', [MarketplaceSyncLogController::class, 'retryStock'])->middleware('can:marketplace.view')->name('sync-logs.retry-stock');

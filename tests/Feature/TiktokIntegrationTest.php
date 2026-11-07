@@ -639,8 +639,9 @@ class TiktokIntegrationTest extends TestCase
             ], 'next_page_token' => '']]),
         ]);
 
-        $this->post("/tiktok/shops/{$shop->id}/mappings/pull")->assertRedirect()
-            ->assertSessionHas('success', fn ($message) => str_contains($message, '2 produk') && str_contains($message, '1 belum aktif'));
+        $this->post("/tiktok/shops/{$shop->id}/mappings/pull")->assertRedirect()->assertSessionHas('success');
+        $message = $this->backgroundResult();
+        $this->assertTrue(str_contains($message, '2 produk') && str_contains($message, '1 belum aktif'), $message);
         Http::assertSent(fn (Request $r) => str_contains($r->url(), '/products/search') && $r['status'] === 'ALL');
 
         $this->assertSame(3, $shop->mappings()->count());
@@ -927,7 +928,8 @@ class TiktokIntegrationTest extends TestCase
             '*/inventory/update*' => Http::response(['code' => 0, 'message' => 'Success', 'data' => []]),
         ]);
 
-        $this->post("/tiktok/shops/{$shop->id}/mappings/pull")->assertSessionHas('success', fn ($m) => str_contains($m, '2 SKU sudah tidak ada di toko'));
+        $this->post("/tiktok/shops/{$shop->id}/mappings/pull")->assertSessionHas('success');
+        $this->assertStringContainsString('2 SKU sudah tidak ada di toko', $this->backgroundResult());
 
         $rows = $shop->mappings()->get()->keyBy('sku_id');
         $this->assertSame([$this->kaosL->id, 'auto'], [$rows['2001']->product_variant_id, $rows['2001']->match_type]);

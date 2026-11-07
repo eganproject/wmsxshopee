@@ -43,13 +43,18 @@ class MarketplaceProductSync
     {
         $results = [];
 
-        foreach ($this->shops($platforms) as [$platform, $shop]) {
+        foreach (self::shops($platforms) as [$platform, $shop]) {
             $results[] = $this->syncShop($platform, $shop, $canPushStock === null || $canPushStock($shop));
         }
 
-        Cache::forever(self::LAST_RUN_KEY, now()->toIso8601String());
+        self::markRun();
 
         return $results;
+    }
+
+    public static function markRun(): void
+    {
+        Cache::forever(self::LAST_RUN_KEY, now()->toIso8601String());
     }
 
     public static function lastRunAt(): ?Carbon
@@ -66,7 +71,7 @@ class MarketplaceProductSync
      * @param  list<string>  $platforms
      * @return list<array{0: string, 1: ShopeeShop|TiktokShop}>
      */
-    private function shops(array $platforms): array
+    public static function shops(array $platforms): array
     {
         $rows = [];
 

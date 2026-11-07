@@ -267,6 +267,7 @@
     </div>
 
     <x-flash />
+    <x-background-tasks />
     <x-confirm-dialog />
 </body>
 </html>

@@ -4,13 +4,12 @@ namespace App\Http\Controllers\Shopee;
 
 use App\Http\Controllers\Concerns\ResolvesSkuTarget;
 use App\Http\Controllers\Controller;
+use App\Jobs\RunMarketplaceTask;
 use App\Models\Bundle;
 use App\Models\ProductVariant;
 use App\Models\ShopeeShop;
 use App\Models\ShopeeSkuMapping;
-use App\Services\MarketplaceProductSync;
 use App\Services\Shopee\ShopeeCatalog;
-use App\Services\Shopee\ShopeeException;
 use App\Support\SkuMappingExport;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
@@ -114,15 +113,16 @@ class ShopeeSkuMappingController extends Controller
     }
 
     /** Tarik daftar produk & variasi dari Shopee lalu cocokkan otomatis. */
-    public function pull(ShopeeShop $shop, ShopeeCatalog $catalog): RedirectResponse
+    public function pull(Request $request, ShopeeShop $shop): RedirectResponse
     {
-        try {
-            $result = $catalog->pull($shop);
-        } catch (ShopeeException $e) {
-            return back()->with('error', 'Gagal menarik produk dari Shopee. '.$e->getMessage());
+        if (! $shop->isConnected()) {
+            return back()->with('error', 'Toko perlu diotorisasi ulang sebelum produk bisa ditarik.');
         }
 
-        return back()->with('success', "{$result['items']} produk ({$result['rows']} baris SKU) ditarik dari Shopee, {$result['matched']} cocok otomatis".MarketplaceProductSync::removedNote($result).'.'.$this->relinkOrders());
+        // Lewat antrean: toko dengan ribuan SKU bisa lebih lama dari batas waktu nginx (504).
+        return RunMarketplaceTask::start('pull', 'shopee', $shop, $request->user()->id)
+            ? back()->with('success', RunMarketplaceTask::queuedMessage())
+            : back()->with('warning', RunMarketplaceTask::busyMessage());
     }
 
     /** Pilihan target pemetaan untuk Tom Select: varian gudang & paket. */

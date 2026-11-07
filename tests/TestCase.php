@@ -2,6 +2,7 @@
 
 namespace Tests;
 
+use App\Support\BackgroundTasks;
 use Illuminate\Foundation\Testing\TestCase as BaseTestCase;
 use Illuminate\Support\Sleep;
 
@@ -13,5 +14,14 @@ abstract class TestCase extends BaseTestCase
 
         // Jeda coba ulang ke Shopee/TikTok tidak benar-benar ditunggu saat tes.
         Sleep::fake();
+    }
+
+    /**
+     * Hasil sinkron latar belakang milik user yang login (antrean "sync" di tes
+     * menjalankan job langsung), digabung jadi satu teks.
+     */
+    protected function backgroundResult(): string
+    {
+        return collect(BackgroundTasks::poll(auth()->id())['finished'])->pluck('message')->implode(' | ');
     }
 }

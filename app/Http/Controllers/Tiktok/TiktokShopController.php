@@ -3,12 +3,12 @@
 namespace App\Http\Controllers\Tiktok;
 
 use App\Http\Controllers\Controller;
+use App\Jobs\RunMarketplaceTask;
 use App\Models\TiktokShop;
 use App\Models\Warehouse;
 use App\Services\Tiktok\TiktokAuth;
 use App\Services\Tiktok\TiktokClient;
 use App\Services\Tiktok\TiktokException;
-use App\Services\Tiktok\TiktokSync;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -136,17 +136,18 @@ class TiktokShopController extends Controller
     }
 
     /** Tarik pesanan lalu kirim stok sekarang (biasanya berjalan terjadwal). */
-    public function sync(Request $request, TiktokShop $shop, TiktokSync $sync): RedirectResponse
+    public function sync(Request $request, TiktokShop $shop): RedirectResponse
     {
         abort_unless($request->user()->canAccessWarehouse($shop->warehouse_id), 403, 'Anda tidak punya akses ke gudang toko ini.');
 
-        try {
-            $result = $sync->run($shop);
-        } catch (TiktokException $e) {
-            return back()->with('error', $e->getMessage());
+        if (! $shop->isSyncable()) {
+            return back()->with('error', "Toko {$shop->displayName()} belum bisa disinkron: pastikan terhubung, aktif dan punya gudang pengirim.");
         }
 
-        return back()->with('success', "{$shop->displayName()}: ".TiktokSync::summary($result));
+        // Lewat antrean: sinkron toko besar bisa lebih lama dari batas waktu nginx (504).
+        return RunMarketplaceTask::start('orders', 'tiktok', $shop, $request->user()->id)
+            ? back()->with('success', RunMarketplaceTask::queuedMessage())
+            : back()->with('warning', RunMarketplaceTask::busyMessage());
     }
 
     /** Hapus koneksi di Optima. Akses app di sisi TikTok dicabut pemilik toko dari Seller Center. */
