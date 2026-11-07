@@ -27,6 +27,7 @@ use App\Services\Shopee\ShopeeOrderSync;
 use App\Services\Shopee\ShopeeStockSync;
 use App\Services\Shopee\ShopeeSync;
 use App\Services\StockService;
+use App\Services\WarehouseSupply;
 use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Factory;
@@ -334,6 +335,54 @@ class ShopeeSyncTest extends TestCase
         $this->assertSame($topi->id, $this->shop->mappings()->where('item_id', 33)->value('product_variant_id'));
         $this->assertSame(2, (int) $order->items->firstWhere('product_variant_id', $topi->id)->qty);
         $this->assertSame(1, SalesOrder::count());
+    }
+
+    public function test_unmapped_draft_still_reserves_stock_of_its_mapped_lines(): void
+    {
+        $this->actingAs(User::where('username', 'superadmin')->first());
+        // KAOS-L stok 4: B4 (SKU TOPI-X belum dipetakan) memesan 3, B5 memesan 2.
+        $this->fakeOrders([
+            $this->order('B4', 'READY_TO_SHIP', [$this->line(33, 301, 1, 'TOPI-X'), $this->line(11, 102, 3)]),
+            $this->order('B5', 'READY_TO_SHIP', [$this->line(11, 102, 2)]),
+        ]);
+        $this->artisan('shopee:sync --only=orders')->assertSuccessful();
+
+        $b4 = SalesOrder::where('external_number', 'B4')->firstOrFail();
+        $b5 = SalesOrder::where('external_number', 'B5')->firstOrFail();
+        $this->assertSame('draft', $b4->status);
+        $this->assertSame(['TOPI-X'], $b4->unmapped_skus);
+        $this->assertSame('draft', $b5->status, 'Stok KAOS-L sudah ditahan draft B4, jadi B5 tertahan stok.');
+        $this->assertTrue(SalesOrder::stockHeld()->whereKey($b5->id)->exists());
+
+        $level = app(SalesOrderService::class)->availability($this->warehouse->id, [$this->kaosL->id])[$this->kaosL->id];
+        $this->assertSame(['on_hand' => 4, 'reserved' => 3, 'available' => 1], $level);
+        $this->assertSame(1, app(WarehouseSupply::class)->sellable($this->warehouse->id, [$this->kaosL->id])[$this->kaosL->id]['pushable']);
+
+        $alerts = app(AlertService::class)->groups(User::where('username', 'superadmin')->first());
+        $this->assertSame(['B4'], $alerts['unmapped_orders']['items']->pluck('external_number')->all());
+        $this->get('/notifications')->assertOk()->assertSee('Pesanan dengan SKU belum dipetakan')->assertSee('TOPI-X');
+        $this->get('/sales/orders?shopee=unmapped')->assertOk()->assertSee($b4->number)->assertDontSee($b5->number);
+
+        // Setelah dipetakan, B4 dikonfirmasi tanpa terhalang cadangannya sendiri.
+        $this->shop->mappings()->where('item_id', 33)->firstOrFail()->update(['product_variant_id' => $this->kaosM->id]);
+        Http::swap(new Factory);
+        Http::preventStrayRequests();
+        $this->app->terminate();
+
+        $this->assertSame('confirmed', $b4->refresh()->status);
+        $this->assertSame('draft', $b5->refresh()->status);
+    }
+
+    public function test_cancelling_unmapped_draft_releases_its_stock(): void
+    {
+        $this->fakeOrders([$this->order('B6', 'READY_TO_SHIP', [$this->line(33, 301, 1, 'TOPI-X'), $this->line(11, 102, 4)])]);
+        $this->artisan('shopee:sync --only=orders')->assertSuccessful();
+        $this->assertSame(0, app(SalesOrderService::class)->availability($this->warehouse->id, [$this->kaosL->id])[$this->kaosL->id]['available']);
+
+        $this->resync([$this->order('B6', 'CANCELLED', [$this->line(33, 301, 1, 'TOPI-X'), $this->line(11, 102, 4)])]);
+
+        $this->assertSame('cancelled', SalesOrder::where('external_number', 'B6')->value('status'));
+        $this->assertSame(4, app(SalesOrderService::class)->availability($this->warehouse->id, [$this->kaosL->id])[$this->kaosL->id]['available']);
     }
 
     public function test_new_sku_or_mapping_schedules_relink_but_unrelated_edits_do_not(): void

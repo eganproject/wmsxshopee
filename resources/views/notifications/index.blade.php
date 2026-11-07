@@ -78,6 +78,9 @@
                         @case('held_orders')
                             <a href="{{ route('sales.orders.index', ['status' => 'draft']) }}" class="text-sm text-slate-600 hover:text-slate-900">Lihat pesanan</a>
                             @break
+                        @case('unmapped_orders')
+                            <a href="{{ route('sales.orders.index', ['shopee' => 'unmapped']) }}" class="text-sm text-slate-600 hover:text-slate-900">Lihat pesanan</a>
+                            @break
                         @case('courier_pending')
                         @case('shopee_ahead')
                             <a href="{{ route('sales.orders.index', ['shopee' => $group['key'] === 'courier_pending' ? 'courier_overdue' : 'shopee_ahead']) }}" class="text-sm text-slate-600 hover:text-slate-900">Lihat pesanan</a>
@@ -136,6 +139,22 @@
                                         <p class="truncate text-xs text-slate-500">{{ $item->name }}</p>
                                     </div>
                                     <p class="max-w-[50%] truncate text-right text-xs text-slate-500" title="Komponen">{{ $item->items->map(fn ($component) => $component->qty.'× '.$component->variant?->sku)->join(', ') }}</p>
+                                    @break
+                                @case('unmapped_orders')
+                                    <div class="min-w-0 flex-1">
+                                        <a href="{{ route('sales.orders.show', $item) }}" class="text-sm font-medium text-slate-900 hover:text-brand-600">{{ $item->number }}</a>
+                                        <p class="truncate text-xs text-slate-500">{{ $item->channel_name }} · {{ $item->warehouse?->code }}{{ $item->external_number ? ' · '.$item->external_number : '' }}</p>
+                                        <p class="text-xs">
+                                            <span class="text-slate-500">Belum dipetakan:</span>
+                                            <span class="font-mono font-medium text-amber-700">{{ collect($item->unmapped_skus)->map(fn ($sku) => $sku ?: 'Tanpa SKU')->join(', ') }}</span>
+                                        </p>
+                                    </div>
+                                    <div class="shrink-0 text-right">
+                                        <a href="{{ route('sales.orders.show', $item) }}" class="btn-secondary px-2.5 py-1 text-xs">
+                                            <x-heroicon-o-link class="size-4" /> Petakan SKU
+                                        </a>
+                                        <p class="mt-1 text-xs text-slate-500" title="{{ $item->ordered_at?->translatedFormat('d M Y H:i') }}">{{ ($item->ordered_at ?? $item->created_at)?->diffForHumans() }}</p>
+                                    </div>
                                     @break
                                 @case('held_orders')
                                     <div class="min-w-0 flex-1">

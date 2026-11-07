@@ -119,6 +119,30 @@ class SalesOrder extends Model
     /** Status yang menahan (mencadangkan) stok di gudang. */
     public const RESERVING = ['confirmed', 'picking', 'packed'];
 
+    /**
+     * Batasi ke pesanan yang mencadangkan stok: status RESERVING, ditambah draft
+     * marketplace yang tertahan karena SKU belum dipetakan. Barang dari draft itu
+     * sudah dibayar dan dikurangi marketplace, jadi baris yang sudah terpetakan
+     * ikut ditahan supaya stok tidak terjual dua kali.
+     *
+     * @param  Builder<SalesOrder>|\Illuminate\Database\Query\Builder  $query
+     */
+    public static function whereReserving($query, string $table = 'sales_orders'): void
+    {
+        $query->where(fn ($q) => $q->whereIn("{$table}.status", self::RESERVING)
+            ->orWhere(fn ($draft) => $draft->where("{$table}.status", 'draft')->whereNotNull("{$table}.unmapped_skus")));
+    }
+
+    /**
+     * Draft marketplace yang tertahan karena SKU belum dipetakan.
+     *
+     * @param  Builder<SalesOrder>  $query
+     */
+    public function scopeUnmappedHeld(Builder $query): void
+    {
+        $query->where('status', 'draft')->whereNotNull('unmapped_skus');
+    }
+
     /** Status Shopee yang berarti pesanan harus disiapkan gudang. */
     public const SHOPEE_TO_FULFIL = ['READY_TO_SHIP', 'PROCESSED', 'RETRY_SHIP'];
 
@@ -795,6 +819,7 @@ class SalesOrder extends Model
                     ->where(fn ($q) => $q->whereNotNull('shopee_shop_id')->whereNull('shopee_shipped_at')->whereIn('shopee_order_status', self::SHOPEE_AWAITING_COURIER))
                     ->orWhere(fn ($q) => $q->whereNotNull('tiktok_shop_id')->whereNull('tiktok_shipped_at')->whereIn('tiktok_order_status', self::TIKTOK_AWAITING_COURIER)))
                 ->when($filter === 'courier_overdue', fn ($q) => $q->where('shipped_at', '<=', now()->subHours((int) config('alerts.courier_scan_hours', 24)))),
+            'unmapped' => $query->unmappedHeld(),
             'shopee_ahead' => $query->whereNotNull('shopee_shop_id')
                 ->whereIn('status', ['draft', ...self::RESERVING])
                 ->whereIn('shopee_order_status', self::SHOPEE_LEFT_WAREHOUSE),

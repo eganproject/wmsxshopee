@@ -69,7 +69,7 @@ class AppServiceProvider extends ServiceProvider
         $pushStock = fn () => $this->app->make(MarketplaceStockPush::class)->queue();
         Stock::saved($pushStock);
         Stock::deleted($pushStock);
-        SalesOrder::saved(fn (SalesOrder $order) => $order->wasChanged(['status', 'warehouse_id']) || ($created($order) && in_array($order->status, SalesOrder::RESERVING, true)) ? $pushStock() : null);
+        SalesOrder::saved(fn (SalesOrder $order) => $order->wasChanged(['status', 'warehouse_id', 'unmapped_skus']) || ($created($order) && in_array($order->status, SalesOrder::RESERVING, true)) ? $pushStock() : null);
         WarehouseTransfer::saved(fn (WarehouseTransfer $transfer) => $transfer->wasChanged('status') ? $pushStock() : null);
         Warehouse::saved(fn (Warehouse $warehouse) => $warehouse->wasChanged(['supply_warehouse_id', 'supply_stock_percent']) ? $pushStock() : null);
 
@@ -78,7 +78,9 @@ class AppServiceProvider extends ServiceProvider
         $retryHeld = fn () => $this->app->make(HeldOrderRetry::class)->queue();
         Stock::saved(fn (Stock $stock) => (int) $stock->qty > (int) ($stock->wasRecentlyCreated ? 0 : $stock->getOriginal('qty')) ? $retryHeld() : null);
         SalesOrder::saved(fn (SalesOrder $order) => $order->wasChanged('warehouse_id')
-            || ($order->wasChanged('status') && in_array($order->getOriginal('status'), SalesOrder::RESERVING, true)) ? $retryHeld() : null);
+            || ($order->wasChanged('status') && in_array($order->getOriginal('status'), SalesOrder::RESERVING, true))
+            // Draft SKU belum dipetakan yang lepas (dibatalkan / terhubung) ikut melepas cadangannya.
+            || ($order->wasChanged(['status', 'unmapped_skus']) && $order->getOriginal('status') === 'draft' && $order->getOriginal('unmapped_skus') !== null) ? $retryHeld() : null);
         WarehouseTransfer::saved(fn (WarehouseTransfer $transfer) => $transfer->wasChanged('status') ? $retryHeld() : null);
         Warehouse::saved(fn (Warehouse $warehouse) => $warehouse->wasChanged(['supply_warehouse_id', 'supply_stock_percent']) ? $retryHeld() : null);
 
