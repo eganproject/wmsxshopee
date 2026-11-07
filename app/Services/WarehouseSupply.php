@@ -140,7 +140,7 @@ class WarehouseSupply
         $short = DB::table('sales_order_items')
             ->join('sales_orders', 'sales_orders.id', '=', 'sales_order_items.sales_order_id')
             ->where('sales_orders.warehouse_id', $warehouse->id)
-            ->whereIn('sales_orders.status', SalesOrder::RESERVING)
+            ->where(fn ($q) => SalesOrder::whereReserving($q))
             ->distinct()
             ->pluck('sales_order_items.product_variant_id')
             ->all();

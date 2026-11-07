@@ -78,7 +78,7 @@ class StockController extends Controller
 
             $reserved = SalesOrder::query()
                 ->join('sales_order_bundles', 'sales_order_bundles.sales_order_id', '=', 'sales_orders.id')
-                ->whereIn('sales_orders.status', SalesOrder::RESERVING)
+                ->where(fn ($q) => SalesOrder::whereReserving($q))
                 ->whereIn('sales_orders.warehouse_id', $selected->pluck('id'))
                 ->whereIn('sales_order_bundles.bundle_id', $bundles->pluck('id'))
                 ->groupBy('sales_order_bundles.bundle_id')

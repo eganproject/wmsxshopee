@@ -132,6 +132,20 @@ class AlertService
                 'items' => $limit ? $courier->with('warehouse:id,code')->oldest('shipped_at')->limit($limit)->get() : collect(),
             ];
 
+            // Pesanan marketplace tertahan karena SKU belum dipetakan: langsung muncul,
+            // karena stoknya sudah dikurangi marketplace dan pesanan belum bisa diproses.
+            $unmapped = SalesOrder::query()->unmappedHeld();
+
+            $groups['unmapped_orders'] = [
+                'key' => 'unmapped_orders',
+                'label' => 'Pesanan dengan SKU belum dipetakan',
+                'hint' => 'Masuk dari marketplace tapi ada SKU yang belum terhubung ke produk Optima. Petakan SKU-nya, pesanan dikonfirmasi otomatis.',
+                'count' => (clone $unmapped)->count(),
+                'icon' => 'heroicon-o-link',
+                'tone' => 'rose',
+                'items' => $limit ? $unmapped->with('warehouse:id,code')->orderByRaw('COALESCE(ordered_at, created_at)')->limit($limit)->get() : collect(),
+            ];
+
             // Pesanan marketplace tertahan karena stok kurang (dicoba ulang otomatis saat stok bertambah).
             $held = SalesOrder::query()->stockHeld();
             $heldItems = $limit ? (clone $held)->with(['warehouse:id,code,supply_warehouse_id', 'shopeeShop', 'tiktokShop'])
@@ -181,6 +195,7 @@ class AlertService
             $draftHours = (int) config('alerts.draft_order_hours', 24);
             $drafts = SalesOrder::query()
                 ->where('status', 'draft')
+                ->whereNull('unmapped_skus') // sudah punya grup sendiri
                 ->where('created_at', '<=', now()->subHours($draftHours));
 
             $groups['draft_orders'] = [
