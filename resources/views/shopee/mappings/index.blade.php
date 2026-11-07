@@ -15,6 +15,10 @@
                    description="Setiap produk/variasi di Shopee dihubungkan ke varian gudang atau paket di Optima. Pesanan Shopee nanti memakai pemetaan ini untuk mengurangi stok."
                    icon="heroicon-o-arrows-right-left">
         <a href="{{ route('marketplace.shops', ['platform' => 'shopee']) }}" class="btn-secondary"><x-heroicon-o-arrow-left class="size-5" /> Kembali</a>
+        <a href="{{ request()->fullUrlWithQuery(['export' => 'xlsx', 'page' => null]) }}" class="btn-secondary" data-no-loading
+           data-hint-title="Ekspor Excel" data-hint="Mengunduh {{ number_format($mappings->total(), 0, ',', '.') }} SKU sesuai pencarian dan filter status yang sedang dipakai, lengkap dengan SKU Optima, status, stok terakhir dikirim dan alasan gagal kirim stok.">
+            <x-heroicon-o-arrow-down-tray class="size-5" /> Ekspor Excel <span class="text-slate-500">({{ number_format($mappings->total(), 0, ',', '.') }})</span>
+        </a>
         @can('shopee.mapping')
             <form method="POST" action="{{ route('shopee.mappings.auto-match', $shop) }}">
                 @csrf
