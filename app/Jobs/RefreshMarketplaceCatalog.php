@@ -39,7 +39,7 @@ class RefreshMarketplaceCatalog implements ShouldBeUniqueUntilProcessing, Should
 
     public function handle(MarketplaceProductSync $sync): void
     {
-        $shop = ($this->platform === 'shopee' ? ShopeeShop::class : TiktokShop::class)::find($this->shopId);
+        $shop = ($this->platform === 'shopee' ? ShopeeShop::class : TiktokShop::class)::withoutGlobalScope('warehouse_access')->find($this->shopId);
 
         if ($shop && $shop->is_active && $shop->isConnected()) {
             MarketplaceSyncLog::as('push', fn () => $sync->syncShop($this->platform, $shop));

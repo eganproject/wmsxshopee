@@ -102,8 +102,8 @@ class MarketplaceStockPush
         $ready = fn ($query) => $query->where('status', 'connected')->where('is_active', true)->where('stock_push', true)->whereNotNull('warehouse_id');
 
         return [
-            ...$ready(ShopeeShop::query())->get()->filter->isSyncable()->values()->all(),
-            ...$ready(TiktokShop::query())->get()->filter->isSyncable()->values()->all(),
+            ...$ready(ShopeeShop::withoutGlobalScope('warehouse_access'))->get()->filter->isSyncable()->values()->all(),
+            ...$ready(TiktokShop::withoutGlobalScope('warehouse_access'))->get()->filter->isSyncable()->values()->all(),
         ];
     }
 }

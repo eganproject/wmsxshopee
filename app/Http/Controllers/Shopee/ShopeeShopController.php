@@ -6,6 +6,8 @@ use App\Http\Controllers\Controller;
 use App\Jobs\RunMarketplaceTask;
 use App\Models\ShopeeSetting;
 use App\Models\ShopeeShop;
+use App\Models\Warehouse;
+use App\Rules\AccessibleRecord;
 use App\Services\Shopee\ShopeeAuth;
 use App\Services\Shopee\ShopeeClient;
 use App\Services\Shopee\ShopeeException;
@@ -20,7 +22,7 @@ class ShopeeShopController extends Controller
     public function connect(Request $request, ShopeeAuth $auth): RedirectResponse
     {
         $data = $request->validate([
-            'warehouse_id' => ['required', Rule::exists('warehouses', 'id')->where('is_active', true)],
+            'warehouse_id' => ['required', Rule::exists('warehouses', 'id')->where('is_active', true), new AccessibleRecord(Warehouse::class)],
         ], [], ['warehouse_id' => 'gudang pengirim']);
 
         $client = ShopeeClient::make();
@@ -74,7 +76,7 @@ class ShopeeShopController extends Controller
     public function update(Request $request, ShopeeShop $shop): RedirectResponse
     {
         $data = $request->validate([
-            'warehouse_id' => ['required', Rule::exists('warehouses', 'id')],
+            'warehouse_id' => ['required', Rule::exists('warehouses', 'id'), new AccessibleRecord(Warehouse::class)],
             'is_active' => ['nullable', 'boolean'],
             'stock_push' => ['nullable', 'boolean'],
         ], [], ['warehouse_id' => 'gudang pengirim']);

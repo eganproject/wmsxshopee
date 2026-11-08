@@ -323,12 +323,12 @@ class SalesOrder extends Model
 
     public function shopeeShop(): BelongsTo
     {
-        return $this->belongsTo(ShopeeShop::class);
+        return $this->belongsTo(ShopeeShop::class)->withoutGlobalScope('warehouse_access');
     }
 
     public function tiktokShop(): BelongsTo
     {
-        return $this->belongsTo(TiktokShop::class);
+        return $this->belongsTo(TiktokShop::class)->withoutGlobalScope('warehouse_access');
     }
 
     public function arranger(): BelongsTo

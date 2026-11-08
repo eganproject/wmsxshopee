@@ -32,7 +32,7 @@ class TiktokAuth
         }
 
         return DB::transaction(fn () => array_map(function (array $info) use ($attributes, $token, $warehouseId) {
-            $shop = TiktokShop::firstOrNew(['shop_id' => (string) $info['id']]);
+            $shop = TiktokShop::withoutGlobalScope('warehouse_access')->firstOrNew(['shop_id' => (string) $info['id']]);
             $shop->fill([
                 ...$attributes,
                 'shop_cipher' => $info['cipher'] ?? null,
@@ -87,7 +87,7 @@ class TiktokAuth
                 return false;
             }
 
-            $siblings = TiktokShop::query()
+            $siblings = TiktokShop::withoutGlobalScope('warehouse_access')
                 ->when($shop->open_id, fn ($q) => $q->where('open_id', $shop->open_id), fn ($q) => $q->whereKey($shop->id))
                 ->get();
 

@@ -99,7 +99,7 @@ class RunMarketplaceTask implements ShouldQueue
         MarketplaceProductSync $productSync,
         MarketplaceOrderRelink $relink,
     ): void {
-        $shop = ($this->platform === 'shopee' ? ShopeeShop::class : TiktokShop::class)::find($this->shopId);
+        $shop = ($this->platform === 'shopee' ? ShopeeShop::class : TiktokShop::class)::withoutGlobalScope('warehouse_access')->find($this->shopId);
 
         if (! $shop) {
             $this->report(false, 'toko sudah dihapus.');

@@ -42,7 +42,7 @@ class ShopeeSkuMapping extends Model
 
     public function shop(): BelongsTo
     {
-        return $this->belongsTo(ShopeeShop::class, 'shopee_shop_id');
+        return $this->belongsTo(ShopeeShop::class, 'shopee_shop_id')->withoutGlobalScope('warehouse_access');
     }
 
     public function variant(): BelongsTo

@@ -30,7 +30,7 @@ class ShopeeWebhookController extends Controller
     {
         $payload = $request->json()->all();
         $shopId = (int) ($payload['shop_id'] ?? $payload['data']['shop_id'] ?? 0);
-        $shops = ShopeeShop::where('shop_id', $shopId)->get();
+        $shops = ShopeeShop::withoutGlobalScope('warehouse_access')->where('shop_id', $shopId)->get();
         $shop = $shops->first(fn (ShopeeShop $shop) => $this->verified($request, $shop->environment));
         $code = (int) ($payload['code'] ?? 0);
         $data = $payload['data'] ?? [];

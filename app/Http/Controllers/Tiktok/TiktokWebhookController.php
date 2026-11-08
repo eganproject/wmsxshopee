@@ -38,7 +38,7 @@ class TiktokWebhookController extends Controller
         }
 
         $payload = $request->json()->all();
-        $shop = TiktokShop::where('shop_id', (string) ($payload['shop_id'] ?? ''))->first();
+        $shop = TiktokShop::withoutGlobalScope('warehouse_access')->where('shop_id', (string) ($payload['shop_id'] ?? ''))->first();
 
         // Toko tak dikenal tetap diberi 200 supaya TikTok tidak mengulang terus.
         if (! $shop) {
