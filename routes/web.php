@@ -311,6 +311,7 @@ Route::middleware(['auth', 'active'])->group(function () {
         Route::post('sync-all', [MarketplaceController::class, 'syncAll'])->middleware('can:marketplace.view')->name('sync-all');
         Route::get('background-tasks', [MarketplaceController::class, 'backgroundTasks'])->middleware('can:marketplace.view')->name('background-tasks');
         Route::post('shops/{platform}/{shop}/sync-all', [MarketplaceController::class, 'syncShop'])->whereIn('platform', ['shopee', 'tiktok'])->whereNumber('shop')->middleware('can:marketplace.view')->name('shops.sync-all');
+        Route::put('shops/{platform}/{shop}/order-processing', [MarketplaceController::class, 'orderProcessing'])->whereIn('platform', ['shopee', 'tiktok'])->whereNumber('shop')->middleware('can:marketplace.view')->name('shops.order-processing');
         Route::get('sync-logs', [MarketplaceSyncLogController::class, 'index'])->middleware('can:marketplace.view')->name('sync-logs');
         Route::post('sync-logs/retry-stock', [MarketplaceSyncLogController::class, 'retryStock'])->middleware('can:marketplace.view')->name('sync-logs.retry-stock');
         Route::post('sync-logs/retry-push', [MarketplaceSyncLogController::class, 'retryPush'])->middleware('can:marketplace.view')->name('sync-logs.retry-push');

@@ -466,6 +466,60 @@ class TiktokIntegrationTest extends TestCase
         $this->get('/sales/orders')->assertOk()->assertSee('Perlu Dikirim')->assertSee('AWAITING_SHIPMENT');
     }
 
+    public function test_shop_processed_in_another_system_is_not_pulled_until_super_admin_switches_it_on(): void
+    {
+        $shop = $this->shop();
+        $this->fakeSearch([
+            $this->order('590001', 'AWAITING_SHIPMENT', $this->units('2001', 2)),
+            $this->order('590002', 'AWAITING_SHIPMENT', $this->units('9999', 1, 'BELUM-ADA')),
+        ]);
+        $this->artisan('tiktok:sync --only=orders')->assertSuccessful();
+        $this->assertSame(['confirmed', 'draft'], SalesOrder::orderBy('external_number')->pluck('status')->all());
+        $this->assertSame(8, $this->available($this->kaosM));
+
+        // Selain Super Admin tidak boleh mengubah saklar.
+        $admin = User::factory()->create();
+        $admin->givePermissionTo(['marketplace.view', 'tiktok.view', 'tiktok.connect']);
+        $this->actingAs($admin)->put("/marketplace/shops/tiktok/{$shop->id}/order-processing", ['process_orders' => 0])->assertForbidden();
+        $this->assertTrue($shop->fresh()->process_orders);
+
+        $this->actingAs(User::where('username', 'superadmin')->first())
+            ->put("/marketplace/shops/tiktok/{$shop->id}/order-processing", ['process_orders' => 0])
+            ->assertSessionHas('success', fn ($m) => str_contains($m, '2 pesanan yang belum dikirim dihapus'));
+
+        $shop->refresh();
+        $this->assertFalse($shop->process_orders);
+        $this->assertFalse($shop->stock_push, 'Kirim stok ikut mati.');
+        $this->assertSame(0, SalesOrder::count(), 'Pesanan yang belum dikirim dihapus, cadangan stok lepas.');
+        $this->assertSame(10, $this->available($this->kaosM));
+
+        // Sinkron & webhook tidak menarik pesanan: tanpa respons palsu, request apa pun akan gagal.
+        $this->refake();
+        $result = app(TiktokSync::class)->run($shop, ['orders', 'returns', 'stock']);
+        $this->assertTrue($result['external']);
+        $this->assertStringContainsString('tidak ditarik (diproses di sistem lain)', TiktokSync::summary($result));
+        $this->assertFalse($shop->processesOrders());
+
+        // Kirim stok tidak bisa dinyalakan selama pesanan diproses di sistem lain.
+        $this->put("/tiktok/shops/{$shop->id}", ['warehouse_id' => $this->warehouse->id, 'is_active' => 1, 'stock_push' => 1]);
+        $this->assertFalse($shop->fresh()->stock_push);
+        $this->get('/marketplace/shops?platform=tiktok')->assertOk()->assertSee('Pesanan diproses di sistem lain');
+
+        // Dinyalakan: mulai seperti toko baru, hanya pesanan yang masih harus dikirim yang dibuat.
+        $this->put("/marketplace/shops/tiktok/{$shop->id}/order-processing", ['process_orders' => 1])->assertSessionHas('success');
+        $shop->refresh();
+        $this->assertTrue($shop->process_orders);
+        $this->assertNull($shop->orders_synced_until);
+        $this->assertNotNull($shop->returns_synced_until);
+
+        $this->fakeSearch([
+            $this->order('590001', 'AWAITING_SHIPMENT', $this->units('2001', 2)),
+            $this->order('590003', 'IN_TRANSIT', $this->units('2001', 1)),
+        ]);
+        $this->artisan('tiktok:sync --only=orders')->assertSuccessful();
+        $this->assertSame(['590001'], SalesOrder::pluck('external_number')->all(), 'Yang sudah dikirim dari sistem lain tidak ikut masuk.');
+    }
+
     public function test_unpaid_and_on_hold_orders_hold_pushed_stock(): void
     {
         $shop = $this->shop();

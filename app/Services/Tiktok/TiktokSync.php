@@ -42,6 +42,12 @@ class TiktokSync
         $api = TiktokShopApi::for($shop);
         $result = [];
 
+        // Pesanan toko ini masih diproses di sistem lain: pesanan & retur tidak ditarik.
+        if (! $shop->process_orders) {
+            $result['external'] = true;
+            $parts = array_values(array_diff($parts, ['orders', 'returns']));
+        }
+
         try {
             if (in_array('orders', $parts, true)) {
                 $result['orders'] = $this->orders->sync($shop, $api);
@@ -76,6 +82,9 @@ class TiktokSync
     {
         $parts = [];
 
+        if ($result['external'] ?? false) {
+            $parts[] = 'pesanan & retur: tidak ditarik (diproses di sistem lain)';
+        }
         if (isset($result['orders'])) {
             $o = $result['orders'];
             $parts[] = "pesanan: {$o['created']} baru, {$o['updated']} diperbarui, {$o['cancelled']} batal".($o['pending'] ? ", {$o['pending']} perlu dicek" : '').(($o['failed'] ?? 0) ? ", {$o['failed']} gagal (dicoba lagi di sinkron berikutnya)" : '');

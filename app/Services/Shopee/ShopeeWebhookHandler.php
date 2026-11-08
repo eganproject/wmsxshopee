@@ -46,7 +46,7 @@ class ShopeeWebhookHandler
             return true;
         }
 
-        if (! $shop->isSyncable() || blank($event->order_id) || ! in_array($event->event_type, [3, 4], true)) {
+        if (! $shop->processesOrders() || blank($event->order_id) || ! in_array($event->event_type, [3, 4], true)) {
             return false;
         }
 

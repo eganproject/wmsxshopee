@@ -9,6 +9,7 @@ use App\Models\ShopeeShop;
 use App\Models\TiktokSetting;
 use App\Models\TiktokShop;
 use App\Models\Warehouse;
+use App\Services\MarketplaceOrderProcessing;
 use App\Services\MarketplaceProductSync;
 use App\Services\MarketplaceShopSync;
 use App\Support\BackgroundTasks;
@@ -129,6 +130,34 @@ class MarketplaceController extends Controller
         }
 
         return $this->queuedResponse((int) RunMarketplaceTask::start('full', $platform, $model, $user->id, $user->can("{$platform}.mapping")));
+    }
+
+    /**
+     * Saklar "Proses pesanan di Optima" (hanya Super Admin). Dimatikan selama
+     * pesanan toko masih diproses di sistem lain, cth. Ginee.
+     */
+    public function orderProcessing(Request $request, string $platform, int $shop, MarketplaceOrderProcessing $processing): RedirectResponse
+    {
+        abort_unless(isset(self::PLATFORMS[$platform]), 404);
+        abort_unless($request->user()->isSuperAdmin(), 403, 'Hanya Super Admin yang boleh mengatur toko yang pesanannya diproses di sistem lain.');
+        $model = ($platform === 'shopee' ? ShopeeShop::class : TiktokShop::class)::withoutGlobalScope('warehouse_access')->findOrFail($shop);
+        $label = ($platform === 'shopee' ? 'Shopee' : 'TikTok').' · '.$model->displayName();
+
+        if ($request->boolean('process_orders')) {
+            if ($model->process_orders) {
+                return back();
+            }
+            $processing->enable($model);
+
+            return back()->with('success', "Pesanan {$label} sekarang diproses di Optima. Sinkron berikutnya menarik pesanan 3 hari terakhir yang masih menunggu dikirim. Nyalakan Kirim stok setelah stok gudang dicek.");
+        }
+
+        if (! $model->process_orders) {
+            return back();
+        }
+        $deleted = $processing->disable($platform, $model);
+
+        return back()->with('success', "Pesanan {$label} ditandai diproses di sistem lain. Pesanan & retur toko ini tidak ditarik lagi dan kirim stok dimatikan".($deleted ? "; {$deleted} pesanan yang belum dikirim dihapus dari Optima." : '.'));
     }
 
     private function queuedResponse(int $queued): RedirectResponse

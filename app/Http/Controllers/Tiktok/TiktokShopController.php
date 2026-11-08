@@ -118,7 +118,7 @@ class TiktokShopController extends Controller
             'stock_push' => ['nullable', 'boolean'],
         ], [], ['warehouse_id' => 'gudang pengirim']);
 
-        $shop->update([...$data, 'is_active' => $data['is_active'] ?? false, 'stock_push' => $data['stock_push'] ?? false]);
+        $shop->update([...$data, 'is_active' => $data['is_active'] ?? false, 'stock_push' => ($data['stock_push'] ?? false) && $shop->process_orders]);
 
         return back()->with('success', "Toko {$shop->displayName()} diperbarui.");
     }

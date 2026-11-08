@@ -437,7 +437,10 @@ class AlertService
                 }
 
                 // Kirim stok mati: marketplace memakai angka stoknya sendiri, pesanan bisa masuk walau gudang kosong.
-                if (! $shop->stock_push && $shop->warehouse_id) {
+                // Pesanan toko masih diproses di sistem lain (cth. Ginee): pengingat saja.
+                if (! $shop->process_orders) {
+                    $add('external-orders', $platform, $shop, 'Pesanan & retur toko ini masih diproses di sistem lain, jadi tidak ditarik ke Optima dan stok tidak dikirim. Super Admin menyalakan "Proses pesanan di Optima" setelah alamat gudang dipindah.', null, false, route('marketplace.shops', ['platform' => $platform]));
+                } elseif (! $shop->stock_push && $shop->warehouse_id) {
                     $add('stock-push-off', $platform, $shop, 'Kirim stok mati: stok di '.($platform === 'shopee' ? 'Shopee' : 'TikTok').' tidak mengikuti Optima, jadi pesanan tetap masuk walau stok gudang habis lalu tertahan "Perlu dicek". Nyalakan setelah stok gudang dicek.', null, false, route('marketplace.shops', ['platform' => $platform]));
                 }
 
