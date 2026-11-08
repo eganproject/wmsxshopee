@@ -39,7 +39,11 @@ class TiktokShop extends Model
         'last_error',
         'is_active',
         'stock_push',
+        'process_orders',
     ];
+
+    /** Bawaan sama dengan kolom: pesanan toko baru diproses di Optima. */
+    protected $attributes = ['process_orders' => true];
 
     protected $hidden = ['access_token', 'refresh_token', 'shop_cipher'];
 
@@ -58,6 +62,7 @@ class TiktokShop extends Model
             'stock_pushed_at' => 'datetime',
             'is_active' => 'boolean',
             'stock_push' => 'boolean',
+            'process_orders' => 'boolean',
         ];
     }
 
@@ -102,6 +107,15 @@ class TiktokShop extends Model
     public function isSyncable(): bool
     {
         return $this->is_active && $this->isConnected() && $this->warehouse_id !== null && filled($this->shop_cipher);
+    }
+
+    /**
+     * Pesanan & retur toko ini diproses di Optima. Mati selama toko masih memakai
+     * sistem lain (cth. Ginee): Optima tidak menarik pesanan maupun retur toko ini.
+     */
+    public function processesOrders(): bool
+    {
+        return $this->isSyncable() && (bool) $this->process_orders;
     }
 
     public function accessTokenExpiresSoon(int $minutes): bool

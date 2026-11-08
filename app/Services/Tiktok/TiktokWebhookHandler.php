@@ -42,7 +42,7 @@ class TiktokWebhookHandler
             return true;
         }
 
-        if (! $shop?->isSyncable() || blank($event->order_id)) {
+        if (! $shop?->processesOrders() || blank($event->order_id)) {
             return false;
         }
 
