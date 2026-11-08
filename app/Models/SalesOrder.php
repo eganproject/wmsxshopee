@@ -321,6 +321,22 @@ class SalesOrder extends Model
         return $this->belongsTo(StockMovement::class, 'stock_movement_id');
     }
 
+    /**
+     * Pesanan marketplace ikut gudang tokonya juga: user gudang A tidak melihat
+     * pesanan toko yang terhubung ke gudang B, walau pesanannya tercatat di A
+     * (misalnya toko dipindah gudang setelah pesanan masuk).
+     *
+     * @param  list<int>  $ids
+     */
+    public function restrictToWarehouses(Builder $query, array $ids): void
+    {
+        $shopsIn = fn (string $table) => DB::table($table)->select('id')->whereIn('warehouse_id', $ids);
+
+        $query->whereIn($this->qualifyColumn('warehouse_id'), $ids)
+            ->where(fn (Builder $q) => $q->whereNull($this->qualifyColumn('shopee_shop_id'))->orWhereIn($this->qualifyColumn('shopee_shop_id'), $shopsIn('shopee_shops')))
+            ->where(fn (Builder $q) => $q->whereNull($this->qualifyColumn('tiktok_shop_id'))->orWhereIn($this->qualifyColumn('tiktok_shop_id'), $shopsIn('tiktok_shops')));
+    }
+
     public function shopeeShop(): BelongsTo
     {
         return $this->belongsTo(ShopeeShop::class)->withoutGlobalScope('warehouse_access');

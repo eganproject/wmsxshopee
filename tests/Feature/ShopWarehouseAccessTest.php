@@ -172,13 +172,20 @@ class ShopWarehouseAccessTest extends TestCase
         $this->get("/sales/orders/{$other->id}")->assertNotFound();
     }
 
-    public function test_order_still_shows_its_shop_after_shop_moves_warehouse(): void
+    public function test_orders_follow_the_shop_warehouse_too(): void
     {
+        // Pesanan tercatat di gudang Surabaya, tapi tokonya kini terhubung ke Jakarta.
         $order = $this->order($this->shopeeSby, 'SBY-ORDER-2');
+        $manual = SalesOrder::create(['number' => SalesOrder::nextNumber(), 'status' => 'draft', 'warehouse_id' => $this->surabaya->id, 'order_date' => now()->toDateString(), 'customer_name' => 'Pembeli Manual']);
         $this->shopeeSby->update(['warehouse_id' => $this->jakarta->id]);
 
         $this->actingAs($this->surabayaUser());
 
+        $this->get('/sales/orders')->assertOk()->assertSee($manual->number)->assertDontSee($order->number)->assertDontSee('Shopee Surabaya Store');
+        $this->get("/sales/orders/{$order->id}")->assertNotFound();
+
+        // Super Admin tetap melihat pesanan beserta tokonya.
+        $this->actingAs($this->superAdmin());
         $this->assertSame($this->shopeeSby->id, SalesOrder::find($order->id)->shopeeShop?->id);
         $this->get("/sales/orders/{$order->id}")->assertOk();
     }
