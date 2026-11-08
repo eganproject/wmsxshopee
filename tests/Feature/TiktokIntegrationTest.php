@@ -479,7 +479,7 @@ class TiktokIntegrationTest extends TestCase
 
         // Selain Super Admin tidak boleh mengubah saklar.
         $admin = User::factory()->create();
-        $admin->givePermissionTo(['marketplace.view', 'tiktok.view', 'tiktok.connect']);
+        $admin->givePermissionTo(['tiktok.view', 'tiktok.connect']);
         $this->actingAs($admin)->put("/marketplace/shops/tiktok/{$shop->id}/order-processing", ['process_orders' => 0])->assertForbidden();
         $this->assertTrue($shop->fresh()->process_orders);
 
