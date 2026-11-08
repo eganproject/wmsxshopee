@@ -9,6 +9,7 @@ use App\Models\ShopeeShop;
 use App\Models\TiktokSetting;
 use App\Models\TiktokShop;
 use App\Models\Warehouse;
+use App\Services\AlertService;
 use App\Services\MarketplaceOrderProcessing;
 use App\Services\MarketplaceProductSync;
 use App\Services\MarketplaceShopSync;
@@ -155,7 +156,8 @@ class MarketplaceController extends Controller
         if (! $model->process_orders) {
             return back();
         }
-        $deleted = $processing->disable($platform, $model);
+        $deleted = $processing->disable($platform, $model, $request->user()->id);
+        AlertService::forget($request->user());
 
         return back()->with('success', "Pesanan {$label} ditandai diproses di sistem lain. Pesanan & retur toko ini tidak ditarik lagi dan kirim stok dimatikan".($deleted ? "; {$deleted} pesanan yang belum dikirim dihapus dari Optima." : '.'));
     }

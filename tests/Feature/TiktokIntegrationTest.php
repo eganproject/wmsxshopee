@@ -477,6 +477,13 @@ class TiktokIntegrationTest extends TestCase
         $this->assertSame(['confirmed', 'draft'], SalesOrder::orderBy('external_number')->pluck('status')->all());
         $this->assertSame(8, $this->available($this->kaosM));
 
+        // Paket dikirim lewat sistem lain: Optima mengirim otomatis -> "Terlewat QC".
+        $this->refake();
+        $this->fakeSearch([$this->order('590001', 'IN_TRANSIT', $this->units('2001', 2), ['tracking_number' => 'JX1'])]);
+        $this->artisan('tiktok:sync --only=orders')->assertSuccessful();
+        $shipped = SalesOrder::where('external_number', '590001')->firstOrFail();
+        $this->assertTrue($shipped->needsQcSkipCheck());
+
         // Selain Super Admin tidak boleh mengubah saklar.
         $admin = User::factory()->create();
         $admin->givePermissionTo(['tiktok.view', 'tiktok.connect']);
@@ -485,13 +492,14 @@ class TiktokIntegrationTest extends TestCase
 
         $this->actingAs(User::where('username', 'superadmin')->first())
             ->put("/marketplace/shops/tiktok/{$shop->id}/order-processing", ['process_orders' => 0])
-            ->assertSessionHas('success', fn ($m) => str_contains($m, '2 pesanan yang belum dikirim dihapus'));
+            ->assertSessionHas('success', fn ($m) => str_contains($m, '1 pesanan yang belum dikirim dihapus'));
 
         $shop->refresh();
         $this->assertFalse($shop->process_orders);
         $this->assertFalse($shop->stock_push, 'Kirim stok ikut mati.');
-        $this->assertSame(0, SalesOrder::count(), 'Pesanan yang belum dikirim dihapus, cadangan stok lepas.');
-        $this->assertSame(10, $this->available($this->kaosM));
+        $this->assertSame(['590001'], SalesOrder::pluck('external_number')->all(), 'Draft dihapus, yang sudah Dikirim tetap.');
+        $this->assertFalse($shipped->fresh()->needsQcSkipCheck(), 'Tidak lagi ditandai Terlewat QC.');
+        $this->assertSame(0, SalesOrder::qcSkipped('unchecked')->count());
 
         // Sinkron & webhook tidak menarik pesanan: tanpa respons palsu, request apa pun akan gagal.
         $this->refake();
@@ -513,11 +521,11 @@ class TiktokIntegrationTest extends TestCase
         $this->assertNotNull($shop->returns_synced_until);
 
         $this->fakeSearch([
-            $this->order('590001', 'AWAITING_SHIPMENT', $this->units('2001', 2)),
+            $this->order('590004', 'AWAITING_SHIPMENT', $this->units('2001', 1)),
             $this->order('590003', 'IN_TRANSIT', $this->units('2001', 1)),
         ]);
         $this->artisan('tiktok:sync --only=orders')->assertSuccessful();
-        $this->assertSame(['590001'], SalesOrder::pluck('external_number')->all(), 'Yang sudah dikirim dari sistem lain tidak ikut masuk.');
+        $this->assertSame(['590001', '590004'], SalesOrder::orderBy('external_number')->pluck('external_number')->all(), 'Yang sudah dikirim dari sistem lain tidak ikut masuk.');
     }
 
     public function test_unpaid_and_on_hold_orders_hold_pushed_stock(): void
