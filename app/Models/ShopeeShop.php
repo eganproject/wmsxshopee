@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Models\Concerns\LogsActivity;
+use App\Models\Concerns\ScopedToWarehouse;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -10,7 +11,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 /** Toko Shopee yang sudah diotorisasi pemiliknya, terhubung ke satu gudang pengirim. */
 class ShopeeShop extends Model
 {
-    use LogsActivity;
+    use LogsActivity, ScopedToWarehouse;
 
     public const STATUSES = [
         'connected' => 'Terhubung',

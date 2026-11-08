@@ -35,7 +35,7 @@ class ShopeeAuth
         }
 
         $shops = DB::transaction(fn () => array_map(function (int $id) use ($client, $token, $warehouseId) {
-            $shop = ShopeeShop::firstOrNew(['environment' => $client->environment, 'shop_id' => $id]);
+            $shop = ShopeeShop::withoutGlobalScope('warehouse_access')->firstOrNew(['environment' => $client->environment, 'shop_id' => $id]);
             $shop->fill([
                 'status' => 'connected',
                 'is_active' => true,

@@ -14,6 +14,7 @@ use App\Services\Tiktok\TiktokException;
 use App\Services\Tiktok\TiktokStockSync;
 use App\Support\BackgroundHealth;
 use App\Support\FailedJobs;
+use App\Support\ShopAccess;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -39,12 +40,14 @@ class MarketplaceSyncLogController extends Controller
         $user = $request->user();
         $shops = MarketplaceShopSync::shopsFor($user);
         $platforms = collect(['shopee', 'tiktok'])->filter(fn ($p) => $user->can("{$p}.view"))->values()->all();
-        $tab = in_array($request->input('tab'), ['push', 'jobs'], true) ? $request->input('tab') : 'logs';
+        // Job gagal berisi data semua toko, jadi hanya untuk user yang mengakses semua gudang.
+        $jobsVisible = $user->hasAllWarehouses();
+        $tab = in_array($request->input('tab'), $jobsVisible ? ['push', 'jobs'] : ['push'], true) ? $request->input('tab') : 'logs';
         [$platform, $shopId] = array_pad(explode('-', (string) $request->input('shop'), 2), 2, null);
         $shop = $shops->first(fn ($row) => $row['platform'] === $platform && (string) $row['shop']->id === $shopId);
 
         if ($tab === 'logs') {
-            $rows = MarketplaceSyncLog::query()
+            $rows = ShopAccess::restrict(MarketplaceSyncLog::query())
                 ->whereIn('platform', $platforms)
                 ->when($shop, fn ($q) => $q->where('platform', $shop['platform'])->where('shop_ref', $shop['shop']->id))
                 ->when(isset(self::STATUSES[$request->input('status')]), fn ($q) => $q->where('status', $request->input('status')))
@@ -54,7 +57,7 @@ class MarketplaceSyncLogController extends Controller
         } elseif ($tab === 'jobs') {
             $rows = FailedJobs::paginate();
         } else {
-            $rows = MarketplaceWebhookEvent::query()
+            $rows = ShopAccess::restrict(MarketplaceWebhookEvent::query())
                 ->whereIn('platform', $platforms)
                 ->when($shop, fn ($q) => $q->where('platform', $shop['platform'])->where('shop_ref', $shop['shop']->id))
                 ->when(isset(self::PUSH_STATUSES[$request->input('status')]), fn ($q) => $q->where('status', $request->input('status')))
@@ -65,17 +68,18 @@ class MarketplaceSyncLogController extends Controller
 
         return view('marketplace.sync-logs', [
             'tab' => $tab,
+            'jobsVisible' => $jobsVisible,
             'health' => BackgroundHealth::problems(),
             'rows' => $rows,
             'shops' => $shops,
             'shop' => $shop,
             'shopNames' => $shops->mapWithKeys(fn ($row) => [$row['platform'].'-'.$row['shop']->id => $row['shop']->displayName()]),
             'summary' => [
-                'failed_today' => MarketplaceSyncLog::whereIn('platform', $platforms)->failed()->where('started_at', '>=', now()->startOfDay())->count(),
+                'failed_today' => ShopAccess::restrict(MarketplaceSyncLog::query())->whereIn('platform', $platforms)->failed()->where('started_at', '>=', now()->startOfDay())->count(),
                 'failed_stock' => $shops->sum(fn ($row) => $row['shop']->mappings()->whereNotNull('stock_error')->count()),
-                'failed_push' => MarketplaceWebhookEvent::whereIn('platform', $platforms)->where('status', 'failed')->count(),
-                'last_push' => MarketplaceWebhookEvent::whereIn('platform', $platforms)->max('created_at'),
-                'failed_jobs' => FailedJobs::count(),
+                'failed_push' => ShopAccess::restrict(MarketplaceWebhookEvent::query())->whereIn('platform', $platforms)->where('status', 'failed')->count(),
+                'last_push' => ShopAccess::restrict(MarketplaceWebhookEvent::query())->whereIn('platform', $platforms)->max('created_at'),
+                'failed_jobs' => $jobsVisible ? FailedJobs::count() : 0,
             ],
         ]);
     }
@@ -120,7 +124,7 @@ class MarketplaceSyncLogController extends Controller
         $platforms = collect(['shopee', 'tiktok'])->filter(fn ($p) => $request->user()->can("{$p}.sync"))->values()->all();
         abort_if($platforms === [], 403, 'Anda tidak punya izin menyinkron toko marketplace.');
 
-        $events = MarketplaceWebhookEvent::whereIn('platform', $platforms)->where('status', 'failed')
+        $events = ShopAccess::restrict(MarketplaceWebhookEvent::query())->whereIn('platform', $platforms)->where('status', 'failed')
             ->where('created_at', '>=', now()->subDays(7))->get();
 
         foreach ($events as $event) {
@@ -135,6 +139,7 @@ class MarketplaceSyncLogController extends Controller
     public function retryJob(Request $request, ?string $job = null): RedirectResponse
     {
         abort_unless($request->user()->canAny(['shopee.sync', 'tiktok.sync']), 403, 'Anda tidak punya izin menyinkron toko marketplace.');
+        abort_unless($request->user()->hasAllWarehouses(), 403, 'Job gagal hanya bisa dikelola user dengan akses semua gudang.');
 
         $count = FailedJobs::retry($job);
 
@@ -145,6 +150,7 @@ class MarketplaceSyncLogController extends Controller
     public function forgetJob(Request $request, ?string $job = null): RedirectResponse
     {
         abort_unless($request->user()->canAny(['shopee.sync', 'tiktok.sync']), 403, 'Anda tidak punya izin menyinkron toko marketplace.');
+        abort_unless($request->user()->hasAllWarehouses(), 403, 'Job gagal hanya bisa dikelola user dengan akses semua gudang.');
 
         $count = FailedJobs::forget($job);
 

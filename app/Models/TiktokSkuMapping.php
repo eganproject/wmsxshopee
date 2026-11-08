@@ -37,7 +37,7 @@ class TiktokSkuMapping extends Model
 
     public function shop(): BelongsTo
     {
-        return $this->belongsTo(TiktokShop::class, 'tiktok_shop_id');
+        return $this->belongsTo(TiktokShop::class, 'tiktok_shop_id')->withoutGlobalScope('warehouse_access');
     }
 
     public function variant(): BelongsTo

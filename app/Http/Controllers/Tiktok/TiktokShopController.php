@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Jobs\RunMarketplaceTask;
 use App\Models\TiktokShop;
 use App\Models\Warehouse;
+use App\Rules\AccessibleRecord;
 use App\Services\Tiktok\TiktokAuth;
 use App\Services\Tiktok\TiktokClient;
 use App\Services\Tiktok\TiktokException;
@@ -22,7 +23,7 @@ class TiktokShopController extends Controller
     public function connect(Request $request): RedirectResponse
     {
         $data = $request->validate([
-            'warehouse_id' => ['required', Rule::exists('warehouses', 'id')->where('is_active', true)],
+            'warehouse_id' => ['required', Rule::exists('warehouses', 'id')->where('is_active', true), new AccessibleRecord(Warehouse::class)],
         ], [], ['warehouse_id' => 'gudang pengirim']);
 
         $client = TiktokClient::make();
@@ -81,7 +82,7 @@ class TiktokShopController extends Controller
     public function confirm(Request $request, TiktokAuth $auth): RedirectResponse
     {
         $data = $request->validate([
-            'warehouse_id' => ['required', Rule::exists('warehouses', 'id')->where('is_active', true)],
+            'warehouse_id' => ['required', Rule::exists('warehouses', 'id')->where('is_active', true), new AccessibleRecord(Warehouse::class)],
         ], [], ['warehouse_id' => 'gudang pengirim']);
 
         $pending = $request->session()->pull('tiktok_auth_code');
@@ -112,7 +113,7 @@ class TiktokShopController extends Controller
     public function update(Request $request, TiktokShop $shop): RedirectResponse
     {
         $data = $request->validate([
-            'warehouse_id' => ['required', Rule::exists('warehouses', 'id')],
+            'warehouse_id' => ['required', Rule::exists('warehouses', 'id'), new AccessibleRecord(Warehouse::class)],
             'is_active' => ['nullable', 'boolean'],
             'stock_push' => ['nullable', 'boolean'],
         ], [], ['warehouse_id' => 'gudang pengirim']);

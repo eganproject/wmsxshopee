@@ -40,7 +40,7 @@ class SyncMarketplaceShop implements ShouldBeUnique, ShouldQueue
 
     public function handle(ShopeeSync $shopee, TiktokSync $tiktok): void
     {
-        $shop = ($this->platform === 'shopee' ? ShopeeShop::class : TiktokShop::class)::find($this->shopId);
+        $shop = ($this->platform === 'shopee' ? ShopeeShop::class : TiktokShop::class)::withoutGlobalScope('warehouse_access')->find($this->shopId);
 
         if (! $shop?->isSyncable()) {
             return;

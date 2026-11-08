@@ -34,7 +34,7 @@ class TiktokWebhookHandler
     /** @return bool false bila webhook tidak perlu diproses */
     public function handle(MarketplaceWebhookEvent $event): bool
     {
-        $shop = TiktokShop::find($event->shop_ref);
+        $shop = TiktokShop::withoutGlobalScope('warehouse_access')->find($event->shop_ref);
 
         if ($shop && self::isProductEvent($event->event_type, $event->payload['data'] ?? [])) {
             RefreshMarketplaceCatalog::later('tiktok', $shop->id);

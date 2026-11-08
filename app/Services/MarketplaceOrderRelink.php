@@ -59,12 +59,12 @@ class MarketplaceOrderRelink
         $linked = 0;
 
         $shopeeIds = (clone $pending)->whereNotNull('shopee_shop_id')->distinct()->pluck('shopee_shop_id');
-        foreach (ShopeeShop::whereIn('id', $shopeeIds)->get() as $shop) {
+        foreach (ShopeeShop::withoutGlobalScope('warehouse_access')->whereIn('id', $shopeeIds)->get() as $shop) {
             $linked += $this->shopee->relinkPending($shop);
         }
 
         $tiktokIds = (clone $pending)->whereNotNull('tiktok_shop_id')->distinct()->pluck('tiktok_shop_id');
-        foreach (TiktokShop::whereIn('id', $tiktokIds)->get() as $shop) {
+        foreach (TiktokShop::withoutGlobalScope('warehouse_access')->whereIn('id', $tiktokIds)->get() as $shop) {
             $linked += $this->tiktok->relinkPending($shop);
         }
 
