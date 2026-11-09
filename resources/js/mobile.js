@@ -258,9 +258,14 @@ Alpine.data('qcApp', () => ({
     photoUrl: null,
     busy: false,
     loadingQueue: false,
+    camera: false,
+    resiByCamera: false,
 
     async init() {
         useScan((code) => (this.step === 'find' ? this.find(code) : this.scanItem(code)), { hint: 'Scan resi atau no. pesanan' });
+        bridge.on('scanner', ({ open }) => (this.camera = open));
+        // Pindah halaman saat kamera barang masih terbuka: tutup dulu.
+        window.addEventListener('pagehide', () => this.closeCamera());
         this.queue = (await kvGet(`qc-queue-${warehouseId()}`).catch(() => null))?.orders || [];
         this.refreshQueue();
     },
@@ -279,11 +284,34 @@ Alpine.data('qcApp', () => ({
         }
     },
 
+    // Resi: sekali scan, kamera penuh. Barang: kamera tetap terbuka di atas sampai semua cocok.
     openCamera() {
-        openScanner({ hint: this.step === 'find' ? 'Scan resi atau no. pesanan' : 'Scan SKU / barcode barang' });
+        if (this.step === 'find') {
+            this.resiByCamera = true;
+            openScanner({ mode: 'full', continuous: false, hint: 'Scan resi atau no. pesanan' });
+            return;
+        }
+        if (this.camera) {
+            this.closeCamera();
+            return;
+        }
+        this.openItemCamera();
+    },
+
+    openItemCamera() {
+        if (this.complete) return;
+        openScanner({ mode: 'top', continuous: true, hint: 'Scan SKU / barcode barang' });
+        if (bridge.isApp) this.camera = true;
+    },
+
+    closeCamera() {
+        if (this.camera) bridge.closeScanner();
+        this.camera = false;
     },
 
     async find(raw) {
+        const viaCamera = this.resiByCamera && !!raw;
+        this.resiByCamera = false;
         const code = String(raw || this.code).trim();
         if (!code) return;
         this.code = '';
@@ -320,7 +348,9 @@ Alpine.data('qcApp', () => ({
         this.photo = null;
         this.photoUrl = null;
         this.step = 'items';
-        scanOptions = { hint: 'Scan SKU / barcode barang' };
+        scanOptions = { mode: 'top', continuous: true, hint: 'Scan SKU / barcode barang' };
+        // Resi discan pakai kamera: langsung lanjut kamera barang tanpa tekan tombol lagi.
+        if (viaCamera) this.$nextTick(() => this.openItemCamera());
     },
 
     lineFor(code) {
@@ -360,7 +390,10 @@ Alpine.data('qcApp', () => ({
         this.alert = null;
         this.last = { code, text };
         bridge.feedback(this.complete ? 'ok' : 'scan');
-        if (this.complete) toast('Semua barang cocok. Foto paket lalu selesaikan.', 'ok');
+        if (this.complete) {
+            this.closeCamera();
+            toast('Semua barang cocok. Foto paket lalu selesaikan.', 'ok');
+        }
     },
 
     reject(title, code, text = '') {
@@ -371,6 +404,7 @@ Alpine.data('qcApp', () => ({
     adjust(line, delta) {
         const next = Math.max(0, Math.min(line.qty, (this.scanned[line.variant_id] || 0) + delta));
         this.scanned[line.variant_id] = next;
+        if (this.complete) this.closeCamera();
     },
 
     get done() {
@@ -430,6 +464,8 @@ Alpine.data('qcApp', () => ({
     },
 
     reset() {
+        this.closeCamera();
+        this.resiByCamera = false;
         this.step = 'find';
         this.order = null;
         this.alert = null;
