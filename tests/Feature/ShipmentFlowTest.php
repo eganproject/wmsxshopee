@@ -564,7 +564,7 @@ class ShipmentFlowTest extends TestCase
         $shopee = $this->shopeeOrder('H1', ['tracking_number' => 'SPX-S', 'courier_id' => $spx->id]);
         foreach ([$a, $b, $shopee] as $order) {
             $this->pick($order);
-            $this->post("/sales/orders/{$order->id}/pack")->assertSessionHasNoErrors();
+            app(\App\Services\SalesOrderService::class)->pack($order);
         }
 
         $this->get('/sales/handovers')->assertOk()->assertSeeText('Scan Resi / No. Pesanan');
@@ -605,7 +605,7 @@ class ShipmentFlowTest extends TestCase
         $spx = Courier::where('code', 'SPX')->firstOrFail();
         $shopee = $this->shopeeOrder('M1', ['tracking_number' => 'SPX-M', 'courier_id' => $spx->id]);
         $this->pick($shopee);
-        $this->post("/sales/orders/{$shopee->id}/pack")->assertSessionHasNoErrors();
+        app(\App\Services\SalesOrderService::class)->pack($shopee);
         $ship = fn () => $this->post("/sales/orders/{$shopee->id}/ship", ['courier_id' => $spx->id, 'tracking_number' => 'SPX-M']);
 
         $ship()->assertSessionHasErrors(['code' => "{$shopee->number}: pengiriman belum diatur di Shopee. Atur pickup / drop off dulu."]);
@@ -619,6 +619,17 @@ class ShipmentFlowTest extends TestCase
         $this->assertSame('shipped', $shopee->fresh()->status);
     }
 
+    /** Kemas hanya lewat QC Scan; tombol "Kemas tanpa Scan" sudah dihapus, termasuk untuk admin. */
+    public function test_pack_without_scan_is_removed(): void
+    {
+        $order = $this->order(['tracking_number' => 'JNE2']);
+        $this->pick($order);
+
+        $this->get("/sales/orders/{$order->id}")->assertOk()->assertSee('QC Scan')->assertDontSee('Kemas tanpa Scan');
+        $this->post("/sales/orders/{$order->id}/pack")->assertNotFound();
+        $this->assertSame('picking', $order->fresh()->status);
+    }
+
     public function test_staff_must_use_scans_instead_of_manual_pack_and_ship(): void
     {
         $order = $this->order(['tracking_number' => 'JNE1']);
@@ -628,7 +639,7 @@ class ShipmentFlowTest extends TestCase
         $staff->assignRole('Staff Gudang');
         $this->actingAs($staff);
 
-        $this->post("/sales/orders/{$order->id}/pack")->assertForbidden();
+        $this->post("/sales/orders/{$order->id}/pack")->assertNotFound();
         $this->get("/sales/orders/{$order->id}")->assertOk()->assertSee('QC Scan')->assertDontSee('Kemas tanpa Scan');
         $this->post("/sales/qc/{$order->id}", ['scanned' => [$this->kaosM->id => 2]])->assertSessionHasNoErrors();
         $this->post("/sales/orders/{$order->id}/ship", ['courier_id' => Courier::first()->id, 'tracking_number' => 'JNE1'])->assertForbidden();

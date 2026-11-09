@@ -80,13 +80,6 @@
             @if ($order->hasStatus('confirmed'))
                 <a href="{{ route('sales.orders.picking', $order) }}" class="btn-primary"><x-heroicon-o-hand-raised class="size-5" /> Picking</a>
             @elseif ($order->hasStatus('picking'))
-                @can('sales.skip_scan')
-                    <form id="pack-order" method="POST" action="{{ route('sales.orders.pack', $order) }}">@csrf</form>
-                    <button type="button" class="btn-secondary"
-                            @click="$dispatch('confirm', { form: 'pack-order', title: 'Kemas tanpa QC scan?', message: 'Pesanan ditandai dikemas tanpa scan barang. Pastikan semua barang sudah dicek manual.', confirmText: 'Sudah Dikemas', variant: 'primary' })">
-                        <x-heroicon-o-archive-box class="size-5" /> Kemas tanpa Scan
-                    </button>
-                @endcan
                 <a href="{{ route('sales.qc.show', $order) }}" class="btn-primary"><x-heroicon-o-viewfinder-circle class="size-5" /> QC Scan</a>
             @elseif ($order->hasStatus('packed') && $order->isSelfPickup())
                 <form id="hand-to-customer" method="POST" action="{{ route('sales.orders.hand-to-customer', $order) }}">@csrf</form>

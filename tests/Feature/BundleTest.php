@@ -161,7 +161,7 @@ class BundleTest extends TestCase
         $this->get("/sales/orders/{$order->id}/pick-list")->assertOk()->assertSee('Isi paket PAKET-3');
 
         $this->post("/sales/orders/{$order->id}/pick", ['picks' => $service->suggestPicks($order)])->assertSessionHasNoErrors();
-        $this->post("/sales/orders/{$order->id}/pack")->assertSessionHasNoErrors();
+        app(\App\Services\SalesOrderService::class)->pack($order);
         $this->post("/sales/orders/{$order->id}/ship", ['courier_id' => Courier::first()->id, 'tracking_number' => 'SPX1'])->assertSessionHasNoErrors();
 
         $this->assertSame('shipped', $order->fresh()->status);
