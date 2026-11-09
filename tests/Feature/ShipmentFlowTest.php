@@ -153,6 +153,21 @@ class ShipmentFlowTest extends TestCase
         $this->get("/sales/orders/{$order->id}")->assertOk()->assertSee('Cetak Resi')->assertSee('13:00-17:00');
     }
 
+    public function test_shopee_pickup_slots_are_offered_even_when_not_required(): void
+    {
+        $order = $this->shopeeOrder('S1');
+        $this->fakeLogistics(['pickup' => ['address_id'], 'dropoff' => []]);
+
+        // Jadwal tetap bisa dipilih, plus pilihan ikut jadwal Shopee; panel diagnosa untuk Super Admin.
+        $this->get("/sales/orders/{$order->id}/shipment")->assertOk()
+            ->assertSee('id="pickup_time_id"', false)->assertSee('Ikuti jadwal Shopee')
+            ->assertSee('Data pengiriman dari Shopee')->assertSee('slot-b2');
+
+        $this->post("/sales/orders/{$order->id}/shipment", ['method' => 'pickup', 'address_id' => 2, 'pickup_time_id' => 'slot-b1'])
+            ->assertSessionHasNoErrors();
+        Http::assertSent(fn (Request $r) => str_contains($r->url(), 'ship_order') && $r['pickup'] === ['address_id' => 2, 'pickup_time_id' => 'slot-b1']);
+    }
+
     public function test_order_list_shows_arranged_pickup_in_shipping_column(): void
     {
         $this->shopeeOrder('V1', ['shipping_method' => 'pickup', 'pickup_at' => now()->setTime(16, 0), 'shipment_arranged_at' => now()]);
