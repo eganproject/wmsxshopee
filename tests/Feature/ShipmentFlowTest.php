@@ -525,6 +525,35 @@ class ShipmentFlowTest extends TestCase
         $this->assertSame(['packed', $this->admin->id], [$order->fresh()->status, $order->fresh()->qc_checked_by]);
     }
 
+    public function test_qc_queue_filters_by_warehouse_courier_and_age(): void
+    {
+        $other = Warehouse::create(['code' => 'BDG01', 'name' => 'Gudang Bandung', 'address' => 'Jl. Gudang 2', 'city' => 'Bandung', 'pic_name' => 'Andi', 'is_active' => true]);
+        $jne = Courier::where('is_active', true)->firstOrFail();
+
+        $old = $this->order(['courier_id' => $jne->id, 'tracking_number' => 'RESI-LAMA', 'shipping_method' => 'pickup']);
+        $this->pick($old);
+        $old->update(['picking_at' => now()->subHours(6)]);
+        $fresh = $this->order(['tracking_number' => 'RESI-BARU']);
+        $this->pick($fresh);
+        $elsewhere = $this->order(['tracking_number' => 'RESI-BDG']);
+        $this->pick($elsewhere);
+        $elsewhere->update(['warehouse_id' => $other->id]);
+
+        $this->get('/sales/qc')->assertOk()->assertSee($old->number)->assertSee($elsewhere->number)->assertSee('BDG01');
+
+        // Pilihan gudang diingat untuk kunjungan berikutnya.
+        $this->get("/sales/qc?warehouse={$this->warehouse->id}")->assertOk()->assertSee($old->number)->assertDontSee($elsewhere->number);
+        $this->get('/sales/qc')->assertSee($old->number)->assertDontSee($elsewhere->number);
+
+        $this->get("/sales/qc?courier={$jne->id}")->assertSee($old->number)->assertDontSee($fresh->number);
+        $this->get('/sales/qc?shipment=pickup')->assertSee($old->number)->assertDontSee($fresh->number);
+        $this->get('/sales/qc?search=RESI-BARU')->assertSee($fresh->number)->assertDontSee($old->number);
+
+        // Yang sudah lebih dari batas jam ditandai merah.
+        $this->get('/sales/qc?warehouse=')->assertSee($elsewhere->number)
+            ->assertSee('data-age="late"', false)->assertSee('data-age="ok"', false)->assertDontSee('data-age="warn"', false);
+    }
+
     public function test_handover_scan_ships_orders_and_prints_manifest(): void
     {
         $spx = Courier::where('code', 'SPX')->firstOrFail();
