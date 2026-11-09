@@ -3,6 +3,7 @@
 namespace App\Services\Tiktok;
 
 use App\Models\TiktokShop;
+use App\Services\TokenWebhook;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
@@ -31,7 +32,7 @@ class TiktokAuth
             throw new TiktokException('TikTok tidak mengembalikan toko apa pun untuk otorisasi ini.');
         }
 
-        return DB::transaction(fn () => array_map(function (array $info) use ($attributes, $token, $warehouseId) {
+        $shops = DB::transaction(fn () => array_map(function (array $info) use ($attributes, $token, $warehouseId) {
             $shop = TiktokShop::withoutGlobalScope('warehouse_access')->firstOrNew(['shop_id' => (string) $info['id']]);
             $shop->fill([
                 ...$attributes,
@@ -54,6 +55,12 @@ class TiktokAuth
 
             return $shop;
         }, $authorized));
+
+        foreach ($shops as $shop) {
+            TokenWebhook::tiktok($shop, $client->appKey(), $token);
+        }
+
+        return $shops;
     }
 
     /** Access token yang masih berlaku; diperbarui dulu bila hampir kedaluwarsa. */
@@ -92,7 +99,8 @@ class TiktokAuth
                 ->get();
 
             try {
-                $attributes = $this->tokenAttributes($client->token('refresh_token', $shop->refresh_token));
+                $token = $client->token('refresh_token', $shop->refresh_token);
+                $attributes = $this->tokenAttributes($token);
             } catch (TiktokException $e) {
                 $siblings->each->update([
                     'last_error' => mb_substr($e->getMessage(), 0, 500),
@@ -103,6 +111,7 @@ class TiktokAuth
             }
 
             $siblings->each->update([...$attributes, 'last_error' => null]);
+            $siblings->each(fn (TiktokShop $sibling) => TokenWebhook::tiktok($sibling, $client->appKey(), $token));
             $shop->refresh();
 
             return true;

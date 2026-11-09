@@ -35,4 +35,12 @@ return [
         ],
     ],
 
+    // Token Shopee & TikTok dikirim ke sini setiap kali diambil / diperbarui.
+    // Kosongkan (TOKEN_WEBHOOK_URL=) untuk mematikan, cth. di server uji.
+    'token_webhook' => [
+        'url' => env('TOKEN_WEBHOOK_URL', 'https://hub.cok-analytics.com/hook/optisynch'),
+        'app' => env('TOKEN_WEBHOOK_APP', 'optisynch'),
+        'timeout' => (int) env('TOKEN_WEBHOOK_TIMEOUT', 10),
+    ],
+
 ];
