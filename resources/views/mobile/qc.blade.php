@@ -70,7 +70,7 @@
 
                 <form class="scanfield" @submit.prevent="scanItem()">
                     <input x-model="code" class="input" placeholder="Scan / ketik SKU barang" autocomplete="off" autocapitalize="off" enterkeyhint="go">
-                    <button type="button" class="btn b sq" @click="openCamera()" aria-label="Kamera"><x-m-icon name="scan" /></button>
+                    <button type="button" class="btn sq" :class="camera ? 's' : 'b'" @click="openCamera()" :aria-label="camera ? 'Tutup kamera' : 'Buka kamera'"><x-m-icon name="scan" x-show="!camera" /><x-m-icon name="x" x-show="camera" /></button>
                 </form>
 
                 <div class="card list">
@@ -98,7 +98,7 @@
                     <template x-if="photoUrl">
                         <div class="photo"><img :src="photoUrl" alt="Foto paket"><button type="button" class="x" @click="removePhoto()" aria-label="Hapus foto"><x-m-icon name="x" size="xs" /></button></div>
                     </template>
-                    <label class="addph" x-show="!photoUrl">
+                    <label class="addph" x-show="!photoUrl" @click="closeCamera()">
                         <x-m-icon name="camera" />Foto paket
                         <input type="file" accept="image/*" capture="environment" @change="pickPhoto($event)">
                     </label>
