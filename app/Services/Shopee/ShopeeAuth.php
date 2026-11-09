@@ -3,6 +3,7 @@
 namespace App\Services\Shopee;
 
 use App\Models\ShopeeShop;
+use App\Services\TokenWebhook;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
@@ -52,6 +53,10 @@ class ShopeeAuth
 
             return $shop;
         }, $shopIds));
+
+        foreach ($shops as $shop) {
+            TokenWebhook::shopee($shop, $client->partnerId(), $token);
+        }
 
         // Nama toko, region & batas otorisasi; gagal di sini tidak membatalkan koneksi.
         foreach ($shops as $shop) {
@@ -111,6 +116,7 @@ class ShopeeAuth
             }
 
             $shop->update([...$this->tokenAttributes($token), 'last_error' => null]);
+            TokenWebhook::shopee($shop, $client->partnerId(), $token);
 
             return true;
         });

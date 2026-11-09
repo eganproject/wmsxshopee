@@ -31,5 +31,6 @@
         <env name="SESSION_DRIVER" value="array"/>
         <env name="TELESCOPE_ENABLED" value="false"/>
         <env name="TIKTOK_MIN_INTERVAL_MS" value="0"/>
+        <env name="TOKEN_WEBHOOK_URL" value=""/>
     </php>
 </phpunit>
