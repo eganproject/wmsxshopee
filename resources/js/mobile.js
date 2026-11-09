@@ -812,9 +812,13 @@ Alpine.data('opnameApp', (config) => ({
     busy: false,
     code: '',
     loaded: false,
+    last: null,
+    camera: false,
 
     async init() {
         useScan((code) => this.scan(code), { hint: 'Scan rak lalu barangnya' });
+        bridge.on('scanner', ({ open }) => (this.camera = open));
+        window.addEventListener('pagehide', () => this.closeCamera());
         const key = `opname-${config.id}`;
         const stored = await kvGet(key).catch(() => null);
         if (stored) this.lines = stored.lines;
@@ -864,30 +868,53 @@ Alpine.data('opnameApp', (config) => ({
 
     openBin(entry) {
         this.bin = { id: entry.id ?? null, code: entry.code };
+        this.last = null;
+    },
+
+    leaveBin() {
+        this.closeCamera();
+        this.bin = null;
+    },
+
+    // Rak: sekali scan, kamera penuh. Barang: kamera di atas tetap terbuka, daftar tetap terlihat.
+    openCamera() {
+        if (!this.bin) return openScanner({ mode: 'full', continuous: false, hint: 'Scan kode rak' });
+        if (this.camera) return this.closeCamera();
+        openScanner({ mode: 'top', continuous: true, hint: 'Scan SKU / barcode barang' });
+        if (bridge.isApp) this.camera = true;
+    },
+
+    closeCamera() {
+        if (this.camera) bridge.closeScanner();
+        this.camera = false;
     },
 
     async scan(raw) {
         const code = String(raw || this.code).trim();
         this.code = '';
         if (!code) return;
-        const hit = await resolveCode(code).catch(() => null);
-        const line = this.lines.find((l) => norm(l.location) === norm(code));
-        if (hit?.type === 'location' || line) {
-            const loc = hit?.item || { id: line.location_id, code: line.location };
-            this.bin = { id: loc.id, code: loc.code };
-            bridge.feedback('ok');
-            return;
+        const key = norm(code);
+
+        // Cocokkan dulu ke lembar di HP: langsung tampil tanpa menunggu data barang dimuat.
+        const line = this.lines.find((l) => l.location && norm(l.location) === key);
+        if (line) return this.enterBin({ id: line.location_id, code: line.location });
+        if (this.bin) {
+            const local = this.binLines.find((l) => norm(l.sku) === key || (l.barcode && norm(l.barcode) === key));
+            if (local) return this.count(local);
         }
+
+        const hit = await resolveCode(code).catch(() => null);
+        if (hit?.type === 'location') return this.enterBin(hit.item);
         if (!this.bin) {
             bridge.feedback('warn');
             return toast('Scan kode rak dulu, baru barangnya.', 'warn');
         }
         const variantId = hit?.type === 'variant' ? hit.item.id : null;
-        let row = this.binLines.find((l) => (variantId && l.variant_id === variantId) || norm(l.sku) === norm(code) || (l.barcode && norm(l.barcode) === norm(code)));
+        let row = this.binLines.find((l) => (variantId && l.variant_id === variantId) || norm(l.sku) === key || (l.barcode && norm(l.barcode) === key));
         if (!row) {
             if (!variantId) {
                 bridge.feedback('error');
-                return toast(`Barang "${code}" tidak dikenal.`, 'bad');
+                return toast(hit?.type === 'bundle' ? `"${code}" adalah SKU paket. Scan barang satuannya.` : `Barang "${code}" tidak dikenal.`, 'bad');
             }
             row = {
                 id: null, variant_id: variantId, sku: hit.item.sku, barcode: hit.item.barcode, name: variantLabel(hit.item),
@@ -898,8 +925,32 @@ Alpine.data('opnameApp', (config) => ({
             row = this.lines[this.lines.length - 1];
             toast(`${row.sku} belum tercatat di rak ini, ditambahkan.`, 'warn');
         }
+        this.count(row);
+    },
+
+    enterBin(loc) {
+        this.bin = { id: loc.id ?? null, code: loc.code };
+        this.last = null;
+        bridge.feedback('ok');
+    },
+
+    // Tiap scan +1, lalu tampilkan barangnya: kartu "terakhir discan" + baris disorot.
+    count(row) {
         this.set(row, (row.counted_qty ?? 0) + 1);
+        this.last = row.key;
         bridge.feedback('scan');
+        this.$nextTick(() => {
+            const el = this.$root.querySelector(`[data-line="${CSS.escape(row.key)}"]`);
+            if (!el) return;
+            el.classList.remove('flash-ok');
+            void el.offsetWidth;
+            el.classList.add('flash-ok');
+            el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+        });
+    },
+
+    get lastLine() {
+        return this.last ? this.binLines.find((l) => l.key === this.last) || null : null;
     },
 
     set(row, value) {
@@ -926,7 +977,7 @@ Alpine.data('opnameApp', (config) => ({
             this.persist();
             toast(result.queued ? 'Hitungan disimpan di HP, dikirim saat online.' : result.data.message, result.queued ? 'warn' : 'ok', 3500);
             if (!result.queued && result.data.posted) window.location.href = '/m/opname';
-            this.bin = null;
+            this.leaveBin();
         } catch (e) {
             toast(e.message, 'bad', 6000);
         } finally {

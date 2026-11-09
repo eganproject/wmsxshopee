@@ -23,7 +23,7 @@
 
                 <form class="scanfield" @submit.prevent="scan()">
                     <input x-model="code" class="input" placeholder="Scan / ketik kode rak" autocomplete="off" autocapitalize="off" enterkeyhint="go">
-                    <button type="button" class="btn b sq" @click="$scan()" aria-label="Kamera"><x-m-icon name="scan" /></button>
+                    <button type="button" class="btn b sq" @click="openCamera()" aria-label="Kamera"><x-m-icon name="scan" /></button>
                 </form>
 
                 <div class="card empty" x-show="!loaded"><b>Memuat lembar…</b></div>
@@ -42,7 +42,7 @@
         <template x-if="bin">
             <div class="stack">
                 <div class="row">
-                    <button type="button" class="iconbtn" @click="bin = null" aria-label="Daftar rak"><x-m-icon name="left" /></button>
+                    <button type="button" class="iconbtn" @click="leaveBin()" aria-label="Daftar rak"><x-m-icon name="left" /></button>
                     <div class="grow"><div class="label">Rak</div><div class="bigcode" style="font-size:20px" x-text="bin.code"></div></div>
                     <button type="button" class="chip" @click="blind = !blind" style="height:32px">
                         <x-m-icon name="eyeoff" size="xs" x-show="blind" /><x-m-icon name="eye" size="xs" x-show="!blind" />
@@ -52,12 +52,29 @@
 
                 <form class="scanfield" @submit.prevent="scan()">
                     <input x-model="code" class="input" placeholder="Scan / ketik SKU (tiap scan +1)" autocomplete="off" autocapitalize="off" enterkeyhint="go">
-                    <button type="button" class="btn b sq" @click="$scan()" aria-label="Kamera"><x-m-icon name="scan" /></button>
+                    <button type="button" class="btn sq" :class="camera ? 's' : 'b'" @click="openCamera()" :aria-label="camera ? 'Tutup kamera' : 'Kamera'">
+                        <x-m-icon name="scan" x-show="!camera" /><x-m-icon name="x" x-show="camera" />
+                    </button>
                 </form>
+
+                <template x-if="lastLine">
+                    <div class="card" style="padding:10px 12px;display:flex;align-items:center;gap:10px">
+                        <span class="thumb tone-ok"><x-m-icon name="check" /></span>
+                        <div class="grow" style="min-width:0">
+                            <div class="label">Terakhir discan</div>
+                            <div class="t mono" style="font-size:14px;font-weight:700" x-text="lastLine.sku"></div>
+                            <div class="m truncate" x-text="lastLine.name"></div>
+                        </div>
+                        <div style="text-align:right">
+                            <div class="label">Dihitung</div>
+                            <div class="bigcode" style="font-size:22px" x-text="lastLine.counted_qty ?? 0"></div>
+                        </div>
+                    </div>
+                </template>
 
                 <div class="card list">
                     <template x-for="row in binLines" :key="row.key || (row.variant_id + ':' + row.location_id)">
-                        <div class="it">
+                        <div class="it" :data-line="row.key">
                             <div class="grow">
                                 <div class="t mono" style="font-size:13px" x-text="row.sku"></div>
                                 <div class="m truncate" x-text="row.name"></div>
