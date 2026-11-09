@@ -24,6 +24,20 @@ function index(data) {
     return { ...data, byCode, locations, variants, locationById };
 }
 
+let refreshing = null;
+
+async function download() {
+    const data = await getJson('/m/catalog');
+    await kvSet('catalog', data).catch(() => null);
+    cache = index(data);
+    return cache;
+}
+
+/** Perbarui data di belakang layar; scan tetap pakai data di HP sambil menunggu. */
+function refreshInBackground() {
+    refreshing ||= download().catch(() => null).finally(() => (refreshing = null));
+}
+
 export async function catalog({ fresh = false } = {}) {
     if (cache && !fresh) return cache;
     if (loading) return loading;
@@ -34,12 +48,15 @@ export async function catalog({ fresh = false } = {}) {
         const valid = stored && String(stored.warehouse_id) === String(warehouse);
         const age = valid ? Date.now() - new Date(stored.generated_at).getTime() : Infinity;
 
-        if (navigator.onLine && (fresh || age > 10 * 60 * 1000)) {
+        // Sudah ada data di HP: langsung dipakai, kalau lewat 10 menit diperbarui di belakang.
+        if (valid && !fresh) {
+            cache = index(stored);
+            if (navigator.onLine && age > 10 * 60 * 1000) refreshInBackground();
+            return cache;
+        }
+        if (navigator.onLine) {
             try {
-                const data = await getJson('/m/catalog');
-                await kvSet('catalog', data).catch(() => null);
-                cache = index(data);
-                return cache;
+                return await download();
             } catch (e) {
                 if (!valid) throw e;
             }
