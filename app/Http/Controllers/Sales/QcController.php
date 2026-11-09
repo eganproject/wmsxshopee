@@ -3,7 +3,9 @@
 namespace App\Http\Controllers\Sales;
 
 use App\Http\Controllers\Controller;
+use App\Models\Courier;
 use App\Models\SalesOrder;
+use App\Models\Warehouse;
 use App\Services\FulfillmentScan;
 use App\Support\Activity;
 use Illuminate\Http\RedirectResponse;
@@ -13,18 +15,59 @@ use Illuminate\View\View;
 /** QC kemas: scan resi lalu scan tiap barang sebelum paket ditutup. */
 class QcController extends Controller
 {
-    public function index(): View
+    /**
+     * Antrean QC: pesanan Sedang Diambil, bisa disaring per gudang, kurir,
+     * pickup / drop off dan kata kunci. Pilihan gudang diingat di session.
+     */
+    public function index(Request $request): View
     {
-        $queue = SalesOrder::query()
+        $warehouses = Warehouse::orderBy('code')->get();
+
+        if ($request->has('warehouse')) {
+            $request->session()->put('qc_warehouse', (string) $request->input('warehouse'));
+        }
+        $warehouseId = (int) ($request->has('warehouse') ? $request->input('warehouse') : $request->session()->get('qc_warehouse', ''));
+        if (! $warehouses->contains('id', $warehouseId)) {
+            // Tanpa pilihan: user satu gudang langsung ke gudangnya, selain itu semua gudang.
+            $warehouseId = $warehouses->count() === 1 ? $warehouses->first()->id : 0;
+        }
+
+        $courier = (string) $request->input('courier');
+        $shipment = (string) $request->input('shipment');
+        $search = trim((string) $request->input('search'));
+
+        $base = SalesOrder::query()
+            ->where('status', 'picking')
+            ->when($warehouseId, fn ($query) => $query->where('warehouse_id', $warehouseId));
+
+        $queue = (clone $base)
             ->with(['warehouse', 'courier'])
             ->withSum('items', 'qty')
-            ->where('status', 'picking')
+            ->when($courier === 'none', fn ($query) => $query->whereNull('courier_id'))
+            ->when(ctype_digit($courier), fn ($query) => $query->where('courier_id', (int) $courier))
+            ->when($shipment === 'none', fn ($query) => $query->whereNull('shipping_method'))
+            ->when(isset(SalesOrder::SHIPPING_METHODS[$shipment]), fn ($query) => $query->where('shipping_method', $shipment))
+            ->when($search !== '', fn ($query) => $query->where(fn ($q) => $q
+                ->where('number', 'like', "%{$search}%")
+                ->orWhere('external_number', 'like', "%{$search}%")
+                ->orWhere('tracking_number', 'like', "%{$search}%")
+                ->orWhere('customer_name', 'like', "%{$search}%")))
             ->oldest('picking_at')
             ->oldest('id')
             ->paginate(50)
             ->withQueryString();
 
-        return view('sales.qc.index', ['queue' => $queue]);
+        // Pilihan kurir hanya yang ada di antrean gudang terpilih.
+        $couriers = Courier::whereIn('id', (clone $base)->whereNotNull('courier_id')->select('courier_id'))->orderBy('name')->get();
+
+        return view('sales.qc.index', [
+            'queue' => $queue,
+            'warehouses' => $warehouses,
+            'warehouseId' => $warehouseId,
+            'couriers' => $couriers,
+            'waitingHours' => max(1, (int) config('alerts.qc_waiting_hours')),
+            'filtered' => $courier !== '' || $shipment !== '' || $search !== '',
+        ]);
     }
 
     /** Hasil scan resi / no. SO di halaman QC. */
