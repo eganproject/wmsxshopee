@@ -33,7 +33,10 @@ class TiktokLogistics
     {
         $this->ensureTiktok($order);
 
-        return $this->parseOptions($this->api($order)->get("/fulfillment/packages/{$order->tiktok_package_id}/handover_time_slots"));
+        $response = $this->api($order)->get("/fulfillment/packages/{$order->tiktok_package_id}/handover_time_slots");
+
+        // Respons mentah ikut disimpan untuk panel diagnosa di halaman atur pengiriman.
+        return [...$this->parseOptions($response), 'raw' => $response];
     }
 
     /**

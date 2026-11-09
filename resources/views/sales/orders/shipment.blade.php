@@ -30,6 +30,8 @@
     $firstSlot = collect($firstAddress['slots'] ?? [])->firstWhere('recommended', true) ?? ($firstAddress['slots'][0] ?? null);
     $needs = fn (string $method, string $field) => in_array($field, $options[$method]['needs'] ?? [], true);
     $tiktokSlots = $tiktok ? ($options['pickup']['slots'] ?? []) : [];
+    $hasShopeeSlots = collect($addresses)->contains(fn (array $address) => $address['slots'] !== []);
+    $showRaw = $marketplace && ! empty($options['raw']) && auth()->user()?->isSuperAdmin();
 
     $warehouse = $order->warehouse;
     $warehouseAddress = collect([$warehouse->address, $warehouse->city, $warehouse->province, $warehouse->postal_code])->filter()->implode(', ');
@@ -141,7 +143,7 @@
                                     @endforeach
                                 </select>
                             @else
-                                <p class="text-sm text-slate-600">TikTok tidak meminta jadwal; kurir menjemput sesuai jadwal toko.</p>
+                                <p class="text-sm text-slate-600">TikTok tidak mengirim pilihan jam pickup untuk paket ini; kurir menjemput sesuai jadwal dari TikTok.</p>
                             @endif
                         </div>
                     </div>
@@ -193,16 +195,24 @@
                                 @endforelse
                             </div>
 
-                            @if ($needs('pickup', 'pickup_time_id'))
+                            {{-- Slot jam ditampilkan bila Shopee mengirimnya, walau tidak diwajibkan untuk kurir ini. --}}
+                            @if ($needs('pickup', 'pickup_time_id') || $hasShopeeSlots)
                                 <div>
-                                    <label for="pickup_time_id" class="form-label">Jadwal Pickup <span class="text-rose-500">*</span> <x-hint text="Slot waktu jemput yang disediakan Shopee untuk alamat pickup toko. Siapkan paket sebelum jam tersebut." /></label>
-                                    <select id="pickup_time_id" name="pickup_time_id" x-model="slotId" class="form-input sm:max-w-md" data-native :disabled="method !== 'pickup'">
-                                        <template x-for="slot in slots" :key="slot.pickup_time_id">
-                                            <option :value="String(slot.pickup_time_id)" x-text="slot.label + (slot.recommended ? ' (disarankan)' : '')"></option>
-                                        </template>
-                                    </select>
-                                    <p class="mt-1 text-xs text-slate-400" x-show="slots.length === 0">Tidak ada jadwal untuk alamat ini.</p>
+                                    <div x-show="slots.length > 0">
+                                        <label for="pickup_time_id" class="form-label">Jadwal Pickup @if ($needs('pickup', 'pickup_time_id'))<span class="text-rose-500">*</span>@endif <x-hint text="Slot waktu jemput yang disediakan Shopee untuk alamat pickup toko. Siapkan paket sebelum jam tersebut." /></label>
+                                        <select id="pickup_time_id" name="pickup_time_id" x-model="slotId" class="form-input sm:max-w-md" data-native :disabled="method !== 'pickup' || slots.length === 0">
+                                            @unless ($needs('pickup', 'pickup_time_id'))
+                                                <option value="">Ikuti jadwal Shopee</option>
+                                            @endunless
+                                            <template x-for="slot in slots" :key="slot.pickup_time_id">
+                                                <option :value="String(slot.pickup_time_id)" x-text="slot.label + (slot.recommended ? ' (disarankan)' : '')"></option>
+                                            </template>
+                                        </select>
+                                    </div>
+                                    <p class="text-sm text-slate-600" x-show="slots.length === 0" x-cloak>Shopee tidak mengirim pilihan jam pickup untuk alamat ini. Coba pilih alamat yang bertanda "Alamat pickup", atau kurir menjemput sesuai jadwal Shopee.</p>
                                 </div>
+                            @else
+                                <p class="text-sm text-slate-600">Shopee tidak meminta jadwal pickup untuk kurir ini; kurir menjemput sesuai jadwal dari Shopee.</p>
                             @endif
 
                             @if ($needs('pickup', 'tracking_number'))
@@ -286,5 +296,16 @@
                 <button type="submit" class="btn-primary"><x-heroicon-o-check class="size-5" /> {{ $marketplace ? 'Atur di '.$platformName : 'Simpan' }}</button>
             </div>
         </form>
+    @endif
+
+    @if ($showRaw)
+        {{-- Hanya Super Admin: isi asli dari marketplace untuk mengecek pilihan jam pickup. --}}
+        <details class="card mt-6 max-w-4xl">
+            <summary class="cursor-pointer px-5 py-3 text-sm font-medium text-slate-700">Data pengiriman dari {{ $platformName }} (diagnosa)</summary>
+            <div class="border-t border-slate-100 p-5">
+                <p class="mb-2 text-xs text-slate-500">Isi asli yang dikirim {{ $platformName }} untuk pesanan ini. Bila daftar jam pickup kosong di sini, {{ $platformName }} memang tidak mengirim pilihan jam.</p>
+                <pre class="max-h-96 overflow-auto rounded bg-slate-50 p-3 text-xs text-slate-700">{{ json_encode($options['raw'], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) }}</pre>
+            </div>
+        </details>
     @endif
 </x-layouts.app>
