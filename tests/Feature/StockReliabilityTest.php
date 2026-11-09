@@ -133,7 +133,7 @@ class StockReliabilityTest extends TestCase
             $line($this->variant) => [['warehouse_location_id' => $this->binA->id, 'qty' => 6], ['warehouse_location_id' => $this->binB->id, 'qty' => 2]],
             $line($this->other) => [['warehouse_location_id' => null, 'qty' => 2]],
         ]])->assertSessionHasNoErrors();
-        $this->post("/sales/orders/{$order->id}/pack")->assertSessionHasNoErrors();
+        app(\App\Services\SalesOrderService::class)->pack($order);
 
         $shipping = ['courier_id' => Courier::first()->id, 'tracking_number' => 'JNE123'];
         $this->post("/sales/orders/{$order->id}/ship", $shipping)->assertSessionHasNoErrors();

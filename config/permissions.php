@@ -127,7 +127,7 @@ return [
                 'create' => 'Buat, ubah & impor draft pesanan',
                 'confirm' => 'Konfirmasi pesanan (cadangkan stok)',
                 'fulfill' => 'Picking, QC scan, atur pickup / drop off, cetak resi & serah terima (stok keluar)',
-                'skip_scan' => 'Kemas & kirim tanpa scan (lewati QC / serah terima)',
+                'skip_scan' => 'Kirim tanpa scan serah terima & cek pesanan terlewat QC',
                 'cancel' => 'Batalkan pesanan',
                 'delete' => 'Hapus draft pesanan',
                 'income' => 'Lihat rincian pendapatan Shopee & pembayaran TikTok (harga, potongan & dana diterima)',

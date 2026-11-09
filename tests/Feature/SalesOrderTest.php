@@ -117,7 +117,7 @@ class SalesOrderTest extends TestCase
         ]])->assertSessionHasNoErrors();
         $this->assertSame('picking', $order->fresh()->status);
 
-        $this->post("/sales/orders/{$order->id}/pack")->assertSessionHasNoErrors();
+        app(\App\Services\SalesOrderService::class)->pack($order);
         $this->post("/sales/orders/{$order->id}/ship", ['courier_id' => Courier::first()->id, 'tracking_number' => 'JNE123'])->assertSessionHasNoErrors();
 
         $order->refresh();
@@ -158,7 +158,7 @@ class SalesOrderTest extends TestCase
         $this->post("/sales/orders/{$order->id}/pick", ['picks' => [
             $item->id => [['warehouse_location_id' => $this->binA->id, 'qty' => 2]],
         ]])->assertSessionHasNoErrors();
-        $this->post("/sales/orders/{$order->id}/pack")->assertSessionHasNoErrors();
+        app(\App\Services\SalesOrderService::class)->pack($order);
         $this->get("/sales/orders/{$order->id}")->assertSee('Serahkan ke Pembeli');
 
         $this->post("/sales/orders/{$order->id}/hand-to-customer")->assertSessionHasNoErrors();

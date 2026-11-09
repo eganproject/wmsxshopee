@@ -348,13 +348,6 @@ class SalesOrderController extends Controller
         return view('sales.orders.pick-list', ['order' => $order, 'lines' => $lines]);
     }
 
-    public function pack(SalesOrder $order, SalesOrderService $service): RedirectResponse
-    {
-        $service->pack($order);
-
-        return redirect()->route('sales.orders.show', $order)->with('success', "Pesanan {$order->number} sudah dikemas. Isi kurir & resi untuk mengirim.");
-    }
-
     public function ship(Request $request, SalesOrder $order, SalesOrderService $service, FulfillmentScan $scan): RedirectResponse
     {
         // Sama dengan serah terima scan: paket yang diajukan batal / belum diatur pengirimannya ditahan.
