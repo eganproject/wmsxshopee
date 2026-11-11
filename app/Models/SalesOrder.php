@@ -18,6 +18,9 @@ class SalesOrder extends Model
 
     public const PREFIX = 'SO';
 
+    /** Awalan nomor Barang Keluar Manual. */
+    public const OUTBOUND_PREFIX = 'BKM';
+
     /** Urutan alur pesanan; label, ikon & warna badge. */
     public const STATUSES = [
         'draft' => ['label' => 'Draft', 'icon' => 'heroicon-o-document', 'color' => 'slate',
@@ -194,6 +197,24 @@ class SalesOrder extends Model
         'other' => 'Lainnya',
     ];
 
+    /** Jenis dokumen: penjualan biasa, atau barang keluar manual non-penjualan. */
+    public const KINDS = [
+        'sale' => 'Penjualan',
+        'outbound' => 'Barang Keluar Manual',
+    ];
+
+    /** Tujuan barang keluar manual. */
+    public const OUTBOUND_PURPOSES = [
+        'sample' => 'Sampel',
+        'endorse' => 'Endorse / Promosi',
+        'office' => 'Kirim ke Kantor / Toko Offline',
+        'reseller' => 'Titip / Konsinyasi Reseller',
+        'gift' => 'Hadiah / Giveaway',
+        'internal' => 'Pemakaian Internal',
+        'replacement' => 'Kirim Ulang / Ganti Barang',
+        'other' => 'Lainnya',
+    ];
+
     public const PAYMENT_STATUSES = [
         'unpaid' => ['label' => 'Belum Lunas', 'color' => 'amber'],
         'paid' => ['label' => 'Lunas', 'color' => 'emerald'],
@@ -205,6 +226,8 @@ class SalesOrder extends Model
     protected $fillable = [
         'number',
         'status',
+        'kind',
+        'outbound_purpose',
         'warehouse_id',
         'order_date',
         'ordered_at',
@@ -221,6 +244,9 @@ class SalesOrder extends Model
         'qc_skip_checked_at',
         'qc_skip_checked_by',
         'qc_skip_note',
+        'qc_hold_reason',
+        'qc_held_at',
+        'qc_held_by',
         'shopee_income',
         'shopee_escrow_amount',
         'shopee_income_final',
@@ -288,6 +314,7 @@ class SalesOrder extends Model
             'shopee_shipped_at' => 'datetime',
             'shipped_automatically' => 'boolean',
             'qc_skip_checked_at' => 'datetime',
+            'qc_held_at' => 'datetime',
             'pickup_at' => 'datetime',
             'shipment_arranged_at' => 'datetime',
             'shipping_label_printed_at' => 'datetime',
@@ -374,6 +401,22 @@ class SalesOrder extends Model
     public function skippedQc(): bool
     {
         return $this->status === 'shipped' && $this->shipped_automatically;
+    }
+
+    public function qcHolder(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'qc_held_by');
+    }
+
+    /** QC ditahan (barang bermasalah, menunggu keputusan): tidak bisa di-QC sampai dilepas. */
+    public function isQcHeld(): bool
+    {
+        return $this->qc_held_at !== null;
+    }
+
+    public function qcSubstitutions(): HasMany
+    {
+        return $this->hasMany(QcSubstitution::class)->latest('id');
     }
 
     /** Terlewat QC dan belum dicek supervisor. */
@@ -471,6 +514,16 @@ class SalesOrder extends Model
     }
 
     /** Pesanan dari marketplace yang terhubung API (Shopee / TikTok). */
+    public function isOutbound(): bool
+    {
+        return $this->kind === 'outbound';
+    }
+
+    public function outboundPurposeLabel(): ?string
+    {
+        return $this->isOutbound() ? (self::OUTBOUND_PURPOSES[$this->outbound_purpose] ?? 'Lainnya') : null;
+    }
+
     public function isMarketplace(): bool
     {
         return $this->isShopee() || $this->isTiktok();
@@ -971,9 +1024,9 @@ class SalesOrder extends Model
      * Nomor pendek berurutan per bulan, cth. SO2610-001. Lewat 999 urutan
      * tetap jalan jadi 4 digit (SO2610-1000). Panggil di dalam transaksi.
      */
-    public static function nextNumber(): string
+    public static function nextNumber(string $kind = 'sale'): string
     {
-        $prefix = self::PREFIX.now()->format('ym').'-';
+        $prefix = ($kind === 'outbound' ? self::OUTBOUND_PREFIX : self::PREFIX).now()->format('ym').'-';
 
         return DocumentNumber::next(self::withoutGlobalScope('warehouse_access'), $prefix, 3);
     }

@@ -76,8 +76,8 @@
               addScanned() {
                   const code = this.scan.trim().toUpperCase();
                   if (! code) return;
-                  const variant = this.variants.find(v => v.sku === code || (v.barcode && v.barcode.toUpperCase() === code));
-                  if (! variant) { this.scanError = `SKU / barcode ${code} tidak ditemukan.`; return; }
+                  const variant = this.variants.find(v => v.sku === code || (v.barcode && v.barcode.toUpperCase() === code) || (v.aliases || []).includes(code));
+                  if (! variant) { window.reportScanMiss?.(code, 'damaged'); this.scanError = `SKU / barcode ${code} tidak ditemukan.`; return; }
                   this.scanError = '';
                   const empty = this.items.find(i => i.role === 'input' && ! i.product_variant_id);
                   if (empty) { empty.product_variant_id = String(variant.id); } else { this.items.push({ ...this.blankInput(), product_variant_id: String(variant.id) }); }

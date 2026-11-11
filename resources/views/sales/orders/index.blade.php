@@ -1,25 +1,36 @@
-<x-layouts.app title="Pesanan">
+@php($outboundList = request('kind') === 'outbound')
+<x-layouts.app :title="$outboundList ? 'Barang Keluar Manual' : 'Pesanan'">
     <x-slot:breadcrumb>
         <x-heroicon-o-home class="size-4" />
         <x-heroicon-o-chevron-right class="size-3.5" />
         <span>Penjualan</span>
         <x-heroicon-o-chevron-right class="size-3.5" />
-        <span class="font-medium text-slate-700">Pesanan</span>
+        <span class="font-medium text-slate-700">{{ $outboundList ? 'Barang Keluar Manual' : 'Pesanan' }}</span>
     </x-slot:breadcrumb>
 
-    <x-page-header title="Pesanan" description="Pesanan manual, Shopee dan TikTok. Konfirmasi untuk mencadangkan stok, lalu atur pengiriman, picking, kemas dan kirim." icon="heroicon-o-shopping-cart">
+    <x-page-header :title="$outboundList ? 'Barang Keluar Manual' : 'Pesanan'"
+                   :description="$outboundList
+                       ? 'Barang keluar tanpa penjualan (sampel, endorse, kirim ke kantor, hadiah). Sama seperti pesanan: konfirmasi, picking, QC Kemas, lalu serah terima. Stok baru berkurang saat diserahkan.'
+                       : 'Pesanan manual, Shopee dan TikTok. Konfirmasi untuk mencadangkan stok, lalu atur pengiriman, picking, kemas dan kirim.'"
+                   :icon="$outboundList ? 'heroicon-o-arrow-up-tray' : 'heroicon-o-shopping-cart'">
         {{-- Ekspor mengikuti tab, pencarian, filter & urutan yang sedang dipakai. --}}
         <a href="{{ request()->fullUrlWithQuery(['export' => 'xlsx', 'page' => null, 'ids' => null]) }}" class="btn-secondary" data-no-loading
            data-hint-title="Ekspor Excel" data-hint="Mengunduh {{ number_format($orders->total(), 0, ',', '.') }} pesanan sesuai tab, pencarian dan filter yang sedang dipakai. Isi file: sheet Pesanan, sheet Item (per SKU) dan sheet Info (filter yang dipakai). Centang pesanan untuk mengekspor yang dipilih saja.">
             <x-heroicon-o-arrow-down-tray class="size-5" /> Ekspor Excel <span class="text-slate-500">({{ number_format($orders->total(), 0, ',', '.') }})</span>
         </a>
         @can('sales.create')
-            <a href="{{ route('sales.orders.import') }}" class="btn-secondary">
-                <x-heroicon-o-arrow-up-tray class="size-5" /> Impor Excel / CSV
-            </a>
-            <a href="{{ route('sales.orders.create') }}" class="btn-primary">
-                <x-heroicon-o-plus class="size-5" /> Pesanan Baru
-            </a>
+            @if ($outboundList)
+                <a href="{{ route('sales.orders.create', ['kind' => 'outbound']) }}" class="btn-primary">
+                    <x-heroicon-o-plus class="size-5" /> Barang Keluar Baru
+                </a>
+            @else
+                <a href="{{ route('sales.orders.import') }}" class="btn-secondary">
+                    <x-heroicon-o-arrow-up-tray class="size-5" /> Impor Excel / CSV
+                </a>
+                <a href="{{ route('sales.orders.create') }}" class="btn-primary">
+                    <x-heroicon-o-plus class="size-5" /> Pesanan Baru
+                </a>
+            @endif
         @endcan
     </x-page-header>
 
@@ -419,9 +430,14 @@
                             <td colspan="4" class="px-3 py-2">
                                 <div class="flex flex-wrap items-center gap-x-4 gap-y-1">
                                     <a href="{{ route('sales.orders.show', $order) }}" class="font-mono text-[13px] font-semibold text-slate-900 hover:text-brand-600">{{ $order->number }}</a>
+                                    @if ($order->isOutbound())
+                                        <span class="inline-flex items-center gap-1 rounded-full bg-violet-50 px-2 py-0.5 font-medium text-violet-700" title="Barang Keluar Manual (bukan penjualan)">
+                                            <x-heroicon-o-arrow-up-tray class="size-3.5" /> {{ $order->outboundPurposeLabel() }}
+                                        </span>
+                                    @endif
                                     <span class="flex min-w-0 items-center gap-1.5 text-slate-700" title="{{ $order->channel_name ?? 'Manual' }}">
                                         <x-marketplace-logo :platform="$order->marketplacePlatform()" class="size-3.5" />
-                                        <span class="max-w-56 truncate">{{ $order->channel_name ?? 'Manual' }}</span>
+                                        <span class="max-w-56 truncate">{{ $order->channel_name ?? ($order->isOutbound() ? 'Barang Keluar' : 'Manual') }}</span>
                                         @if ($order->external_number)
                                             <span class="font-mono text-slate-500">· {{ $order->external_number }}</span>
                                         @endif
@@ -535,7 +551,7 @@
                     <tbody>
                         <x-empty-state :colspan="$canFulfill ? 5 : 4" icon="heroicon-o-shopping-cart" title="Belum ada pesanan" description="Input pesanan manual atau impor dari file Excel / CSV.">
                             @can('sales.create')
-                                <a href="{{ route('sales.orders.create') }}" class="btn-primary"><x-heroicon-o-plus class="size-5" /> Buat Pesanan</a>
+                                <a href="{{ route('sales.orders.create', $outboundList ? ['kind' => 'outbound'] : []) }}" class="btn-primary"><x-heroicon-o-plus class="size-5" /> {{ $outboundList ? 'Buat Barang Keluar' : 'Buat Pesanan' }}</a>
                             @endcan
                         </x-empty-state>
                     </tbody>

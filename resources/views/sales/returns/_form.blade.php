@@ -119,7 +119,7 @@
          addScanned() {
              const code = this.scan.trim().toUpperCase();
              if (! code) return;
-             const match = v => v.sku.toUpperCase() === code || (v.barcode && v.barcode.toUpperCase() === code);
+             const match = v => v.sku.toUpperCase() === code || (v.barcode && v.barcode.toUpperCase() === code) || (v.aliases || []).includes(code);
              this.scan = '';
              this.scanError = '';
              if (this.source === 'order') {
@@ -132,7 +132,7 @@
                  return;
              }
              const variant = this.variants.find(match);
-             if (! variant) { this.scanError = `SKU / barcode ${code} tidak ditemukan.`; return; }
+             if (! variant) { window.reportScanMiss?.(code, 'return'); this.scanError = `SKU / barcode ${code} tidak ditemukan.`; return; }
              const existing = this.manualRows.find(r => String(r.product_variant_id) === String(variant.id));
              if (existing) { existing.qty_good = (parseInt(existing.qty_good) || 0) + 1; return; }
              const empty = this.manualRows.find(r => ! r.product_variant_id);

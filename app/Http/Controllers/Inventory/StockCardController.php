@@ -7,6 +7,7 @@ use App\Models\ProductVariant;
 use App\Models\StockLedger;
 use App\Models\Warehouse;
 use App\Models\WarehouseLocation;
+use App\Support\Barcodes;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\View\View;
@@ -26,9 +27,12 @@ class StockCardController extends Controller
         if ($request->filled('variant')) {
             $variant = ProductVariant::with('product.unit')->find($request->integer('variant'));
         } elseif ($request->filled('code')) {
-            // Bisa langsung scan SKU varian atau barcode.
+            // Bisa langsung scan SKU varian, barcode atau barcode alias.
             $code = strtoupper(trim($request->string('code')->toString()));
-            $variant = ProductVariant::with('product.unit')->where('sku', $code)->orWhere('barcode', $code)->first();
+            $variant = ProductVariant::findByCode($code)?->load('product.unit');
+            if (! $variant) {
+                Barcodes::recordMiss($code, 'stock', $request->user()->id);
+            }
         }
 
         $opening = 0;

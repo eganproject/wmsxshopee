@@ -117,7 +117,7 @@
                  const num = c => (c === undefined || c === '' ? '' : (/^\d+$/.test(c) ? parseInt(c) : NaN));
                  const [received, ordered, damaged] = [num(cols[1]), num(cols[2]), num(cols[3])];
                  if (i === 0 && cols.length > 1 && Number.isNaN(received)) return; // baris judul dari Excel
-                 const variant = this.variants.find(v => v.sku.toUpperCase() === code || (v.barcode && v.barcode.toUpperCase() === code));
+                 const variant = this.variants.find(v => v.sku.toUpperCase() === code || (v.barcode && v.barcode.toUpperCase() === code) || (v.aliases || []).includes(code));
                  const invalid = [received, ordered, damaged].some(n => Number.isNaN(n));
                  if (variant && ! invalid && seen[variant.id]) {
                      const row = seen[variant.id];
@@ -167,8 +167,8 @@
          addScanned() {
              const code = this.scan.trim().toUpperCase();
              if (! code) return;
-             const variant = this.variants.find(v => v.sku === code || (v.barcode && v.barcode.toUpperCase() === code));
-             if (! variant) { this.scanError = `SKU / barcode ${code} tidak ditemukan.`; return; }
+             const variant = this.variants.find(v => v.sku === code || (v.barcode && v.barcode.toUpperCase() === code) || (v.aliases || []).includes(code));
+             if (! variant) { window.reportScanMiss?.(code, 'receipt'); this.scanError = `SKU / barcode ${code} tidak ditemukan.`; return; }
              this.scanError = '';
              this.scan = '';
              // Scan barang yang sudah ada di daftar menambah jumlah diterima 1 (baris terakhir

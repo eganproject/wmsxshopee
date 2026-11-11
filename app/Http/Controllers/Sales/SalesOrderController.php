@@ -19,6 +19,7 @@ use App\Services\OrderSkuResolver;
 use App\Services\SalesOrderService;
 use App\Services\WarehouseSupply;
 use App\Support\Activity;
+use App\Support\Barcodes;
 use App\Support\ShopeeIncome;
 use App\Support\XlsxCell;
 use App\Support\XlsxExport;
@@ -131,10 +132,14 @@ class SalesOrderController extends Controller
         ]);
     }
 
-    public function create(): View
+    public function create(Request $request): View
     {
+        $outbound = $request->query('kind') === 'outbound';
+
         return view('sales.orders.create', [
-            'order' => new SalesOrder(['order_date' => now(), 'delivery_type' => 'courier', 'payment_status' => 'unpaid']),
+            'order' => new SalesOrder($outbound
+                ? ['order_date' => now(), 'delivery_type' => 'courier', 'kind' => 'outbound']
+                : ['order_date' => now(), 'delivery_type' => 'courier', 'payment_status' => 'unpaid', 'kind' => 'sale']),
             ...$this->formData(),
         ]);
     }
@@ -146,7 +151,7 @@ class SalesOrderController extends Controller
         $order = DB::transaction(function () use ($request, $data, $service) {
             $order = SalesOrder::create([
                 ...$data['header'],
-                'number' => SalesOrder::nextNumber(),
+                'number' => SalesOrder::nextNumber($data['header']['kind']),
                 'status' => 'draft',
                 'created_by' => $request->user()->id,
             ]);
@@ -160,7 +165,7 @@ class SalesOrderController extends Controller
 
     public function show(SalesOrder $order, SalesOrderService $service, WarehouseSupply $supply, OrderSkuResolver $skus): View
     {
-        $order->load(['warehouse', 'courier', 'creator', 'movement', 'arranger', 'qcChecker', 'handover', 'items.variant.product.unit', 'items.picks.location', 'bundles.bundle.items', 'returns.items']);
+        $order->load(['warehouse', 'courier', 'creator', 'movement', 'arranger', 'qcChecker', 'handover', 'items.variant.product.unit', 'items.picks.location', 'bundles.bundle.items', 'returns.items', 'qcHolder', 'qcSubstitutions.fromVariant', 'qcSubstitutions.toVariant', 'qcSubstitutions.user']);
 
         $draft = $order->hasStatus('draft');
 
@@ -683,6 +688,8 @@ class SalesOrderController extends Controller
         $marketplace = (string) $request->input('mp');
 
         return SalesOrder::query()
+            ->when(isset(SalesOrder::KINDS[(string) $request->input('kind')]), fn ($query) => $query->where('kind', $request->input('kind')))
+            ->when($request->filled('purpose'), fn ($query) => $query->where('outbound_purpose', $request->input('purpose')))
             ->when($request->filled('warehouse'), fn ($query) => $query->where('warehouse_id', $request->integer('warehouse')))
             ->when($request->filled('channel'), fn ($query) => $query->where('channel_name', $request->input('channel')))
             ->when($request->input('platform') === 'shopee', fn ($query) => $query->whereNotNull('shopee_shop_id'))
@@ -888,7 +895,7 @@ class SalesOrderController extends Controller
                 ->whereHas('product', fn ($q) => $q->where('is_active', true))
                 ->orderBy('sku')
                 ->get()
-                ->map(fn ($variant) => ['ref' => "v:{$variant->id}", 'sku' => $variant->sku, 'barcode' => $variant->barcode, 'label' => $variant->displayName(), 'price' => null])
+                ->map(fn ($variant) => ['ref' => "v:{$variant->id}", 'sku' => $variant->sku, 'barcode' => $variant->barcode, 'aliases' => Barcodes::aliasesOf($variant->id), 'label' => $variant->displayName(), 'price' => null])
                 ->concat(Bundle::query()
                     ->where(fn ($q) => $q->where('is_active', true)->when($order, fn ($q) => $q->orWhereIn('id', $order->bundles()->select('bundle_id'))))
                     ->whereHas('items')
@@ -909,7 +916,12 @@ class SalesOrderController extends Controller
         $active = fn (string $table, ?int $current) => Rule::exists($table, 'id')
             ->where(fn ($q) => $q->where('is_active', true)->when($current, fn ($q) => $q->orWhere('id', $current)));
 
+        // Jenis dokumen ditentukan saat dibuat dan tidak berubah saat diedit.
+        $kind = $order ? ($order->kind ?: 'sale') : ($request->input('kind') === 'outbound' ? 'outbound' : 'sale');
+        $outbound = $kind === 'outbound';
+
         $data = $request->validate([
+            'outbound_purpose' => [Rule::requiredIf($outbound), 'nullable', Rule::in(array_keys(SalesOrder::OUTBOUND_PURPOSES))],
             'warehouse_id' => ['required', 'integer', $active('warehouses', $order?->warehouse_id), new AccessibleRecord(Warehouse::class)],
             'order_date' => ['required', 'date', 'before_or_equal:today'],
             'channel_name' => ['nullable', 'string', 'max:100'],
@@ -938,6 +950,7 @@ class SalesOrderController extends Controller
             'items.*.product_variant_id.required_without' => 'Pilih barang atau paket.',
             'order_date.before_or_equal' => 'Tanggal pesanan tidak boleh di masa depan.',
         ], [
+            'outbound_purpose' => 'tujuan barang keluar',
             'warehouse_id' => 'gudang',
             'order_date' => 'tanggal pesanan',
             'channel_name' => 'saluran / toko',
@@ -960,6 +973,12 @@ class SalesOrderController extends Controller
             'items.*.notes' => 'keterangan',
         ]);
 
+        // Barang keluar manual bukan penjualan: tanpa harga, diskon, pembayaran, maupun saluran.
+        if ($outbound) {
+            $data = [...$data, 'channel_name' => null, 'discount' => 0, 'payment_method' => null, 'payment_status' => null];
+            $data['items'] = collect($data['items'])->map(fn ($row) => [...$row, 'price' => 0])->all();
+        }
+
         $this->ensureUniqueExternal($data['channel_name'] ?? null, $data['external_number'] ?? null, $order?->id);
 
         // Diambil pembeli: tidak ada kurir maupun ongkir.
@@ -968,6 +987,8 @@ class SalesOrderController extends Controller
 
         return [
             'header' => [
+                'kind' => $kind,
+                'outbound_purpose' => $outbound ? $data['outbound_purpose'] : null,
                 'warehouse_id' => (int) $data['warehouse_id'],
                 'order_date' => $data['order_date'],
                 'channel_name' => filled($data['channel_name'] ?? null) ? trim($data['channel_name']) : null,

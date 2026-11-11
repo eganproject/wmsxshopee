@@ -9,6 +9,8 @@
 
     <x-page-header title="QC Kemas" description="Scan resi atau nomor SO, lalu scan setiap barang. Paket ditutup otomatis bila semua barang cocok." icon="heroicon-o-viewfinder-circle" />
 
+    <x-sales.qc-tabs />
+
     <form method="POST" action="{{ route('sales.qc.lookup') }}" class="card mb-6 p-5">
         @csrf
         <label for="code" class="form-label">Scan Resi / No. SO / No. <span class="whitespace-nowrap">Pesanan <x-hint text="Scan resi di label, nomor SO Optima, atau nomor pesanan marketplace untuk membuka halaman QC pesanan tersebut." /></span></label>
@@ -51,6 +53,10 @@
                     @endforeach
                     <option value="none" @selected(request('courier') === 'none')>Tanpa kurir</option>
                 </select>
+                <label class="flex items-center gap-2 text-sm whitespace-nowrap text-slate-600">
+                    <input type="checkbox" name="hold" value="1" class="form-checkbox" @checked($held) onchange="this.form.submit()">
+                    Hanya yang ditahan @if ($heldCount)<span class="rounded-full bg-amber-100 px-1.5 text-xs font-medium text-amber-800">{{ $heldCount }}</span>@endif
+                </label>
                 <select name="shipment" class="form-input md:w-48" onchange="this.form.submit()" aria-label="Pengiriman">
                     <option value="">Semua pengiriman</option>
                     @foreach (\App\Models\SalesOrder::SHIPPING_METHODS as $key => $method)
@@ -87,7 +93,13 @@
                                 <td class="px-4 py-2.5 font-mono font-medium text-slate-900">{{ $order->number }}
                                     @if ($order->external_number)<p class="text-xs font-normal text-slate-500">{{ $order->external_number }}</p>@endif
                                 </td>
-                                <td class="cell-wrap px-4 py-2.5 text-slate-700">{{ $order->customer_name }}</td>
+                                <td class="cell-wrap px-4 py-2.5 text-slate-700">{{ $order->customer_name }}
+                                    @if ($order->isQcHeld())
+                                        <p class="mt-1 inline-flex items-start gap-1 rounded-md bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-800" title="Ditahan {{ $order->qcHolder?->name }} {{ $order->qc_held_at->format('d/m H:i') }}">
+                                            <x-heroicon-o-pause-circle class="size-4 shrink-0" /> Ditahan: {{ $order->qc_hold_reason }}
+                                        </p>
+                                    @endif
+                                </td>
                                 @unless ($warehouseId)<td class="px-4 py-2.5 whitespace-nowrap text-slate-600">{{ $order->warehouse?->code ?? '—' }}</td>@endunless
                                 <td class="px-4 py-2.5">
                                     <p class="text-slate-700">{{ $order->courier?->name ?? '—' }}</p>

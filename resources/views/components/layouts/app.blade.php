@@ -13,7 +13,7 @@
             'heading' => 'Master Data',
             'items' => [
                 ['label' => 'Gudang & Lokasi', 'route' => 'master.warehouses.index', 'active' => ['master.warehouses.*', 'master.zones.*', 'master.racks.*', 'master.locations.*'], 'icon' => 'heroicon-o-building-office-2', 'can' => 'warehouses.view'],
-                ['label' => 'Produk', 'route' => 'master.products.index', 'active' => ['master.products.*', 'master.bundles.*', 'master.units.*'], 'icon' => 'heroicon-o-cube', 'can' => 'products.view'],
+                ['label' => 'Produk', 'route' => 'master.products.index', 'active' => ['master.products.*', 'master.bundles.*', 'master.barcodes.*', 'master.units.*'], 'icon' => 'heroicon-o-cube', 'can' => 'products.view'],
                 ['label' => 'Kurir', 'route' => 'master.couriers.index', 'active' => 'master.couriers.*', 'icon' => 'heroicon-o-truck', 'can' => 'couriers.view'],
                 ['label' => 'Supplier', 'route' => 'master.suppliers.index', 'active' => 'master.suppliers.*', 'icon' => 'heroicon-o-building-storefront', 'can' => 'suppliers.view'],
             ],
@@ -21,7 +21,9 @@
         [
             'heading' => 'Penjualan',
             'items' => [
-                ['label' => 'Pesanan', 'route' => 'sales.orders.index', 'active' => 'sales.orders.*', 'icon' => 'heroicon-o-shopping-cart', 'can' => 'sales.view'],
+                ['label' => 'Pesanan', 'route' => 'sales.orders.index', 'active' => 'sales.orders.*', 'outbound' => false, 'icon' => 'heroicon-o-shopping-cart', 'can' => 'sales.view'],
+                // Barang Keluar Manual memakai halaman pesanan yang sama, disaring jenisnya.
+                ['label' => 'Barang Keluar Manual', 'route' => 'sales.orders.index', 'params' => ['kind' => 'outbound'], 'active' => 'sales.orders.*', 'outbound' => true, 'icon' => 'heroicon-o-arrow-up-tray', 'can' => 'sales.view'],
                 ['label' => 'QC Kemas', 'route' => 'sales.qc.index', 'active' => 'sales.qc.*', 'icon' => 'heroicon-o-viewfinder-circle', 'can' => 'sales.fulfill'],
                 ['label' => 'Serah Terima', 'route' => 'sales.handovers.index', 'active' => 'sales.handovers.*', 'icon' => 'heroicon-o-paper-airplane', 'can' => 'sales.fulfill'],
                 ['label' => 'Retur Penjualan', 'route' => 'sales.returns.index', 'active' => 'sales.returns.*', 'icon' => 'heroicon-o-arrow-uturn-left', 'can' => 'returns.view'],
@@ -51,6 +53,9 @@
                 ['label' => 'Stok Minimum', 'route' => 'reports.min-stock', 'active' => 'reports.min-stock', 'icon' => 'heroicon-o-bell-alert', 'can' => 'reports.view'],
                 ['label' => 'Saran Pembelian', 'route' => 'reports.reorder', 'active' => 'reports.reorder', 'icon' => 'heroicon-o-shopping-bag', 'can' => 'reports.view'],
                 ['label' => 'Pergerakan Barang', 'route' => 'reports.movements', 'active' => 'reports.movements', 'icon' => 'heroicon-o-presentation-chart-line', 'can' => 'reports.view'],
+                ['label' => 'Fast / Slow Moving', 'route' => 'reports.moving', 'active' => 'reports.moving', 'icon' => 'heroicon-o-bolt', 'can' => 'reports.view'],
+                ['label' => 'Saldo per Tanggal', 'route' => 'reports.balance', 'active' => 'reports.balance', 'icon' => 'heroicon-o-calendar-days', 'can' => 'reports.view'],
+                ['label' => 'Prakiraan Stok Habis', 'route' => 'reports.runout', 'active' => 'reports.runout', 'icon' => 'heroicon-o-clock', 'can' => 'reports.view'],
                 ['label' => 'Barang Hilang', 'route' => 'reports.lost-items', 'active' => 'reports.lost-items', 'icon' => 'heroicon-o-question-mark-circle', 'can' => 'reports.view'],
             ],
         ],
@@ -125,6 +130,8 @@
         </div>
 
         <nav id="sidebar-nav" class="sidebar-scroll flex-1 overflow-x-hidden overflow-y-auto">
+            @php($routeOrder = request()->route('order'))
+            @php($viewingOutbound = request('kind') === 'outbound' || ($routeOrder instanceof \App\Models\SalesOrder && $routeOrder->isOutbound()))
             @foreach ($navigation as $section)
                 @php($items = collect($section['items'])->filter(fn ($item) => ! $item['can'] || $user->canAny((array) $item['can'])))
                 @if ($items->isNotEmpty())
@@ -135,9 +142,9 @@
                         @endif
                         <ul class="space-y-px">
                             @foreach ($items as $item)
-                                @php($active = request()->routeIs($item['active']))
+                                @php($active = request()->routeIs($item['active']) && (! isset($item['outbound']) || $item['outbound'] === $viewingOutbound))
                                 <li>
-                                    <a href="{{ route($item['route']) }}" data-tip="{{ $item['label'] }}" @if ($active) aria-current="page" @endif
+                                    <a href="{{ route($item['route'], $item['params'] ?? []) }}" data-tip="{{ $item['label'] }}" @if ($active) aria-current="page" @endif
                                        @class([
                                            'flex h-7 items-center gap-2 rounded-lg px-2 text-[13px] whitespace-nowrap transition lg:collapsed:justify-center lg:collapsed:px-0',
                                            'bg-white font-medium text-slate-900 shadow-sm ring-1 ring-slate-200' => $active,

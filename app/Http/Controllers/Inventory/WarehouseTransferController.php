@@ -14,6 +14,7 @@ use App\Services\FixedBins;
 use App\Services\HeldOrderRetry;
 use App\Services\WarehouseSupply;
 use App\Services\WarehouseTransferService;
+use App\Support\Barcodes;
 use App\Support\WarehouseAccess;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -107,7 +108,7 @@ class WarehouseTransferController extends Controller
                 ->whereHas('product', fn ($q) => $q->where('is_active', true))
                 ->orderBy('sku')
                 ->get()
-                ->map(fn ($v) => ['id' => $v->id, 'sku' => $v->sku, 'barcode' => $v->barcode, 'label' => $v->displayName(), 'per' => $v->pcs_per_carton])
+                ->map(fn ($v) => ['id' => $v->id, 'sku' => $v->sku, 'barcode' => $v->barcode, 'aliases' => Barcodes::aliasesOf($v->id), 'label' => $v->displayName(), 'per' => $v->pcs_per_carton])
                 ->values(),
         ]);
     }

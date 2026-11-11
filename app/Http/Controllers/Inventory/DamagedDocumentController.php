@@ -12,6 +12,7 @@ use App\Models\WarehouseLocation;
 use App\Rules\AccessibleRecord;
 use App\Services\DamagedStockService;
 use App\Support\Activity;
+use App\Support\Barcodes;
 use App\Support\XlsxExport;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -202,7 +203,7 @@ class DamagedDocumentController extends Controller
                 ->whereHas('product', fn ($q) => $q->where('is_active', true))
                 ->orderBy('sku')
                 ->get()
-                ->map(fn ($variant) => ['id' => $variant->id, 'sku' => $variant->sku, 'barcode' => $variant->barcode, 'label' => $variant->displayName()])
+                ->map(fn ($variant) => ['id' => $variant->id, 'sku' => $variant->sku, 'barcode' => $variant->barcode, 'aliases' => Barcodes::aliasesOf($variant->id), 'label' => $variant->displayName()])
                 ->values(),
             // Saldo rusak per gudang per varian, untuk info "tersedia" dan pilihan barang.
             'damaged' => DamagedStock::query()

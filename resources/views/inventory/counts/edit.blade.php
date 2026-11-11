@@ -102,10 +102,10 @@
                  const code = this.scan.trim().toUpperCase();
                  if (! code) return;
                  this.scan = '';
-                 const variant = this.variants.find(v => v.sku === code || (v.barcode && v.barcode.toUpperCase() === code))
+                 const variant = this.variants.find(v => v.sku === code || (v.barcode && v.barcode.toUpperCase() === code) || (v.aliases || []).includes(code))
                      ?? this.lines.find(l => l.sku === code || (l.barcode && l.barcode.toUpperCase() === code));
                  const variantId = variant ? String(variant.product_variant_id ?? variant.id) : null;
-                 if (! variantId) { this.scanMessage = `SKU / barcode ${code} tidak ditemukan.`; return; }
+                 if (! variantId) { window.reportScanMiss?.(code, 'opname'); this.scanMessage = `SKU / barcode ${code} tidak ditemukan.`; return; }
 
                  const matches = this.lines
                      .map((line, index) => ({ line, index }))
