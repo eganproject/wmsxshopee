@@ -10,6 +10,7 @@
 
     <x-page-header :title="$transfer->number" :description="$transfer->fromWarehouse->code.' → '.$transfer->toWarehouse->code" icon="heroicon-o-truck">
         <a href="{{ route('inventory.transfers.index') }}" class="btn-secondary"><x-heroicon-o-arrow-left class="size-5" /> Kembali</a>
+        <a href="{{ route('inventory.transfers.delivery-note', $transfer) }}" target="_blank" class="btn-secondary"><x-heroicon-o-printer class="size-5" /> Cetak Surat Jalan</a>
         @if ($transfer->isSent() && $canCancel)
             @can('inventory.create')
                 <button type="button" class="btn-secondary text-rose-600" @click="$dispatch('cancel-transfer')"><x-heroicon-o-x-circle class="size-5" /> Batalkan</button>

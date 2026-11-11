@@ -146,6 +146,20 @@ class WarehouseSupplyTest extends TestCase
         $this->assertSame(192, $this->qty($this->big));
     }
 
+    public function test_transfer_delivery_note_prints(): void
+    {
+        $this->big->update(['address' => 'Jl. Gudang Besar 1', 'city' => 'Bandung', 'phone' => '0812']);
+        $transfer = $this->send(48);
+
+        $this->get("/inventory/transfers/{$transfer->id}")->assertOk()->assertSee('Cetak Surat Jalan');
+        $this->get("/inventory/transfers/{$transfer->id}/delivery-note")->assertOk()
+            ->assertSee('SURAT JALAN')->assertSee($transfer->number)->assertSee('Jl. Gudang Besar 1')
+            ->assertSee('GB-A-01-01')->assertSee('2 koli')->assertSee('Pengantar / Sopir')->assertDontSee('DIBATALKAN');
+
+        $this->post("/inventory/transfers/{$transfer->id}/cancel")->assertSessionHasNoErrors();
+        $this->get("/inventory/transfers/{$transfer->id}/delivery-note")->assertOk()->assertSee('DIBATALKAN');
+    }
+
     public function test_order_beyond_small_stock_is_confirmed_but_waits_for_transfer_before_picking(): void
     {
         $service = app(SalesOrderService::class);
