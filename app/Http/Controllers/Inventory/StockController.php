@@ -19,6 +19,8 @@ use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class StockController extends Controller
 {
+    private const MAX_SEARCH_TERMS = 500;
+
     /**
      * Stok per SKU (fisik, dipesan, tersedia, tertahan) atau saldo per lokasi bin.
      * Halaman ini hanya membaca; tidak mengubah stok maupun pesanan.
@@ -48,8 +50,18 @@ class StockController extends Controller
             ->with('items.variant.product.unit')
             ->whereHas('items')
             ->when(! $request->boolean('zero'), fn ($query) => $query->where('is_active', true))
-            ->when($request->filled('search'), function (Builder $query) use ($request) {
-                $search = $request->string('search')->toString();
+            ->when($this->searchTerms($request), function (Builder $query, array $terms) {
+                if (count($terms) > 1) {
+                    $query->where(fn ($q) => $q
+                        ->whereIn('sku', $terms)
+                        ->orWhereIn('barcode', $terms)
+                        ->orWhereIn('name', $terms)
+                        ->orWhereHas('items.variant', fn ($v) => $v->whereIn('sku', $terms)));
+
+                    return;
+                }
+
+                $search = $terms[0];
                 $query->where(fn ($q) => $q
                     ->where('sku', 'like', "%{$search}%")
                     ->orWhere('barcode', $search)
@@ -111,6 +123,7 @@ class StockController extends Controller
         $stocks = $query->paginate(25)->withQueryString();
 
         return view('inventory.stocks.index', [
+            'searchTerms' => count($this->searchTerms($request)),
             'stocks' => $stocks,
             'mode' => 'bundle',
             'warehouses' => $warehouses,
@@ -127,8 +140,17 @@ class StockController extends Controller
         $filter = array_key_exists((string) $request->input('status'), StockOverview::FILTERS) ? $request->input('status') : null;
 
         $query = StockOverview::query($warehouseId, $request->boolean('zero'), $filter)
-            ->when($request->filled('search'), function (Builder $query) use ($request) {
-                $search = $request->string('search')->toString();
+            ->when($this->searchTerms($request), function (Builder $query, array $terms) {
+                if (count($terms) > 1) {
+                    $query->where(fn ($q) => $q
+                        ->whereIn('product_variants.sku', $terms)
+                        ->orWhereIn('product_variants.barcode', $terms)
+                        ->orWhereIn('products.name', $terms));
+
+                    return;
+                }
+
+                $search = $terms[0];
                 $query->where(fn ($q) => $q
                     ->where('product_variants.sku', 'like', "%{$search}%")
                     ->orWhere('product_variants.barcode', $search)
@@ -163,6 +185,7 @@ class StockController extends Controller
         $stocks = $query->paginate(25)->withQueryString();
 
         return view('inventory.stocks.index', [
+            'searchTerms' => count($this->searchTerms($request)),
             'stocks' => $stocks,
             'mode' => 'variant',
             'warehouses' => Warehouse::orderBy('code')->get(),
@@ -180,8 +203,19 @@ class StockController extends Controller
         $query = Stock::query()
             ->when(! $request->boolean('zero'), fn ($query) => $query->where('stocks.qty', '!=', 0))
             ->when($warehouseId, fn ($query) => $query->where('stocks.warehouse_id', $warehouseId))
-            ->when($request->filled('search'), function (Builder $query) use ($request) {
-                $search = $request->string('search')->toString();
+            ->when($this->searchTerms($request), function (Builder $query, array $terms) {
+                if (count($terms) > 1) {
+                    $query->where(fn ($q) => $q
+                        ->whereHas('variant', fn ($v) => $v
+                            ->whereIn('sku', $terms)
+                            ->orWhereIn('barcode', $terms)
+                            ->orWhereHas('product', fn ($p) => $p->whereIn('name', $terms)))
+                        ->orWhereHas('location', fn ($l) => $l->whereIn('code', $terms)));
+
+                    return;
+                }
+
+                $search = $terms[0];
                 $query->where(fn ($q) => $q
                     ->whereHas('variant', fn ($v) => $v
                         ->where('sku', 'like', "%{$search}%")
@@ -215,6 +249,7 @@ class StockController extends Controller
         $stocks = $query->paginate(25)->withQueryString();
 
         return view('inventory.stocks.index', [
+            'searchTerms' => count($this->searchTerms($request)),
             'stocks' => $stocks,
             'mode' => 'location',
             'warehouses' => Warehouse::orderBy('code')->get(),
@@ -223,5 +258,23 @@ class StockController extends Controller
             'sellable' => collect(),
             'picked' => $stocks->getCollection()->mapWithKeys(fn (Stock $s) => [$s->id => $pickedQty($s)]),
         ]);
+    }
+
+    /**
+     * Isi kotak cari dipecah per baris, koma atau titik koma, supaya banyak SKU / barcode
+     * bisa ditempel sekaligus (sama seperti cari banyak di halaman Pesanan). Spasi tidak
+     * memecah karena nama produk memakai spasi. Banyak kata dicocokkan persis.
+     *
+     * @return list<string>
+     */
+    private function searchTerms(Request $request): array
+    {
+        return collect(preg_split('/[\r\n,;]+/', (string) $request->input('search')) ?: [])
+            ->map(fn ($term) => trim($term))
+            ->filter(fn ($term) => $term !== '')
+            ->unique()
+            ->take(self::MAX_SEARCH_TERMS)
+            ->values()
+            ->all();
     }
 }
