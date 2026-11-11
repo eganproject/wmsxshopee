@@ -206,4 +206,45 @@ class QcControlAndBarcodeTest extends TestCase
         $this->get('/reports/moving?class=dead')->assertOk()->assertSee('KAOS-L')->assertDontSee('KAOS-M');
         $this->get('/reports/moving?export=xlsx')->assertOk();
     }
+
+    public function test_manual_outbound_goes_through_qc_and_handover_before_stock_leaves(): void
+    {
+        $this->get('/sales/orders/create?kind=outbound')->assertOk()->assertSee('Barang Keluar Manual Baru')->assertSee('Tujuan Barang Keluar');
+
+        $payload = [
+            'kind' => 'outbound',
+            'warehouse_id' => $this->warehouse->id,
+            'order_date' => now()->toDateString(),
+            'customer_name' => 'Kantor Pusat',
+            'shipping_address' => 'Jl. Sudirman 1',
+            'items' => [['product_variant_id' => $this->kaosM->id, 'qty' => 3, 'price' => 50000]],
+            'action' => 'confirm',
+        ];
+        $this->post('/sales/orders', $payload)->assertSessionHasErrors('outbound_purpose');
+        $this->post('/sales/orders', [...$payload, 'outbound_purpose' => 'sample'])->assertSessionHasNoErrors();
+
+        $order = SalesOrder::latest('id')->firstOrFail();
+        $this->assertSame(['outbound', 'sample', 'confirmed'], [$order->kind, $order->outbound_purpose, $order->status]);
+        $this->assertStringStartsWith(SalesOrder::OUTBOUND_PREFIX, $order->number);
+        $this->assertSame(0.0, (float) $order->items->sum('price'), 'Barang keluar manual tidak punya harga jual.');
+
+        $this->get('/sales/orders?kind=outbound')->assertOk()->assertSee($order->number)->assertSee('Sampel');
+        $this->get('/sales/orders?kind=sale')->assertOk()->assertDontSee($order->number);
+        $this->get("/sales/orders/{$order->id}")->assertOk()->assertSee('Tujuan Barang Keluar');
+
+        // Stok belum berkurang sampai lolos QC dan diserahkan.
+        $order->update(['tracking_number' => 'BKM-RESI']);
+        $this->post("/sales/orders/{$order->id}/pick", ['picks' => $order->items->mapWithKeys(fn ($item) => [
+            $item->id => [['warehouse_location_id' => '', 'qty' => $item->qty]],
+        ])->all()])->assertSessionHasNoErrors();
+        $this->post('/sales/qc', ['code' => 'BKM-RESI'])->assertRedirect("/sales/qc/{$order->id}");
+        $this->assertSame(20, (int) Stock::where('product_variant_id', $this->kaosM->id)->sum('qty'));
+
+        $this->post("/sales/qc/{$order->id}", ['scanned' => [$this->kaosM->id => 2]])->assertSessionHasErrors('scan');
+        $this->post("/sales/qc/{$order->id}", ['scanned' => [$this->kaosM->id => 3]])->assertSessionHasNoErrors();
+        $this->ship($order);
+
+        $this->assertSame('shipped', $order->fresh()->status);
+        $this->assertSame(17, (int) Stock::where('product_variant_id', $this->kaosM->id)->sum('qty'));
+    }
 }

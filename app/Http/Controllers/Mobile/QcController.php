@@ -124,7 +124,7 @@ class QcController extends Controller
             'tracking' => $order->tracking_number,
             'external' => $order->external_number,
             'customer' => $order->customer_name,
-            'channel' => $order->channel_name,
+            'channel' => $order->isOutbound() ? 'Barang Keluar · '.$order->outboundPurposeLabel() : $order->channel_name,
             'courier' => $order->courier?->name,
             'lines' => $expected['lines'],
             'bundles' => $expected['bundles'],

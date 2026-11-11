@@ -11,13 +11,17 @@
     <x-slot:breadcrumb>
         <x-heroicon-o-home class="size-4" />
         <x-heroicon-o-chevron-right class="size-3.5" />
-        <a href="{{ route('sales.orders.index') }}" class="hover:text-slate-700">Pesanan</a>
+        <a href="{{ route('sales.orders.index', $order->isOutbound() ? ['kind' => 'outbound'] : []) }}" class="hover:text-slate-700">{{ $order->isOutbound() ? 'Barang Keluar Manual' : 'Pesanan' }}</a>
         <x-heroicon-o-chevron-right class="size-3.5" />
         <span class="font-medium text-slate-700">{{ $order->number }}</span>
     </x-slot:breadcrumb>
 
-    <x-page-header :title="$order->number" :description="'Pesanan '.$order->customer_name.($order->channel_name ? ' · '.$order->channel_name : '')" icon="heroicon-o-shopping-cart">
-        <a href="{{ route('sales.orders.index') }}" class="btn-secondary"><x-heroicon-o-arrow-left class="size-5" /> Kembali</a>
+    <x-page-header :title="$order->number"
+                   :description="$order->isOutbound()
+                       ? 'Barang Keluar Manual · '.$order->outboundPurposeLabel().' · untuk '.$order->customer_name
+                       : 'Pesanan '.$order->customer_name.($order->channel_name ? ' · '.$order->channel_name : '')"
+                   :icon="$order->isOutbound() ? 'heroicon-o-arrow-up-tray' : 'heroicon-o-shopping-cart'">
+        <a href="{{ route('sales.orders.index', $order->isOutbound() ? ['kind' => 'outbound'] : []) }}" class="btn-secondary"><x-heroicon-o-arrow-left class="size-5" /> Kembali</a>
 
         @if (($order->shopee_shop_id || $order->tiktok_shop_id) && ! $order->hasStatus('cancelled'))
             @can('sales.confirm')
@@ -435,8 +439,14 @@
             <p class="text-xs text-slate-500">Gudang <span class="whitespace-nowrap">Pengirim <x-hint text="Gudang yang menyiapkan pesanan dan stoknya dicadangkan." /></span></p>
             <p class="mt-1 text-sm font-medium text-slate-900">{{ $order->warehouse->code }} · {{ $order->warehouse->name }}</p>
         </div>
+        @if ($order->isOutbound())
+            <div>
+                <p class="text-xs text-slate-500">Tujuan Barang Keluar</p>
+                <p class="mt-1 text-sm font-medium text-violet-700">{{ $order->outboundPurposeLabel() }}</p>
+            </div>
+        @endif
         <div>
-            <p class="text-xs text-slate-500">Pembeli</p>
+            <p class="text-xs text-slate-500">{{ $order->isOutbound() ? 'Penerima' : 'Pembeli' }}</p>
             <p class="mt-1 text-sm font-medium text-slate-900">{{ $order->customer_name }}</p>
             @if ($order->customer_phone)
                 <p class="text-xs text-slate-500">{{ $order->customer_phone }}</p>
@@ -446,6 +456,7 @@
             <p class="text-xs text-slate-500">Alamat Kirim</p>
             <p class="mt-1 text-sm whitespace-pre-line text-slate-700">{{ $order->shipping_address ?? '—' }}</p>
         </div>
+        @unless ($order->isOutbound())
         <div>
             <p class="text-xs text-slate-500">Pembayaran</p>
             <p class="mt-1 text-sm font-medium text-slate-900">{{ $order->paymentMethodLabel() ?? '—' }}</p>
@@ -457,6 +468,7 @@
                 ])>{{ $order->paymentStatusLabel() }}</span>
             @endif
         </div>
+        @endunless
         <div>
             <p class="text-xs text-slate-500">{{ $order->isSelfPickup() ? 'Pengiriman' : 'Kurir / Resi' }}</p>
             @if ($order->isSelfPickup())

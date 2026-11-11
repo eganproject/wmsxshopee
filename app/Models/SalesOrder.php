@@ -18,6 +18,9 @@ class SalesOrder extends Model
 
     public const PREFIX = 'SO';
 
+    /** Awalan nomor Barang Keluar Manual. */
+    public const OUTBOUND_PREFIX = 'BKM';
+
     /** Urutan alur pesanan; label, ikon & warna badge. */
     public const STATUSES = [
         'draft' => ['label' => 'Draft', 'icon' => 'heroicon-o-document', 'color' => 'slate',
@@ -194,6 +197,24 @@ class SalesOrder extends Model
         'other' => 'Lainnya',
     ];
 
+    /** Jenis dokumen: penjualan biasa, atau barang keluar manual non-penjualan. */
+    public const KINDS = [
+        'sale' => 'Penjualan',
+        'outbound' => 'Barang Keluar Manual',
+    ];
+
+    /** Tujuan barang keluar manual. */
+    public const OUTBOUND_PURPOSES = [
+        'sample' => 'Sampel',
+        'endorse' => 'Endorse / Promosi',
+        'office' => 'Kirim ke Kantor / Toko Offline',
+        'reseller' => 'Titip / Konsinyasi Reseller',
+        'gift' => 'Hadiah / Giveaway',
+        'internal' => 'Pemakaian Internal',
+        'replacement' => 'Kirim Ulang / Ganti Barang',
+        'other' => 'Lainnya',
+    ];
+
     public const PAYMENT_STATUSES = [
         'unpaid' => ['label' => 'Belum Lunas', 'color' => 'amber'],
         'paid' => ['label' => 'Lunas', 'color' => 'emerald'],
@@ -205,6 +226,8 @@ class SalesOrder extends Model
     protected $fillable = [
         'number',
         'status',
+        'kind',
+        'outbound_purpose',
         'warehouse_id',
         'order_date',
         'ordered_at',
@@ -491,6 +514,16 @@ class SalesOrder extends Model
     }
 
     /** Pesanan dari marketplace yang terhubung API (Shopee / TikTok). */
+    public function isOutbound(): bool
+    {
+        return $this->kind === 'outbound';
+    }
+
+    public function outboundPurposeLabel(): ?string
+    {
+        return $this->isOutbound() ? (self::OUTBOUND_PURPOSES[$this->outbound_purpose] ?? 'Lainnya') : null;
+    }
+
     public function isMarketplace(): bool
     {
         return $this->isShopee() || $this->isTiktok();
@@ -991,9 +1024,9 @@ class SalesOrder extends Model
      * Nomor pendek berurutan per bulan, cth. SO2610-001. Lewat 999 urutan
      * tetap jalan jadi 4 digit (SO2610-1000). Panggil di dalam transaksi.
      */
-    public static function nextNumber(): string
+    public static function nextNumber(string $kind = 'sale'): string
     {
-        $prefix = self::PREFIX.now()->format('ym').'-';
+        $prefix = ($kind === 'outbound' ? self::OUTBOUND_PREFIX : self::PREFIX).now()->format('ym').'-';
 
         return DocumentNumber::next(self::withoutGlobalScope('warehouse_access'), $prefix, 3);
     }

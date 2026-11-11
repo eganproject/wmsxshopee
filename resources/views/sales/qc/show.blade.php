@@ -7,7 +7,7 @@
         <span class="font-medium text-slate-700">{{ $order->number }}</span>
     </x-slot:breadcrumb>
 
-    <x-page-header :title="'QC '.$order->number" :description="$order->customer_name.' · '.($order->courier?->name ?? 'tanpa kurir').($order->tracking_number ? ' · resi '.$order->tracking_number : '')" icon="heroicon-o-viewfinder-circle">
+    <x-page-header :title="'QC '.$order->number" :description="($order->isOutbound() ? 'Barang Keluar Manual ('.$order->outboundPurposeLabel().') · ' : '').$order->customer_name.' · '.($order->courier?->name ?? 'tanpa kurir').($order->tracking_number ? ' · resi '.$order->tracking_number : '')" icon="heroicon-o-viewfinder-circle">
         @can('sales.view')
             <a href="{{ route('sales.orders.show', $order) }}" class="btn-secondary"><x-heroicon-o-eye class="size-5" /> Detail Pesanan</a>
         @endcan

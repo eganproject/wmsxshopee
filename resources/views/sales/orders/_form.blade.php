@@ -22,7 +22,13 @@
     $blank['ref'] = '';
     $rowErrors = collect($errors->getMessages())->filter(fn ($messages, $key) => str_starts_with($key, 'items.'))->map(fn ($messages) => $messages[0]);
     $defaultWarehouse = $order->warehouse_id ?? ($warehouses->count() === 1 ? $warehouses->first()->id : '');
+    // Barang Keluar Manual: tanpa harga, saluran, maupun pembayaran.
+    $outbound = $order->isOutbound();
 @endphp
+
+@if ($outbound && ! $order->exists)
+    <input type="hidden" name="kind" value="outbound">
+@endif
 
 <div class="space-y-6"
      x-data="{
@@ -76,24 +82,32 @@
     <div class="card">
         <div class="border-b border-slate-100 px-5 py-3">
             <h2 class="flex items-center gap-2 text-base font-semibold text-slate-900">
-                <x-heroicon-o-document-text class="size-5 text-slate-400" /> Informasi Pesanan
+                <x-heroicon-o-document-text class="size-5 text-slate-400" /> {{ $outbound ? 'Informasi Barang Keluar' : 'Informasi Pesanan' }}
             </h2>
             <p class="mt-0.5 text-sm text-slate-500">
                 @if ($order->number)
                     Nomor <span class="font-mono font-medium text-slate-700">{{ $order->number }}</span>
                 @else
-                    Nomor dibuat otomatis saat disimpan, cth. {{ \App\Models\SalesOrder::PREFIX.now()->format('ym') }}-001.
+                    Nomor dibuat otomatis saat disimpan, cth. {{ ($outbound ? \App\Models\SalesOrder::OUTBOUND_PREFIX : \App\Models\SalesOrder::PREFIX).now()->format('ym') }}-001.
                 @endif
             </p>
         </div>
         <div class="grid gap-x-6 gap-y-4 p-5 sm:grid-cols-3">
-            <x-input name="order_date" type="date" tip="Tanggal pesanan diterima dari pembeli." label="Tanggal Pesanan" :value="$order->order_date?->toDateString()" :max="now()->toDateString()" required />
+            <x-input name="order_date" type="date" :tip="$outbound ? 'Tanggal permintaan barang keluar.' : 'Tanggal pesanan diterima dari pembeli.'" :label="$outbound ? 'Tanggal' : 'Tanggal Pesanan'" :value="$order->order_date?->toDateString()" :max="now()->toDateString()" required />
             <x-select name="warehouse_id" label="Gudang Pengirim" tip="Gudang yang menyiapkan dan mengirim pesanan. Stok gudang ini yang dicadangkan saat pesanan dikonfirmasi." required>
                 <option value="">Pilih gudang</option>
                 @foreach ($warehouses as $warehouse)
                     <option value="{{ $warehouse->id }}" @selected((string) old('warehouse_id', $defaultWarehouse) === (string) $warehouse->id)>{{ $warehouse->code }} · {{ $warehouse->name }}</option>
                 @endforeach
             </x-select>
+            @if ($outbound)
+                <x-select name="outbound_purpose" label="Tujuan Barang Keluar" tip="Alasan barang keluar tanpa penjualan. Dipakai untuk filter dan laporan." required>
+                    <option value="">Pilih tujuan</option>
+                    @foreach (\App\Models\SalesOrder::OUTBOUND_PURPOSES as $value => $label)
+                        <option value="{{ $value }}" @selected(old('outbound_purpose', $order->outbound_purpose) === $value)>{{ $label }}</option>
+                    @endforeach
+                </x-select>
+            @else
             @php($channel = old('channel_name', $order->channel_name))
             <x-select name="channel_name" label="Saluran Penjualan" tip="Asal pesanan, misalnya WhatsApp atau Toko Offline. Dipakai untuk filter dan laporan penjualan." data-create data-placeholder="Pilih atau ketik baru"
                       hint="cth. WhatsApp, Toko Offline. Pesanan Shopee masuk otomatis dari API.">
@@ -102,9 +116,10 @@
                     <option value="{{ $name }}" @selected($channel === $name)>{{ $name }}</option>
                 @endforeach
             </x-select>
-            <x-input name="customer_name" label="Nama Pembeli" :value="$order->customer_name" required maxlength="150" />
+            @endif
+            <x-input name="customer_name" :label="$outbound ? 'Penerima' : 'Nama Pembeli'" :value="$order->customer_name" required maxlength="150" :placeholder="$outbound ? 'cth. Kantor Pusat, nama influencer' : null" />
             <x-input name="customer_phone" label="Telepon / WhatsApp" :value="$order->customer_phone" maxlength="30" placeholder="08xx" />
-            <x-input name="external_number" label="No. Referensi" tip="Nomor nota / invoice dari luar Optima. Sistem menolak nomor yang sama di saluran penjualan yang sama, jadi pesanan tidak tercatat dua kali." :value="$order->external_number" placeholder="cth. INV-0012" maxlength="100"
+            <x-input name="external_number" label="No. Referensi" :tip="$outbound ? 'Nomor memo / permintaan dari luar Optima, bila ada.' : 'Nomor nota / invoice dari luar Optima. Sistem menolak nomor yang sama di saluran penjualan yang sama, jadi pesanan tidak tercatat dua kali.'" :value="$order->external_number" placeholder="cth. INV-0012" maxlength="100"
                      hint="Opsional: no. nota, invoice atau pesanan marketplace. Mencegah input ganda." />
             <x-textarea name="notes" label="Catatan" :value="$order->notes" rows="2" class="sm:col-span-3" />
         </div>
@@ -156,6 +171,7 @@
         </div>
     </div>
 
+    @unless ($outbound)
     <div class="card">
         <div class="border-b border-slate-100 px-5 py-3">
             <h2 class="flex items-center gap-2 text-base font-semibold text-slate-900">
@@ -186,12 +202,13 @@
             </div>
         </div>
     </div>
+    @endunless
 
     <div class="card">
         <div class="flex flex-col gap-3 border-b border-slate-100 px-5 py-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
                 <h2 class="flex items-center gap-2 text-base font-semibold text-slate-900">
-                    <x-heroicon-o-cube class="size-5 text-slate-400" /> Barang Dipesan
+                    <x-heroicon-o-cube class="size-5 text-slate-400" /> {{ $outbound ? 'Barang Keluar' : 'Barang Dipesan' }}
                 </h2>
                 <p class="mt-0.5 text-sm text-slate-500">Scan SKU / barcode: barang baru menambah baris, barang yang sama menambah jumlah. Produk paket otomatis dipecah jadi isinya saat disimpan.</p>
             </div>
@@ -214,8 +231,10 @@
                     <tr>
                         <th class="py-2 pr-2 font-normal">Barang *</th>
                         <th class="px-2 py-2 text-right font-normal">Jumlah <span class="whitespace-nowrap">* <x-hint text="Jumlah yang dipesan. Stok dicadangkan sejumlah ini saat pesanan dikonfirmasi." /></span></th>
+                        @unless ($outbound)
                         <th class="px-2 py-2 text-right font-normal">Harga <span class="whitespace-nowrap">Satuan <x-hint text="Harga jual per pcs / paket. Untuk produk paket terisi otomatis dari Harga Jual paket." /></span></th>
                         <th class="px-2 py-2 text-right font-normal">Subtotal</th>
+                        @endunless
                         <th class="px-2 py-2 font-normal">Keterangan</th>
                         <th class="py-2 pl-2"></th>
                     </tr>
@@ -237,6 +256,7 @@
                                        :class="errors[`items.${index}.qty`] && 'form-input-error'">
                                 <p class="mt-1 max-w-40 text-xs text-rose-600" x-show="errors[`items.${index}.qty`]" x-text="errors[`items.${index}.qty`]"></p>
                             </td>
+                            @unless ($outbound)
                             <td class="px-2 py-1.5">
                                 <input type="number" min="0" step="any" class="form-input w-32 text-right" :name="`items[${index}][price]`" x-model="item.price" placeholder="0"
                                        :class="errors[`items.${index}.price`] && 'form-input-error'">
@@ -244,6 +264,7 @@
                             <td class="px-2 py-1.5 text-right">
                                 <span class="inline-block pt-1.5 tabular-nums text-slate-700" x-text="money(lineTotal(item))"></span>
                             </td>
+                            @endunless
                             <td class="px-2 py-1.5">
                                 <input type="text" class="form-input min-w-40" maxlength="255" :name="`items[${index}][notes]`" x-model="item.notes">
                             </td>
@@ -257,6 +278,13 @@
                     </template>
                 </tbody>
                 <tfoot class="border-t border-slate-100 text-[13px] text-slate-500">
+                    @if ($outbound)
+                    <tr>
+                        <td class="py-2 pr-2 text-right">Total qty</td>
+                        <td class="px-2 py-2 text-right font-medium tabular-nums text-slate-700" x-text="totals().qty"></td>
+                        <td colspan="2"></td>
+                    </tr>
+                    @else
                     <tr>
                         <td class="py-2 pr-2 text-right">Total qty</td>
                         <td class="px-2 py-2 text-right font-medium tabular-nums text-slate-700" x-text="totals().qty"></td>
@@ -279,6 +307,7 @@
                         <td class="px-2 py-1 text-right font-semibold tabular-nums text-slate-900" x-text="money(totals().grand)"></td>
                         <td colspan="2"></td>
                     </tr>
+                    @endif
                 </tfoot>
             </table>
             <button type="button" class="btn-secondary mt-3" @click="items.push({ ...@js($blank) })">
