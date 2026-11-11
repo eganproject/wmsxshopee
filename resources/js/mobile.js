@@ -223,6 +223,30 @@ Alpine.data('mobileShell', () => ({
             syncBars();
         });
         new MutationObserver(syncBars).observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
+        this.watchKeyboard();
+    },
+    // Keyboard HP aktif: sembunyikan menu & tombol bawah yang menempel, lalu geser kolom yang
+    // sedang diketik ke tengah layar supaya tidak tertutup keyboard.
+    watchKeyboard() {
+        const editable = (el) => el && (el.isContentEditable || el.tagName === 'TEXTAREA'
+            || (el.tagName === 'INPUT' && !el.readOnly && !['button', 'submit', 'checkbox', 'radio', 'file', 'range', 'color', 'hidden'].includes(el.type)));
+        const height = () => window.visualViewport?.height || window.innerHeight;
+        let base = height();
+        const sync = () => {
+            const focused = editable(document.activeElement);
+            // Patokan tinggi layar tanpa keyboard (ikut berubah saat kamera atas dibuka/ditutup).
+            if (!focused || height() > base) base = height();
+            const open = focused && height() < base - 120;
+            const was = document.body.classList.contains('kb-open');
+            document.body.classList.toggle('kb-open', open);
+            if (open) {
+                const el = document.activeElement;
+                requestAnimationFrame(() => el.scrollIntoView({ block: 'center', behavior: was ? 'smooth' : 'auto' }));
+            }
+        };
+        (window.visualViewport || window).addEventListener('resize', sync);
+        document.addEventListener('focusin', () => setTimeout(sync, 60));
+        document.addEventListener('focusout', () => setTimeout(sync, 60));
     },
     scan() {
         openScanner();
@@ -813,6 +837,7 @@ Alpine.data('opnameApp', (config) => ({
     code: '',
     loaded: false,
     last: null,
+    showAll: false,
     camera: false,
 
     async init() {
@@ -869,6 +894,12 @@ Alpine.data('opnameApp', (config) => ({
     openBin(entry) {
         this.bin = { id: entry.id ?? null, code: entry.code };
         this.last = null;
+        this.showAll = false;
+    },
+
+    // Setelah scan SKU, hanya barang itu yang tampil, supaya qty tidak masuk ke SKU lain.
+    get focused() {
+        return this.lastLine && !this.showAll;
     },
 
     leaveBin() {
@@ -931,13 +962,17 @@ Alpine.data('opnameApp', (config) => ({
     enterBin(loc) {
         this.bin = { id: loc.id ?? null, code: loc.code };
         this.last = null;
+        this.showAll = false;
         bridge.feedback('ok');
     },
 
     // Tiap scan +1, lalu tampilkan barangnya: kartu "terakhir discan" + baris disorot.
     count(row) {
+        // Qty yang sedang diketik disimpan dulu ke barang sebelumnya, baru pindah ke barang baru.
+        if (document.activeElement?.closest?.('.step')) document.activeElement.blur();
         this.set(row, (row.counted_qty ?? 0) + 1);
         this.last = row.key;
+        this.showAll = false;
         bridge.feedback('scan');
         this.$nextTick(() => {
             const el = this.$root.querySelector(`[data-line="${CSS.escape(row.key)}"]`);

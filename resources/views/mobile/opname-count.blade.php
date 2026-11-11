@@ -57,22 +57,50 @@
                     </button>
                 </form>
 
-                <template x-if="lastLine">
-                    <div class="card" style="padding:10px 12px;display:flex;align-items:center;gap:10px">
-                        <span class="thumb tone-ok"><x-m-icon name="check" /></span>
-                        <div class="grow" style="min-width:0">
-                            <div class="label">Terakhir discan</div>
-                            <div class="t mono" style="font-size:14px;font-weight:700" x-text="lastLine.sku"></div>
-                            <div class="m truncate" x-text="lastLine.name"></div>
+                {{-- Setelah scan SKU: hanya barang itu yang tampil, qty langsung diisi di sini. --}}
+                <template x-if="focused">
+                    <div class="stack">
+                        <div class="row" style="justify-content:space-between">
+                            <div class="label">Hasil scan · hanya SKU ini yang tampil</div>
+                            <button type="button" class="chip" style="height:28px" @click="showAll = true">
+                                <x-m-icon name="layers" size="xs" /><span x-text="`Semua barang (${binLines.length})`"></span>
+                            </button>
                         </div>
-                        <div style="text-align:right">
-                            <div class="label">Dihitung</div>
-                            <div class="bigcode" style="font-size:22px" x-text="lastLine.counted_qty ?? 0"></div>
+                        <div class="card scan-focus" :data-line="lastLine.key">
+                            <div class="row" style="align-items:flex-start">
+                                <span class="thumb tone-ok"><x-m-icon name="check" /></span>
+                                <div class="grow" style="min-width:0">
+                                    <div class="t mono" style="font-size:16px;font-weight:700" x-text="lastLine.sku"></div>
+                                    <div class="m" x-text="lastLine.name"></div>
+                                    <div class="m" x-show="!blind || diff(lastLine) !== null">
+                                        <span x-show="!blind" x-text="`Sistem ${lastLine.system_qty}`"></span>
+                                        <template x-if="!blind && diff(lastLine) !== null">
+                                            <span :style="diff(lastLine) === 0 ? 'color:var(--ok)' : 'color:var(--bad)'" x-text="diff(lastLine) === 0 ? ' · cocok' : ` · selisih ${diff(lastLine) > 0 ? '+' : ''}${diff(lastLine)}`"></span>
+                                        </template>
+                                        <template x-if="lastLine.found"><span class="chip warn" style="height:20px">baru</span></template>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="label" style="margin:12px 2px 6px">Qty dihitung</div>
+                            <div class="step lg" :class="lastLine.dirty && 'active'">
+                                <button type="button" @click="set(lastLine, (lastLine.counted_qty ?? 0) - 1)" aria-label="Kurangi"><x-m-icon name="minus" /></button>
+                                <input type="number" inputmode="numeric" enterkeyhint="done" placeholder="–" :value="lastLine.counted_qty ?? ''" @change="set(lastLine, $event.target.value)" @keydown.enter.prevent="$event.target.blur()">
+                                <button type="button" @click="set(lastLine, (lastLine.counted_qty ?? 0) + 1)" aria-label="Tambah"><x-m-icon name="plus" /></button>
+                            </div>
                         </div>
                     </div>
                 </template>
 
-                <div class="card list">
+                <template x-if="lastLine && showAll">
+                    <div class="row" style="justify-content:space-between">
+                        <div class="label" x-text="`Semua barang di rak (${binLines.length})`"></div>
+                        <button type="button" class="chip brand" style="height:28px" @click="showAll = false">
+                            <x-m-icon name="scan" size="xs" /><span x-text="`Hanya ${lastLine.sku}`"></span>
+                        </button>
+                    </div>
+                </template>
+
+                <div class="card list" x-show="!focused">
                     <template x-for="row in binLines" :key="row.key || (row.variant_id + ':' + row.location_id)">
                         <div class="it" :data-line="row.key">
                             <div class="grow">
@@ -88,7 +116,7 @@
                             </div>
                             <div class="step" :class="row.dirty && 'active'">
                                 <button type="button" @click="set(row, (row.counted_qty ?? 0) - 1)"><x-m-icon name="minus" size="s" /></button>
-                                <input type="number" inputmode="numeric" placeholder="–" :value="row.counted_qty ?? ''" @change="set(row, $event.target.value)">
+                                <input type="number" inputmode="numeric" enterkeyhint="done" placeholder="–" :value="row.counted_qty ?? ''" @change="set(row, $event.target.value)" @keydown.enter.prevent="$event.target.blur()">
                                 <button type="button" @click="set(row, (row.counted_qty ?? 0) + 1)"><x-m-icon name="plus" size="s" /></button>
                             </div>
                         </div>
