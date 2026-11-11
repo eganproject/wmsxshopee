@@ -329,6 +329,32 @@ class StockTest extends TestCase
         $this->get('/inventory/stocks?view=location&search=A01-01-02')->assertSee('A01-01-02')->assertDontSee('A01-01-01');
     }
 
+    public function test_stock_list_searches_many_skus_at_once(): void
+    {
+        $this->actingAs($this->superAdmin());
+        $other = $this->variant->product->variants()->create(['sku' => 'KAOS-L', 'name' => 'L', 'barcode' => '8991002', 'is_active' => true]);
+        $third = $this->variant->product->variants()->create(['sku' => 'KAOS-XL', 'name' => 'XL', 'barcode' => '8991003', 'is_active' => true]);
+        $this->stock('in', [
+            ['product_variant_id' => $this->variant->id, 'to_location_id' => $this->binA->id, 'qty' => 4],
+            ['product_variant_id' => $other->id, 'to_location_id' => $this->binB->id, 'qty' => 6],
+            ['product_variant_id' => $third->id, 'to_location_id' => $this->binB->id, 'qty' => 2],
+        ]);
+
+        // Satu SKU per baris (dan barcode) dicocokkan persis: KAOS-L tidak ikut menarik KAOS-XL.
+        $response = $this->get('/inventory/stocks?'.http_build_query(['view' => 'variant', 'search' => "KAOS-M\r\n8991002\nTIDAK-ADA"]))->assertOk();
+        $this->assertEqualsCanonicalizing(['KAOS-M', 'KAOS-L'], $response->viewData('stocks')->pluck('sku')->all());
+        $this->assertSame(3, $response->viewData('searchTerms'));
+        $this->assertSame(10, $response->viewData('totals')['on_hand']);
+        $response->assertSee('Mencari 3 kata sekaligus');
+
+        // Dipisah koma juga bisa, termasuk kode lokasi di tampilan per lokasi.
+        $byLocation = $this->get('/inventory/stocks?'.http_build_query(['view' => 'location', 'search' => 'A01-01-01, KAOS-XL']))->viewData('stocks');
+        $this->assertEqualsCanonicalizing([$this->variant->id, $third->id], $byLocation->pluck('product_variant_id')->all());
+
+        // Satu kata tetap pencarian sebagian seperti sebelumnya.
+        $this->assertCount(3, $this->get('/inventory/stocks?view=variant&search=KAOS')->viewData('stocks'));
+    }
+
     public function test_location_and_variant_with_stock_history_cannot_be_deleted(): void
     {
         $this->actingAs($this->superAdmin());
