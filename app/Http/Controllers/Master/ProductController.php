@@ -263,9 +263,9 @@ class ProductController extends Controller
 
             'variants' => ['required', 'array', 'min:1', 'max:100'],
             'variants.*.id' => ['nullable', 'integer', Rule::exists('product_variants', 'id')->where('product_id', $product->id ?? 0)],
-            'variants.*.sku' => ['required', 'string', 'alpha_dash', 'max:50', 'distinct', $notThisProduct('sku'), Rule::unique('bundles', 'sku')],
+            'variants.*.sku' => ['required', 'string', 'alpha_dash', 'max:50', 'distinct', $notThisProduct('sku'), Rule::unique('bundles', 'sku'), Rule::unique('product_barcodes', 'barcode')],
             'variants.*.name' => [$hasVariants ? 'required' : 'nullable', 'string', 'max:100', 'distinct'],
-            'variants.*.barcode' => ['nullable', 'string', 'alpha_dash', 'max:50', 'distinct', $notThisProduct('barcode'), Rule::unique('bundles', 'barcode')],
+            'variants.*.barcode' => ['nullable', 'string', 'alpha_dash', 'max:50', 'distinct', $notThisProduct('barcode'), Rule::unique('bundles', 'barcode'), Rule::unique('product_barcodes', 'barcode')],
             'variants.*.weight_gram' => ['nullable', 'integer', 'min:0', 'max:1000000'],
             'variants.*.length_cm' => ['nullable', 'numeric', 'min:0', 'max:10000'],
             'variants.*.width_cm' => ['nullable', 'numeric', 'min:0', 'max:10000'],
@@ -282,10 +282,10 @@ class ProductController extends Controller
         ], [
             'variants.required' => 'Isi minimal satu varian.',
             'variants.*.sku.distinct' => 'SKU varian tidak boleh duplikat.',
-            'variants.*.sku.unique' => 'SKU varian :input sudah dipakai produk atau paket lain.',
+            'variants.*.sku.unique' => 'SKU varian :input sudah dipakai produk, paket atau barcode alias lain.',
             'variants.*.name.distinct' => 'Nama varian tidak boleh duplikat.',
             'variants.*.barcode.distinct' => 'Barcode tidak boleh duplikat.',
-            'variants.*.barcode.unique' => 'Barcode :input sudah dipakai produk atau paket lain.',
+            'variants.*.barcode.unique' => 'Barcode :input sudah dipakai produk, paket atau barcode alias lain.',
             'images.*.max' => 'Ukuran gambar maksimal 2 MB.',
         ], [
             'sku' => 'SKU induk',

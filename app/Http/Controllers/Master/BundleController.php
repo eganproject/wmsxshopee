@@ -129,9 +129,9 @@ class BundleController extends Controller
         ]);
 
         $data = $request->validate([
-            'sku' => ['required', 'string', 'alpha_dash', 'max:50', Rule::unique('bundles')->ignore($bundle), Rule::unique('product_variants', 'sku')],
+            'sku' => ['required', 'string', 'alpha_dash', 'max:50', Rule::unique('bundles')->ignore($bundle), Rule::unique('product_variants', 'sku'), Rule::unique('product_barcodes', 'barcode')],
             'name' => ['required', 'string', 'max:255'],
-            'barcode' => ['nullable', 'string', 'alpha_dash', 'max:50', Rule::unique('bundles')->ignore($bundle), Rule::unique('product_variants', 'barcode')],
+            'barcode' => ['nullable', 'string', 'alpha_dash', 'max:50', Rule::unique('bundles')->ignore($bundle), Rule::unique('product_variants', 'barcode'), Rule::unique('product_barcodes', 'barcode')],
             'price' => ['nullable', 'numeric', 'min:0', 'max:999999999'],
             'description' => ['nullable', 'string', 'max:2000'],
             'is_active' => ['nullable', 'boolean'],
@@ -139,8 +139,8 @@ class BundleController extends Controller
             'items.*.product_variant_id' => ['required', 'integer', 'distinct', Rule::exists('product_variants', 'id')],
             'items.*.qty' => ['required', 'integer', 'min:1', 'max:10000'],
         ], [
-            'sku.unique' => 'SKU :input sudah dipakai paket atau varian produk lain.',
-            'barcode.unique' => 'Barcode :input sudah dipakai paket atau varian produk lain.',
+            'sku.unique' => 'SKU :input sudah dipakai paket, varian produk atau barcode alias lain.',
+            'barcode.unique' => 'Barcode :input sudah dipakai paket, varian produk atau barcode alias lain.',
             'items.required' => 'Isi paket minimal satu barang.',
             'items.*.product_variant_id.distinct' => 'Barang yang sama tidak boleh dimasukkan dua kali; tambahkan jumlahnya saja.',
         ], [

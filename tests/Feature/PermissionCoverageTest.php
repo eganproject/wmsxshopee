@@ -35,7 +35,7 @@ class PermissionCoverageTest extends TestCase
         'logout', 'dashboard', 'notifications.index', 'notifications.read', 'settings', 'search',
         'profile.edit', 'profile.update', 'profile.password',
         'inventory.movements.create', 'inventory.movements.store',
-        'shopee.settings.edit', 'shopee.shops.index', 'shopee.products.index',
+        'shopee.settings.edit', 'shopee.shops.index', 'shopee.products.index', 'scan-misses.store',
         'tiktok.settings.edit', 'tiktok.shops.index',
     ];
 

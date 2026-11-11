@@ -51,7 +51,8 @@ class Product extends Model
                 // Cari juga SKU & barcode varian, supaya bisa langsung scan barcode.
                 ->orWhereHas('variants', fn ($v) => $v->where(fn ($w) => $w
                     ->where('sku', 'like', "%{$search}%")
-                    ->orWhere('barcode', $search))))
+                    ->orWhere('barcode', $search)
+                    ->orWhereHas('aliases', fn ($a) => $a->where('barcode', $search)))))
             )
             ->when(filled($filters['category'] ?? null), fn ($query) => $query->where('category', $filters['category']))
             ->when(filled($filters['status'] ?? null), fn ($query) => $query->where('is_active', $filters['status'] === 'active'));

@@ -4,7 +4,9 @@ namespace App\Http\Controllers\Mobile;
 
 use App\Http\Controllers\Controller;
 use App\Models\SalesOrder;
+use App\Models\ScanDuplicateAttempt;
 use App\Services\FulfillmentScan;
+use App\Services\QcControl;
 use App\Support\Activity;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -27,7 +29,7 @@ class QcController extends Controller
     public function queue(Request $request, FulfillmentScan $scan): JsonResponse
     {
         $orders = SalesOrder::query()
-            ->with(['courier'])
+            ->with(['courier', 'qcHolder'])
             ->where('warehouse_id', $this->mobileWarehouseId($request))
             ->where('status', 'picking')
             ->oldest('picking_at')
@@ -51,11 +53,17 @@ class QcController extends Controller
             return response()->json(['message' => "Resi / pesanan \"{$code}\" tidak ditemukan."], 404);
         }
 
+        if ($order->hasStatus('packed', 'shipped')) {
+            ScanDuplicateAttempt::record($order, $code, 'qc', $request->user()->id);
+
+            return response()->json(['message' => "Scan ganda: {$order->number} sudah lolos QC ({$order->statusLabel()}). Jangan kemas paket kedua."], 422);
+        }
+
         if (! $order->hasStatus('picking')) {
             return response()->json(['message' => "{$order->number} berstatus {$order->statusLabel()}. QC hanya untuk pesanan yang Sedang Diambil."], 422);
         }
 
-        $order->load('courier');
+        $order->load(['courier', 'qcHolder']);
 
         return response()->json(['order' => $this->payload($order, $scan)]);
     }
@@ -64,7 +72,7 @@ class QcController extends Controller
     public function store(Request $request, SalesOrder $order, FulfillmentScan $scan): JsonResponse
     {
         $data = $request->validate([
-            'scanned' => ['required', 'array'],
+            'scanned' => ['present', 'array'],
             'scanned.*' => ['integer', 'min:0'],
             'photo' => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp', 'max:5120'],
         ], ['photo.max' => 'Foto paket maksimal 5 MB.'], ['photo' => 'foto paket']);
@@ -89,6 +97,22 @@ class QcController extends Controller
         ]);
     }
 
+    /** Tahan QC dengan alasan (barang rusak, kurang, ragu). */
+    public function hold(Request $request, SalesOrder $order, QcControl $qc, FulfillmentScan $scan): JsonResponse
+    {
+        $data = $request->validate(['reason' => ['required', 'string', 'max:255']], [], ['reason' => 'alasan']);
+        $qc->hold($order, $data['reason'], $request->user()->id);
+
+        return response()->json(['message' => "QC {$order->number} ditahan.", 'order' => $this->payload($order->refresh()->load(['courier', 'qcHolder']), $scan)]);
+    }
+
+    public function release(SalesOrder $order, QcControl $qc, FulfillmentScan $scan): JsonResponse
+    {
+        $qc->release($order);
+
+        return response()->json(['message' => "Tahanan QC {$order->number} dilepas.", 'order' => $this->payload($order->refresh()->load(['courier', 'qcHolder']), $scan)]);
+    }
+
     /** @return array<string, mixed> */
     private function payload(SalesOrder $order, FulfillmentScan $scan): array
     {
@@ -105,6 +129,14 @@ class QcController extends Controller
             'lines' => $expected['lines'],
             'bundles' => $expected['bundles'],
             'store_url' => route('mobile.qc.store', $order),
+            'hold_url' => route('mobile.qc.hold', $order),
+            'release_url' => route('mobile.qc.release', $order),
+            'warehouse_id' => $order->warehouse_id,
+            'hold' => $order->isQcHeld() ? [
+                'reason' => $order->qc_hold_reason,
+                'by' => $order->qcHolder?->name,
+                'at' => $order->qc_held_at->format('d/m H:i'),
+            ] : null,
         ];
     }
 }

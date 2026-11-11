@@ -220,6 +220,7 @@ class StockController extends Controller
                     ->whereHas('variant', fn ($v) => $v
                         ->where('sku', 'like', "%{$search}%")
                         ->orWhere('barcode', $search)
+                        ->orWhereHas('aliases', fn ($a) => $a->where('barcode', $search))
                         ->orWhereHas('product', fn ($p) => $p->where('name', 'like', "%{$search}%")))
                     ->orWhereHas('location', fn ($l) => $l->where('code', 'like', "%{$search}%")));
             });

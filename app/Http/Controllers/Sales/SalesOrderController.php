@@ -19,6 +19,7 @@ use App\Services\OrderSkuResolver;
 use App\Services\SalesOrderService;
 use App\Services\WarehouseSupply;
 use App\Support\Activity;
+use App\Support\Barcodes;
 use App\Support\ShopeeIncome;
 use App\Support\XlsxCell;
 use App\Support\XlsxExport;
@@ -160,7 +161,7 @@ class SalesOrderController extends Controller
 
     public function show(SalesOrder $order, SalesOrderService $service, WarehouseSupply $supply, OrderSkuResolver $skus): View
     {
-        $order->load(['warehouse', 'courier', 'creator', 'movement', 'arranger', 'qcChecker', 'handover', 'items.variant.product.unit', 'items.picks.location', 'bundles.bundle.items', 'returns.items']);
+        $order->load(['warehouse', 'courier', 'creator', 'movement', 'arranger', 'qcChecker', 'handover', 'items.variant.product.unit', 'items.picks.location', 'bundles.bundle.items', 'returns.items', 'qcHolder', 'qcSubstitutions.fromVariant', 'qcSubstitutions.toVariant', 'qcSubstitutions.user']);
 
         $draft = $order->hasStatus('draft');
 
@@ -888,7 +889,7 @@ class SalesOrderController extends Controller
                 ->whereHas('product', fn ($q) => $q->where('is_active', true))
                 ->orderBy('sku')
                 ->get()
-                ->map(fn ($variant) => ['ref' => "v:{$variant->id}", 'sku' => $variant->sku, 'barcode' => $variant->barcode, 'label' => $variant->displayName(), 'price' => null])
+                ->map(fn ($variant) => ['ref' => "v:{$variant->id}", 'sku' => $variant->sku, 'barcode' => $variant->barcode, 'aliases' => Barcodes::aliasesOf($variant->id), 'label' => $variant->displayName(), 'price' => null])
                 ->concat(Bundle::query()
                     ->where(fn ($q) => $q->where('is_active', true)->when($order, fn ($q) => $q->orWhereIn('id', $order->bundles()->select('bundle_id'))))
                     ->whereHas('items')

@@ -2,8 +2,11 @@
 
 namespace App\Services;
 
+use App\Models\QcExemptVariant;
 use App\Models\SalesOrder;
+use App\Models\ScanDuplicateAttempt;
 use App\Models\ShipmentHandover;
+use App\Support\Barcodes;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -30,16 +33,24 @@ class FulfillmentScan
     public function expected(SalesOrder $order): array
     {
         $order->loadMissing(['items.variant.product', 'bundles.bundle.items']);
+        $variantIds = $order->items->pluck('product_variant_id')->unique()->values();
+        $aliases = Barcodes::aliasMap($variantIds);
+        $exempt = QcExemptVariant::whereIn('product_variant_id', $variantIds)->pluck('reason', 'product_variant_id');
 
-        $lines = $order->items->groupBy('product_variant_id')->map(function (Collection $rows) {
+        $lines = $order->items->groupBy('product_variant_id')->map(function (Collection $rows) use ($aliases, $exempt) {
             $variant = $rows->first()->variant;
 
             return [
                 'variant_id' => $variant->id,
                 'sku' => $variant->sku,
                 'barcode' => $variant->barcode,
+                // Barcode tambahan (alias) yang juga sah untuk barang ini.
+                'aliases' => $aliases[$variant->id] ?? [],
                 'name' => trim($variant->product->name.($variant->name ? ' / '.$variant->name : '')),
                 'qty' => (int) $rows->sum('qty'),
+                // SKU tanpa scan QC (hadiah, bonus, kemasan): otomatis dianggap cocok.
+                'exempt' => $exempt->has($variant->id),
+                'exempt_reason' => $exempt->get($variant->id),
             ];
         })->values()->all();
 
@@ -66,7 +77,14 @@ class FulfillmentScan
         $expected = collect($this->expected($order)['lines'])->keyBy('variant_id');
         $problems = [];
 
+        if ($order->isQcHeld()) {
+            throw ValidationException::withMessages(['scan' => "QC {$order->number} sedang ditahan: {$order->qc_hold_reason}. Lepas tahan dulu."]);
+        }
+
         foreach ($expected as $variantId => $line) {
+            if ($line['exempt']) {
+                continue;
+            }
             $qty = (int) ($scanned[$variantId] ?? 0);
             if ($qty !== $line['qty']) {
                 $problems[] = "{$line['sku']}: di-scan {$qty} dari {$line['qty']}";
@@ -101,6 +119,8 @@ class FulfillmentScan
         }
 
         if ($order->hasStatus('shipped')) {
+            ScanDuplicateAttempt::record($order, $code, 'handover', $userId);
+
             throw ValidationException::withMessages(['code' => "{$order->number} sudah dikirim".($order->handover ? " lewat {$order->handover->number}" : '').'.']);
         }
 

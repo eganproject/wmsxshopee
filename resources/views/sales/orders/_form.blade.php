@@ -60,8 +60,8 @@
          addScanned() {
              const code = this.scan.trim().toUpperCase();
              if (! code) return;
-             const variant = this.variants.find(v => v.sku === code || (v.barcode && v.barcode.toUpperCase() === code));
-             if (! variant) { this.scanError = `SKU / barcode ${code} tidak ditemukan.`; return; }
+             const variant = this.variants.find(v => v.sku === code || (v.barcode && v.barcode.toUpperCase() === code) || (v.aliases || []).includes(code));
+             if (! variant) { window.reportScanMiss?.(code, 'order'); this.scanError = `SKU / barcode ${code} tidak ditemukan.`; return; }
              this.scanError = '';
              this.scan = '';
              const existing = this.items.find(i => i.ref === variant.ref);

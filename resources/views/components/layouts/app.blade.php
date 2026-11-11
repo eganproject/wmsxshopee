@@ -13,7 +13,7 @@
             'heading' => 'Master Data',
             'items' => [
                 ['label' => 'Gudang & Lokasi', 'route' => 'master.warehouses.index', 'active' => ['master.warehouses.*', 'master.zones.*', 'master.racks.*', 'master.locations.*'], 'icon' => 'heroicon-o-building-office-2', 'can' => 'warehouses.view'],
-                ['label' => 'Produk', 'route' => 'master.products.index', 'active' => ['master.products.*', 'master.bundles.*', 'master.units.*'], 'icon' => 'heroicon-o-cube', 'can' => 'products.view'],
+                ['label' => 'Produk', 'route' => 'master.products.index', 'active' => ['master.products.*', 'master.bundles.*', 'master.barcodes.*', 'master.units.*'], 'icon' => 'heroicon-o-cube', 'can' => 'products.view'],
                 ['label' => 'Kurir', 'route' => 'master.couriers.index', 'active' => 'master.couriers.*', 'icon' => 'heroicon-o-truck', 'can' => 'couriers.view'],
                 ['label' => 'Supplier', 'route' => 'master.suppliers.index', 'active' => 'master.suppliers.*', 'icon' => 'heroicon-o-building-storefront', 'can' => 'suppliers.view'],
             ],
@@ -51,6 +51,9 @@
                 ['label' => 'Stok Minimum', 'route' => 'reports.min-stock', 'active' => 'reports.min-stock', 'icon' => 'heroicon-o-bell-alert', 'can' => 'reports.view'],
                 ['label' => 'Saran Pembelian', 'route' => 'reports.reorder', 'active' => 'reports.reorder', 'icon' => 'heroicon-o-shopping-bag', 'can' => 'reports.view'],
                 ['label' => 'Pergerakan Barang', 'route' => 'reports.movements', 'active' => 'reports.movements', 'icon' => 'heroicon-o-presentation-chart-line', 'can' => 'reports.view'],
+                ['label' => 'Fast / Slow Moving', 'route' => 'reports.moving', 'active' => 'reports.moving', 'icon' => 'heroicon-o-bolt', 'can' => 'reports.view'],
+                ['label' => 'Saldo per Tanggal', 'route' => 'reports.balance', 'active' => 'reports.balance', 'icon' => 'heroicon-o-calendar-days', 'can' => 'reports.view'],
+                ['label' => 'Prakiraan Stok Habis', 'route' => 'reports.runout', 'active' => 'reports.runout', 'icon' => 'heroicon-o-clock', 'can' => 'reports.view'],
                 ['label' => 'Barang Hilang', 'route' => 'reports.lost-items', 'active' => 'reports.lost-items', 'icon' => 'heroicon-o-question-mark-circle', 'can' => 'reports.view'],
             ],
         ],

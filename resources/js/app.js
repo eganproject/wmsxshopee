@@ -209,3 +209,11 @@ initHintTips();
 document.addEventListener('alpine:initialized', () => enhance());
 
 Alpine.start();
+
+// Laporkan kode hasil scan yang tidak dikenali ke daftar "Barcode Tidak Dikenali".
+// Server mengecek ulang dan mengabaikan kode yang ternyata dikenali; gagal kirim diabaikan.
+window.reportScanMiss = (code, context, extra = {}) => {
+    const value = String(code ?? '').trim();
+    if (value.length < 3) return;
+    window.axios.post('/scan-misses', { code: value, context, ...extra }).catch(() => null);
+};

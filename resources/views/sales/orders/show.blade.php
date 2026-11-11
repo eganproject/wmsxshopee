@@ -134,6 +134,29 @@
         </div>
     @endif
 
+    @if ($order->hasStatus('picking') && $order->isQcHeld())
+        <div class="mb-5 flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+            <x-heroicon-o-pause-circle class="mt-0.5 size-5 shrink-0" />
+            <div class="min-w-0 flex-1">
+                <p class="font-medium">QC ditahan: {{ $order->qc_hold_reason }}</p>
+                <p class="mt-0.5">Oleh {{ $order->qcHolder?->name ?? '—' }} pada {{ $order->qc_held_at->translatedFormat('d M Y H:i') }}.
+                    @can('sales.fulfill')<a href="{{ route('sales.qc.show', $order) }}" class="font-medium underline">Buka QC</a> untuk melepas tahanan.@endcan</p>
+            </div>
+        </div>
+    @endif
+
+    @if ($order->qcSubstitutions->isNotEmpty())
+        <div class="mb-5 flex items-start gap-3 rounded-lg border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-800">
+            <x-heroicon-o-arrows-right-left class="mt-0.5 size-5 shrink-0" />
+            <div class="min-w-0 flex-1">
+                <p class="font-medium">Barang diganti saat QC</p>
+                @foreach ($order->qcSubstitutions as $substitution)
+                    <p class="mt-0.5">{{ $substitution->qty }} × <span class="font-mono">{{ $substitution->fromVariant?->sku }}</span> → <span class="font-mono font-medium">{{ $substitution->toVariant?->sku }}</span>: {{ $substitution->reason }} ({{ $substitution->user?->name ?? '—' }}, {{ $substitution->created_at->format('d/m H:i') }})</p>
+                @endforeach
+            </div>
+        </div>
+    @endif
+
     @if ($order->shopee_shop_id)
         <div @class([
             'mb-5 flex items-start gap-3 rounded-lg border px-4 py-3 text-sm',

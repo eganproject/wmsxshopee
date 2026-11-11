@@ -10,6 +10,7 @@ use App\Models\WarehouseLocation;
 use App\Models\WarehouseZone;
 use App\Rules\AccessibleRecord;
 use App\Services\StockCountService;
+use App\Support\Barcodes;
 use App\Support\XlsxExport;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -135,7 +136,7 @@ class StockCountController extends Controller
                 ->map(fn ($variant) => [
                     'id' => $variant->id,
                     'sku' => $variant->sku,
-                    'barcode' => $variant->barcode,
+                    'barcode' => $variant->barcode, 'aliases' => Barcodes::aliasesOf($variant->id),
                     'label' => $variant->product->name.($variant->name ? ' / '.$variant->name : ''),
                     'unit' => $variant->product->unit?->code,
                 ])

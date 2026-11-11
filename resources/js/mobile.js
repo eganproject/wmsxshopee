@@ -4,7 +4,7 @@
  * kolom ketik, semuanya lewat satu jalur: bridge.on('scan').
  */
 import Alpine from 'alpinejs';
-import { ApiError, getJson, refreshSession, request } from './mobile/api';
+import { ApiError, getJson, postJson, refreshSession, request } from './mobile/api';
 import * as bridge from './mobile/bridge';
 import { catalog, resolveCode, variantLabel } from './mobile/catalog';
 import { kvGet, kvSet } from './mobile/db';
@@ -366,7 +366,8 @@ Alpine.data('qcApp', () => ({
 
         bridge.feedback('ok');
         this.order = order;
-        this.scanned = Object.fromEntries(order.lines.map((l) => [l.variant_id, 0]));
+        // SKU tanpa scan QC (hadiah, kemasan) langsung dianggap cocok.
+        this.scanned = Object.fromEntries(order.lines.map((l) => [l.variant_id, l.exempt ? l.qty : 0]));
         this.alert = null;
         this.last = null;
         this.photo = null;
@@ -379,7 +380,47 @@ Alpine.data('qcApp', () => ({
 
     lineFor(code) {
         const key = norm(code);
-        return this.order.lines.find((l) => norm(l.sku) === key || (l.barcode && norm(l.barcode) === key));
+        return this.order.lines.find((l) => norm(l.sku) === key || (l.barcode && norm(l.barcode) === key) || (l.aliases || []).some((a) => norm(a) === key));
+    },
+
+    get held() {
+        return !!this.order?.hold;
+    },
+
+    async hold() {
+        if (!this.order || this.busy) return;
+        const reason = window.prompt('Alasan tahan QC (cth. barang rusak, stok kurang):');
+        if (!reason || !reason.trim()) return;
+        this.busy = true;
+        try {
+            const result = await postJson(this.order.hold_url, { reason: reason.trim() });
+            this.closeCamera();
+            this.queue = this.queue.map((o) => (o.id === result.order.id ? result.order : o));
+            toast(result.message, 'ok');
+            this.reset();
+        } catch (e) {
+            bridge.feedback('error');
+            this.alert = { kind: 'bad', title: 'Gagal menahan QC', text: e.message };
+        } finally {
+            this.busy = false;
+        }
+    },
+
+    async release() {
+        if (!this.order || this.busy) return;
+        this.busy = true;
+        try {
+            const result = await postJson(this.order.release_url, {});
+            this.order = result.order;
+            this.queue = this.queue.map((o) => (o.id === result.order.id ? result.order : o));
+            this.alert = null;
+            toast(result.message, 'ok');
+        } catch (e) {
+            bridge.feedback('error');
+            this.alert = { kind: 'bad', title: 'Gagal melepas tahanan', text: e.message };
+        } finally {
+            this.busy = false;
+        }
     },
 
     scanItem(raw) {
@@ -394,16 +435,27 @@ Alpine.data('qcApp', () => ({
             return;
         }
 
+        if (this.held) return this.reject('QC ditahan', code, 'Lepas tahan dulu sebelum scan barang.');
+
         const bundle = this.order.bundles?.[key];
         if (bundle) {
-            const over = Object.entries(bundle).some(([id, qty]) => (this.scanned[id] || 0) + qty > (this.order.lines.find((l) => String(l.variant_id) === String(id))?.qty || 0));
+            const lineOf = (id) => this.order.lines.find((l) => String(l.variant_id) === String(id));
+            const contents = Object.entries(bundle).filter(([id]) => !lineOf(id)?.exempt);
+            const over = contents.some(([id, qty]) => (this.scanned[id] || 0) + qty > (lineOf(id)?.qty || 0));
             if (over) return this.reject('Paket ini sudah lengkap discan', code);
-            Object.entries(bundle).forEach(([id, qty]) => (this.scanned[id] = (this.scanned[id] || 0) + qty));
+            contents.forEach(([id, qty]) => (this.scanned[id] = (this.scanned[id] || 0) + qty));
             return this.accept(code, 'Isi paket ditambahkan');
         }
 
         const line = this.lineFor(code);
-        if (!line) return this.reject(`Barang salah: ${code}`, code, 'Tidak ada di pesanan ini. Keluarkan dari paket.');
+        if (!line) {
+            // Kode yang tidak dikenali sama sekali dicatat di "Barcode Tidak Dikenali" (server mengecek ulang).
+            resolveCode(code).then((local) => {
+                if (!local && navigator.onLine) postJson('/scan-misses', { code, context: 'qc', sales_order_id: this.order?.id, warehouse_id: this.order?.warehouse_id }).catch(() => null);
+            }).catch(() => null);
+            return this.reject(`Barang salah: ${code}`, code, 'Tidak ada di pesanan ini. Keluarkan dari paket.');
+        }
+        if (line.exempt) return this.accept(code, `${line.sku} tanpa scan QC, sudah terhitung`);
         if ((this.scanned[line.variant_id] || 0) >= line.qty) return this.reject(`${line.sku} sudah cukup`, code, `Pesanan hanya ${line.qty}. Jangan masukkan lagi.`);
 
         this.scanned[line.variant_id] = (this.scanned[line.variant_id] || 0) + 1;

@@ -61,6 +61,14 @@
                     </div>
                 </div>
 
+                <template x-if="held">
+                    <div class="banner warn">
+                        <x-m-icon name="alert" size="s" />
+                        <div class="grow"><b x-text="`QC ditahan: ${order.hold.reason}`"></b><span x-text="`${order.hold.by || '-'} · ${order.hold.at}`"></span></div>
+                        <button type="button" class="btn s" :class="busy && 'is-busy'" @click="release()">Lepas</button>
+                    </div>
+                </template>
+
                 <template x-if="alert">
                     <div class="banner flash-bad" :class="alert.kind"><x-m-icon name="alert" size="s" /><div><b x-text="alert.title"></b><span x-text="alert.text"></span></div></div>
                 </template>
@@ -82,6 +90,7 @@
                             <div class="grow">
                                 <div class="t mono" style="font-size:13px" x-text="line.sku"></div>
                                 <div class="m" style="display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden" x-text="line.name"></div>
+                                <div class="m" x-show="line.exempt" style="font-weight:600">Tanpa scan QC</div>
                             </div>
                             <div class="step">
                                 <button type="button" @click="adjust(line, -1)" aria-label="Kurangi"><x-m-icon name="minus" size="s" /></button>
@@ -104,9 +113,11 @@
                     </label>
                 </div>
 
+                <button type="button" class="btn s" style="width:100%" x-show="!held" :class="busy && 'is-busy'" @click="hold()"><x-m-icon name="alert" />Tahan QC (barang bermasalah)</button>
+
                 <div class="bar">
                     <button type="button" class="btn s sq" @click="reset()" aria-label="Batal"><x-m-icon name="x" /></button>
-                    <button type="button" class="btn p" :disabled="!complete" :class="busy && 'is-busy'" @click="finish()">
+                    <button type="button" class="btn p" :disabled="!complete || held" :class="busy && 'is-busy'" @click="finish()">
                         <x-m-icon name="check" x-show="!busy" /><span x-text="complete ? 'Selesai QC' : `Scan ${total - done} barang lagi`"></span>
                     </button>
                 </div>

@@ -13,6 +13,7 @@ function index(data) {
     data.variants.forEach((v) => {
         byCode.set(v.sku.toLowerCase(), { type: 'variant', item: v });
         if (v.barcode) byCode.set(String(v.barcode).toLowerCase(), { type: 'variant', item: v });
+        (v.aliases || []).forEach((alias) => byCode.set(String(alias).toLowerCase(), { type: 'variant', item: v }));
     });
     data.bundles.forEach((b) => {
         byCode.set(b.sku.toLowerCase(), { type: 'bundle', item: b });

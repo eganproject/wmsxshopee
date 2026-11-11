@@ -221,6 +221,9 @@ class SalesOrder extends Model
         'qc_skip_checked_at',
         'qc_skip_checked_by',
         'qc_skip_note',
+        'qc_hold_reason',
+        'qc_held_at',
+        'qc_held_by',
         'shopee_income',
         'shopee_escrow_amount',
         'shopee_income_final',
@@ -288,6 +291,7 @@ class SalesOrder extends Model
             'shopee_shipped_at' => 'datetime',
             'shipped_automatically' => 'boolean',
             'qc_skip_checked_at' => 'datetime',
+            'qc_held_at' => 'datetime',
             'pickup_at' => 'datetime',
             'shipment_arranged_at' => 'datetime',
             'shipping_label_printed_at' => 'datetime',
@@ -374,6 +378,22 @@ class SalesOrder extends Model
     public function skippedQc(): bool
     {
         return $this->status === 'shipped' && $this->shipped_automatically;
+    }
+
+    public function qcHolder(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'qc_held_by');
+    }
+
+    /** QC ditahan (barang bermasalah, menunggu keputusan): tidak bisa di-QC sampai dilepas. */
+    public function isQcHeld(): bool
+    {
+        return $this->qc_held_at !== null;
+    }
+
+    public function qcSubstitutions(): HasMany
+    {
+        return $this->hasMany(QcSubstitution::class)->latest('id');
     }
 
     /** Terlewat QC dan belum dicek supervisor. */

@@ -14,6 +14,7 @@ use App\Rules\AccessibleRecord;
 use App\Services\DamagedStockService;
 use App\Services\StockService;
 use App\Support\Activity;
+use App\Support\Barcodes;
 use App\Support\XlsxExport;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -448,7 +449,7 @@ class SalesReturnController extends Controller
                 ->where(fn ($q) => $q->where('is_active', true)->when($return, fn ($q) => $q->orWhereIn('id', $return->items()->select('product_variant_id'))))
                 ->orderBy('sku')
                 ->get()
-                ->map(fn ($variant) => ['id' => $variant->id, 'sku' => $variant->sku, 'barcode' => $variant->barcode, 'label' => $variant->displayName()])
+                ->map(fn ($variant) => ['id' => $variant->id, 'sku' => $variant->sku, 'barcode' => $variant->barcode, 'aliases' => Barcodes::aliasesOf($variant->id), 'label' => $variant->displayName()])
                 ->values(),
         ];
     }

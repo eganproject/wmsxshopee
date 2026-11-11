@@ -24,7 +24,7 @@ class PermissionSeeder extends Seeder
             'adjustments.view', 'adjustments.create', 'adjustments.approve',
             'suppliers.view', 'suppliers.create', 'suppliers.edit', 'suppliers.delete',
             'receipts.view', 'receipts.create', 'receipts.receive', 'receipts.delete',
-            'sales.view', 'sales.create', 'sales.confirm', 'sales.fulfill', 'sales.skip_scan', 'sales.cancel', 'sales.delete',
+            'sales.view', 'sales.create', 'sales.confirm', 'sales.fulfill', 'sales.skip_scan', 'sales.qc_substitute', 'sales.qc_settings', 'sales.cancel', 'sales.delete',
             'returns.view', 'returns.create', 'returns.receive', 'returns.delete',
             'damaged.view', 'damaged.move', 'damaged.return', 'damaged.dispose', 'damaged.repair', 'damaged.assemble', 'damaged.approve',
             'opname.view', 'opname.create', 'opname.post', 'opname.delete', 'reports.view',
