@@ -3,7 +3,6 @@
 namespace App\Http\Controllers;
 
 use App\Models\LostItem;
-use App\Models\ProductVariant;
 use App\Models\Stock;
 use App\Models\StockLedger;
 use App\Models\Warehouse;
@@ -102,18 +101,18 @@ class ReportController extends Controller
 
         if ($request->input('export') === 'xlsx') {
             return XlsxExport::download('stok-minimum-'.now()->format('Ymd-His').'.xlsx',
-                ['SKU', 'Produk', 'Varian', 'Satuan', 'Stok Minimum', 'Stok Fisik', 'Dicadangkan', 'Tersedia', 'Kekurangan'],
-                $query->cursor()->map(fn ($row) => [
-                    $row->sku, $row->product_name, $row->variant_name ?? '', $row->unit_code ?? '',
-                    (int) $row->min_stock, (int) $row->on_hand, (int) $row->reserved, (int) $row->available,
+                ['SKU', 'Produk', 'Varian', 'Gudang', 'Satuan', 'Stok Minimum', 'Sumber Minimum', 'Stok Fisik', 'Dicadangkan', 'Tersedia', 'Kekurangan'],
+                $query->toBase()->cursor()->map(fn ($row) => [
+                    $row->sku, $row->product_name, $row->variant_name ?? '', $row->warehouse_code, $row->unit_code ?? '',
+                    (int) $row->min_stock, $row->min_from_master ? 'Master Produk' : 'SKU per Gudang', (int) $row->on_hand, (int) $row->reserved, (int) $row->available,
                     max((int) $row->min_stock - (int) $row->available, 0),
                 ]));
         }
 
         return view('reports.min-stock', [
-            'rows' => $query->paginate(50)->withQueryString(),
+            'rows' => $query->toBase()->paginate(50)->withQueryString(),
             'belowCount' => $belowCount,
-            'withMinCount' => ProductVariant::whereNotNull('min_stock')->where('is_active', true)->count(),
+            'withMinCount' => StockLevels::minStockQuery($warehouseId)->reorder()->count(),
             'warehouses' => Warehouse::orderBy('code')->get(),
         ]);
     }
@@ -137,10 +136,10 @@ class ReportController extends Controller
             $suppliers = ReorderSuggestions::lastSuppliers($rows->pluck('id')->all());
 
             return XlsxExport::download('saran-pembelian-'.now()->format('Ymd-His').'.xlsx',
-                ['SKU', 'Produk', 'Varian', 'Satuan', 'Stok Minimum', 'Tersedia', 'Dalam Draft Penerimaan',
+                ['SKU', 'Produk', 'Varian', 'Gudang', 'Satuan', 'Stok Minimum', 'Tersedia', 'Dalam Draft Penerimaan',
                     "Terjual {$suggestions->lookbackDays} Hari", 'Rata-rata/Hari', 'Perkiraan Habis (hari)', 'Stok Target', 'Saran Beli', 'Supplier Terakhir'],
                 $rows->map(fn ($row) => [
-                    $row->sku, $row->product_name, $row->variant_name ?? '', $row->unit_code ?? '',
+                    $row->sku, $row->product_name, $row->variant_name ?? '', $row->warehouse_code, $row->unit_code ?? '',
                     $row->min_stock ?? '', $row->available, $row->incoming, $row->sold, round($row->daily, 2),
                     $row->days_left ?? '', $row->target, $row->suggested, $suppliers[$row->id] ?? '',
                 ]));

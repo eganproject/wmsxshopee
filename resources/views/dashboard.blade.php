@@ -132,8 +132,8 @@
                     @forelse ($lowStock['rows'] as $row)
                         <li class="flex items-center gap-3 px-5 py-2.5">
                             <div class="min-w-0 flex-1">
-                                <a href="{{ route('inventory.stocks.index', ['view' => 'location', 'search' => $row->sku, 'warehouse' => $wh]) }}" class="font-mono text-sm font-medium text-slate-900 hover:text-brand-600">{{ $row->sku }}</a>
-                                <p class="truncate text-xs text-slate-500">{{ $row->product_name }}{{ $row->variant_name ? ' · '.$row->variant_name : '' }}</p>
+                                <a href="{{ route('inventory.stocks.index', ['view' => 'location', 'search' => $row->sku, 'warehouse' => $row->warehouse_id]) }}" class="font-mono text-sm font-medium text-slate-900 hover:text-brand-600">{{ $row->sku }}</a>
+                                <p class="truncate text-xs text-slate-500">{{ $wh ? '' : $row->warehouse_code.' · ' }}{{ $row->product_name }}{{ $row->variant_name ? ' · '.$row->variant_name : '' }}</p>
                             </div>
                             <div class="text-right">
                                 <p @class(['text-sm font-semibold tabular-nums', 'text-rose-600' => $row->available <= 0, 'text-amber-700' => $row->available > 0])>{{ $fmt($row->available) }} <span class="text-xs font-normal text-slate-500">{{ $row->unit_code }}</span></p>

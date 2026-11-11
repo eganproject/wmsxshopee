@@ -35,7 +35,7 @@
              return window.Optima.fixedBinsFor(this.defaults, this.warehouse, item.product_variant_id);
          },
          fillDefault(item) {
-             // Bin utama lokasi tetap SKU di gudang ini (Inventori > Lokasi Tetap SKU) menggantikan bin baris sebelumnya.
+             // Bin utama lokasi tetap SKU di gudang ini (Inventori > SKU per Gudang) menggantikan bin baris sebelumnya.
              const bins = this.fixedBins(item);
              if (bins.length) item.warehouse_location_id = bins[0].id;
              this.spread(item);
@@ -59,7 +59,7 @@
                      to.qty_ordered = (parseInt(to.qty_ordered) || 0) + take;
                  },
              });
-             if (changed) this.splitNote = 'Bin utama penuh, sisa barang disarankan ke bin cadangan (lihat Inventori > Lokasi Tetap SKU).';
+             if (changed) this.splitNote = 'Bin utama penuh, sisa barang disarankan ke bin cadangan (lihat Inventori > SKU per Gudang).';
          },
          locationsFor() {
              return this.locations.filter(l => String(l.warehouse_id) === String(this.warehouse));
@@ -275,7 +275,7 @@
                         <th class="px-2 py-2 text-right font-normal">Diterima Baik <span class="whitespace-nowrap">* <x-hint text="Jumlah barang dalam kondisi baik. Hanya angka ini yang masuk stok jual di lokasi bin." /></span></th>
                         <th class="px-2 py-2 text-right font-normal"><span class="whitespace-nowrap">Rusak <x-hint text="Jumlah barang rusak / cacat dari kiriman ini. Masuk ke Stok Rusak gudang, tidak ikut dijual." /></span></th>
                         <th class="px-2 py-2 text-right font-normal"><span class="whitespace-nowrap">Selisih <x-hint text="Dipesan dikurangi (Diterima Baik + Rusak). Angka positif berarti kiriman kurang dari pesanan." /></span></th>
-                        <th class="px-2 py-2 font-normal">Lokasi <span class="whitespace-nowrap">Bin <x-hint text="Bin tempat barang ditaruh. Otomatis disarankan dari Lokasi Tetap SKU. Kosong = masuk sebagai stok Tanpa bin." /></span></th>
+                        <th class="px-2 py-2 font-normal">Lokasi <span class="whitespace-nowrap">Bin <x-hint text="Bin tempat barang ditaruh. Otomatis disarankan dari lokasi tetap di SKU per Gudang. Kosong = masuk sebagai stok Tanpa bin." /></span></th>
                         <th class="px-2 py-2 font-normal">Keterangan</th>
                         <th class="py-2 pl-2"></th>
                     </tr>

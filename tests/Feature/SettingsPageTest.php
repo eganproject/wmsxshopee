@@ -22,7 +22,6 @@ class SettingsPageTest extends TestCase
             ->assertSee('Manajemen User')
             ->assertSee('Role &amp; Permission', false)
             ->assertSee('Pengaturan Marketplace')
-            ->assertSee('Lokasi Tetap SKU')
             ->assertSee('Log Aktivitas')
             ->assertSee('Backup Database')
             ->assertSee(route('admin.users.index'))

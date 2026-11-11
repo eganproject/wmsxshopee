@@ -17,9 +17,11 @@ use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 
 /**
- * Lokasi tetap SKU (satu atau beberapa bin berurutan: utama lalu cadangan) dan
- * stok min/maks per gudang. Lokasi tetap disarankan saat transfer & penerimaan
- * dan didahulukan saat picking; min/maks dipakai saran isi ulang dari gudang cadangan.
+ * Halaman SKU per Gudang: lokasi tetap SKU (satu atau beberapa bin berurutan:
+ * utama lalu cadangan) dan stok min/maks per gudang. Lokasi tetap disarankan saat
+ * transfer & penerimaan dan didahulukan saat picking; min dipakai stok menipis,
+ * laporan Stok Minimum & Saran Pembelian (StockLevels), min/maks dipakai saran
+ * isi ulang dari gudang cadangan.
  */
 class WarehouseVariantSettingController extends Controller
 {

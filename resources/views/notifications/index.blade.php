@@ -145,8 +145,8 @@
                             @switch($group['key'])
                                 @case('low_stock')
                                     <div class="min-w-0 flex-1">
-                                        <a href="{{ route('inventory.stocks.index', ['view' => 'location', 'search' => $item->sku]) }}" class="font-mono text-sm font-medium text-slate-900 hover:text-brand-600">{{ $item->sku }}</a>
-                                        <p class="truncate text-xs text-slate-500">{{ $item->product_name }}{{ $item->variant_name ? ' · '.$item->variant_name : '' }}</p>
+                                        <a href="{{ route('inventory.stocks.index', ['view' => 'location', 'search' => $item->sku, 'warehouse' => $item->warehouse_id]) }}" class="font-mono text-sm font-medium text-slate-900 hover:text-brand-600">{{ $item->sku }}</a>
+                                        <p class="truncate text-xs text-slate-500">{{ $item->warehouse_code }} · {{ $item->product_name }}{{ $item->variant_name ? ' · '.$item->variant_name : '' }}</p>
                                     </div>
                                     <div class="text-right">
                                         <p @class(['text-sm font-semibold tabular-nums', 'text-rose-600' => $item->available <= 0, 'text-amber-700' => $item->available > 0])>
