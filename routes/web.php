@@ -27,6 +27,7 @@ use App\Http\Controllers\Master\BundleImportController;
 use App\Http\Controllers\Master\CourierController;
 use App\Http\Controllers\Master\LocationController;
 use App\Http\Controllers\Master\LocationImportController;
+use App\Http\Controllers\Master\ProductBulkUpdateController;
 use App\Http\Controllers\Master\ProductController;
 use App\Http\Controllers\Master\ProductImportController;
 use App\Http\Controllers\Master\RackController;
@@ -107,6 +108,16 @@ Route::middleware(['auth', 'active'])->group(function () {
         Route::get('products/import', [ProductImportController::class, 'create'])->middleware('can:products.create')->name('products.import');
         Route::post('products/import', [ProductImportController::class, 'store'])->middleware('can:products.create')->name('products.import.store');
         Route::get('products/import/template.{format}', [ProductImportController::class, 'template'])->middleware('can:products.create')->name('products.import.template');
+
+        // Update massal produk per kolom: pilih kolom → template → unggah → pratinjau → terapkan.
+        Route::middleware('can:products.edit')->prefix('products/bulk-update')->name('products.bulk-update')->controller(ProductBulkUpdateController::class)->group(function () {
+            Route::get('/', 'create');
+            Route::get('template', 'template')->name('.template');
+            Route::post('/', 'store')->name('.store');
+            Route::get('preview', 'preview')->name('.preview');
+            Route::post('apply', 'apply')->name('.apply');
+            Route::delete('preview', 'destroy')->name('.destroy');
+        });
 
         // Impor massal zona, rak & lokasi bin dari Excel/CSV.
         Route::get('bundles/import', [BundleImportController::class, 'create'])->middleware('can:products.create')->name('bundles.import');

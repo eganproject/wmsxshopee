@@ -9,6 +9,11 @@
 
     <x-page-header title="Master Produk" description="SKU internal, varian, barcode, berat dan dimensi barang." icon="heroicon-o-cube">
         <x-reports.export-button />
+        @can('products.edit')
+            <a href="{{ route('master.products.bulk-update', array_filter(request()->only(['search', 'category', 'status']), 'filled')) }}" class="btn-secondary">
+                <x-heroicon-o-pencil-square class="size-5" /> Update Massal
+            </a>
+        @endcan
         @can('products.create')
             <a href="{{ route('master.products.import') }}" class="btn-secondary">
                 <x-heroicon-o-arrow-up-tray class="size-5" /> Impor Excel / CSV
