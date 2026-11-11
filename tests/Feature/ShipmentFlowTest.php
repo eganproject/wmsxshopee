@@ -420,8 +420,13 @@ class ShipmentFlowTest extends TestCase
         $parts = $page->viewData('parts');
         $this->assertCount(2, $parts);
 
-        $this->get($parts[0]['url'])->assertOk()->assertHeader('Content-Type', 'application/pdf')->assertSee('%PDF-1.4 label', false);
+        // PDF Shopee + nomor resi di PDF itu + QR nomor resi untuk ditempel di browser.
+        $this->getJson($parts[0]['url'])->assertOk()
+            ->assertJsonPath('pdfs', [base64_encode('%PDF-1.4 label')])->assertJsonPath('awbs', [['SPXID001']])
+            ->assertJsonPath('qr.position', 'bottom-right')->assertJsonPath('qr.size_mm', 18)
+            ->assertJsonStructure(['qr' => ['codes' => ['SPXID001' => ['n', 'd']]]]);
         $this->getJson($parts[1]['url'])->assertOk()
+            ->assertJsonPath('labels.0.qr.n', 21)
             ->assertJsonPath('labels.0.tracking', 'JNE777')->assertJsonPath('labels.0.info', 'JNE Kemang')->assertJsonPath('labels.0.items.0.sku', 'KAOS-M')
             ->assertJsonStructure(['labels' => [['barcode' => ['width', 'bars']]]]);
         $this->assertNotNull($manual->fresh()->shipping_label_printed_at);
@@ -429,6 +434,47 @@ class ShipmentFlowTest extends TestCase
         // Bagian yang gagal dibalas alasannya supaya ditampilkan di halaman cetak.
         $this->getJson(route('sales.orders.shipping-labels.part', ['orders' => [$draft->id]]))->assertStatus(422)->assertJsonPath('message', 'Label resi tersedia setelah pengiriman diatur.');
         $this->getJson(route('sales.orders.shipping-labels.part', ['orders' => [$shopee->id, $manual->id]]))->assertStatus(422);
+    }
+
+    public function test_qr_on_labels_follows_label_settings(): void
+    {
+        $shopee = $this->shopeeOrder('Q1', ['shopee_order_status' => 'PROCESSED', 'tracking_number' => 'SPXID009']);
+        $manual = $this->order(['shipping_method' => 'dropoff', 'dropoff_point' => 'JNE Kemang', 'tracking_number' => 'JNE888']);
+        Http::fake([
+            '*/logistics/get_shipping_document_parameter*' => Http::response(['error' => '', 'response' => ['result_list' => [['order_sn' => 'Q1', 'suggest_shipping_document_type' => 'THERMAL_AIR_WAYBILL']]]]),
+            '*/logistics/create_shipping_document*' => Http::response(['error' => '', 'response' => ['result_list' => [['order_sn' => 'Q1']]]]),
+            '*/logistics/get_shipping_document_result*' => Http::response(['error' => '', 'response' => ['result_list' => [['order_sn' => 'Q1', 'status' => 'READY']]]]),
+            '*/logistics/download_shipping_document*' => Http::response('%PDF-1.4 label', 200, ['Content-Type' => 'application/pdf']),
+        ]);
+
+        // QR aktif (bawaan): cetak satu resi Shopee lewat halaman cetak gabungan agar QR bisa ditempel.
+        $this->get('/sales/orders/shipping-labels?'.http_build_query(['orders' => [$shopee->id]]))->assertOk()->assertSee('Cetak Resi Gabungan');
+        $this->get("/sales/orders/{$manual->id}/shipping-label")->assertOk()->assertSee('class="qr"', false);
+
+        $this->get('/sales/label-settings')->assertOk()->assertSee('Pengaturan Cetak Resi');
+        $this->put('/sales/label-settings', [
+            'qr_enabled' => '1', 'qr_size_mm' => 20, 'manual_qr' => '0',
+            'shopee_qr' => '1', 'shopee_qr_position' => 'top-left', 'shopee_qr_margin_x_mm' => 5, 'shopee_qr_margin_y_mm' => 60,
+            'tiktok_qr' => '0', 'tiktok_qr_position' => 'bottom-right', 'tiktok_qr_margin_x_mm' => 4, 'tiktok_qr_margin_y_mm' => 4,
+        ])->assertRedirect('/sales/label-settings')->assertSessionHasNoErrors();
+
+        $part = route('sales.orders.shipping-labels.part', ['orders' => [$shopee->id]]);
+        $this->getJson($part)->assertOk()->assertJsonPath('qr.position', 'top-left')->assertJsonPath('qr.size_mm', 20)
+            ->assertJsonPath('qr.margin_y_mm', 60);
+        $this->get("/sales/orders/{$manual->id}/shipping-label")->assertOk()->assertDontSee('class="qr"', false);
+
+        $this->put('/sales/label-settings', ['qr_size_mm' => 5, 'shopee_qr_position' => 'tengah'])
+            ->assertSessionHasErrors(['qr_size_mm', 'shopee_qr_position']);
+
+        // QR dimatikan: label Shopee dicetak langsung sebagai PDF resmi tanpa QR.
+        $this->put('/sales/label-settings', [
+            'qr_enabled' => '0', 'qr_size_mm' => 20, 'manual_qr' => '1',
+            'shopee_qr' => '1', 'shopee_qr_position' => 'top-left', 'shopee_qr_margin_x_mm' => 5, 'shopee_qr_margin_y_mm' => 60,
+            'tiktok_qr' => '1', 'tiktok_qr_position' => 'bottom-right', 'tiktok_qr_margin_x_mm' => 4, 'tiktok_qr_margin_y_mm' => 4,
+        ])->assertSessionHasNoErrors();
+        $this->getJson($part)->assertOk()->assertJsonMissingPath('qr')->assertJsonPath('awbs', [['SPXID009']]);
+        $this->get('/sales/orders/shipping-labels?'.http_build_query(['orders' => [$shopee->id]]))
+            ->assertOk()->assertHeader('Content-Type', 'application/pdf');
     }
 
     public function test_shopee_packages_that_cannot_download_together_are_printed_one_by_one(): void
@@ -451,7 +497,8 @@ class ShipmentFlowTest extends TestCase
         $this->assertCount(1, $parts);
 
         $this->getJson($parts[0]['url'])->assertOk()->assertJsonCount(2, 'pdfs')
-            ->assertJsonPath('pdfs.0', base64_encode('%PDF-1.4 T1'))->assertJsonPath('pdfs.1', base64_encode('%PDF-1.4 T2'));
+            ->assertJsonPath('pdfs.0', base64_encode('%PDF-1.4 T1'))->assertJsonPath('pdfs.1', base64_encode('%PDF-1.4 T2'))
+            ->assertJsonPath('awbs', [['SPX1'], ['SPX2']]);
         $this->assertNotNull($b->fresh()->shipping_label_printed_at);
     }
 

@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Sales;
 
 use App\Http\Controllers\Controller;
 use App\Models\Courier;
+use App\Models\LabelSetting;
 use App\Models\SalesOrder;
 use App\Services\Shopee\ShopeeException;
 use App\Services\Shopee\ShopeeLogistics;
@@ -16,6 +17,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Date;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
@@ -240,7 +242,15 @@ class ShipmentController extends Controller
         $orders = SalesOrder::with(['shopeeShop', 'tiktokShop'])->whereKey($data['orders'])->orderBy('id')->get();
 
         if ($orders->count() === 1) {
-            return $this->label($orders->first(), $logistics, $tiktok);
+            $order = $orders->first();
+            $platform = $order->isShopee() ? 'shopee' : ($order->isTiktok() ? 'tiktok' : null);
+
+            // QR nomor resi ditempel di browser, jadi label marketplace lewat halaman cetak gabungan.
+            if ($platform && $order->hasShippingLabel() && LabelSetting::current()->qrFor($platform)) {
+                return $this->batch($orders);
+            }
+
+            return $this->label($order, $logistics, $tiktok);
         }
 
         // Label manual saja: dicetak langsung seperti biasa. Label Shopee lebih dari satu selalu lewat
@@ -328,40 +338,56 @@ class ShipmentController extends Controller
         }
 
         try {
-            if ($orders->every->isTiktok() && $orders->count() === 1) {
-                $pdf = $tiktok->label($orders->first());
-            } elseif ($orders->every->isTiktok()) {
+            if ($orders->every->isTiktok()) {
                 $result = $tiktok->labels($orders);
                 $failed = collect($result['failed'])->map(fn ($message, $number) => "{$number}: {$message}")->values();
                 if ($result['pdfs'] === []) {
-                    return $fail($failed->take(3)->implode(' · ') ?: 'Label TikTok tidak bisa diambil.');
+                    return $fail($orders->count() === 1 && $result['failed'] ? reset($result['failed']) : ($failed->take(3)->implode(' · ') ?: 'Label TikTok tidak bisa diambil.'));
                 }
 
-                // Paket yang gagal disebutkan, label lainnya tetap dicetak.
-                return response()->json(array_filter([
-                    'pdfs' => array_values(array_map('base64_encode', $result['pdfs'])),
-                    'warning' => $failed->isNotEmpty() ? 'Gagal: '.$failed->implode(' · ') : null,
-                ]));
+                // Satu PDF per paket; paket yang gagal disebutkan, label lainnya tetap dicetak.
+                $documents = collect($result['pdfs'])->map(fn (string $pdf, $id) => ['pdf' => $pdf, 'orders' => $orders->where('id', $id)->values()])->values()->all();
+
+                return response()->json($this->labelDocuments($documents, 'tiktok', $failed->isNotEmpty() ? 'Gagal: '.$failed->implode(' · ') : null));
             } elseif ($orders->every->isShopee()) {
-                $documents = $logistics->documents($orders);
-                if (count($documents) > 1) {
-                    // Shopee memecah label jadi beberapa PDF; browser yang menyatukannya.
-                    return response()->json(['pdfs' => array_map('base64_encode', $documents)]);
-                }
-                $pdf = $documents[0];
+                // Shopee bisa memecah label jadi beberapa PDF; browser yang menyatukannya.
+                return response()->json($this->labelDocuments($logistics->documentsWithOrders($orders), 'shopee'));
             } elseif ($orders->every(fn (SalesOrder $order) => ! $order->isMarketplace())) {
                 // Label manual digambar di browser dari data ini (PDF-nya dibuat di sisi klien).
                 SalesOrder::markLabelsPrinted($orders->modelKeys());
+                $qr = LabelSetting::current()->qrFor('manual');
 
-                return response()->json(['labels' => $orders->map(fn (SalesOrder $order) => $this->manualLabelData($order))->values()]);
+                return response()->json(['labels' => $orders->map(fn (SalesOrder $order) => $this->manualLabelData($order, $qr))->values()]);
             } else {
                 return $fail('Bagian cetak tidak valid.');
             }
         } catch (ShopeeException|TiktokException|ValidationException $e) {
             return $fail($e instanceof ValidationException ? collect($e->errors())->flatten()->first() : $e->getMessage());
         }
+    }
 
-        return response($pdf, 200, ['Content-Type' => 'application/pdf']);
+    /**
+     * Balasan satu bagian label marketplace: PDF (base64), nomor resi yang ada di tiap
+     * PDF, dan QR nomor resi + posisinya bila QR diaktifkan untuk platform ini.
+     * Browser menempel QR di halaman yang memuat nomor resi tersebut.
+     *
+     * @param  list<array{pdf: string, orders: Collection<int, SalesOrder>}>  $documents
+     * @return array<string, mixed>
+     */
+    private function labelDocuments(array $documents, string $platform, ?string $warning = null): array
+    {
+        $awbs = array_map(fn (array $document) => $document['orders']->pluck('tracking_number')->filter()->values()->all(), $documents);
+        $stamp = LabelSetting::current()->stamp($platform);
+
+        return array_filter([
+            'pdfs' => array_map(fn (array $document) => base64_encode($document['pdf']), $documents),
+            'awbs' => $awbs,
+            'qr' => $stamp ? [
+                ...$stamp,
+                'codes' => (object) collect($awbs)->flatten()->unique()->mapWithKeys(fn ($awb) => [$awb => Barcode::qrPath($awb)])->filter()->all(),
+            ] : null,
+            'warning' => $warning,
+        ], fn ($value) => $value !== null);
     }
 
     /** @param EloquentCollection<int, SalesOrder> $orders */
@@ -382,10 +408,12 @@ class ShipmentController extends Controller
 
         if (! $printable->first()->isShopee()) {
             SalesOrder::markLabelsPrinted($printable->modelKeys());
+            $qr = LabelSetting::current()->qrFor('manual');
 
             return view('sales.orders.shipping-label', [
                 'orders' => $printable,
                 'barcodes' => $printable->mapWithKeys(fn ($order) => [$order->id => $order->tracking_number ? Barcode::code128($order->tracking_number) : null]),
+                'qrs' => $printable->mapWithKeys(fn ($order) => [$order->id => $qr && $order->tracking_number ? Barcode::qr($order->tracking_number) : null]),
             ]);
         }
 
@@ -406,7 +434,7 @@ class ShipmentController extends Controller
     }
 
     /** @return array<string, mixed> */
-    private function manualLabelData(SalesOrder $order): array
+    private function manualLabelData(SalesOrder $order, bool $qr = false): array
     {
         $warehouse = $order->warehouse;
 
@@ -438,6 +466,7 @@ class ShipmentController extends Controller
             'method' => $order->shippingMethodLabel(),
             'tracking' => $order->tracking_number,
             'barcode' => $bars ?: null,
+            'qr' => $qr && $order->tracking_number ? Barcode::qrPath($order->tracking_number) : null,
             'customer' => $order->customer_name,
             'phone' => $order->customer_phone,
             'address' => $order->shipping_address,

@@ -36,6 +36,12 @@ class SettingsMenu
                 ],
             ],
             [
+                'heading' => 'Operasional',
+                'items' => [
+                    ['label' => 'Cetak Resi', 'description' => 'QR nomor resi di label Shopee, TikTok dan pesanan manual.', 'route' => 'sales.label-settings.edit', 'active' => 'sales.label-settings.*', 'icon' => 'heroicon-o-qr-code', 'can' => 'sales.label_settings', 'keywords' => 'resi label awb qr cetak'],
+                ],
+            ],
+            [
                 'heading' => 'Sistem',
                 'items' => [
                     ['label' => 'Log Aktivitas', 'description' => 'Riwayat perubahan data dan aktivitas pengguna.', 'route' => 'admin.activity.index', 'active' => 'admin.activity.*', 'icon' => 'heroicon-o-clock', 'can' => 'activity.view', 'keywords' => 'audit riwayat'],

@@ -430,6 +430,18 @@ class ShopeeLogistics
      */
     public function documents(Collection $orders): array
     {
+        return array_column($this->documentsWithOrders($orders), 'pdf');
+    }
+
+    /**
+     * Sama dengan documents(), ditambah pesanan yang ada di tiap PDF (urutan sesuai
+     * permintaan ke Shopee), dipakai untuk menempel QR nomor resi per halaman.
+     *
+     * @param  Collection<int, SalesOrder>  $orders
+     * @return list<array{pdf: string, orders: Collection<int, SalesOrder>}>
+     */
+    public function documentsWithOrders(Collection $orders): array
+    {
         $orders = $orders->values();
 
         if ($orders->isEmpty()) {
@@ -480,11 +492,11 @@ class ShopeeLogistics
         $documents = [];
         foreach ($groups as $i => $group) {
             if (isset($singles[$i])) {
-                foreach ($singles[$i] as $_) {
-                    $documents[] = array_shift($singleResults);
+                foreach ($singles[$i] as $single) {
+                    $documents[] = ['pdf' => array_shift($singleResults), 'orders' => $single];
                 }
             } else {
-                $documents[] = $results[$i];
+                $documents[] = ['pdf' => $results[$i], 'orders' => $group];
             }
         }
 

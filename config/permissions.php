@@ -130,6 +130,7 @@ return [
                 'skip_scan' => 'Kirim tanpa scan serah terima & cek pesanan terlewat QC',
                 'qc_substitute' => 'Ganti SKU barang saat QC kemas (substitusi, wajib alasan)',
                 'qc_settings' => 'Atur daftar SKU tanpa scan QC',
+                'label_settings' => 'Atur cetak resi (QR nomor resi di label)',
                 'cancel' => 'Batalkan pesanan',
                 'delete' => 'Hapus draft pesanan',
                 'income' => 'Lihat rincian pendapatan Shopee & pembayaran TikTok (harga, potongan & dana diterima)',

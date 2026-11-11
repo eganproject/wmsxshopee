@@ -74,7 +74,7 @@
 
         @can('sales.fulfill')
             @if ($order->hasShippingLabel())
-                <a href="{{ route('sales.orders.shipping-label', $order) }}" target="_blank" class="btn-secondary"><x-heroicon-o-printer class="size-5" /> Cetak Resi</a>
+                <a href="{{ route('sales.orders.shipping-labels', ['orders' => [$order->id]]) }}" target="_blank" class="btn-secondary"><x-heroicon-o-printer class="size-5" /> Cetak Resi</a>
             @endif
             @if ($order->canArrangeShipment())
                 <a href="{{ route('sales.orders.shipment', $order) }}" @class(['btn-primary' => ! $order->isShipmentArranged() && $order->hasStatus('confirmed'), 'btn-secondary' => $order->isShipmentArranged() || ! $order->hasStatus('confirmed')])>

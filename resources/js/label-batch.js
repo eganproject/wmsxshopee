@@ -1,9 +1,14 @@
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
+import { drawQr, pageAwbs, stampQr } from './label-qr';
 
 /*
  * Cetak resi gabungan: setiap bagian (label Shopee per toko, label TikTok per paket,
  * label manual) diunduh terpisah, lalu disatukan jadi satu PDF di browser.
  * Bagian yang gagal dilewati dan alasannya ditampilkan, bagian lain tetap dicetak.
+ *
+ * Bila diaktifkan di Pengaturan Cetak Resi, QR nomor resi (AWB) ditempel di atas
+ * label marketplace pada pojok yang dipilih. Halaman dicocokkan dengan nomor resi
+ * lewat teks di PDF, jadi QR tidak pernah tertempel di label pesanan lain.
  */
 
 const MM = 72 / 25.4;
@@ -41,8 +46,8 @@ async function fetchPart(part) {
 
     if (type.includes('json')) {
         const body = await response.json();
-        // Shopee kadang memecah label satu bagian jadi beberapa PDF (base64).
-        if (body.pdfs) return { pdfs: body.pdfs.map(decodeBase64), warning: body.warning ?? '' };
+        // Label marketplace: satu atau beberapa PDF (base64) + nomor resi di tiap PDF.
+        if (body.pdfs) return { pdfs: body.pdfs.map(decodeBase64), awbs: body.awbs ?? [], qr: body.qr ?? null, warning: body.warning ?? '' };
         return { labels: body.labels ?? [] };
     }
 
@@ -136,16 +141,18 @@ function drawManualLabel(doc, fonts, label) {
     y -= 13 * MM;
     rule(y);
 
-    // Barcode resi
+    // Barcode resi (+ QR nomor resi di sebelah kanan bila diaktifkan)
     if (label.tracking && label.barcode) {
-        const width = W - pad * 2;
+        const qrSize = label.qr ? 22 * MM : 0;
+        if (label.qr) drawQr(page, label.qr, W - pad - qrSize, y - 1.5 * MM - qrSize, qrSize);
+        const width = W - pad * 2 - (qrSize ? qrSize + 2 * MM : 0);
         const unit = width / label.barcode.width;
         for (const [x, w] of label.barcode.bars) {
             page.drawRectangle({ x: pad + x * unit, y: y - 2.5 * MM - 18 * MM, width: w * unit, height: 18 * MM, color: black });
         }
         const size = 11;
         const width2 = fonts.mono.widthOfTextAtSize(clean(label.tracking), size);
-        text(label.tracking, (W - width2) / 2, y - 22 * MM, size, fonts.mono);
+        text(label.tracking, pad + (width - width2) / 2, y - 22 * MM, size, fonts.mono);
         y -= 28 * MM;
     } else {
         const value = label.tracking || 'Resi ditulis / ditempel kurir';
@@ -205,14 +212,25 @@ async function merge(results) {
         mono: await doc.embedFont(StandardFonts.Courier),
     };
 
+    let unstamped = 0;
+
     for (const [index, result] of results.entries()) {
         if (!result || result.error) continue;
         try {
             if (result.pdf || result.pdfs) {
-                for (const pdf of result.pdfs ?? [result.pdf]) {
+                for (const [i, pdf] of (result.pdfs ?? [result.pdf]).entries()) {
                     const source = await PDFDocument.load(pdf, { ignoreEncryption: true });
                     const pages = await doc.copyPages(source, source.getPageIndices());
-                    pages.forEach((page) => doc.addPage(page));
+                    const qr = result.qr;
+                    const awbs = qr ? await pageAwbs(pdf, pages.length, result.awbs?.[i] ?? []) : [];
+
+                    pages.forEach((page, p) => {
+                        doc.addPage(page);
+                        if (!qr) return;
+                        const code = awbs[p] ? qr.codes?.[awbs[p]] : null;
+                        if (code) stampQr(page, code, qr);
+                        else unstamped++;
+                    });
                 }
             } else {
                 result.labels.forEach((label) => drawManualLabel(doc, fonts, label));
@@ -222,7 +240,7 @@ async function merge(results) {
         }
     }
 
-    return doc.getPageCount() ? doc.save() : null;
+    return { bytes: doc.getPageCount() ? await doc.save() : null, unstamped };
 }
 
 async function run() {
@@ -230,7 +248,7 @@ async function run() {
     const results = await fetchAll();
     status.textContent = 'Menyatukan label...';
 
-    const bytes = await merge(results);
+    const { bytes, unstamped } = await merge(results);
     const failed = list.querySelectorAll('[data-state="error"]').length;
 
     if (!bytes) {
@@ -247,6 +265,10 @@ async function run() {
     status.textContent = failed
         ? `Label siap dicetak, tetapi ${failed} bagian gagal dan tidak ikut tercetak.`
         : 'Semua label siap dicetak dalam satu PDF.';
+    if (unstamped) {
+        status.dataset.tone = 'warn';
+        status.textContent += ` QR nomor resi tidak ditempel di ${unstamped} halaman (nomor resinya tidak ditemukan di halaman itu).`;
+    }
     if (!failed) root.querySelector('[data-parts-wrap]').open = false;
 }
 

@@ -31,6 +31,39 @@ class Barcode
         return self::$cache["q:{$value}"] ??= self::renderQr($value);
     }
 
+    /**
+     * QR sebagai path SVG (satu satuan = satu modul) untuk digambar di PDF:
+     * n = jumlah modul per sisi, d = path modul hitam. Null bila gagal.
+     *
+     * @return array{n: int, d: string}|null
+     */
+    public static function qrPath(string $value): ?array
+    {
+        if ($value === '') {
+            return null;
+        }
+
+        try {
+            $matrix = (new QRCode(new QROptions(['eccLevel' => EccLevel::M, 'addQuietzone' => false])))
+                ->addByteSegment($value)
+                ->getQRMatrix();
+        } catch (Throwable) {
+            return null;
+        }
+
+        $size = $matrix->getSize();
+        $path = '';
+        for ($y = 0; $y < $size; $y++) {
+            for ($x = 0; $x < $size; $x++) {
+                if ($matrix->check($x, $y)) {
+                    $path .= "M{$x} {$y}h1v1h-1z";
+                }
+            }
+        }
+
+        return ['n' => $size, 'd' => $path];
+    }
+
     private static function renderCode128(string $value): ?string
     {
         if ($value === '') {
@@ -61,32 +94,12 @@ class Barcode
 
     private static function renderQr(string $value): ?string
     {
-        if ($value === '') {
-            return null;
-        }
+        $qr = self::qrPath($value);
 
-        try {
-            $matrix = (new QRCode(new QROptions(['eccLevel' => EccLevel::M, 'addQuietzone' => false])))
-                ->addByteSegment($value)
-                ->getQRMatrix();
-        } catch (Throwable) {
-            return null;
-        }
-
-        $size = $matrix->getSize();
-        $path = '';
-        for ($y = 0; $y < $size; $y++) {
-            for ($x = 0; $x < $size; $x++) {
-                if ($matrix->check($x, $y)) {
-                    $path .= "M{$x} {$y}h1v1h-1z";
-                }
-            }
-        }
-
-        return sprintf(
+        return $qr === null ? null : sprintf(
             '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 %1$d %1$d" shape-rendering="crispEdges" aria-hidden="true"><path fill="#000" d="%2$s"/></svg>',
-            $size,
-            $path,
+            $qr['n'],
+            $qr['d'],
         );
     }
 }

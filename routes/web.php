@@ -52,6 +52,7 @@ use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\Sales\HandoverController;
+use App\Http\Controllers\Sales\LabelSettingController;
 use App\Http\Controllers\Sales\OrderSavedFilterController;
 use App\Http\Controllers\Sales\OrderSkuMappingController;
 use App\Http\Controllers\Sales\QcController;
@@ -311,6 +312,9 @@ Route::middleware(['auth', 'active'])->group(function () {
         Route::delete('orders/saved-filters/{savedFilter}', [OrderSavedFilterController::class, 'destroy'])->middleware('can:sales.view')->name('orders.saved-filters.destroy');
         Route::post('orders/pick', [SalesOrderController::class, 'bulkPick'])->middleware('can:sales.fulfill')->name('orders.pick.bulk');
         Route::post('orders/shipment', [ShipmentController::class, 'bulk'])->middleware('can:sales.fulfill')->name('orders.shipment.bulk');
+        // Pengaturan cetak resi: QR nomor resi di label Shopee, TikTok & manual.
+        Route::get('label-settings', [LabelSettingController::class, 'edit'])->middleware('can:sales.label_settings')->name('label-settings.edit');
+        Route::put('label-settings', [LabelSettingController::class, 'update'])->middleware('can:sales.label_settings')->name('label-settings.update');
         Route::get('orders/shipping-labels', [ShipmentController::class, 'bulkLabel'])->middleware('can:sales.fulfill')->name('orders.shipping-labels');
         Route::get('orders/shipping-labels/part', [ShipmentController::class, 'labelPart'])->middleware('can:sales.fulfill')->name('orders.shipping-labels.part');
         Route::get('orders/{order}', [SalesOrderController::class, 'show'])->middleware('can:sales.view')->name('orders.show');

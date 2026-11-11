@@ -19,6 +19,10 @@
         .method { border: 1.5px solid #111; border-radius: 3px; padding: 1mm 2.5mm; font-weight: 800; text-transform: uppercase; }
         .bars { height: 18mm; }
         .bars svg { width: 100%; height: 100%; display: block; }
+        .awb { display: flex; align-items: center; gap: 3mm; }
+        .awb .code { flex: 1; min-width: 0; }
+        .awb .qr { width: 22mm; height: 22mm; flex: none; }
+        .awb .qr svg { width: 100%; height: 100%; display: block; }
         .resi { text-align: center; font: 700 15px ui-monospace, SFMono-Regular, Menlo, monospace; margin-top: 1mm; letter-spacing: .05em; }
         .no-resi { text-align: center; padding: 6mm 0; color: #666; }
         .cap { font-size: 9px; text-transform: uppercase; letter-spacing: .06em; color: #555; }
@@ -61,8 +65,15 @@
 
             <div class="row">
                 @if ($order->tracking_number && $barcodes[$order->id])
-                    <div class="bars">{!! $barcodes[$order->id] !!}</div>
-                    <div class="resi">{{ $order->tracking_number }}</div>
+                    <div class="awb">
+                        <div class="code">
+                            <div class="bars">{!! $barcodes[$order->id] !!}</div>
+                            <div class="resi">{{ $order->tracking_number }}</div>
+                        </div>
+                        @if ($qrs[$order->id] ?? null)
+                            <div class="qr">{!! $qrs[$order->id] !!}</div>
+                        @endif
+                    </div>
                 @elseif ($order->tracking_number)
                     <div class="resi">{{ $order->tracking_number }}</div>
                 @else
