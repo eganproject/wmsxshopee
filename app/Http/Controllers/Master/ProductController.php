@@ -33,19 +33,7 @@ class ProductController extends Controller
         $query = Product::query()
             ->with(['unit', 'primaryImage'])
             ->withCount('variants')
-            ->when($request->filled('search'), function ($query) use ($request) {
-                $search = $request->string('search');
-                $query->where(fn ($q) => $q
-                    ->where('name', 'like', "%{$search}%")
-                    ->orWhere('sku', 'like', "%{$search}%")
-                    ->orWhere('brand', 'like', "%{$search}%")
-                    // Cari juga SKU & barcode varian, supaya bisa langsung scan barcode.
-                    ->orWhereHas('variants', fn ($v) => $v->where(fn ($w) => $w
-                        ->where('sku', 'like', "%{$search}%")
-                        ->orWhere('barcode', $search->toString()))));
-            })
-            ->when($request->filled('category'), fn ($query) => $query->where('category', $request->input('category')))
-            ->when($request->filled('status'), fn ($query) => $query->where('is_active', $request->input('status') === 'active'))
+            ->filter($request->only(['search', 'category', 'status']))
             ->orderBy('name');
 
         if ($request->input('export') === 'xlsx') {
