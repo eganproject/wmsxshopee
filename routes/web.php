@@ -174,6 +174,7 @@ Route::middleware(['auth', 'active'])->group(function () {
         Route::get('transfers/create', [WarehouseTransferController::class, 'create'])->middleware('can:inventory.create')->name('transfers.create');
         Route::post('transfers', [WarehouseTransferController::class, 'store'])->middleware('can:inventory.create')->name('transfers.store');
         Route::get('transfers/{transfer}', [WarehouseTransferController::class, 'show'])->middleware('can:inventory.view')->name('transfers.show');
+        Route::get('transfers/{transfer}/delivery-note', [WarehouseTransferController::class, 'deliveryNote'])->middleware('can:inventory.view')->name('transfers.delivery-note');
         Route::post('transfers/{transfer}/receive', [WarehouseTransferController::class, 'receive'])->middleware('can:inventory.create')->name('transfers.receive');
         Route::post('transfers/{transfer}/cancel', [WarehouseTransferController::class, 'cancel'])->middleware('can:inventory.create')->name('transfers.cancel');
 

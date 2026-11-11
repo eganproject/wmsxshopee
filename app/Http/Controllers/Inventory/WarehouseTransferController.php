@@ -156,6 +156,21 @@ class WarehouseTransferController extends Controller
         ]);
     }
 
+    /** Surat jalan siap cetak (A4) untuk dibawa bersama barang. */
+    public function deliveryNote(WarehouseTransfer $transfer): View
+    {
+        $transfer->load([
+            'fromWarehouse' => fn ($q) => $q->withoutGlobalScope('warehouse_access'),
+            'toWarehouse' => fn ($q) => $q->withoutGlobalScope('warehouse_access'),
+            'creator', 'receiver',
+            'items.variant.product.unit',
+            'items.fromLocation' => fn ($q) => $q->withoutGlobalScope('warehouse_access'),
+            'items.toLocation' => fn ($q) => $q->withoutGlobalScope('warehouse_access'),
+        ]);
+
+        return view('inventory.transfers.delivery-note', ['transfer' => $transfer]);
+    }
+
     public function receive(Request $request, WarehouseTransfer $transfer, WarehouseTransferService $service): RedirectResponse
     {
         $ids = WarehouseAccess::ids();
