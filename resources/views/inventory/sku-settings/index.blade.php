@@ -8,7 +8,11 @@
         <span class="font-medium text-slate-700">SKU per Gudang</span>
     </x-slot:breadcrumb>
 
-    <x-page-header title="SKU per Gudang" description="Atur stok minimum/maksimum dan lokasi tetap (bin) setiap SKU di masing-masing gudang. Stok minimum dipakai notifikasi Stok menipis, laporan Stok Minimum, Saran Pembelian dan saran isi ulang dari gudang cadangan." icon="heroicon-o-adjustments-horizontal" />
+    <x-page-header title="SKU per Gudang" description="Atur stok minimum/maksimum dan lokasi tetap (bin) setiap SKU di masing-masing gudang. Stok minimum dipakai notifikasi Stok menipis, laporan Stok Minimum, Saran Pembelian dan saran isi ulang dari gudang cadangan." icon="heroicon-o-adjustments-horizontal">
+        @can('inventory.create')
+            <a href="{{ route('inventory.sku-settings.import', ['warehouse' => $warehouse?->id]) }}" class="btn-secondary"><x-heroicon-o-arrow-up-tray class="size-5" /> Import</a>
+        @endcan
+    </x-page-header>
 
     <div class="card">
         <form method="GET" class="flex flex-col gap-3 border-b border-slate-100 p-4 lg:flex-row lg:items-center">
