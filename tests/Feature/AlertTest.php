@@ -101,8 +101,10 @@ class AlertTest extends TestCase
 
         $groups = app(AlertService::class)->groups($this->superAdmin());
 
-        // Total kaos 38 di semua gudang, jadi belum menipis.
-        $this->assertSame(0, $groups['low_stock']['count']);
+        // Stok minimum per gudang: kaos Jakarta 8 (<= 10) menipis, Bandung 30 aman,
+        // topi tanpa stok minimum tidak dihitung.
+        $this->assertSame(1, $groups['low_stock']['count']);
+        $this->assertSame(["{$this->jakarta->id}-{$this->kaos->id}"], $groups['low_stock']['keys']);
         $this->assertSame(['SO-LAMA'], $groups['pending_orders']['items']->pluck('number')->all());
         $this->assertSame(['SO-DRAFT'], $groups['draft_orders']['items']->pluck('number')->all());
         $this->assertSame(['GR-LAMA'], $groups['draft_receipts']['items']->pluck('number')->all());
@@ -250,9 +252,10 @@ class AlertTest extends TestCase
         }
         $reader->close();
 
-        $this->assertSame('Saran Beli', $sheetRows[0][11]);
+        $this->assertSame('Saran Beli', $sheetRows[0][12]);
         $this->assertSame('KAOS', $sheetRows[1][0]);
-        $this->assertEquals(42, $sheetRows[1][11]);
+        $this->assertSame('JKT01', $sheetRows[1][3]);
+        $this->assertEquals(42, $sheetRows[1][12]);
     }
 
     public function test_reorder_hides_other_warehouses_from_limited_user(): void

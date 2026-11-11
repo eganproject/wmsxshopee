@@ -33,6 +33,8 @@
                 ['label' => 'Penerimaan Barang', 'route' => 'inventory.receipts.index', 'active' => 'inventory.receipts.*', 'icon' => 'heroicon-o-inbox-arrow-down', 'can' => 'receipts.view'],
                 // Kartu Stok & Mutasi Stok adalah tab di halaman Stok, jadi menu Stok tetap aktif di sana.
                 ['label' => 'Stok', 'route' => 'inventory.stocks.index', 'active' => ['inventory.stocks.*', 'inventory.stock-card.*', 'inventory.movements.*'], 'icon' => 'heroicon-o-archive-box', 'can' => 'inventory.view'],
+                // Stok minimum/maksimum dan lokasi tetap (bin) tiap SKU per gudang.
+                ['label' => 'SKU per Gudang', 'route' => 'inventory.sku-settings.index', 'active' => 'inventory.sku-settings.*', 'icon' => 'heroicon-o-adjustments-horizontal', 'can' => 'inventory.view'],
                 ['label' => 'Transfer Gudang', 'route' => 'inventory.transfers.index', 'active' => 'inventory.transfers.*', 'icon' => 'heroicon-o-truck', 'can' => 'inventory.view'],
                 ['label' => 'Penyesuaian Stok', 'route' => 'inventory.adjustments.index', 'active' => 'inventory.adjustments.*', 'icon' => 'heroicon-o-adjustments-horizontal', 'can' => 'adjustments.view'],
                 ['label' => 'Stok Rusak', 'route' => 'inventory.damaged.index', 'active' => 'inventory.damaged.*', 'icon' => 'heroicon-o-exclamation-triangle', 'can' => 'damaged.view'],

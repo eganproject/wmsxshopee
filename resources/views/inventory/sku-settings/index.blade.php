@@ -1,14 +1,14 @@
 @php($fmt = fn ($n) => number_format((int) $n, 0, ',', '.'))
-<x-layouts.app title="Lokasi Tetap SKU">
+<x-layouts.app title="SKU per Gudang">
     <x-slot:breadcrumb>
         <x-heroicon-o-home class="size-4" />
         <x-heroicon-o-chevron-right class="size-3.5" />
-        <a href="{{ route('settings') }}" class="hover:text-slate-700">Pengaturan</a>
+        <span>Inventori</span>
         <x-heroicon-o-chevron-right class="size-3.5" />
-        <span class="font-medium text-slate-700">Lokasi Tetap SKU</span>
+        <span class="font-medium text-slate-700">SKU per Gudang</span>
     </x-slot:breadcrumb>
 
-    <x-page-header title="Lokasi Tetap SKU" description="Bin langganan setiap SKU per gudang, bisa lebih dari satu (utama lalu cadangan), disarankan saat penerimaan & transfer dan didahulukan saat picking, serta stok minimum/maksimum untuk saran isi ulang dari gudang cadangan." icon="heroicon-o-map-pin" />
+    <x-page-header title="SKU per Gudang" description="Atur stok minimum/maksimum dan lokasi tetap (bin) setiap SKU di masing-masing gudang. Stok minimum dipakai notifikasi Stok menipis, laporan Stok Minimum, Saran Pembelian dan saran isi ulang dari gudang cadangan." icon="heroicon-o-adjustments-horizontal" />
 
     <div class="card">
         <form method="GET" class="flex flex-col gap-3 border-b border-slate-100 p-4 lg:flex-row lg:items-center">
@@ -53,7 +53,7 @@
                                 <th class="px-4 py-2.5 text-right">Stok di {{ $warehouse->code }}</th>
                                 <th class="px-4 py-2.5">Ada di <span class="whitespace-nowrap">bin <x-hint text="Bin yang saat ini benar-benar berisi stok SKU ini, belum tentu sama dengan lokasi tetapnya." /></span></th>
                                 <th class="px-4 py-2.5">Lokasi <span class="whitespace-nowrap">Tetap <x-hint text="Bin langganan SKU ini. Penerimaan & transfer menyarankan bin Utama sampai penuh (sesuai kapasitas), lalu bin Cadangan. Picking mengambil dari bin Utama dulu." /></span></th>
-                                <th class="px-4 py-2.5"><span class="whitespace-nowrap">Min <x-hint text="Stok minimum di gudang ini. Bila stok tersedia + dalam perjalanan sama atau di bawah angka ini, SKU masuk saran isi ulang dari gudang cadangan." /></span></th>
+                                <th class="px-4 py-2.5"><span class="whitespace-nowrap">Min <x-hint text="Stok minimum di gudang ini. Bila stok tersedia sama atau di bawah angka ini, SKU muncul di notifikasi Stok menipis, laporan Stok Minimum dan Saran Pembelian gudang ini; untuk gudang yang punya gudang cadangan juga masuk saran isi ulang. Kosong = memakai stok minimum Master Produk (angka abu-abu), kecuali untuk saran isi ulang." /></span></th>
                                 <th class="px-4 py-2.5"><span class="whitespace-nowrap">Maks <x-hint text="Target stok saat isi ulang. Saran transfer mengisi sampai angka ini (dibulatkan per koli). Kosong = mengisi sampai Min." /></span></th>
                             </tr>
                         </thead>
@@ -98,7 +98,7 @@
                                             <p class="mt-1 text-xs text-rose-600">{{ $message }}</p>
                                         @enderror
                                     </td>
-                                    <td class="px-4 py-2"><input type="number" min="0" name="settings[{{ $variant->id }}][min_qty]" value="{{ old("settings.{$variant->id}.min_qty", $setting?->min_qty) }}" class="form-input w-24"></td>
+                                    <td class="px-4 py-2"><input type="number" min="0" name="settings[{{ $variant->id }}][min_qty]" value="{{ old("settings.{$variant->id}.min_qty", $setting?->min_qty) }}" class="form-input w-24" @if ($variant->min_stock !== null) placeholder="{{ $variant->min_stock }}" title="Kosong = memakai stok minimum Master Produk ({{ $fmt($variant->min_stock) }})" @endif></td>
                                     <td class="px-4 py-2"><input type="number" min="0" name="settings[{{ $variant->id }}][max_qty]" value="{{ old("settings.{$variant->id}.max_qty", $setting?->max_qty) }}" class="form-input w-24"></td>
                                 </tr>
                             @empty

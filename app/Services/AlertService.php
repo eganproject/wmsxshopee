@@ -68,19 +68,19 @@ class AlertService
         $groups = [];
 
         if ($user->can('inventory.view')) {
-            $query = StockLevels::belowMinimum(StockLevels::minStockQuery());
-            $keys = $this->keysOf($query, 'product_variants.id');
-            $empty = StockLevels::belowMinimum(StockLevels::minStockQuery())->reorder()
-                ->whereRaw(StockLevels::AVAILABLE.' <= 0')->count();
+            // Satu baris per SKU per gudang; kunci baris "gudang-varian" seperti grup isi ulang.
+            $low = StockLevels::belowMinimum(StockLevels::minStockQuery())->toBase()->get()
+                ->each(fn ($row) => $row->alert_key = "{$row->warehouse_id}-{$row->id}");
+            $empty = $low->filter(fn ($row) => (int) $row->available <= 0)->count();
 
             $groups['low_stock'] = [
                 'key' => 'low_stock',
                 'label' => 'Stok menipis',
-                'hint' => $empty ? "{$empty} SKU sudah habis" : 'Stok tersedia di bawah atau sama dengan stok minimum',
-                'keys' => $keys,
+                'hint' => $empty ? "{$empty} SKU sudah habis di gudangnya" : 'Stok tersedia di bawah atau sama dengan stok minimum gudang',
+                'keys' => $low->pluck('alert_key')->all(),
                 'icon' => 'heroicon-o-bell-alert',
                 'tone' => $empty ? 'rose' : 'amber',
-                'items' => $this->itemsOf($query, 'product_variants.id', $this->unreadOf($read, 'low_stock', $keys), $limit),
+                'items' => $low->values(),
             ];
 
             // Gudang kecil yang perlu diisi ulang dari gudang besar (cadangan).

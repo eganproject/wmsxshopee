@@ -62,8 +62,9 @@ class DashboardTest extends TestCase
         $this->assertSame(1, $orders['shipped_today']);
         $this->assertSame(1, $orders['counts']['packed']);
 
-        // Semua gudang: fisik 21 >= 10, jadi aman.
-        $this->assertSame(0, $response->viewData('lowStock')['count']);
+        // Dihitung per gudang: Jakarta 16 aman, Bandung 5 (<= 10) menipis.
+        $this->assertSame(1, $response->viewData('lowStock')['count']);
+        $this->assertSame('BDG01', $response->viewData('lowStock')['rows']->first()->warehouse_code);
 
         $chart = $response->viewData('chart');
         $this->assertCount(14, $chart['days']);
