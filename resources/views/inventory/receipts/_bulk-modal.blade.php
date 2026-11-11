@@ -8,7 +8,7 @@
             <div class="flex items-start justify-between gap-4 border-b border-slate-100 px-5 py-4">
                 <div>
                     <h3 id="bulk-title" class="text-base font-semibold text-slate-900">Input Banyak Barang</h3>
-                    <p class="mt-0.5 text-sm text-slate-500">Barang yang sudah ada di daftar akan ditambah jumlahnya. Lokasi bin otomatis dari Lokasi Tetap SKU.</p>
+                    <p class="mt-0.5 text-sm text-slate-500">Barang yang sudah ada di daftar akan ditambah jumlahnya. Lokasi bin otomatis dari lokasi tetap di SKU per Gudang.</p>
                 </div>
                 <button type="button" class="btn-icon" title="Tutup" @click="bulk.open = false"><x-heroicon-o-x-mark class="size-5" /></button>
             </div>
