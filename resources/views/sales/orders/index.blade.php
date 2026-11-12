@@ -64,9 +64,17 @@
         </a>
         @foreach (\App\Models\SalesOrder::MARKETPLACE_STATUSES as $value => $meta)
             @continue(! ($marketplaceCounts[$value] ?? 0) && $marketplaceFilter !== $value)
+            {{-- Pengajuan batal dibuat mencolok: paketnya harus ditahan. --}}
+            @php($urgent = $value === 'cancel_requested' && ($marketplaceCounts[$value] ?? 0) > 0)
             <a href="{{ route('sales.orders.index', [...request()->except(['mp', 'page']), 'mp' => $value]) }}"
                data-hint-title="{{ $meta['label'] }} di marketplace" data-hint="{{ $meta['hint'] }}"
-               @class([$chip, 'border-slate-900 bg-slate-900 text-white dark:border-slate-200 dark:bg-slate-200 dark:text-slate-900' => $marketplaceFilter === $value, 'border-slate-200 bg-white text-slate-600 hover:border-slate-300' => $marketplaceFilter !== $value])>
+               @class([$chip,
+                   'border-slate-900 bg-slate-900 text-white dark:border-slate-200 dark:bg-slate-200 dark:text-slate-900' => $marketplaceFilter === $value,
+                   'border-rose-300 bg-rose-50 font-semibold text-rose-700 hover:border-rose-400' => $marketplaceFilter !== $value && $urgent,
+                   'border-slate-200 bg-white text-slate-600 hover:border-slate-300' => $marketplaceFilter !== $value && ! $urgent])>
+                @if ($urgent && $marketplaceFilter !== $value)
+                    <span class="relative flex size-2"><span class="absolute inline-flex size-full animate-ping rounded-full bg-rose-400 opacity-75"></span><span class="relative inline-flex size-2 rounded-full bg-rose-500"></span></span>
+                @endif
                 {{ $meta['label'] }} <span class="opacity-60">{{ $marketplaceCounts[$value] ?? 0 }}</span>
             </a>
         @endforeach
@@ -104,6 +112,43 @@
             @endif
         </a>
     </div>
+
+    {{-- Pembeli minta batal saat gudang masih memproses: selalu tampil (tidak ikut tab / filter) supaya tidak terlewat. --}}
+    @if ($cancelRequests->isNotEmpty())
+        @php($packedCancel = $cancelRequests->where('status', 'packed')->count())
+        <div class="mb-4 rounded-lg border border-rose-300 bg-rose-50 px-4 py-3 text-sm text-rose-800 dark:border-rose-800 dark:bg-rose-950/40 dark:text-rose-200" role="alert" data-testid="cancel-request-banner">
+            <div class="flex flex-col gap-3 sm:flex-row sm:items-start">
+                <x-heroicon-o-hand-raised class="size-6 shrink-0 text-rose-600 dark:text-rose-400" />
+                <div class="min-w-0 flex-1">
+                    <p class="font-semibold">
+                        {{ $cancelRequests->count() }} pesanan diajukan batal oleh pembeli{{ $packedCancel ? ", {$packedCancel} sudah dikemas" : '' }}. Tahan paketnya.
+                    </p>
+                    <p class="mt-0.5 text-rose-700 dark:text-rose-300">
+                        Jangan dikemas atau diserahkan ke kurir. Terima atau tolak pembatalannya di Seller Center Shopee / TikTok; Optima mengikuti otomatis saat sinkron. Kalau disetujui setelah dikemas, bongkar paket dan kembalikan barang ke bin asal.
+                    </p>
+                    <div class="mt-2 flex flex-wrap gap-1.5">
+                        @foreach ($cancelRequests->take(8) as $cancelOrder)
+                            <a href="{{ route('sales.orders.show', $cancelOrder) }}"
+                               class="inline-flex items-center gap-1.5 rounded-md border border-rose-200 bg-white px-2 py-0.5 text-xs hover:border-rose-400 dark:border-rose-800 dark:bg-slate-900">
+                                <x-marketplace-logo :platform="$cancelOrder->marketplacePlatform()" class="size-3.5" />
+                                <span class="font-mono font-semibold text-slate-900 dark:text-slate-100">{{ $cancelOrder->number }}</span>
+                                <span @class(['font-medium', 'text-rose-600 dark:text-rose-400' => $cancelOrder->status === 'packed', 'text-slate-500' => $cancelOrder->status !== 'packed'])>{{ $cancelOrder->statusLabel() }}</span>
+                                <span class="text-slate-400">{{ $cancelOrder->warehouse?->code }}</span>
+                            </a>
+                        @endforeach
+                        @if ($cancelRequests->count() > 8)
+                            <span class="self-center text-xs">+{{ $cancelRequests->count() - 8 }} lainnya</span>
+                        @endif
+                    </div>
+                </div>
+                @if (request('mp') !== 'cancel_requested' || request()->hasAny(['status', 'platform', 'channel', 'courier', 'warehouse', 'search']))
+                    <a href="{{ route('sales.orders.index', ['mp' => 'cancel_requested', 'dates' => 'all']) }}" class="btn-secondary shrink-0 border-rose-300 text-rose-700 dark:border-rose-800 dark:text-rose-300">
+                        Lihat semua
+                    </a>
+                @endif
+            </div>
+        </div>
+    @endif
 
     @foreach (['shipment_failures' => 'belum bisa diatur pengirimannya', 'pick_failures' => 'belum bisa ditandai Sedang Diambil'] as $key => $title)
         @if ($failures = session($key))

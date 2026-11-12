@@ -508,6 +508,9 @@ class TiktokOrderSync
         }
 
         if ($order->isCancellable()) {
+            if ($reminder = $order->restockReminder()) {
+                $reason = mb_substr($reason, 0, 255 - mb_strlen($reminder) - 2).'. '.$reminder;
+            }
             $order->tiktok_sync_error = null;
             $order->save();
             $this->orders->cancel($order, mb_substr($reason, 0, 255));

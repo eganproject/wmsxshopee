@@ -542,6 +542,24 @@ class ShopeeSyncTest extends TestCase
         Http::assertSent(fn (Request $r) => str_contains($r->url(), 'get_tracking_number') && $r['order_sn'] === 'D2' && ! isset($r['package_number']));
     }
 
+    /** Batal disetujui setelah paket dikemas: alasan batal mengingatkan gudang membongkar paket. */
+    public function test_cancel_after_packing_reminds_to_unpack_and_restock(): void
+    {
+        $this->fakeOrders([$this->order('D3', 'READY_TO_SHIP', [$this->line(11, 101, 2)])]);
+        $this->artisan('shopee:sync --only=orders')->assertSuccessful();
+        SalesOrder::where('external_number', 'D3')->update(['status' => 'packed', 'packed_at' => now()]);
+
+        $this->resync([$this->order('D3', 'IN_CANCEL', [$this->line(11, 101, 2)])]);
+        $this->assertTrue(SalesOrder::where('external_number', 'D3')->first()->cancelRequested());
+
+        $this->resync([$this->order('D3', 'CANCELLED', [$this->line(11, 101, 2)], ['cancel_reason' => 'BUYER_REQUEST'])]);
+
+        $order = SalesOrder::where('external_number', 'D3')->first();
+        $this->assertSame('cancelled', $order->status);
+        $this->assertStringContainsString('BUYER_REQUEST', $order->cancel_reason);
+        $this->assertStringContainsString('bongkar paket dan kembalikan barang ke bin asal', $order->cancel_reason);
+    }
+
     private function resync(array $orders): void
     {
         Http::swap(new Factory);

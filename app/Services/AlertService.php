@@ -121,6 +121,16 @@ class AlertService
                     'items' => $this->itemsOf($fetch(clone $query), 'sales_orders.id', $this->unreadOf($read, $key, $keys), $limit)];
             };
 
+            // Pembeli mengajukan batal di Shopee / TikTok saat gudang masih memproses (termasuk
+            // yang sudah dikemas & resi dicetak). Paket harus ditahan sampai ada keputusan.
+            $orderGroup('cancel_requests', [
+                'label' => 'Pembeli minta batal',
+                'hint' => 'Tahan paketnya, jangan dikemas atau diserahkan ke kurir. Terima / tolak pembatalan di Seller Center Shopee / TikTok.',
+                'icon' => 'heroicon-o-hand-raised',
+                'tone' => 'rose',
+            ], SalesOrder::query()->cancelRequestedOpen(),
+                fn ($q) => $q->with('warehouse:id,code')->orderByRaw('COALESCE(shopee_synced_at, tiktok_synced_at, updated_at) DESC'));
+
             $hours = (int) config('alerts.pending_order_hours', 24);
             $orderGroup('pending_orders', [
                 'label' => 'Pesanan tertunda',

@@ -550,6 +550,9 @@ class ShopeeOrderSync
         }
 
         if ($order->isCancellable()) {
+            if ($reminder = $order->restockReminder()) {
+                $reason = mb_substr($reason, 0, 255 - mb_strlen($reminder) - 2).'. '.$reminder;
+            }
             $order->shopee_sync_error = null;
             $order->save();
             $this->orders->cancel($order, mb_substr($reason, 0, 255));
