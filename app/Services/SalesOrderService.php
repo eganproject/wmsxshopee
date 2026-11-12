@@ -21,6 +21,9 @@ use Illuminate\Validation\ValidationException;
  */
 class SalesOrderService
 {
+    /** Tanda Tahan QC ikut hilang saat pesanan kembali ke draft atau dibatalkan. */
+    private const QC_HOLD_CLEARED = ['qc_hold_reason' => null, 'qc_held_at' => null, 'qc_held_by' => null];
+
     public function __construct(private StockService $stock) {}
 
     /**
@@ -320,6 +323,7 @@ class SalesOrderService
                 'status' => 'cancelled',
                 'cancel_reason' => $reason,
                 'cancelled_at' => now(),
+                ...self::QC_HOLD_CLEARED,
             ]);
         });
     }
@@ -330,7 +334,7 @@ class SalesOrderService
         DB::transaction(function () use ($order) {
             $order = $this->lock($order, SalesOrder::RESERVING);
             SalesOrderPick::whereIn('sales_order_item_id', $order->items()->pluck('id'))->delete();
-            $order->update(['status' => 'draft', 'confirmed_at' => null, 'picking_at' => null, 'packed_at' => null]);
+            $order->update(['status' => 'draft', 'confirmed_at' => null, 'picking_at' => null, 'packed_at' => null, ...self::QC_HOLD_CLEARED]);
         });
     }
 

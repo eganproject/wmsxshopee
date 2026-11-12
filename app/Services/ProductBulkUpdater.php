@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Bundle;
 use App\Models\Product;
+use App\Models\ProductBarcode;
 use App\Models\ProductVariant;
 use App\Models\Unit;
 use App\Support\Activity;
@@ -524,6 +525,12 @@ class ProductBulkUpdater
             ->get(['id', 'sku', 'barcode']));
         foreach ($taken as $other) {
             $errors[] = "Barcode {$other->barcode} sudah dipakai SKU {$other->sku}.";
+        }
+
+        // Barcode alias (Master › Barcode) tidak boleh dipakai lagi sebagai barcode varian.
+        $aliases = $final->values()->unique()->chunk(1000)->flatMap(fn ($chunk) => ProductBarcode::with('variant:id,sku')->whereIn('barcode', $chunk->all())->get());
+        foreach ($aliases as $alias) {
+            $errors[] = "Barcode {$alias->barcode} sudah dipakai sebagai barcode alias SKU {$alias->variant?->sku}. Hapus dulu aliasnya di Master › Barcode.";
         }
 
         $bundles = Bundle::where(fn ($q) => $q->whereIn('sku', $final->values()->all())->orWhereIn('barcode', $final->values()->all()))->get(['sku', 'barcode']);

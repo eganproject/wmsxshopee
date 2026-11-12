@@ -8,6 +8,7 @@ use App\Models\SalesOrder;
 use App\Models\SalesOrderItem;
 use App\Models\SalesOrderPick;
 use App\Support\Activity;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -82,7 +83,7 @@ class QcControl
                 throw ValidationException::withMessages(['to_code' => "{$to->sku} nonaktif dan tidak bisa dipakai sebagai pengganti."]);
             }
 
-            $items = $locked->items()->with('picks')->where('product_variant_id', $fromVariantId)->orderByDesc('id')->get();
+            $items = $locked->items()->with(['picks', 'variant'])->where('product_variant_id', $fromVariantId)->orderByDesc('id')->get();
             $ordered = (int) $items->sum('qty');
             if ($ordered === 0) {
                 throw ValidationException::withMessages(['from_variant_id' => 'Barang yang diganti tidak ada di pesanan ini.']);
@@ -97,8 +98,11 @@ class QcControl
             }
 
             $picks = $this->pickReplacement($locked, $to, $qty);
+            $bundleQty = $locked->bundles()->pluck('qty', 'id');
 
-            // Kurangi baris barang asal (baris terakhir dulu) beserta bin picking-nya.
+            // Kurangi baris barang asal (baris terakhir dulu) beserta bin picking-nya. Tiap baris
+            // asal mendapat baris pengganti sendiri: pengganti isi paket tetap tercatat sebagai
+            // isi paket yang sama, supaya scan paket di QC dan retur marketplace tetap menemukannya.
             $remaining = $qty;
             foreach ($items as $item) {
                 if ($remaining === 0) {
@@ -106,19 +110,21 @@ class QcControl
                 }
                 $take = min($remaining, $item->qty);
                 $this->shrinkPicks($item, $take);
-                $item->qty === $take ? $item->delete() : $item->update(['qty' => $item->qty - $take]);
+                $left = $item->qty - $take;
+                $left === 0 ? $item->delete() : $item->update(['qty' => $left, 'bundle_component_qty' => $this->perBundle($item, $left, $bundleQty)]);
+
+                $line = $locked->items()->create([
+                    'sales_order_bundle_id' => $item->sales_order_bundle_id,
+                    'bundle_component_qty' => $this->perBundle($item, $take, $bundleQty),
+                    'product_variant_id' => $toVariantId,
+                    'qty' => $take,
+                    // Harga ikut barang asal per pcs (isi paket tetap 0, harga ada di baris paket).
+                    'price' => $item->price,
+                    'notes' => mb_substr("Pengganti {$item->variant?->sku}: {$reason}", 0, 255),
+                ]);
+                $line->picks()->createMany($this->takePicks($picks, $take));
                 $remaining -= $take;
             }
-
-            // Barang pengganti jadi baris baru (harga ikut barang asal per pcs).
-            $source = $items->first();
-            $line = $locked->items()->create([
-                'product_variant_id' => $toVariantId,
-                'qty' => $qty,
-                'price' => $source->price,
-                'notes' => mb_substr("Pengganti {$source->variant?->sku}: {$reason}", 0, 255),
-            ]);
-            $line->picks()->createMany($picks);
 
             $substitution = QcSubstitution::create([
                 'sales_order_id' => $locked->id,
@@ -170,6 +176,41 @@ class QcControl
 
         if ($needed > 0) {
             throw ValidationException::withMessages(['to_code' => "Stok bebas {$to->sku} di bin gudang ini kurang {$needed} pcs (sudah dipakai picking pesanan lain)."]);
+        }
+
+        return $rows;
+    }
+
+    /**
+     * Isi per paket untuk baris isi paket sebanyak $lineQty: null bila tidak habis dibagi
+     * jumlah paket (sebagian isi satu paket diganti) atau baris bukan isi paket.
+     *
+     * @param  Collection<int, int>  $bundleQty  jumlah paket per baris paket
+     */
+    private function perBundle(SalesOrderItem $item, int $lineQty, $bundleQty): ?int
+    {
+        $bundles = $item->sales_order_bundle_id ? (int) ($bundleQty[$item->sales_order_bundle_id] ?? 0) : 0;
+
+        return $bundles > 0 && $lineQty % $bundles === 0 ? intdiv($lineQty, $bundles) : null;
+    }
+
+    /**
+     * Ambil $qty dari daftar bin pengganti (dipakai berurutan untuk tiap baris pengganti).
+     *
+     * @param  list<array{warehouse_location_id: ?int, qty: int}>  $picks
+     * @return list<array{warehouse_location_id: ?int, qty: int}>
+     */
+    private function takePicks(array &$picks, int $qty): array
+    {
+        $rows = [];
+        while ($qty > 0 && $picks) {
+            $take = min($qty, $picks[0]['qty']);
+            $rows[] = ['warehouse_location_id' => $picks[0]['warehouse_location_id'], 'qty' => $take];
+            $picks[0]['qty'] -= $take;
+            $qty -= $take;
+            if ($picks[0]['qty'] === 0) {
+                array_shift($picks);
+            }
         }
 
         return $rows;

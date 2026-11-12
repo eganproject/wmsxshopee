@@ -24,7 +24,7 @@
         </div>
     </form>
 
-    <div class="card" x-data="{ open: true }" @unless ($filtered) x-init="try { open = localStorage.getItem('qc-queue') !== 'closed' } catch (e) {}" @endunless>
+    <div class="card" x-data="{ open: true }" @unless ($filtered) x-init="open = (() => { try { return localStorage.getItem('qc-queue') !== 'closed' } catch (e) { return true } })()" @endunless>
         <button type="button" class="flex w-full items-start justify-between gap-3 px-5 py-3 text-left" :aria-expanded="open"
                 @click="open = ! open; try { localStorage.setItem('qc-queue', open ? 'open' : 'closed') } catch (e) {}; document.getElementById('code')?.focus()">
             <span>

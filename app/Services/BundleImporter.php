@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Bundle;
+use App\Models\ProductBarcode;
 use App\Models\ProductVariant;
 use App\Support\Activity;
 use App\Support\SpreadsheetImport;
@@ -107,6 +108,8 @@ class BundleImporter
         $variantCodes = ProductVariant::where(fn ($q) => $q->whereIn('sku', $bundleSkus->merge($barcodes))->orWhereIn('barcode', $bundleSkus->merge($barcodes)))
             ->get(['sku', 'barcode'])
             ->flatMap(fn ($v) => [mb_strtoupper($v->sku), mb_strtoupper((string) $v->barcode)])
+            // Barcode alias varian (Master › Barcode) juga milik varian produk.
+            ->merge(ProductBarcode::whereIn('barcode', $bundleSkus->merge($barcodes)->unique()->values())->pluck('barcode')->map(fn ($code) => mb_strtoupper($code)))
             ->filter()->flip();
 
         // Barang isi dicari lewat SKU varian, lalu barcode.

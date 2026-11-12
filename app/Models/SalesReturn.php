@@ -157,6 +157,35 @@ class SalesReturn extends Model
     }
 
     /**
+     * Baris pesanan untuk barang marketplace yang diretur (varian $variantId sebanyak $qty).
+     * Bila varian itu diganti saat QC (Ganti SKU), baris penggantinya ikut dicari, karena
+     * barang yang benar-benar dikirim ke pembeli adalah barang pengganti. Barang biasa
+     * didahulukan, baru isi paket. Pesanan perlu relasi items dan qcSubstitutions.
+     *
+     * @return list<array{sales_order_item_id: int, product_variant_id: int, qty_good: int, reason: string}>
+     */
+    public static function linesForVariant(SalesOrder $order, int $variantId, int $qty, string $reason): array
+    {
+        $replacedBy = $order->qcSubstitutions->where('from_variant_id', $variantId)->pluck('to_variant_id')->unique()->all();
+        $candidates = $order->items
+            ->filter(fn ($item) => $item->product_variant_id === $variantId || in_array($item->product_variant_id, $replacedBy, true))
+            ->sortBy(fn ($item) => [$item->sales_order_bundle_id === null ? 0 : 1, $item->product_variant_id === $variantId ? 0 : 1, $item->id])
+            ->values();
+
+        $rows = [];
+        foreach ($candidates as $item) {
+            if ($qty <= 0) {
+                break;
+            }
+            $take = min($qty, (int) $item->qty);
+            $rows[] = ['sales_order_item_id' => $item->id, 'product_variant_id' => $item->product_variant_id, 'qty_good' => $take, 'reason' => $reason];
+            $qty -= $take;
+        }
+
+        return $rows;
+    }
+
+    /**
      * Batasi baris retur otomatis (Shopee/TikTok) ke sisa yang belum diretur, supaya
      * barang yang sudah pernah diretur tidak menambah stok lagi. Baris yang sisanya 0 dibuang.
      *
