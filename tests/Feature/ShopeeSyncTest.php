@@ -752,7 +752,7 @@ class ShopeeSyncTest extends TestCase
         $this->assertSame('to_ship', $orders[$m1]->marketplaceStatus());
         $this->assertNull($orders[$m1]->syncIssue());
         $this->assertSame('cancel_requested', $orders[$m2]->marketplaceStatus());
-        $this->assertSame('Pembeli minta batal, jangan dikemas', $orders[$m2]->syncIssue());
+        $this->assertSame('Pembeli minta batal: jangan diproses dulu', $orders[$m2]->syncIssue());
         $this->assertSame('in_transit', $orders[$m3]->marketplaceStatus());
         $this->assertSame('Sudah dikirim di Shopee, belum di gudang', $orders[$m3]->syncIssue());
 
@@ -767,10 +767,12 @@ class ShopeeSyncTest extends TestCase
 
         $admin = User::where('email', 'superadmin@wms.local')->firstOrFail();
         $this->actingAs($admin)->get(route('sales.orders.index', ['mp' => 'out_of_sync']))->assertOk()
-            ->assertSee('Status Marketplace')->assertSee('Pembeli minta batal, jangan dikemas')
+            ->assertSee('Status Marketplace')->assertSee('Pembeli minta batal: jangan diproses dulu')
             ->assertSee($orders[$m2]->number)->assertSee($orders[$m3]->number)->assertDontSee($orders[$m1]->number);
         $this->actingAs($admin)->get(route('sales.orders.index', ['mp' => 'to_ship']))->assertOk()
-            ->assertSee($orders[$m1]->number)->assertDontSee($orders[$m2]->number)->assertSee('READY_TO_SHIP');
+            ->assertSee($orders[$m1]->number)->assertSee('READY_TO_SHIP')
+            // M2 tetap muncul di banner "Pembeli minta batal", tapi tidak di daftar.
+            ->assertViewHas('orders', fn ($page) => $page->getCollection()->pluck('id')->all() === [$orders[$m1]->id]);
     }
 
     public function test_shipped_in_shopee_without_stock_is_flagged(): void
