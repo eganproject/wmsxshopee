@@ -137,7 +137,7 @@ class ShopeeReturnSync
         }
 
         $order = SalesOrder::withoutGlobalScope('warehouse_access')
-            ->with(['items.bundleLine', 'bundles'])
+            ->with(['items.bundleLine', 'bundles', 'qcSubstitutions'])
             ->where('shopee_shop_id', $shop->id)
             ->where('external_number', (string) $data['order_sn'])
             ->where('status', 'shipped')
@@ -198,12 +198,7 @@ class ShopeeReturnSync
             $qty = (int) ($line['amount'] ?? 1);
 
             if ($mapping?->product_variant_id) {
-                $orderItem = $order->items->first(fn ($item) => $item->product_variant_id === $mapping->product_variant_id && $item->sales_order_bundle_id === null)
-                    ?? $order->items->firstWhere('product_variant_id', $mapping->product_variant_id);
-
-                if ($orderItem) {
-                    $rows[] = ['sales_order_item_id' => $orderItem->id, 'product_variant_id' => $orderItem->product_variant_id, 'qty_good' => min($qty, $orderItem->qty), 'reason' => $reason];
-                }
+                array_push($rows, ...SalesReturn::linesForVariant($order, $mapping->product_variant_id, $qty, $reason));
             } elseif ($mapping?->bundle_id) {
                 $bundleLine = $order->bundles->firstWhere('bundle_id', $mapping->bundle_id);
 

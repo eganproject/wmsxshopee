@@ -32,7 +32,7 @@ class FulfillmentScan
      */
     public function expected(SalesOrder $order): array
     {
-        $order->loadMissing(['items.variant.product', 'bundles.bundle.items']);
+        $order->loadMissing(['items.variant.product', 'bundles.bundle']);
         $variantIds = $order->items->pluck('product_variant_id')->unique()->values();
         $aliases = Barcodes::aliasMap($variantIds);
         $exempt = QcExemptVariant::whereIn('product_variant_id', $variantIds)->pluck('reason', 'product_variant_id');
@@ -54,9 +54,17 @@ class FulfillmentScan
             ];
         })->values()->all();
 
+        // Isi satu paket diambil dari baris pesanan itu sendiri (isi saat pesanan masuk, termasuk
+        // barang pengganti dari Ganti SKU), bukan dari Master Paket yang bisa sudah berubah.
+        // Bila isinya tidak lagi sama untuk tiap paket, scan paket dimatikan: barang discan satu per satu.
         $bundles = [];
         foreach ($order->bundles as $line) {
-            $contents = $line->bundle->items->mapWithKeys(fn ($item) => [$item->product_variant_id => (int) $item->qty])->all();
+            $components = $order->items->where('sales_order_bundle_id', $line->id)->groupBy('product_variant_id')
+                ->map(fn (Collection $rows) => (int) $rows->sum('qty'));
+            if ($line->qty < 1 || $components->isEmpty() || $components->contains(fn ($qty) => $qty % $line->qty !== 0)) {
+                continue;
+            }
+            $contents = $components->map(fn ($qty) => intdiv($qty, $line->qty))->all();
             foreach (array_filter([$line->bundle->sku, $line->bundle->barcode]) as $code) {
                 $bundles[mb_strtolower($code)] = $contents;
             }

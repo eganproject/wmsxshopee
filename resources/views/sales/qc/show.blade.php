@@ -74,7 +74,7 @@
                 if (this.bundles[key]) {
                     // Isi paket yang termasuk SKU tanpa scan sudah otomatis terhitung.
                     const contents = Object.entries(this.bundles[key]).filter(([id]) => !this.lines.find(l => l.variant_id == id)?.exempt);
-                    const over = contents.find(([id, qty]) => this.scanned[id] + qty > this.lines.find(l => l.variant_id == id).qty);
+                    const over = contents.find(([id, qty]) => (this.scanned[id] ?? 0) + qty > (this.lines.find(l => l.variant_id == id)?.qty ?? 0));
                     if (over) return this.feedback(false, `Paket ${value} melebihi jumlah pesanan.`);
                     contents.forEach(([id, qty]) => this.scanned[id] += qty);
                     return this.finish(`Paket ${value} ✓`);

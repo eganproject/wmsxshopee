@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Bundle;
 use App\Models\Product;
+use App\Models\ProductBarcode;
 use App\Models\ProductVariant;
 use App\Models\Unit;
 use App\Support\Activity;
@@ -137,6 +138,9 @@ class ProductImporter
             ->get(['sku', 'barcode'])
             ->flatMap(fn ($b) => [mb_strtoupper($b->sku), mb_strtoupper((string) $b->barcode)])
             ->filter()->flip();
+        // Barcode alias (Master › Barcode) juga tidak boleh dipakai lagi sebagai SKU / barcode varian.
+        $aliasCodes = ProductBarcode::whereIn('barcode', $variantSkus->merge($barcodes)->unique()->values())->pluck('barcode')
+            ->map(fn ($code) => mb_strtoupper($code))->flip();
 
         $units = Unit::where('is_active', true)->get();
         $unitByName = $units->keyBy(fn ($u) => mb_strtoupper($u->code))->union($units->keyBy(fn ($u) => mb_strtoupper($u->name)));
@@ -269,6 +273,9 @@ class ProductImporter
                 if (isset($bundleCodes[$sku])) {
                     $errors[] = "Baris {$rowLine}: SKU {$sku} sudah dipakai produk paket.";
                 }
+                if (isset($aliasCodes[$sku])) {
+                    $errors[] = "Baris {$rowLine}: SKU {$sku} sudah dipakai sebagai barcode alias. Hapus dulu aliasnya di Master › Barcode.";
+                }
 
                 $variant = ['sku' => $sku];
                 if ($hasVariants && filled($row['nama_varian'])) {
@@ -285,6 +292,8 @@ class ProductImporter
                         $errors[] = "Baris {$rowLine}: barcode {$barcode} dobel dengan baris {$seenBarcode[$key]}.";
                     } elseif (($owner && mb_strtoupper($owner->sku) !== $sku) || isset($bundleCodes[$key])) {
                         $errors[] = "Baris {$rowLine}: barcode {$barcode} sudah dipakai produk atau paket lain.";
+                    } elseif (isset($aliasCodes[$key])) {
+                        $errors[] = "Baris {$rowLine}: barcode {$barcode} sudah dipakai sebagai barcode alias. Hapus dulu aliasnya di Master › Barcode.";
                     } else {
                         $variant['barcode'] = $barcode;
                     }
