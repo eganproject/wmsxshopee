@@ -11,7 +11,7 @@
     <x-slot:breadcrumb>
         <x-heroicon-o-home class="size-4" />
         <x-heroicon-o-chevron-right class="size-3.5" />
-        <a href="{{ route('sales.orders.index', $order->isOutbound() ? ['kind' => 'outbound'] : []) }}" class="hover:text-slate-700">{{ $order->isOutbound() ? 'Barang Keluar Manual' : 'Pesanan' }}</a>
+        <a href="{{ route('sales.orders.index', $order->isOutbound() ? ['kind' => 'outbound'] : []) }}" class="hover:text-slate-700">Pesanan</a>
         <x-heroicon-o-chevron-right class="size-3.5" />
         <span class="font-medium text-slate-700">{{ $order->number }}</span>
     </x-slot:breadcrumb>

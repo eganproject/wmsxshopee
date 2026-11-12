@@ -472,6 +472,43 @@ class SalesOrderTest extends TestCase
         $this->get(route('sales.orders.index', ['per_page' => '']))->assertOk()->assertDontSee('SO-P01');
     }
 
+    public function test_order_list_defaults_to_last_30_days(): void
+    {
+        $this->listOrder('SO-NEW', ['order_date' => now()->subDays(29)->toDateString()]);
+        $this->listOrder('SO-OLD', ['order_date' => now()->subDays(45)->toDateString()]);
+
+        // Bawaan: 30 hari terakhir, terlihat di kolom tanggal.
+        $this->get(route('sales.orders.index'))->assertOk()
+            ->assertSee('SO-NEW')->assertDontSee('SO-OLD')
+            ->assertSee('value="'.now()->subDays(29)->toDateString().'"', false);
+        // Tab status ikut membawa rentang bawaan.
+        $this->get(route('sales.orders.index', ['status' => 'confirmed']))->assertOk()->assertDontSee('SO-OLD');
+
+        // "Semua" tanggal, kosongkan tanggal manual, atau cari nomor: tidak dibatasi 30 hari.
+        $this->get(route('sales.orders.index', ['dates' => 'all']))->assertOk()->assertSee('SO-OLD');
+        $this->get(route('sales.orders.index', ['from' => '', 'to' => '']))->assertOk()->assertSee('SO-OLD');
+        $this->get(route('sales.orders.index', ['search' => 'SO-OLD']))->assertOk()->assertSee('SO-OLD');
+    }
+
+    public function test_manual_outbound_lives_in_the_order_page(): void
+    {
+        $this->listOrder('BKM-X1', ['kind' => 'outbound', 'outbound_purpose' => 'sample']);
+        $this->listOrder('SO-X1');
+
+        // Tidak ada menu terpisah lagi; jenis dipilih lewat filter Jenis di halaman Pesanan.
+        $this->get(route('sales.orders.index'))->assertOk()
+            ->assertDontSee('kind=outbound" data-tip', false)
+            ->assertSee('data-testid="kind-chips"', false)
+            ->assertSee('BKM-X1')->assertSee('SO-X1');
+        $this->get(route('sales.orders.index', ['kind' => 'outbound']))->assertOk()
+            ->assertSee('BKM-X1')->assertDontSee('SO-X1')->assertSee('data-testid="purpose-chips"', false);
+        $this->get(route('sales.orders.index', ['kind' => 'outbound', 'purpose' => 'endorse']))->assertOk()->assertDontSee('BKM-X1');
+
+        // Satu formulir dengan pilihan jenis di atasnya.
+        $this->get(route('sales.orders.create'))->assertOk()
+            ->assertSee('data-testid="kind-switch"', false)->assertSee('Barang Keluar Manual')->assertDontSee('Tujuan Barang Keluar');
+    }
+
     public function test_saved_order_filters_are_private_and_reusable(): void
     {
         $this->listOrder('SO-SAVE', ['channel_name' => 'Toko Biru']);

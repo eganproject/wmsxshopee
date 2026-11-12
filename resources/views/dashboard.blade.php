@@ -28,9 +28,9 @@
         $wh = request('warehouse');
         $cards = array_filter([
             $orders ? ['label' => 'Pesanan Perlu Diproses', 'value' => $orders['open'], 'hint' => 'Dikonfirmasi, diambil & dikemas', 'icon' => 'heroicon-o-clipboard-document-list', 'tone' => 'sky',
-                'url' => route('sales.orders.index', ['warehouse' => $wh])] : null,
+                'url' => route('sales.orders.index', ['warehouse' => $wh, 'dates' => 'all'])] : null,
             $orders ? ['label' => 'Dikirim Hari Ini', 'value' => $orders['shipped_today'], 'hint' => 'Pesanan berstatus Dikirim', 'icon' => 'heroicon-o-truck', 'tone' => 'emerald',
-                'url' => route('sales.orders.index', ['status' => 'shipped', 'warehouse' => $wh])] : null,
+                'url' => route('sales.orders.index', ['status' => 'shipped', 'warehouse' => $wh, 'date_by' => 'shipped', 'from' => today()->toDateString(), 'to' => today()->toDateString()])] : null,
             $receipts ? ['label' => 'Penerimaan Hari Ini', 'value' => $receipts['today_count'], 'hint' => $fmt($receipts['drafts']).' draft belum diterima', 'icon' => 'heroicon-o-inbox-arrow-down', 'tone' => 'violet',
                 'url' => route('inventory.receipts.index', ['from' => today()->toDateString(), 'to' => today()->toDateString(), 'warehouse' => $wh])] : null,
             $lowStock ? ['label' => 'Stok Menipis', 'value' => $lowStock['count'], 'hint' => 'SKU di bawah stok minimum', 'icon' => 'heroicon-o-bell-alert', 'tone' => $lowStock['count'] ? 'rose' : 'slate',
@@ -71,7 +71,7 @@
                 </div>
                 <div class="grid grid-cols-2 divide-slate-100 sm:grid-cols-4 lg:grid-cols-7 lg:divide-x">
                     @foreach ($orders['counts'] as $status => $total)
-                        <a href="{{ route('sales.orders.index', ['status' => $status, 'warehouse' => $wh]) }}" class="flex flex-col gap-2 px-5 py-4 hover:bg-slate-50/60">
+                        <a href="{{ route('sales.orders.index', ['status' => $status, 'warehouse' => $wh, 'dates' => 'all']) }}" class="flex flex-col gap-2 px-5 py-4 hover:bg-slate-50/60">
                             <span><x-sales.status-badge :status="$status" /></span>
                             <span class="text-2xl font-semibold text-slate-900 tabular-nums">{{ $fmt($total) }}</span>
                         </a>

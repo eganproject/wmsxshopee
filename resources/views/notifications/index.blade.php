@@ -104,7 +104,7 @@
                             @endcan
                             @break
                         @case('held_orders')
-                            <a href="{{ route('sales.orders.index', ['status' => 'draft']) }}" class="text-sm text-slate-600 hover:text-slate-900">Lihat pesanan</a>
+                            <a href="{{ route('sales.orders.index', ['status' => 'draft', 'dates' => 'all']) }}" class="text-sm text-slate-600 hover:text-slate-900">Lihat pesanan</a>
                             @break
                         @case('unmapped_orders')
                             <a href="{{ route('sales.orders.index', ['shopee' => 'unmapped']) }}" class="text-sm text-slate-600 hover:text-slate-900">Lihat pesanan</a>
@@ -118,7 +118,7 @@
                             @break
                         @case('pending_orders')
                         @case('draft_orders')
-                            <a href="{{ route('sales.orders.index', $group['key'] === 'draft_orders' ? ['status' => 'draft'] : []) }}" class="text-sm text-slate-600 hover:text-slate-900">Lihat pesanan</a>
+                            <a href="{{ route('sales.orders.index', $group['key'] === 'draft_orders' ? ['status' => 'draft', 'dates' => 'all'] : ['dates' => 'all']) }}" class="text-sm text-slate-600 hover:text-slate-900">Lihat pesanan</a>
                             @break
                         @case('draft_receipts')
                             <a href="{{ route('inventory.receipts.index', ['status' => 'draft']) }}" class="text-sm text-slate-600 hover:text-slate-900">Lihat penerimaan</a>

@@ -21,9 +21,8 @@
         [
             'heading' => 'Penjualan',
             'items' => [
-                ['label' => 'Pesanan', 'route' => 'sales.orders.index', 'active' => 'sales.orders.*', 'outbound' => false, 'icon' => 'heroicon-o-shopping-cart', 'can' => 'sales.view'],
-                // Barang Keluar Manual memakai halaman pesanan yang sama, disaring jenisnya.
-                ['label' => 'Barang Keluar Manual', 'route' => 'sales.orders.index', 'params' => ['kind' => 'outbound'], 'active' => 'sales.orders.*', 'outbound' => true, 'icon' => 'heroicon-o-arrow-up-tray', 'can' => 'sales.view'],
+                // Barang Keluar Manual ada di halaman Pesanan: filter Jenis & pilihan jenis saat membuat baru.
+                ['label' => 'Pesanan', 'route' => 'sales.orders.index', 'active' => 'sales.orders.*', 'icon' => 'heroicon-o-shopping-cart', 'can' => 'sales.view'],
                 ['label' => 'QC Kemas', 'route' => 'sales.qc.index', 'active' => 'sales.qc.*', 'icon' => 'heroicon-o-viewfinder-circle', 'can' => 'sales.fulfill'],
                 ['label' => 'Serah Terima', 'route' => 'sales.handovers.index', 'active' => 'sales.handovers.*', 'icon' => 'heroicon-o-paper-airplane', 'can' => 'sales.fulfill'],
                 ['label' => 'Retur Penjualan', 'route' => 'sales.returns.index', 'active' => 'sales.returns.*', 'icon' => 'heroicon-o-arrow-uturn-left', 'can' => 'returns.view'],
@@ -130,8 +129,6 @@
         </div>
 
         <nav id="sidebar-nav" class="sidebar-scroll flex-1 overflow-x-hidden overflow-y-auto">
-            @php($routeOrder = request()->route('order'))
-            @php($viewingOutbound = request('kind') === 'outbound' || ($routeOrder instanceof \App\Models\SalesOrder && $routeOrder->isOutbound()))
             @foreach ($navigation as $section)
                 @php($items = collect($section['items'])->filter(fn ($item) => ! $item['can'] || $user->canAny((array) $item['can'])))
                 @if ($items->isNotEmpty())
@@ -142,7 +139,7 @@
                         @endif
                         <ul class="space-y-px">
                             @foreach ($items as $item)
-                                @php($active = request()->routeIs($item['active']) && (! isset($item['outbound']) || $item['outbound'] === $viewingOutbound))
+                                @php($active = request()->routeIs($item['active']))
                                 <li>
                                     <a href="{{ route($item['route'], $item['params'] ?? []) }}" data-tip="{{ $item['label'] }}" @if ($active) aria-current="page" @endif
                                        @class([
