@@ -150,6 +150,20 @@
         </div>
     @endif
 
+    {{-- Terlewat QC belum dicek: ditonjolkan di tab Semua, Dikirim dan Selesai (tempat pesanan ini berada). --}}
+    @if ($qcSkipCount && ! $qcFilter && in_array(request('status'), [null, '', 'shipped', 'completed'], true))
+        <div class="mb-4 flex flex-col gap-3 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800 sm:flex-row sm:items-center dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200" role="alert" data-testid="qc-skip-banner">
+            <x-heroicon-o-shield-exclamation class="size-6 shrink-0 text-amber-600 dark:text-amber-400" />
+            <div class="min-w-0 flex-1">
+                <p class="font-semibold">{{ $qcSkipCount }} pesanan terlewat QC dan belum dicek.</p>
+                <p class="mt-0.5 text-amber-700 dark:text-amber-300">Kurir mengambil paketnya sebelum QC kemas / serah terima, jadi isi paket dan bin yang dipakai belum diperiksa. Barisnya ditandai kuning di bawah.</p>
+            </div>
+            <a href="{{ route('sales.orders.index', [...request()->except(['qc', 'page']), 'qc' => 'unchecked']) }}" class="btn-secondary shrink-0 border-amber-300 text-amber-800 dark:border-amber-800 dark:text-amber-200">
+                Tampilkan saja yang terlewat QC
+            </a>
+        </div>
+    @endif
+
     @foreach (['shipment_failures' => 'belum bisa diatur pengirimannya', 'pick_failures' => 'belum bisa ditandai Sedang Diambil'] as $key => $title)
         @if ($failures = session($key))
             <div class="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
@@ -467,7 +481,8 @@
                     @php($deadline = $order->shipByDeadline())
                     @php($syncIssue = $order->syncIssue())
                     @php($completed = $order->completedTime())
-                    <tbody @class(['border-t border-slate-200', 'bg-rose-50/40' => $syncIssue]) :class="selected.includes({{ $order->id }}) && 'bg-sky-50/60'">
+                    @php($qcUnchecked = $order->needsQcSkipCheck())
+                    <tbody @class(['border-t border-slate-200', 'bg-rose-50/40' => $syncIssue, 'bg-amber-50/60 dark:bg-amber-950/20' => ! $syncIssue && $qcUnchecked]) :class="selected.includes({{ $order->id }}) && 'bg-sky-50/60'">
                         <tr class="bg-slate-50/70 text-xs">
                             @if ($canFulfill)
                                 <td class="py-2 pl-4"><input type="checkbox" value="{{ $order->id }}" x-model.number="selected" aria-label="Pilih {{ $order->number }}"></td>
@@ -475,6 +490,18 @@
                             <td colspan="4" class="px-3 py-2">
                                 <div class="flex flex-wrap items-center gap-x-4 gap-y-1">
                                     <a href="{{ route('sales.orders.show', $order) }}" class="font-mono text-[13px] font-semibold text-slate-900 hover:text-brand-600">{{ $order->number }}</a>
+                                    @if ($qcUnchecked)
+                                        {{-- Terlewat QC: dikirim otomatis dari marketplace sebelum QC kemas / serah terima. --}}
+                                        <a href="{{ route('sales.orders.show', $order) }}" data-testid="qc-skip-badge"
+                                           class="inline-flex items-center gap-1 rounded-full border border-amber-300 bg-amber-100 px-2 py-0.5 font-semibold text-amber-800 hover:border-amber-400 dark:border-amber-800 dark:bg-amber-900/40 dark:text-amber-200"
+                                           data-hint-title="Terlewat QC, belum dicek" data-hint="Kurir sudah mengambil paket sebelum QC kemas / serah terima di gudang. Stok keluar dari bin usulan otomatis." data-hint-next="Buka pesanan, cek barang & bin yang dipakai, lalu tekan Tandai Sudah Dicek.">
+                                            <x-heroicon-o-shield-exclamation class="size-3.5" /> Terlewat QC · cek
+                                        </a>
+                                    @elseif ($order->skippedQc())
+                                        <span class="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-slate-500 dark:bg-slate-800" title="Terlewat QC, sudah dicek{{ $order->qc_skip_note ? ': '.$order->qc_skip_note : '' }}">
+                                            <x-heroicon-o-shield-check class="size-3.5" /> Terlewat QC · sudah dicek
+                                        </span>
+                                    @endif
                                     @if ($order->isOutbound())
                                         <span class="inline-flex items-center gap-1 rounded-full bg-violet-50 px-2 py-0.5 font-medium text-violet-700" title="Barang Keluar Manual (bukan penjualan)">
                                             <x-heroicon-o-arrow-up-tray class="size-3.5" /> {{ $order->outboundPurposeLabel() }}

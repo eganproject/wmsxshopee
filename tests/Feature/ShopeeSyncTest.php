@@ -667,6 +667,12 @@ class ShopeeSyncTest extends TestCase
             ->assertOk()->assertSee($order->number)->assertSee('Terlewat QC, belum dicek');
         $this->actingAs($admin)->get(route('sales.orders.show', $order))
             ->assertOk()->assertSee('Terlewat QC kemas dan serah terima')->assertSee('Tandai Sudah Dicek');
+        // Ditonjolkan di tab Dikirim (banner + badge di baris), tidak di tab lain.
+        $this->actingAs($admin)->get(route('sales.orders.index', ['status' => 'shipped']))->assertOk()
+            ->assertSee('data-testid="qc-skip-banner"', false)->assertSee('1 pesanan terlewat QC dan belum dicek.')
+            ->assertSee('data-testid="qc-skip-badge"', false);
+        $this->actingAs($admin)->get(route('sales.orders.index', ['status' => 'packed']))->assertOk()
+            ->assertDontSee('data-testid="qc-skip-banner"', false);
 
         $this->actingAs($admin)->post(route('sales.orders.qc-skip-check', $order), ['qc_skip_note' => 'Barang & bin sesuai'])
             ->assertRedirect();
@@ -681,6 +687,9 @@ class ShopeeSyncTest extends TestCase
         $this->assertSame($admin->id, $log->user_id);
         $this->assertStringContainsString('Barang & bin sesuai', json_encode($log->properties, JSON_UNESCAPED_UNICODE));
         $this->actingAs($admin)->get(route('sales.orders.show', $order))->assertOk()->assertSee('Sudah dicek oleh');
+        $this->actingAs($admin)->get(route('sales.orders.index', ['status' => 'shipped']))->assertOk()
+            ->assertDontSee('data-testid="qc-skip-banner"', false)->assertDontSee('data-testid="qc-skip-badge"', false)
+            ->assertSee('Terlewat QC · sudah dicek');
 
         // Dua kali tidak bisa; pesanan yang lewat proses gudang biasa juga tidak.
         $this->actingAs($admin)->post(route('sales.orders.qc-skip-check', $order))->assertSessionHasErrors('order');
