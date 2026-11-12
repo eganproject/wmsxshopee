@@ -8,6 +8,7 @@ use App\Models\ProductVariant;
 use App\Models\SalesOrder;
 use App\Models\Stock;
 use App\Models\WarehouseLocation;
+use App\Support\Barcodes;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -43,7 +44,7 @@ class ScanController extends Controller
             ]);
         }
 
-        $variant = ProductVariant::query()->with('product')->where('sku', $code)->orWhere('barcode', $code)->first();
+        $variant = ProductVariant::findByCode($code)?->load('product');
         if ($variant) {
             return view('mobile.scan-variant', [
                 'variant' => $variant,
@@ -52,6 +53,10 @@ class ScanController extends Controller
         }
 
         $bundle = Bundle::query()->with('items.variant.product')->where('sku', $code)->orWhere('barcode', $code)->first();
+
+        if (! $bundle) {
+            Barcodes::recordMiss($code, 'mobile', $user->id, $warehouseId);
+        }
 
         return view('mobile.scan-none', ['code' => $code, 'bundle' => $bundle]);
     }

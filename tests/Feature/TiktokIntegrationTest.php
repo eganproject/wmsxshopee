@@ -19,6 +19,7 @@ use App\Services\AlertService;
 use App\Services\FulfillmentScan;
 use App\Services\SalesOrderService;
 use App\Services\StockService;
+use App\Services\Tiktok\TiktokAuth;
 use App\Services\Tiktok\TiktokClient;
 use App\Services\Tiktok\TiktokException;
 use App\Services\Tiktok\TiktokOrderSync;
@@ -325,13 +326,38 @@ class TiktokIntegrationTest extends TestCase
         $this->get('/marketplace/shops?platform=tiktok')->assertOk()->assertSee('Optima Official')->assertSee('Optima Outlet');
     }
 
-    public function test_callback_rejects_wrong_state(): void
+    public function test_callback_without_matching_session_asks_for_confirmation(): void
     {
         $this->configure();
         $this->post('/tiktok/shops/connect', ['warehouse_id' => $this->warehouse->id]);
 
-        $this->get('/tiktok/callback?state=salah&code=x')->assertRedirect(route('marketplace.shops', ['platform' => 'tiktok']))->assertSessionHas('error');
+        // State tidak cocok / otorisasi dimulai dari sisi TikTok: belum ada toko, minta konfirmasi.
+        $this->get('/tiktok/callback?state=salah&code=x')->assertOk()->assertSee('Simpan Toko');
         $this->assertSame(0, TiktokShop::count());
+
+        Http::fake([
+            'auth.tiktok-shops.com/api/v2/token/get*' => Http::response(['code' => 0, 'message' => 'success', 'data' => [
+                'access_token' => 'akses-1', 'refresh_token' => 'refresh-1', 'open_id' => 'open-9',
+            ]]),
+            '*/authorization/202309/shops*' => Http::response(['code' => 0, 'message' => 'Success', 'data' => ['shops' => [
+                ['id' => '7495000000000000009', 'name' => 'Toko Live', 'region' => 'ID', 'cipher' => 'ROW_z'],
+            ]]]),
+        ]);
+
+        $this->post('/tiktok/callback', ['warehouse_id' => $this->warehouse->id])->assertRedirect(route('marketplace.shops', ['platform' => 'tiktok']))->assertSessionHas('success');
+        $this->assertSame([$this->warehouse->id, 'ROW_z'], [TiktokShop::firstOrFail()->warehouse_id, TiktokShop::firstOrFail()->shop_cipher]);
+        Http::assertSent(fn (Request $r) => str_contains($r->url(), '/api/v2/token/get') && $r['auth_code'] === 'x');
+
+        // Kode hanya bisa dipakai sekali.
+        $this->post('/tiktok/callback', ['warehouse_id' => $this->warehouse->id])->assertSessionHas('error');
+    }
+
+    public function test_callback_from_tiktok_without_any_session_shows_confirmation(): void
+    {
+        $this->configure();
+
+        $this->get('/tiktok/callback?code=kode-dari-tiktok&app_key=appkey123')->assertOk()->assertSee('Simpan Toko');
+        $this->assertSame('kode-dari-tiktok', session('tiktok_auth_code.code'));
     }
 
     public function test_refresh_updates_all_shops_of_the_same_seller_and_marks_revoked(): void
@@ -355,6 +381,56 @@ class TiktokIntegrationTest extends TestCase
         Http::fake(['auth.tiktok-shops.com/api/v2/token/refresh*' => Http::response(['code' => 105002, 'message' => 'refresh token is expired'])]);
         $this->artisan('tiktok:refresh-tokens --force')->assertFailed();
         $this->assertSame('expired', $shop->fresh()->status);
+    }
+
+    public function test_api_errors_that_are_not_about_the_token_keep_the_shop_connected(): void
+    {
+        $shop = $this->shop();
+        // Izin API belum disetujui (105005) / gangguan server TikTok: bukan alasan otorisasi ulang.
+        foreach ([105005 => 'you should apply auth pkg for this api', 36009003 => 'Internal error'] as $code => $message) {
+            $this->refake();
+            Http::fake(['*/order/202309/orders/search*' => Http::response(['code' => $code, 'message' => $message])]);
+
+            try {
+                app(TiktokSync::class)->run($shop->fresh(), ['orders']);
+                $this->fail('Error API harus tetap dilaporkan.');
+            } catch (TiktokException $e) {
+                $this->assertFalse($e->needsReauthorization());
+            }
+
+            $this->assertSame('connected', $shop->fresh()->status);
+            $this->assertStringContainsString((string) $code, $shop->fresh()->last_error);
+        }
+
+        $this->assertTrue((new TiktokException('expired', 105002))->needsReauthorization());
+    }
+
+    public function test_refresh_button_reconnects_a_shop_wrongly_flagged_expired(): void
+    {
+        $shop = $this->shop(['status' => 'expired', 'last_error' => 'TikTok: Internal error (36009003)']);
+        Http::fake(['auth.tiktok-shops.com/api/v2/token/refresh*' => Http::response(['code' => 0, 'data' => [
+            'access_token' => 'baru', 'refresh_token' => 'refresh-baru',
+            'access_token_expire_in' => now()->addDays(7)->getTimestamp(), 'refresh_token_expire_in' => now()->addDays(60)->getTimestamp(),
+        ]])]);
+
+        $this->assertTrue(app(TiktokAuth::class)->refresh($shop));
+        $this->assertSame(['connected', null, 'baru'], [$shop->fresh()->status, $shop->fresh()->last_error, $shop->fresh()->access_token]);
+    }
+
+    public function test_address_change_before_shipping_updates_the_order(): void
+    {
+        $shop = $this->shop();
+        $this->fakeSearch([$this->order('615001', 'AWAITING_SHIPMENT', $this->units('2001', 1))]);
+        app(TiktokSync::class)->run($shop->fresh(), ['orders']);
+
+        $this->refake();
+        Http::fake(['*/order/202309/orders?*' => Http::response(['code' => 0, 'data' => ['orders' => [$this->order('615001', 'AWAITING_SHIPMENT', $this->units('2001', 1), [
+            'recipient_address' => ['name' => 'Siti Aminah', 'phone_number' => '(+62)813****', 'full_address' => 'Jl. Braga 10, Bandung'],
+        ])]]])]);
+        app(TiktokOrderSync::class)->syncOne($shop->fresh(), '615001');
+
+        $order = SalesOrder::where('external_number', '615001')->first();
+        $this->assertSame(['Siti Aminah', '(+62)813****', 'Jl. Braga 10, Bandung'], [$order->customer_name, $order->customer_phone, $order->shipping_address]);
     }
 
     public function test_awaiting_shipment_orders_are_created_grouped_per_sku_and_reserve_stock(): void
@@ -388,6 +464,68 @@ class TiktokIntegrationTest extends TestCase
         $this->get("/sales/orders/{$order->id}")->assertOk()->assertSee('Pesanan TikTok')->assertSee('Perlu Dikirim')
             ->assertSee('Rincian Pembayaran TikTok')->assertSee('Rp 154.000');
         $this->get('/sales/orders')->assertOk()->assertSee('Perlu Dikirim')->assertSee('AWAITING_SHIPMENT');
+    }
+
+    public function test_shop_processed_in_another_system_is_not_pulled_until_super_admin_switches_it_on(): void
+    {
+        $shop = $this->shop();
+        $this->fakeSearch([
+            $this->order('590001', 'AWAITING_SHIPMENT', $this->units('2001', 2)),
+            $this->order('590002', 'AWAITING_SHIPMENT', $this->units('9999', 1, 'BELUM-ADA')),
+        ]);
+        $this->artisan('tiktok:sync --only=orders')->assertSuccessful();
+        $this->assertSame(['confirmed', 'draft'], SalesOrder::orderBy('external_number')->pluck('status')->all());
+        $this->assertSame(8, $this->available($this->kaosM));
+
+        // Paket dikirim lewat sistem lain: Optima mengirim otomatis -> "Terlewat QC".
+        $this->refake();
+        $this->fakeSearch([$this->order('590001', 'IN_TRANSIT', $this->units('2001', 2), ['tracking_number' => 'JX1'])]);
+        $this->artisan('tiktok:sync --only=orders')->assertSuccessful();
+        $shipped = SalesOrder::where('external_number', '590001')->firstOrFail();
+        $this->assertTrue($shipped->needsQcSkipCheck());
+
+        // Selain Super Admin tidak boleh mengubah saklar.
+        $admin = User::factory()->create();
+        $admin->givePermissionTo(['tiktok.view', 'tiktok.connect']);
+        $this->actingAs($admin)->put("/marketplace/shops/tiktok/{$shop->id}/order-processing", ['process_orders' => 0])->assertForbidden();
+        $this->assertTrue($shop->fresh()->process_orders);
+
+        $this->actingAs(User::where('username', 'superadmin')->first())
+            ->put("/marketplace/shops/tiktok/{$shop->id}/order-processing", ['process_orders' => 0])
+            ->assertSessionHas('success', fn ($m) => str_contains($m, '1 pesanan yang belum dikirim dihapus'));
+
+        $shop->refresh();
+        $this->assertFalse($shop->process_orders);
+        $this->assertFalse($shop->stock_push, 'Kirim stok ikut mati.');
+        $this->assertSame(['590001'], SalesOrder::pluck('external_number')->all(), 'Draft dihapus, yang sudah Dikirim tetap.');
+        $this->assertFalse($shipped->fresh()->needsQcSkipCheck(), 'Tidak lagi ditandai Terlewat QC.');
+        $this->assertSame(0, SalesOrder::qcSkipped('unchecked')->count());
+
+        // Sinkron & webhook tidak menarik pesanan: tanpa respons palsu, request apa pun akan gagal.
+        $this->refake();
+        $result = app(TiktokSync::class)->run($shop, ['orders', 'returns', 'stock']);
+        $this->assertTrue($result['external']);
+        $this->assertStringContainsString('tidak ditarik (diproses di sistem lain)', TiktokSync::summary($result));
+        $this->assertFalse($shop->processesOrders());
+
+        // Kirim stok tidak bisa dinyalakan selama pesanan diproses di sistem lain.
+        $this->put("/tiktok/shops/{$shop->id}", ['warehouse_id' => $this->warehouse->id, 'is_active' => 1, 'stock_push' => 1]);
+        $this->assertFalse($shop->fresh()->stock_push);
+        $this->get('/marketplace/shops?platform=tiktok')->assertOk()->assertSee('Pesanan diproses di sistem lain');
+
+        // Dinyalakan: mulai seperti toko baru, hanya pesanan yang masih harus dikirim yang dibuat.
+        $this->put("/marketplace/shops/tiktok/{$shop->id}/order-processing", ['process_orders' => 1])->assertSessionHas('success');
+        $shop->refresh();
+        $this->assertTrue($shop->process_orders);
+        $this->assertNull($shop->orders_synced_until);
+        $this->assertNotNull($shop->returns_synced_until);
+
+        $this->fakeSearch([
+            $this->order('590004', 'AWAITING_SHIPMENT', $this->units('2001', 1)),
+            $this->order('590003', 'IN_TRANSIT', $this->units('2001', 1)),
+        ]);
+        $this->artisan('tiktok:sync --only=orders')->assertSuccessful();
+        $this->assertSame(['590001', '590004'], SalesOrder::orderBy('external_number')->pluck('external_number')->all(), 'Yang sudah dikirim dari sistem lain tidak ikut masuk.');
     }
 
     public function test_unpaid_and_on_hold_orders_hold_pushed_stock(): void
@@ -563,8 +701,9 @@ class TiktokIntegrationTest extends TestCase
             ], 'next_page_token' => '']]),
         ]);
 
-        $this->post("/tiktok/shops/{$shop->id}/mappings/pull")->assertRedirect()
-            ->assertSessionHas('success', fn ($message) => str_contains($message, '2 produk') && str_contains($message, '1 belum aktif'));
+        $this->post("/tiktok/shops/{$shop->id}/mappings/pull")->assertRedirect()->assertSessionHas('success');
+        $message = $this->backgroundResult();
+        $this->assertTrue(str_contains($message, '2 produk') && str_contains($message, '1 belum aktif'), $message);
         Http::assertSent(fn (Request $r) => str_contains($r->url(), '/products/search') && $r['status'] === 'ALL');
 
         $this->assertSame(3, $shop->mappings()->count());
@@ -851,7 +990,8 @@ class TiktokIntegrationTest extends TestCase
             '*/inventory/update*' => Http::response(['code' => 0, 'message' => 'Success', 'data' => []]),
         ]);
 
-        $this->post("/tiktok/shops/{$shop->id}/mappings/pull")->assertSessionHas('success', fn ($m) => str_contains($m, '2 SKU sudah tidak ada di toko'));
+        $this->post("/tiktok/shops/{$shop->id}/mappings/pull")->assertSessionHas('success');
+        $this->assertStringContainsString('2 SKU sudah tidak ada di toko', $this->backgroundResult());
 
         $rows = $shop->mappings()->get()->keyBy('sku_id');
         $this->assertSame([$this->kaosL->id, 'auto'], [$rows['2001']->product_variant_id, $rows['2001']->match_type]);

@@ -9,6 +9,11 @@
 
     <x-page-header title="Master Produk" description="SKU internal, varian, barcode, berat dan dimensi barang." icon="heroicon-o-cube">
         <x-reports.export-button />
+        @can('products.edit')
+            <a href="{{ route('master.products.bulk-update', array_filter(request()->only(['search', 'category', 'status']), 'filled')) }}" class="btn-secondary">
+                <x-heroicon-o-pencil-square class="size-5" /> Update Massal
+            </a>
+        @endcan
         @can('products.create')
             <a href="{{ route('master.products.import') }}" class="btn-secondary">
                 <x-heroicon-o-arrow-up-tray class="size-5" /> Impor Excel / CSV
@@ -65,7 +70,7 @@
                     @forelse ($products as $product)
                         <tr class="hover:bg-slate-50/60">
                             <td class="w-10 py-3.5 pr-0 pl-4"><input type="checkbox" class="form-checkbox block" value="{{ $product->id }}" x-model="selected" aria-label="Pilih"></td>
-                            <td class="px-5 py-3.5">
+                            <td class="cell-wrap px-5 py-3.5">
                                 <div class="flex items-center gap-3">
                                     @if ($product->primaryImage)
                                         <img src="{{ $product->primaryImage->url() }}" alt="{{ $product->name }}" loading="lazy"

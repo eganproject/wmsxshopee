@@ -36,12 +36,6 @@ class SettingsMenu
                 ],
             ],
             [
-                'heading' => 'Gudang',
-                'items' => [
-                    ['label' => 'Lokasi Tetap SKU', 'description' => 'Bin langganan tiap SKU per gudang serta stok minimum/maksimum isi ulang.', 'route' => 'inventory.sku-settings.index', 'active' => 'inventory.sku-settings.*', 'icon' => 'heroicon-o-map-pin', 'can' => 'inventory.view', 'keywords' => 'bin rak picking'],
-                ],
-            ],
-            [
                 'heading' => 'Sistem',
                 'items' => [
                     ['label' => 'Log Aktivitas', 'description' => 'Riwayat perubahan data dan aktivitas pengguna.', 'route' => 'admin.activity.index', 'active' => 'admin.activity.*', 'icon' => 'heroicon-o-clock', 'can' => 'activity.view', 'keywords' => 'audit riwayat'],

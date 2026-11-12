@@ -107,7 +107,7 @@ class StockService
         $reserved = DB::table('sales_order_items')
             ->join('sales_orders', 'sales_orders.id', '=', 'sales_order_items.sales_order_id')
             ->where('sales_orders.warehouse_id', $warehouseId)
-            ->whereIn('sales_orders.status', SalesOrder::RESERVING)
+            ->where(fn ($q) => SalesOrder::whereReserving($q))
             ->whereIn('sales_order_items.product_variant_id', $dropped->all())
             ->groupBy('sales_order_items.product_variant_id')
             ->selectRaw('sales_order_items.product_variant_id, SUM(sales_order_items.qty) as qty')

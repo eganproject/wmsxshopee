@@ -2,19 +2,20 @@
 
 namespace App\Support;
 
-use App\Models\ProductVariant;
+use Illuminate\Database\Query\JoinClause;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
 /**
- * Saran jumlah pembelian ulang per varian.
+ * Saran jumlah pembelian ulang per varian per gudang.
  *
  *   rata-rata harian = qty terkirim N hari terakhir / N
- *   stok target      = stok minimum + ceil(rata-rata harian × hari stok)
+ *   stok target      = stok minimum gudang + ceil(rata-rata harian × hari stok)
  *   saran beli       = stok target − tersedia − qty di draft penerimaan
  *
  * Penjualan paket sudah dipecah per komponen di baris pesanan, jadi permintaan
- * paket ikut terhitung ke varian komponennya. Stok, cadangan, penjualan dan
+ * paket ikut terhitung ke varian komponennya. Stok minimum gudang mengikuti
+ * StockLevels (SKU per Gudang, kosong = Master Produk). Stok, cadangan, penjualan dan
  * draft penerimaan dibatasi ke gudang yang boleh diakses user.
  */
 class ReorderSuggestions
@@ -33,8 +34,8 @@ class ReorderSuggestions
     }
 
     /**
-     * Varian aktif yang punya stok minimum atau terjual dalam periode, paling
-     * mendesak dulu.
+     * Varian × gudang yang punya stok minimum atau terjual dalam periode,
+     * paling mendesak dulu. Tanpa filter gudang, satu baris per gudang.
      *
      * @return Collection<int, object>
      */
@@ -48,33 +49,33 @@ class ReorderSuggestions
             ->where('sales_orders.shipped_at', '>=', now()->subDays($this->lookbackDays))
             ->when($warehouseId, fn ($q) => $q->where('sales_orders.warehouse_id', $warehouseId))
             ->when($accessible !== null, fn ($q) => $q->whereIn('sales_orders.warehouse_id', $accessible))
-            ->groupBy('sales_order_items.product_variant_id')
-            ->selectRaw('sales_order_items.product_variant_id, SUM(sales_order_items.qty) as qty');
+            ->groupBy('sales_order_items.product_variant_id', 'sales_orders.warehouse_id')
+            ->selectRaw('sales_order_items.product_variant_id, sales_orders.warehouse_id, SUM(sales_order_items.qty) as qty');
 
         $incoming = DB::table('goods_receipt_items')
             ->join('goods_receipts', 'goods_receipts.id', '=', 'goods_receipt_items.goods_receipt_id')
             ->where('goods_receipts.status', 'draft')
             ->when($warehouseId, fn ($q) => $q->where('goods_receipts.warehouse_id', $warehouseId))
             ->when($accessible !== null, fn ($q) => $q->whereIn('goods_receipts.warehouse_id', $accessible))
-            ->groupBy('goods_receipt_items.product_variant_id')
-            ->selectRaw('goods_receipt_items.product_variant_id, SUM(COALESCE(goods_receipt_items.qty_ordered, goods_receipt_items.qty_received)) as qty');
+            ->groupBy('goods_receipt_items.product_variant_id', 'goods_receipts.warehouse_id')
+            ->selectRaw('goods_receipt_items.product_variant_id, goods_receipts.warehouse_id, SUM(COALESCE(goods_receipt_items.qty_ordered, goods_receipt_items.qty_received)) as qty');
 
-        $rows = ProductVariant::query()
-            ->join('products', 'products.id', '=', 'product_variants.product_id')
-            ->leftJoin('units', 'units.id', '=', 'products.unit_id')
-            ->leftJoinSub(StockLevels::onHandQuery($warehouseId), 'on_hand', 'on_hand.product_variant_id', '=', 'product_variants.id')
-            ->leftJoinSub(StockLevels::reservedQuery($warehouseId), 'reserved', 'reserved.product_variant_id', '=', 'product_variants.id')
-            ->leftJoinSub($sold, 'sold', 'sold.product_variant_id', '=', 'product_variants.id')
-            ->leftJoinSub($incoming, 'incoming', 'incoming.product_variant_id', '=', 'product_variants.id')
-            ->where('product_variants.is_active', true)
-            ->where('products.is_active', true)
-            ->where(fn ($q) => $q->whereNotNull('product_variants.min_stock')->orWhere('sold.qty', '>', 0))
+        $perWarehouse = fn (string $alias) => fn (JoinClause $join) => $join
+            ->on("{$alias}.product_variant_id", '=', 'product_variants.id')
+            ->on("{$alias}.warehouse_id", '=', 'warehouses.id');
+
+        $rows = StockLevels::perWarehouse($warehouseId)
+            ->leftJoinSub($sold, 'sold', $perWarehouse('sold'))
+            ->leftJoinSub($incoming, 'incoming', $perWarehouse('incoming'))
+            ->leftJoin('warehouses as supply', 'supply.id', '=', 'warehouses.supply_warehouse_id')
+            ->where(fn ($q) => $q->whereRaw(StockLevels::HAS_MINIMUM)->orWhere('sold.qty', '>', 0))
             ->when(filled($search), function ($q) use ($search) {
                 $like = '%'.trim($search).'%';
                 $q->where(fn ($q) => $q->where('product_variants.sku', 'like', $like)->orWhere('products.name', 'like', $like));
             })
             ->toBase()
-            ->selectRaw('product_variants.id, product_variants.sku, product_variants.name as variant_name, product_variants.min_stock,
+            ->selectRaw('product_variants.id, product_variants.sku, product_variants.name as variant_name, '.StockLevels::MINIMUM.' as min_stock,
+                warehouses.id as warehouse_id, warehouses.code as warehouse_code, supply.code as supply_code,
                 products.name as product_name, units.code as unit_code,
                 COALESCE(on_hand.qty, 0) as on_hand, COALESCE(reserved.qty, 0) as reserved,
                 COALESCE(sold.qty, 0) as sold, COALESCE(incoming.qty, 0) as incoming')
@@ -82,8 +83,8 @@ class ReorderSuggestions
             ->map(fn ($row) => $this->calculate($row));
 
         // Perlu dibeli dulu, lalu yang sudah di bawah minimum, paling cepat habis, kekurangan terbesar.
-        return $rows->sort(fn ($a, $b) => [$b->suggested > 0, $b->below_min, $a->days_left ?? PHP_INT_MAX, $b->shortage, $a->sku]
-            <=> [$a->suggested > 0, $a->below_min, $b->days_left ?? PHP_INT_MAX, $a->shortage, $b->sku])->values();
+        return $rows->sort(fn ($a, $b) => [$b->suggested > 0, $b->below_min, $a->days_left ?? PHP_INT_MAX, $b->shortage, $a->sku, $a->warehouse_code]
+            <=> [$a->suggested > 0, $a->below_min, $b->days_left ?? PHP_INT_MAX, $a->shortage, $b->sku, $b->warehouse_code])->values();
     }
 
     private function calculate(object $row): object

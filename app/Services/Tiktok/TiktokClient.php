@@ -119,7 +119,9 @@ class TiktokClient
                 throw new TiktokException(ConnectionError::message('TikTok', $e), connectionFailed: true, notSent: ConnectionError::neverSent($e));
             }
 
-            return $this->unwrap($response->json() ?? [], $response->status());
+            $json = $response->json() ?? [];
+
+            return [...$this->unwrap($json, $response->status()), 'request_id' => $json['request_id'] ?? null];
         });
     }
 

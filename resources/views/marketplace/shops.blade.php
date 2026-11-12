@@ -175,7 +175,7 @@
                                             <input type="hidden" name="is_active" value="{{ $shop->is_active ? 1 : 0 }}">
                                             <input type="hidden" name="warehouse_id" value="{{ $shop->warehouse_id }}">
                                             <label class="inline-flex cursor-pointer items-center gap-1.5 text-xs text-slate-600" data-hint-title="Kirim stok ke {{ $platformName }}" data-hint="Nyala: Optima memperbarui stok di {{ $platformName }} setiap ada perubahan. Mati: stok di {{ $platformName }} tidak diubah Optima." data-hint-next="Nyalakan setelah stok gudang sudah dicek (stock opname).">
-                                                <input type="checkbox" name="stock_push" value="1" class="form-checkbox" @checked($shop->stock_push) onchange="this.form.submit()">
+                                                <input type="checkbox" name="stock_push" value="1" class="form-checkbox" @checked($shop->stock_push) @disabled(! $shop->process_orders) onchange="this.form.submit()">
                                                 Kirim stok ke {{ $platformName }}
                                             </label>
                                         </form>
@@ -184,6 +184,33 @@
                                     {{ $shop->warehouse?->name ?? '—' }}
                                     <p class="mt-1 text-xs text-slate-500">Kirim stok {{ $shop->stock_push ? 'aktif' : 'mati' }}</p>
                                 @endif
+                                @if (auth()->user()->isSuperAdmin())
+                                    @php($openOrders = $shop->process_orders ? \App\Services\MarketplaceOrderProcessing::openOrders($p, $shop)->count() : 0)
+                                    <form method="POST" action="{{ route('marketplace.shops.order-processing', [$p, $shop->id]) }}" class="mt-1.5"
+                                          data-confirm-variant="{{ $shop->process_orders ? 'danger' : 'primary' }}"
+                                          @if ($shop->process_orders)
+                                              data-confirm-title="Pesanan diproses di sistem lain?"
+                                              data-confirm-text="Ya, proses di sistem lain"
+                                              data-confirm="{{ 'Pesanan & retur '.$shop->displayName().' tidak ditarik lagi ke Optima dan kirim stok dimatikan.'.($openOrders ? "\n\n{$openOrders} pesanan yang belum dikirim dihapus dari Optima (cadangan stoknya lepas)." : '')."\n\nPesanan yang sudah Dikirim tetap tersimpan dan tidak lagi ditandai Terlewat QC." }}"
+                                          @else
+                                              data-confirm-title="Proses pesanan di Optima?"
+                                              data-confirm-text="Ya, proses di Optima"
+                                              data-confirm="{{ 'Pesanan 3 hari terakhir '.$shop->displayName().' yang di '.$platformName.' masih menunggu dikirim akan ditarik dan dikerjakan gudang di Optima. Pastikan alamat gudang di '.$platformName.' sudah dipindah.' }}"
+                                          @endif>
+                                        @csrf @method('PUT')
+                                        <input type="hidden" name="process_orders" value="{{ $shop->process_orders ? 0 : 1 }}">
+                                        <label class="inline-flex cursor-pointer items-center gap-1.5 text-xs text-slate-600" data-hint-title="Proses pesanan di Optima" data-hint="Nyala: pesanan {{ $platformName }} toko ini ditarik dan dikerjakan gudang di Optima. Mati: pesanan masih diproses di sistem lain (cth. Ginee), jadi Optima tidak menarik pesanan & retur toko ini dan tidak mengirim stok." data-hint-next="Nyalakan setelah alamat gudang di {{ $platformName }} dipindah dan toko siap diproses di Optima. Hanya Super Admin yang bisa mengubah.">
+                                            {{-- Centang tidak berubah sebelum dikonfirmasi di modal; halaman dimuat ulang setelah disimpan. --}}
+                                            <input type="checkbox" class="form-checkbox" @checked($shop->process_orders) onclick="event.preventDefault(); this.form.requestSubmit()">
+                                            Proses pesanan di Optima
+                                        </label>
+                                    </form>
+                                @endif
+                                @unless ($shop->process_orders)
+                                    <p class="mt-1 inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-xs text-amber-700" data-hint-title="Diproses di sistem lain" data-hint="Pesanan & retur toko ini masih diproses di luar Optima (cth. Ginee), jadi tidak ditarik ke Optima dan stok tidak dikirim.">
+                                        <x-heroicon-o-arrow-top-right-on-square class="size-3.5" /> Pesanan diproses di sistem lain
+                                    </p>
+                                @endunless
                             </td>
                             <td class="px-4 py-2.5">
                                 <span class="inline-flex items-center rounded-full px-2 py-0.5 text-xs {{ $tone }}">{{ ShopeeShop::STATUSES[$shop->status] ?? $shop->status }}</span>

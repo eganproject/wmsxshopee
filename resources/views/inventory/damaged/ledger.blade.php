@@ -82,7 +82,7 @@
                             <td class="px-4 py-2.5 text-slate-600">{{ $ledger->warehouse->code }}</td>
                             <td @class(['px-4 py-2.5 text-right tabular-nums', 'font-medium text-rose-600' => $ledger->qty_in, 'text-slate-400' => ! $ledger->qty_in])>{{ $ledger->qty_in ? $fmt($ledger->qty_in) : '—' }}</td>
                             <td @class(['px-4 py-2.5 text-right tabular-nums', 'font-medium text-emerald-600' => $ledger->qty_out, 'text-slate-400' => ! $ledger->qty_out])>{{ $ledger->qty_out ? $fmt($ledger->qty_out) : '—' }}</td>
-                            <td class="px-4 py-2.5 text-slate-600">{{ $ledger->notes ?? '—' }}</td>
+                            <td class="cell-wrap px-4 py-2.5 text-slate-600">{{ $ledger->notes ?? '—' }}</td>
                             <td class="px-4 py-2.5 text-slate-600">{{ $ledger->creator?->name ?? '—' }}</td>
                         </tr>
                     @empty

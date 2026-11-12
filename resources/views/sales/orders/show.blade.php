@@ -11,13 +11,17 @@
     <x-slot:breadcrumb>
         <x-heroicon-o-home class="size-4" />
         <x-heroicon-o-chevron-right class="size-3.5" />
-        <a href="{{ route('sales.orders.index') }}" class="hover:text-slate-700">Pesanan</a>
+        <a href="{{ route('sales.orders.index', $order->isOutbound() ? ['kind' => 'outbound'] : []) }}" class="hover:text-slate-700">{{ $order->isOutbound() ? 'Barang Keluar Manual' : 'Pesanan' }}</a>
         <x-heroicon-o-chevron-right class="size-3.5" />
         <span class="font-medium text-slate-700">{{ $order->number }}</span>
     </x-slot:breadcrumb>
 
-    <x-page-header :title="$order->number" :description="'Pesanan '.$order->customer_name.($order->channel_name ? ' · '.$order->channel_name : '')" icon="heroicon-o-shopping-cart">
-        <a href="{{ route('sales.orders.index') }}" class="btn-secondary"><x-heroicon-o-arrow-left class="size-5" /> Kembali</a>
+    <x-page-header :title="$order->number"
+                   :description="$order->isOutbound()
+                       ? 'Barang Keluar Manual · '.$order->outboundPurposeLabel().' · untuk '.$order->customer_name
+                       : 'Pesanan '.$order->customer_name.($order->channel_name ? ' · '.$order->channel_name : '')"
+                   :icon="$order->isOutbound() ? 'heroicon-o-arrow-up-tray' : 'heroicon-o-shopping-cart'">
+        <a href="{{ route('sales.orders.index', $order->isOutbound() ? ['kind' => 'outbound'] : []) }}" class="btn-secondary"><x-heroicon-o-arrow-left class="size-5" /> Kembali</a>
 
         @if (($order->shopee_shop_id || $order->tiktok_shop_id) && ! $order->hasStatus('cancelled'))
             @can('sales.confirm')
@@ -80,13 +84,6 @@
             @if ($order->hasStatus('confirmed'))
                 <a href="{{ route('sales.orders.picking', $order) }}" class="btn-primary"><x-heroicon-o-hand-raised class="size-5" /> Picking</a>
             @elseif ($order->hasStatus('picking'))
-                @can('sales.skip_scan')
-                    <form id="pack-order" method="POST" action="{{ route('sales.orders.pack', $order) }}">@csrf</form>
-                    <button type="button" class="btn-secondary"
-                            @click="$dispatch('confirm', { form: 'pack-order', title: 'Kemas tanpa QC scan?', message: 'Pesanan ditandai dikemas tanpa scan barang. Pastikan semua barang sudah dicek manual.', confirmText: 'Sudah Dikemas', variant: 'primary' })">
-                        <x-heroicon-o-archive-box class="size-5" /> Kemas tanpa Scan
-                    </button>
-                @endcan
                 <a href="{{ route('sales.qc.show', $order) }}" class="btn-primary"><x-heroicon-o-viewfinder-circle class="size-5" /> QC Scan</a>
             @elseif ($order->hasStatus('packed') && $order->isSelfPickup())
                 <form id="hand-to-customer" method="POST" action="{{ route('sales.orders.hand-to-customer', $order) }}">@csrf</form>
@@ -137,6 +134,29 @@
                         @error('qc_skip_note')<p class="mt-1 text-xs text-rose-600">{{ $message }}</p>@enderror
                     @endcan
                 @endif
+            </div>
+        </div>
+    @endif
+
+    @if ($order->hasStatus('picking') && $order->isQcHeld())
+        <div class="mb-5 flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+            <x-heroicon-o-pause-circle class="mt-0.5 size-5 shrink-0" />
+            <div class="min-w-0 flex-1">
+                <p class="font-medium">QC ditahan: {{ $order->qc_hold_reason }}</p>
+                <p class="mt-0.5">Oleh {{ $order->qcHolder?->name ?? '—' }} pada {{ $order->qc_held_at->translatedFormat('d M Y H:i') }}.
+                    @can('sales.fulfill')<a href="{{ route('sales.qc.show', $order) }}" class="font-medium underline">Buka QC</a> untuk melepas tahanan.@endcan</p>
+            </div>
+        </div>
+    @endif
+
+    @if ($order->qcSubstitutions->isNotEmpty())
+        <div class="mb-5 flex items-start gap-3 rounded-lg border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-800">
+            <x-heroicon-o-arrows-right-left class="mt-0.5 size-5 shrink-0" />
+            <div class="min-w-0 flex-1">
+                <p class="font-medium">Barang diganti saat QC</p>
+                @foreach ($order->qcSubstitutions as $substitution)
+                    <p class="mt-0.5">{{ $substitution->qty }} × <span class="font-mono">{{ $substitution->fromVariant?->sku }}</span> → <span class="font-mono font-medium">{{ $substitution->toVariant?->sku }}</span>: {{ $substitution->reason }} ({{ $substitution->user?->name ?? '—' }}, {{ $substitution->created_at->format('d/m H:i') }})</p>
+                @endforeach
             </div>
         </div>
     @endif
@@ -419,8 +439,14 @@
             <p class="text-xs text-slate-500">Gudang <span class="whitespace-nowrap">Pengirim <x-hint text="Gudang yang menyiapkan pesanan dan stoknya dicadangkan." /></span></p>
             <p class="mt-1 text-sm font-medium text-slate-900">{{ $order->warehouse->code }} · {{ $order->warehouse->name }}</p>
         </div>
+        @if ($order->isOutbound())
+            <div>
+                <p class="text-xs text-slate-500">Tujuan Barang Keluar</p>
+                <p class="mt-1 text-sm font-medium text-violet-700">{{ $order->outboundPurposeLabel() }}</p>
+            </div>
+        @endif
         <div>
-            <p class="text-xs text-slate-500">Pembeli</p>
+            <p class="text-xs text-slate-500">{{ $order->isOutbound() ? 'Penerima' : 'Pembeli' }}</p>
             <p class="mt-1 text-sm font-medium text-slate-900">{{ $order->customer_name }}</p>
             @if ($order->customer_phone)
                 <p class="text-xs text-slate-500">{{ $order->customer_phone }}</p>
@@ -430,6 +456,7 @@
             <p class="text-xs text-slate-500">Alamat Kirim</p>
             <p class="mt-1 text-sm whitespace-pre-line text-slate-700">{{ $order->shipping_address ?? '—' }}</p>
         </div>
+        @unless ($order->isOutbound())
         <div>
             <p class="text-xs text-slate-500">Pembayaran</p>
             <p class="mt-1 text-sm font-medium text-slate-900">{{ $order->paymentMethodLabel() ?? '—' }}</p>
@@ -441,6 +468,7 @@
                 ])>{{ $order->paymentStatusLabel() }}</span>
             @endif
         </div>
+        @endunless
         <div>
             <p class="text-xs text-slate-500">{{ $order->isSelfPickup() ? 'Pengiriman' : 'Kurir / Resi' }}</p>
             @if ($order->isSelfPickup())
@@ -576,7 +604,7 @@
                             @endif
                             <td class="px-4 py-2.5 text-right tabular-nums text-slate-600">{{ $money($bundleLine->price) }}</td>
                             <td class="px-4 py-2.5 text-right tabular-nums text-slate-900">{{ $money($bundleLine->qty * $bundleLine->price) }}</td>
-                            <td class="px-4 py-2.5 text-slate-600">{{ $bundleLine->notes ?? '—' }}</td>
+                            <td class="cell-wrap px-4 py-2.5 text-slate-600">{{ $bundleLine->notes ?? '—' }}</td>
                         </tr>
                         @foreach ($order->items->where('sales_order_bundle_id', $bundleLine->id) as $item)
                             @include('sales.orders._item-row', ['item' => $item, 'number' => null])

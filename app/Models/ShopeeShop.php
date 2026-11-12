@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Models\Concerns\LogsActivity;
+use App\Models\Concerns\ScopedToWarehouse;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -10,7 +11,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 /** Toko Shopee yang sudah diotorisasi pemiliknya, terhubung ke satu gudang pengirim. */
 class ShopeeShop extends Model
 {
-    use LogsActivity;
+    use LogsActivity, ScopedToWarehouse;
 
     public const STATUSES = [
         'connected' => 'Terhubung',
@@ -36,10 +37,14 @@ class ShopeeShop extends Model
         'last_error',
         'is_active',
         'stock_push',
+        'process_orders',
         'orders_synced_until',
         'returns_synced_until',
         'stock_pushed_at',
     ];
+
+    /** Bawaan sama dengan kolom: pesanan toko baru diproses di Optima. */
+    protected $attributes = ['process_orders' => true];
 
     protected $hidden = ['access_token', 'refresh_token'];
 
@@ -57,6 +62,7 @@ class ShopeeShop extends Model
             'last_synced_at' => 'datetime',
             'is_active' => 'boolean',
             'stock_push' => 'boolean',
+            'process_orders' => 'boolean',
             'orders_synced_until' => 'datetime',
             'returns_synced_until' => 'datetime',
             'stock_pushed_at' => 'datetime',
@@ -104,6 +110,15 @@ class ShopeeShop extends Model
     public function isConnected(): bool
     {
         return $this->status === 'connected' && filled($this->refresh_token);
+    }
+
+    /**
+     * Pesanan & retur toko ini diproses di Optima. Mati selama toko masih memakai
+     * sistem lain (cth. Ginee): Optima tidak menarik pesanan maupun retur toko ini.
+     */
+    public function processesOrders(): bool
+    {
+        return $this->isSyncable() && (bool) $this->process_orders;
     }
 
     public function accessTokenExpiresSoon(int $minutes): bool

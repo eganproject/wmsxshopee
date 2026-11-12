@@ -72,13 +72,13 @@
                                 @endif
                             </td>
                             <td class="px-4 py-2.5 whitespace-nowrap text-slate-600">{{ $log->moduleLabel() }}</td>
-                            <td class="px-4 py-2.5">
+                            <td class="cell-wrap px-4 py-2.5">
                                 <div class="flex flex-wrap items-center gap-2">
                                     <x-activity.event-badge :event="$log->event" />
                                     @if ($url)
-                                        <a href="{{ $url }}" class="text-slate-900 hover:text-brand-600 hover:underline">{{ $log->description }}</a>
+                                        <a href="{{ $url }}" class="min-w-0 text-slate-900 hover:text-brand-600 hover:underline">{{ $log->description }}</a>
                                     @else
-                                        <span class="text-slate-900">{{ $log->description }}</span>
+                                        <span class="min-w-0 text-slate-900">{{ $log->description }}</span>
                                     @endif
                                 </div>
                             </td>

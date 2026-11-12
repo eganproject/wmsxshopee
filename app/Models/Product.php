@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Models\Concerns\LogsActivity;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -30,6 +31,31 @@ class Product extends Model
             'has_variants' => 'boolean',
             'is_active' => 'boolean',
         ];
+    }
+
+    /**
+     * Filter daftar produk (cari, kategori, status), dipakai halaman Master Produk,
+     * ekspor dan template update massal supaya hasilnya selalu sama.
+     *
+     * @param  array{search?: ?string, category?: ?string, status?: ?string}  $filters
+     */
+    public function scopeFilter(Builder $query, array $filters): void
+    {
+        $search = trim((string) ($filters['search'] ?? ''));
+
+        $query
+            ->when($search !== '', fn ($query) => $query->where(fn ($q) => $q
+                ->where('name', 'like', "%{$search}%")
+                ->orWhere('sku', 'like', "%{$search}%")
+                ->orWhere('brand', 'like', "%{$search}%")
+                // Cari juga SKU & barcode varian, supaya bisa langsung scan barcode.
+                ->orWhereHas('variants', fn ($v) => $v->where(fn ($w) => $w
+                    ->where('sku', 'like', "%{$search}%")
+                    ->orWhere('barcode', $search)
+                    ->orWhereHas('aliases', fn ($a) => $a->where('barcode', $search)))))
+            )
+            ->when(filled($filters['category'] ?? null), fn ($query) => $query->where('category', $filters['category']))
+            ->when(filled($filters['status'] ?? null), fn ($query) => $query->where('is_active', $filters['status'] === 'active'));
     }
 
     public function unit(): BelongsTo

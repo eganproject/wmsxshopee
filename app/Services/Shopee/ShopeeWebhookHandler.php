@@ -26,7 +26,7 @@ class ShopeeWebhookHandler
             return true;
         }
 
-        $shop = ShopeeShop::find($event->shop_ref);
+        $shop = ShopeeShop::withoutGlobalScope('warehouse_access')->find($event->shop_ref);
         $data = $event->payload['data'] ?? [];
 
         if (! $shop) {
@@ -46,7 +46,7 @@ class ShopeeWebhookHandler
             return true;
         }
 
-        if (! $shop->isSyncable() || blank($event->order_id) || ! in_array($event->event_type, [3, 4], true)) {
+        if (! $shop->processesOrders() || blank($event->order_id) || ! in_array($event->event_type, [3, 4], true)) {
             return false;
         }
 
@@ -60,7 +60,7 @@ class ShopeeWebhookHandler
     /** Ambil ulang batas otorisasi (expire_time) semua toko yang terhubung. */
     private function refreshAuthorizationExpiry(): void
     {
-        foreach (ShopeeShop::where('status', 'connected')->where('is_active', true)->get() as $shop) {
+        foreach (ShopeeShop::withoutGlobalScope('warehouse_access')->where('status', 'connected')->where('is_active', true)->get() as $shop) {
             try {
                 $this->auth->syncShopInfo(ShopeeClient::make($shop->environment), $shop);
             } catch (ShopeeException $e) {

@@ -3,12 +3,14 @@
 namespace App\Http\Controllers\Shopee;
 
 use App\Http\Controllers\Controller;
+use App\Jobs\RunMarketplaceTask;
 use App\Models\ShopeeSetting;
 use App\Models\ShopeeShop;
+use App\Models\Warehouse;
+use App\Rules\AccessibleRecord;
 use App\Services\Shopee\ShopeeAuth;
 use App\Services\Shopee\ShopeeClient;
 use App\Services\Shopee\ShopeeException;
-use App\Services\Shopee\ShopeeSync;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
@@ -20,7 +22,7 @@ class ShopeeShopController extends Controller
     public function connect(Request $request, ShopeeAuth $auth): RedirectResponse
     {
         $data = $request->validate([
-            'warehouse_id' => ['required', Rule::exists('warehouses', 'id')->where('is_active', true)],
+            'warehouse_id' => ['required', Rule::exists('warehouses', 'id')->where('is_active', true), new AccessibleRecord(Warehouse::class)],
         ], [], ['warehouse_id' => 'gudang pengirim']);
 
         $client = ShopeeClient::make();
@@ -74,12 +76,12 @@ class ShopeeShopController extends Controller
     public function update(Request $request, ShopeeShop $shop): RedirectResponse
     {
         $data = $request->validate([
-            'warehouse_id' => ['required', Rule::exists('warehouses', 'id')],
+            'warehouse_id' => ['required', Rule::exists('warehouses', 'id'), new AccessibleRecord(Warehouse::class)],
             'is_active' => ['nullable', 'boolean'],
             'stock_push' => ['nullable', 'boolean'],
         ], [], ['warehouse_id' => 'gudang pengirim']);
 
-        $shop->update([...$data, 'is_active' => $data['is_active'] ?? false, 'stock_push' => $data['stock_push'] ?? false]);
+        $shop->update([...$data, 'is_active' => $data['is_active'] ?? false, 'stock_push' => ($data['stock_push'] ?? false) && $shop->process_orders]);
 
         return back()->with('success', "Toko {$shop->displayName()} diperbarui.");
     }
@@ -98,17 +100,18 @@ class ShopeeShopController extends Controller
     }
 
     /** Tarik pesanan, resi & retur lalu kirim stok sekarang (biasanya berjalan terjadwal). */
-    public function sync(Request $request, ShopeeShop $shop, ShopeeSync $sync): RedirectResponse
+    public function sync(Request $request, ShopeeShop $shop): RedirectResponse
     {
         abort_unless($request->user()->canAccessWarehouse($shop->warehouse_id), 403, 'Anda tidak punya akses ke gudang toko ini.');
 
-        try {
-            $result = $sync->run($shop);
-        } catch (ShopeeException $e) {
-            return back()->with('error', $e->getMessage());
+        if (! $shop->isSyncable()) {
+            return back()->with('error', "Toko {$shop->displayName()} belum bisa disinkron: pastikan terhubung, aktif dan punya gudang pengirim.");
         }
 
-        return back()->with('success', "{$shop->displayName()}: ".ShopeeSync::summary($result));
+        // Lewat antrean: sinkron toko besar bisa lebih lama dari batas waktu nginx (504).
+        return RunMarketplaceTask::start('orders', 'shopee', $shop, $request->user()->id)
+            ? back()->with('success', RunMarketplaceTask::queuedMessage())
+            : back()->with('warning', RunMarketplaceTask::busyMessage());
     }
 
     /**

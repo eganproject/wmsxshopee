@@ -193,7 +193,7 @@
                         <input id="variant-height" type="number" min="0" step="0.01" class="form-input" name="variants[0][height_cm]" x-model="variants[0].height_cm">
                     </div>
                     <div>
-                        <label class="form-label" for="variant-min-stock">Stok <span class="whitespace-nowrap">Minimum <x-hint title="Stok Minimum" text="Batas peringatan stok menipis. Bila stok tersedia sama atau di bawah angka ini, SKU muncul di laporan Stok Minimum dan notifikasi. Kosongkan bila tidak perlu." /></span></label>
+                        <label class="form-label" for="variant-min-stock">Stok <span class="whitespace-nowrap">Minimum <x-hint title="Stok Minimum" text="Batas peringatan stok menipis bawaan untuk setiap gudang yang menyimpan SKU ini. Angka per gudang bisa diatur berbeda di Inventori › SKU per Gudang. Bila stok tersedia di suatu gudang sama atau di bawah batasnya, SKU muncul di laporan Stok Minimum dan notifikasi. Kosongkan bila tidak perlu." /></span></label>
                         <input id="variant-min-stock" type="number" min="0" class="form-input" name="variants[0][min_stock]" x-model="variants[0].min_stock" placeholder="Kosong = tanpa peringatan">
                     </div>
                     <div>
@@ -215,7 +215,7 @@
                                     <th class="px-2 py-2"><span class="whitespace-nowrap">Barcode <x-hint title="Barcode" text="Kode yang tertera di kemasan (EAN / UPC) atau kode internal. Bisa di-scan menggantikan SKU saat QC kemas, penerimaan dan transfer." /></span></th>
                                     <th class="px-2 py-2">Berat <span class="whitespace-nowrap">(g) <x-hint text="Berat satu pcs termasuk kemasan, dalam gram. Dipakai untuk perkiraan ongkir dan sinkron ke Shopee." /></span></th>
                                     <th class="px-2 py-2">P × L × T <span class="whitespace-nowrap">(cm) <x-hint text="Panjang × lebar × tinggi paket satu pcs, dalam cm." /></span></th>
-                                    <th class="px-2 py-2">Stok <span class="whitespace-nowrap">Min. <x-hint title="Stok Minimum" text="Batas peringatan stok menipis. Bila stok tersedia sama atau di bawah angka ini, SKU muncul di laporan Stok Minimum dan notifikasi. Kosongkan bila tidak perlu." /></span></th>
+                                    <th class="px-2 py-2">Stok <span class="whitespace-nowrap">Min. <x-hint title="Stok Minimum" text="Batas peringatan stok menipis bawaan untuk setiap gudang yang menyimpan SKU ini. Angka per gudang bisa diatur berbeda di Inventori › SKU per Gudang. Bila stok tersedia di suatu gudang sama atau di bawah batasnya, SKU muncul di laporan Stok Minimum dan notifikasi. Kosongkan bila tidak perlu." /></span></th>
                                     <th class="px-2 py-2"><span class="whitespace-nowrap">Isi/Koli <x-hint title="Isi per Koli" text="Jumlah pcs dalam satu koli / karton. Saran transfer dari gudang besar dibulatkan ke atas per koli. Kosongkan bila barang tidak dikirim per koli." /></span></th>
                                     <th class="px-2 py-2 text-center"><span class="whitespace-nowrap">Aktif <x-hint text="Varian nonaktif tidak bisa dipilih di transaksi baru, tapi riwayat stoknya tetap tersimpan." /></span></th>
                                     <th class="py-2 pl-2"></th>

@@ -179,26 +179,27 @@ class StockOverview
 
     private static function reservedQuery(?int $warehouseId): QueryBuilder
     {
-        return self::orderLines($warehouseId, SalesOrder::RESERVING)
+        // Draft yang tertahan SKU belum dipetakan ikut "menunggu diambil".
+        return self::orderLines($warehouseId, fn ($q) => SalesOrder::whereReserving($q))
             ->selectRaw("sales_order_items.product_variant_id,
-                SUM(CASE WHEN sales_orders.status = 'confirmed' THEN sales_order_items.qty ELSE 0 END) as waiting,
-                SUM(CASE WHEN sales_orders.status != 'confirmed' THEN sales_order_items.qty ELSE 0 END) as picked");
+                SUM(CASE WHEN sales_orders.status IN ('confirmed', 'draft') THEN sales_order_items.qty ELSE 0 END) as waiting,
+                SUM(CASE WHEN sales_orders.status NOT IN ('confirmed', 'draft') THEN sales_order_items.qty ELSE 0 END) as picked");
     }
 
     private static function heldQuery(?int $warehouseId): QueryBuilder
     {
-        return self::orderLines($warehouseId, ['draft'])
+        return self::orderLines($warehouseId, fn ($q) => $q->where('sales_orders.status', 'draft')->whereNull('sales_orders.unmapped_skus'))
             ->selectRaw('sales_order_items.product_variant_id, SUM(sales_order_items.qty) as qty');
     }
 
-    /** @param  list<string>  $statuses */
-    private static function orderLines(?int $warehouseId, array $statuses): QueryBuilder
+    /** @param  \Closure(QueryBuilder): mixed  $orders  pembatas pesanan */
+    private static function orderLines(?int $warehouseId, \Closure $orders): QueryBuilder
     {
         $accessible = WarehouseAccess::ids();
 
         return DB::table('sales_order_items')
             ->join('sales_orders', 'sales_orders.id', '=', 'sales_order_items.sales_order_id')
-            ->whereIn('sales_orders.status', $statuses)
+            ->where($orders)
             ->whereNotNull('sales_order_items.product_variant_id')
             ->when($warehouseId, fn ($q) => $q->where('sales_orders.warehouse_id', $warehouseId))
             ->when($accessible !== null, fn ($q) => $q->whereIn('sales_orders.warehouse_id', $accessible))

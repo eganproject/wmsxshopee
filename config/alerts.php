@@ -11,6 +11,9 @@ return [
     // Pesanan Shopee yang sudah diserahkan ke kurir tapi lebih dari N jam belum discan kurir (status Shopee masih Diproses).
     'courier_scan_hours' => (int) env('ALERT_COURIER_SCAN_HOURS', 24),
 
+    // Pesanan Sedang Diambil yang belum di-QC lebih dari N jam ditandai merah di Antrean QC (kuning sejak separuhnya).
+    'qc_waiting_hours' => (int) env('ALERT_QC_WAITING_HOURS', 4),
+
     // Pesanan draft yang belum dikonfirmasi lebih dari N jam.
     'draft_order_hours' => (int) env('ALERT_DRAFT_ORDER_HOURS', 24),
 

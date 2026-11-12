@@ -98,6 +98,7 @@ class GlobalSearch
             ->where(fn (Builder $query) => $query
                 ->where('sku', 'like', $this->like)
                 ->orWhere('barcode', 'like', $this->like)
+                ->orWhereHas('aliases', fn (Builder $query) => $query->where('barcode', 'like', $this->like))
                 ->orWhere('name', 'like', $this->like)
                 ->orWhereHas('product', fn (Builder $query) => $query
                     ->where('name', 'like', $this->like)

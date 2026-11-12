@@ -3,17 +3,19 @@
 namespace App\Http\Controllers;
 
 use App\Models\LostItem;
-use App\Models\ProductVariant;
 use App\Models\Stock;
 use App\Models\StockLedger;
 use App\Models\Warehouse;
 use App\Models\WarehouseZone;
 use App\Support\ReorderSuggestions;
+use App\Support\StockAnalytics;
 use App\Support\StockLevels;
 use App\Support\XlsxExport;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\View\View;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
@@ -102,18 +104,18 @@ class ReportController extends Controller
 
         if ($request->input('export') === 'xlsx') {
             return XlsxExport::download('stok-minimum-'.now()->format('Ymd-His').'.xlsx',
-                ['SKU', 'Produk', 'Varian', 'Satuan', 'Stok Minimum', 'Stok Fisik', 'Dicadangkan', 'Tersedia', 'Kekurangan'],
-                $query->cursor()->map(fn ($row) => [
-                    $row->sku, $row->product_name, $row->variant_name ?? '', $row->unit_code ?? '',
-                    (int) $row->min_stock, (int) $row->on_hand, (int) $row->reserved, (int) $row->available,
+                ['SKU', 'Produk', 'Varian', 'Gudang', 'Satuan', 'Stok Minimum', 'Sumber Minimum', 'Stok Fisik', 'Dicadangkan', 'Tersedia', 'Kekurangan'],
+                $query->toBase()->cursor()->map(fn ($row) => [
+                    $row->sku, $row->product_name, $row->variant_name ?? '', $row->warehouse_code, $row->unit_code ?? '',
+                    (int) $row->min_stock, $row->min_from_master ? 'Master Produk' : 'SKU per Gudang', (int) $row->on_hand, (int) $row->reserved, (int) $row->available,
                     max((int) $row->min_stock - (int) $row->available, 0),
                 ]));
         }
 
         return view('reports.min-stock', [
-            'rows' => $query->paginate(50)->withQueryString(),
+            'rows' => $query->toBase()->paginate(50)->withQueryString(),
             'belowCount' => $belowCount,
-            'withMinCount' => ProductVariant::whereNotNull('min_stock')->where('is_active', true)->count(),
+            'withMinCount' => StockLevels::minStockQuery($warehouseId)->reorder()->count(),
             'warehouses' => Warehouse::orderBy('code')->get(),
         ]);
     }
@@ -137,10 +139,10 @@ class ReportController extends Controller
             $suppliers = ReorderSuggestions::lastSuppliers($rows->pluck('id')->all());
 
             return XlsxExport::download('saran-pembelian-'.now()->format('Ymd-His').'.xlsx',
-                ['SKU', 'Produk', 'Varian', 'Satuan', 'Stok Minimum', 'Tersedia', 'Dalam Draft Penerimaan',
+                ['SKU', 'Produk', 'Varian', 'Gudang', 'Satuan', 'Stok Minimum', 'Tersedia', 'Dalam Draft Penerimaan',
                     "Terjual {$suggestions->lookbackDays} Hari", 'Rata-rata/Hari', 'Perkiraan Habis (hari)', 'Stok Target', 'Saran Beli', 'Supplier Terakhir'],
                 $rows->map(fn ($row) => [
-                    $row->sku, $row->product_name, $row->variant_name ?? '', $row->unit_code ?? '',
+                    $row->sku, $row->product_name, $row->variant_name ?? '', $row->warehouse_code, $row->unit_code ?? '',
                     $row->min_stock ?? '', $row->available, $row->incoming, $row->sold, round($row->daily, 2),
                     $row->days_left ?? '', $row->target, $row->suggested, $suppliers[$row->id] ?? '',
                 ]));
@@ -227,6 +229,133 @@ class ReportController extends Controller
             'to' => $to,
             'warehouses' => Warehouse::orderBy('code')->get(),
         ]);
+    }
+
+    /**
+     * Prakiraan stok habis per varian × gudang: stok tersedia dibagi rata-rata
+     * terjual per hari dalam N hari terakhir.
+     */
+    public function runout(Request $request): View|BinaryFileResponse
+    {
+        $warehouseId = $request->filled('warehouse') ? $request->integer('warehouse') : null;
+        $lookback = max(7, min(180, $request->integer('lookback', 30) ?: 30));
+        $critical = max(1, min(90, $request->integer('critical', 7) ?: 7));
+        $warning = max($critical + 1, min(180, $request->integer('warning', 14) ?: 14));
+
+        $all = StockAnalytics::runout($warehouseId, $lookback, $critical, $warning, $request->input('search'));
+        $status = (string) $request->input('status');
+        $rows = array_key_exists($status, StockAnalytics::RUNOUT_STATUSES)
+            ? $all->where('status', $status)->values()
+            // Tanpa filter: yang tidak terjual disembunyikan supaya fokus ke yang akan habis.
+            : ($status === 'all' ? $all : $all->where('status', '!=', 'idle')->values());
+
+        if ($request->input('export') === 'xlsx') {
+            return XlsxExport::download('prakiraan-stok-habis-'.now()->format('Ymd-His').'.xlsx',
+                ['SKU', 'Produk', 'Varian', 'Gudang', 'Satuan', 'Stok Fisik', 'Dicadangkan', 'Tersedia', "Terjual {$lookback} Hari", 'Rata-rata/Hari',
+                    'Sisa Hari', 'Perkiraan Habis', 'Status', 'Dalam Draft Penerimaan', 'Terakhir Terjual'],
+                $rows->map(fn ($row) => [
+                    $row->sku, $row->product_name, $row->variant_name ?? '', $row->warehouse_code, $row->unit_code ?? '',
+                    $row->on_hand, $row->reserved, $row->available, $row->sold, round($row->daily, 2),
+                    $row->days_left ?? '', $row->runout_date?->format('d/m/Y') ?? '', StockAnalytics::RUNOUT_STATUSES[$row->status]['label'],
+                    $row->incoming, $row->last_sold_at ? Carbon::parse($row->last_sold_at)->format('d/m/Y') : '',
+                ]));
+        }
+
+        return view('reports.runout', [
+            'rows' => $this->paginate($request, $rows),
+            'counts' => $all->countBy('status'),
+            'lookback' => $lookback,
+            'critical' => $critical,
+            'warning' => $warning,
+            'warehouses' => Warehouse::orderBy('code')->get(),
+        ]);
+    }
+
+    /** Saldo stok di akhir tanggal tertentu, dihitung dari kartu stok. */
+    public function balance(Request $request): View|BinaryFileResponse
+    {
+        $date = ($request->date('date') ?? now())->startOfDay();
+        if ($date->isFuture()) {
+            $date = now()->startOfDay();
+        }
+        $warehouseId = $request->filled('warehouse') ? $request->integer('warehouse') : null;
+        $perWarehouse = $request->input('group', 'warehouse') === 'warehouse';
+        $query = StockAnalytics::balanceAsOf($date, $warehouseId, $perWarehouse, $request->input('search'), $request->boolean('zero'));
+
+        if ($request->input('export') === 'xlsx') {
+            $header = ['SKU', 'Produk', 'Varian', ...($perWarehouse ? ['Gudang'] : []), 'Satuan', 'Saldo '.$date->format('d/m/Y'), 'Mutasi Terakhir'];
+
+            return XlsxExport::download("saldo-stok-{$date->format('Ymd')}.xlsx", $header,
+                $query->toBase()->cursor()->map(fn ($row) => [
+                    $row->sku, $row->product_name, $row->variant_name ?? '', ...($perWarehouse ? [$row->warehouse_code] : []),
+                    $row->unit_code ?? '', (int) $row->balance, $row->last_movement ? Carbon::parse($row->last_movement)->format('d/m/Y') : '',
+                ]));
+        }
+
+        $totals = DB::query()->fromSub((clone $query)->reorder()->toBase(), 'rows')
+            ->selectRaw('COALESCE(SUM(balance), 0) as qty, COUNT(*) as lines, COUNT(DISTINCT product_variant_id) as skus')
+            ->first();
+
+        return view('reports.balance', [
+            'rows' => $query->toBase()->paginate(50)->withQueryString(),
+            'totals' => $totals,
+            'date' => $date,
+            'perWarehouse' => $perWarehouse,
+            'warehouses' => Warehouse::orderBy('code')->get(),
+        ]);
+    }
+
+    /** Klasifikasi fast / medium / slow moving dari qty terjual dalam rentang tanggal. */
+    public function moving(Request $request): View|BinaryFileResponse
+    {
+        $from = ($request->date('from') ?? now()->subDays(89))->startOfDay();
+        $to = ($request->date('to') ?? now())->startOfDay();
+        if ($to->lt($from)) {
+            [$from, $to] = [$to, $from];
+        }
+        $warehouseId = $request->filled('warehouse') ? $request->integer('warehouse') : null;
+        $fast = max(10, min(95, $request->integer('fast', 80) ?: 80));
+        $medium = max($fast + 1, min(99, $request->integer('medium', 95) ?: 95));
+
+        $all = StockAnalytics::movingClasses($from, $to, $warehouseId, $fast, $medium, $request->input('search'));
+        $class = (string) $request->input('class');
+        $rows = array_key_exists($class, StockAnalytics::MOVING_CLASSES) ? $all->where('class', $class)->values() : $all;
+
+        if ($request->input('export') === 'xlsx') {
+            return XlsxExport::download("fast-slow-moving-{$from->format('Ymd')}-{$to->format('Ymd')}.xlsx",
+                ['SKU', 'Produk', 'Varian', 'Satuan', 'Kelas', 'Terjual', 'Kali Keluar', 'Rata-rata/Hari', 'Porsi (%)', 'Kumulatif (%)', 'Stok Sekarang', 'Cukup (hari)', 'Terakhir Terjual'],
+                $rows->map(fn ($row) => [
+                    $row->sku, $row->product_name, $row->variant_name ?? '', $row->unit_code ?? '', StockAnalytics::MOVING_CLASSES[$row->class]['label'],
+                    $row->sold, $row->out_count, round($row->daily, 2), round($row->share, 2), round($row->cumulative, 2), $row->stock,
+                    $row->cover_days ?? '', $row->last_sold ? Carbon::parse($row->last_sold)->format('d/m/Y') : '',
+                ]));
+        }
+
+        $summary = collect(StockAnalytics::MOVING_CLASSES)->map(fn ($meta, $key) => [
+            'skus' => $all->where('class', $key)->count(),
+            'sold' => $all->where('class', $key)->sum('sold'),
+            'stock' => $all->where('class', $key)->sum('stock'),
+        ]);
+
+        return view('reports.moving', [
+            'rows' => $this->paginate($request, $rows),
+            'summary' => $summary,
+            'totalSold' => $all->sum('sold'),
+            'from' => $from,
+            'to' => $to,
+            'fast' => $fast,
+            'medium' => $medium,
+            'warehouses' => Warehouse::orderBy('code')->get(),
+        ]);
+    }
+
+    /** @param  Collection<int, object>  $rows */
+    private function paginate(Request $request, $rows): LengthAwarePaginator
+    {
+        return new LengthAwarePaginator(
+            $rows->forPage(LengthAwarePaginator::resolveCurrentPage(), 50)->values(),
+            $rows->count(), 50, null, ['path' => $request->url(), 'query' => $request->query()],
+        );
     }
 
     /**

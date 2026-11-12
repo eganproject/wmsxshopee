@@ -69,13 +69,13 @@
                       same: r => String(r.product_variant_id) === String(item.product_variant_id) && String(r.from_location_id) === String(item.from_location_id),
                       make: (loc, qty) => ({ ...this.blank(), product_variant_id: String(item.product_variant_id), from_location_id: item.from_location_id, to_location_id: loc, qty, notes: item.notes }),
                   });
-                  if (changed) this.splitNote = 'Bin utama di gudang tujuan penuh, sisa barang disarankan ke bin cadangan (lihat Inventori > Lokasi Tetap SKU).';
+                  if (changed) this.splitNote = 'Bin utama di gudang tujuan penuh, sisa barang disarankan ke bin cadangan (lihat Inventori > SKU per Gudang).';
               },
               addScanned() {
                   const code = this.scan.trim().toUpperCase();
                   if (! code) return;
-                  const variant = this.variants.find(v => v.sku === code || (v.barcode && v.barcode.toUpperCase() === code));
-                  if (! variant) { this.scanError = `SKU / barcode ${code} tidak ditemukan.`; return; }
+                  const variant = this.variants.find(v => v.sku === code || (v.barcode && v.barcode.toUpperCase() === code) || (v.aliases || []).includes(code));
+                  if (! variant) { window.reportScanMiss?.(code, 'transfer'); this.scanError = `SKU / barcode ${code} tidak ditemukan.`; return; }
                   this.scanError = '';
                   let row = this.items.find(i => ! i.product_variant_id);
                   if (row) { row.product_variant_id = String(variant.id); } else { row = { ...this.blank(), product_variant_id: String(variant.id) }; this.items.push(row); }

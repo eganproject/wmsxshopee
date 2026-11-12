@@ -9,6 +9,7 @@ use App\Models\Stock;
 use App\Models\Supplier;
 use App\Models\WarehouseLocation;
 use App\Services\FixedBins;
+use App\Support\Barcodes;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -37,7 +38,7 @@ class CatalogController extends Controller
             ->map(fn (ProductVariant $variant) => [
                 'id' => $variant->id,
                 'sku' => $variant->sku,
-                'barcode' => $variant->barcode,
+                'barcode' => $variant->barcode, 'aliases' => Barcodes::aliasesOf($variant->id),
                 'name' => $variant->product->name,
                 'variant' => $variant->name,
                 'unit' => $variant->product->unit?->code,

@@ -23,6 +23,7 @@ class VariantLookupController extends Controller
                 $query->where(fn (Builder $query) => $query
                     ->where('sku', 'like', $like)
                     ->orWhere('barcode', 'like', $like)
+                    ->orWhereHas('aliases', fn (Builder $query) => $query->where('barcode', 'like', $like))
                     ->orWhere('name', 'like', $like)
                     ->orWhereHas('product', fn (Builder $query) => $query->where('name', 'like', $like)));
             })

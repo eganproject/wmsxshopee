@@ -25,6 +25,7 @@
         <div class="card list" style="margin-top:16px">
             <a href="{{ route('mobile.outbox') }}" class="it"><x-m-icon name="cloud" /><div class="grow t">Antrean offline</div><x-m-icon name="right" size="s" class="muted" /></a>
             <a href="{{ route('mobile.print') }}" class="it"><x-m-icon name="printer" /><div class="grow t">Printer & label</div><x-m-icon name="right" size="s" class="muted" /></a>
+            <button type="button" class="it" x-show="info" @click="checkUpdate()" :disabled="checking"><x-m-icon name="zap" /><div class="grow t" x-text="checking ? 'Mengecek update...' : 'Cek update aplikasi'"></div><x-m-icon name="right" size="s" class="muted" /></button>
             <button type="button" class="it" x-show="info" @click="changeServer()"><x-m-icon name="refresh" /><div class="grow t">Ganti server (Live / Test)</div><x-m-icon name="right" size="s" class="muted" /></button>
         </div>
 

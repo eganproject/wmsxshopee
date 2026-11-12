@@ -14,6 +14,7 @@ use App\Services\FixedBins;
 use App\Services\HeldOrderRetry;
 use App\Services\WarehouseSupply;
 use App\Services\WarehouseTransferService;
+use App\Support\Barcodes;
 use App\Support\WarehouseAccess;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -107,7 +108,7 @@ class WarehouseTransferController extends Controller
                 ->whereHas('product', fn ($q) => $q->where('is_active', true))
                 ->orderBy('sku')
                 ->get()
-                ->map(fn ($v) => ['id' => $v->id, 'sku' => $v->sku, 'barcode' => $v->barcode, 'label' => $v->displayName(), 'per' => $v->pcs_per_carton])
+                ->map(fn ($v) => ['id' => $v->id, 'sku' => $v->sku, 'barcode' => $v->barcode, 'aliases' => Barcodes::aliasesOf($v->id), 'label' => $v->displayName(), 'per' => $v->pcs_per_carton])
                 ->values(),
         ]);
     }
@@ -154,6 +155,21 @@ class WarehouseTransferController extends Controller
             'locations' => WarehouseLocation::withoutGlobalScope('warehouse_access')->where('warehouse_id', $transfer->to_warehouse_id)
                 ->where('is_active', true)->orderBy('code')->get(['id', 'code']),
         ]);
+    }
+
+    /** Surat jalan siap cetak (A4) untuk dibawa bersama barang. */
+    public function deliveryNote(WarehouseTransfer $transfer): View
+    {
+        $transfer->load([
+            'fromWarehouse' => fn ($q) => $q->withoutGlobalScope('warehouse_access'),
+            'toWarehouse' => fn ($q) => $q->withoutGlobalScope('warehouse_access'),
+            'creator', 'receiver',
+            'items.variant.product.unit',
+            'items.fromLocation' => fn ($q) => $q->withoutGlobalScope('warehouse_access'),
+            'items.toLocation' => fn ($q) => $q->withoutGlobalScope('warehouse_access'),
+        ]);
+
+        return view('inventory.transfers.delivery-note', ['transfer' => $transfer]);
     }
 
     public function receive(Request $request, WarehouseTransfer $transfer, WarehouseTransferService $service): RedirectResponse

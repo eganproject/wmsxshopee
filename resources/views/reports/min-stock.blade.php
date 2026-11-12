@@ -9,7 +9,10 @@
         <span class="font-medium text-slate-700">Stok Minimum</span>
     </x-slot:breadcrumb>
 
-    <x-page-header title="Stok Minimum" description="Barang yang stok tersedianya (fisik dikurangi cadangan pesanan) sudah di bawah atau sama dengan stok minimum." icon="heroicon-o-bell-alert">
+    <x-page-header title="Stok Minimum" description="Barang yang stok tersedianya (fisik dikurangi cadangan pesanan) di suatu gudang sudah di bawah atau sama dengan stok minimum gudang itu." icon="heroicon-o-bell-alert">
+        @can('inventory.view')
+            <a href="{{ route('inventory.sku-settings.index', ['warehouse' => request('warehouse')]) }}" class="btn-secondary"><x-heroicon-o-adjustments-horizontal class="size-5" /> Atur stok minimum</a>
+        @endcan
         <x-reports.export-button />
     </x-page-header>
 
@@ -17,16 +20,16 @@
 
     <div class="mb-6 grid gap-4 sm:grid-cols-3">
         <div class="card p-4">
-            <p class="text-xs text-slate-500">Perlu Diisi <span class="whitespace-nowrap">Ulang <x-hint text="SKU yang stok tersedianya sudah sama atau di bawah stok minimum." /></span></p>
+            <p class="text-xs text-slate-500">Perlu Diisi <span class="whitespace-nowrap">Ulang <x-hint text="Baris SKU per gudang yang stok tersedianya sudah sama atau di bawah stok minimum gudang itu." /></span></p>
             <p @class(['mt-1 text-xl font-semibold tabular-nums', 'text-rose-600' => $belowCount > 0, 'text-slate-900' => ! $belowCount])>{{ $fmt($belowCount) }} SKU</p>
         </div>
         <div class="card p-4">
-            <p class="text-xs text-slate-500">SKU dengan Stok <span class="whitespace-nowrap">Minimum <x-hint text="Jumlah SKU yang sudah diberi batas stok minimum di Master Produk." /></span></p>
+            <p class="text-xs text-slate-500">SKU dengan Stok <span class="whitespace-nowrap">Minimum <x-hint text="Jumlah baris SKU per gudang yang punya batas stok minimum (dari SKU per Gudang atau Master Produk)." /></span></p>
             <p class="mt-1 text-xl font-semibold tabular-nums text-slate-900">{{ $fmt($withMinCount) }}</p>
         </div>
         <div class="card flex items-start gap-2 p-4 text-xs text-slate-500">
             <x-heroicon-o-information-circle class="size-4 shrink-0" />
-            <span>Stok minimum diatur per varian di Master Produk. Tanpa filter gudang, stok dijumlahkan dari semua gudang.</span>
+            <span>Stok minimum dihitung per gudang dan diatur di Inventori › SKU per Gudang. Kalau kosong, dipakai stok minimum Master Produk untuk gudang yang menyimpan SKU itu.</span>
         </div>
     </div>
 
@@ -60,7 +63,8 @@
                     <tr>
                         <th class="h-8 px-4 py-0 font-normal">SKU</th>
                         <th class="h-8 px-4 py-0 font-normal">Produk / Varian</th>
-                        <th class="h-8 px-4 py-0 text-right font-normal">Stok <span class="whitespace-nowrap">Min. <x-hint text="Batas peringatan yang diisi di Master Produk." /></span></th>
+                        <th class="h-8 px-4 py-0 font-normal">Gudang</th>
+                        <th class="h-8 px-4 py-0 text-right font-normal">Stok <span class="whitespace-nowrap">Min. <x-hint text="Batas peringatan gudang ini dari SKU per Gudang. Tanda * = belum diatur per gudang, memakai angka Master Produk." /></span></th>
                         <th class="h-8 px-4 py-0 text-right font-normal"><span class="whitespace-nowrap">Fisik <x-hint text="Barang yang secara fisik ada di gudang." /></span></th>
                         <th class="h-8 px-4 py-0 text-right font-normal"><span class="whitespace-nowrap">Dicadangkan <x-hint text="Stok yang sudah dicadangkan untuk pesanan yang belum dikirim." /></span></th>
                         <th class="h-8 px-4 py-0 text-right font-normal"><span class="whitespace-nowrap">Tersedia <x-hint text="Fisik dikurangi Dicadangkan." /></span></th>
@@ -73,7 +77,7 @@
                         @php($below = $row->available <= $row->min_stock)
                         <tr class="hover:bg-slate-50/60">
                             <td class="px-4 py-2.5 font-mono font-medium text-slate-900">
-                                @can('inventory.view')<a href="{{ route('inventory.stocks.index', ['view' => 'location', 'search' => $row->sku, 'warehouse' => request('warehouse')]) }}" class="hover:text-brand-600" title="Lihat stok per lokasi">{{ $row->sku }}</a>@else{{ $row->sku }}@endcan
+                                @can('inventory.view')<a href="{{ route('inventory.stocks.index', ['view' => 'location', 'search' => $row->sku, 'warehouse' => $row->warehouse_id]) }}" class="hover:text-brand-600" title="Lihat stok per lokasi">{{ $row->sku }}</a>@else{{ $row->sku }}@endcan
                             </td>
                             <td class="px-4 py-2.5">
                                 <p class="text-slate-900">{{ $row->product_name }}</p>
@@ -81,7 +85,10 @@
                                     <p class="text-xs text-slate-500">{{ $row->variant_name }}</p>
                                 @endif
                             </td>
-                            <td class="px-4 py-2.5 text-right tabular-nums text-slate-600">{{ $fmt($row->min_stock) }}</td>
+                            <td class="px-4 py-2.5 font-medium text-slate-700" title="{{ $row->warehouse_name }}">{{ $row->warehouse_code }}</td>
+                            <td class="px-4 py-2.5 text-right tabular-nums text-slate-600">
+                                {{ $fmt($row->min_stock) }}@if ($row->min_from_master)<span class="text-slate-400" title="Belum diatur per gudang, memakai stok minimum Master Produk">*</span>@endif
+                            </td>
                             <td class="px-4 py-2.5 text-right tabular-nums text-slate-600">{{ $fmt($row->on_hand) }}</td>
                             <td class="px-4 py-2.5 text-right tabular-nums text-slate-600">{{ $fmt($row->reserved) }}</td>
                             <td @class(['px-4 py-2.5 text-right font-semibold tabular-nums', 'text-rose-600' => $below, 'text-slate-900' => ! $below])>
@@ -99,7 +106,7 @@
                             </td>
                         </tr>
                     @empty
-                        <x-empty-state colspan="8" icon="heroicon-o-bell-alert" :title="$withMinCount ? 'Semua stok aman' : 'Belum ada stok minimum'" :description="$withMinCount ? 'Tidak ada barang di bawah stok minimum.' : 'Isi kolom Stok Minimum pada varian di Master Produk.'" />
+                        <x-empty-state colspan="9" icon="heroicon-o-bell-alert" :title="$withMinCount ? 'Semua stok aman' : 'Belum ada stok minimum'" :description="$withMinCount ? 'Tidak ada barang di bawah stok minimum.' : 'Isi kolom Min di Inventori › SKU per Gudang, atau Stok Minimum di Master Produk.'" />
                     @endforelse
                 </tbody>
             </table>

@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Jobs\RunMarketplaceTask;
 use App\Models\ActivityLog;
 use App\Models\Bundle;
 use App\Models\Courier;
@@ -27,12 +28,15 @@ use App\Services\Shopee\ShopeeOrderSync;
 use App\Services\Shopee\ShopeeStockSync;
 use App\Services\Shopee\ShopeeSync;
 use App\Services\StockService;
+use App\Services\WarehouseSupply;
+use App\Support\BackgroundTasks;
 use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Factory;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Queue;
 use OpenSpout\Reader\XLSX\Reader;
 use Tests\TestCase;
 
@@ -334,6 +338,54 @@ class ShopeeSyncTest extends TestCase
         $this->assertSame($topi->id, $this->shop->mappings()->where('item_id', 33)->value('product_variant_id'));
         $this->assertSame(2, (int) $order->items->firstWhere('product_variant_id', $topi->id)->qty);
         $this->assertSame(1, SalesOrder::count());
+    }
+
+    public function test_unmapped_draft_still_reserves_stock_of_its_mapped_lines(): void
+    {
+        $this->actingAs(User::where('username', 'superadmin')->first());
+        // KAOS-L stok 4: B4 (SKU TOPI-X belum dipetakan) memesan 3, B5 memesan 2.
+        $this->fakeOrders([
+            $this->order('B4', 'READY_TO_SHIP', [$this->line(33, 301, 1, 'TOPI-X'), $this->line(11, 102, 3)]),
+            $this->order('B5', 'READY_TO_SHIP', [$this->line(11, 102, 2)]),
+        ]);
+        $this->artisan('shopee:sync --only=orders')->assertSuccessful();
+
+        $b4 = SalesOrder::where('external_number', 'B4')->firstOrFail();
+        $b5 = SalesOrder::where('external_number', 'B5')->firstOrFail();
+        $this->assertSame('draft', $b4->status);
+        $this->assertSame(['TOPI-X'], $b4->unmapped_skus);
+        $this->assertSame('draft', $b5->status, 'Stok KAOS-L sudah ditahan draft B4, jadi B5 tertahan stok.');
+        $this->assertTrue(SalesOrder::stockHeld()->whereKey($b5->id)->exists());
+
+        $level = app(SalesOrderService::class)->availability($this->warehouse->id, [$this->kaosL->id])[$this->kaosL->id];
+        $this->assertSame(['on_hand' => 4, 'reserved' => 3, 'available' => 1], $level);
+        $this->assertSame(1, app(WarehouseSupply::class)->sellable($this->warehouse->id, [$this->kaosL->id])[$this->kaosL->id]['pushable']);
+
+        $alerts = app(AlertService::class)->groups(User::where('username', 'superadmin')->first());
+        $this->assertSame(['B4'], $alerts['unmapped_orders']['items']->pluck('external_number')->all());
+        $this->get('/notifications')->assertOk()->assertSee('Pesanan dengan SKU belum dipetakan')->assertSee('TOPI-X');
+        $this->get('/sales/orders?shopee=unmapped')->assertOk()->assertSee($b4->number)->assertDontSee($b5->number);
+
+        // Setelah dipetakan, B4 dikonfirmasi tanpa terhalang cadangannya sendiri.
+        $this->shop->mappings()->where('item_id', 33)->firstOrFail()->update(['product_variant_id' => $this->kaosM->id]);
+        Http::swap(new Factory);
+        Http::preventStrayRequests();
+        $this->app->terminate();
+
+        $this->assertSame('confirmed', $b4->refresh()->status);
+        $this->assertSame('draft', $b5->refresh()->status);
+    }
+
+    public function test_cancelling_unmapped_draft_releases_its_stock(): void
+    {
+        $this->fakeOrders([$this->order('B6', 'READY_TO_SHIP', [$this->line(33, 301, 1, 'TOPI-X'), $this->line(11, 102, 4)])]);
+        $this->artisan('shopee:sync --only=orders')->assertSuccessful();
+        $this->assertSame(0, app(SalesOrderService::class)->availability($this->warehouse->id, [$this->kaosL->id])[$this->kaosL->id]['available']);
+
+        $this->resync([$this->order('B6', 'CANCELLED', [$this->line(33, 301, 1, 'TOPI-X'), $this->line(11, 102, 4)])]);
+
+        $this->assertSame('cancelled', SalesOrder::where('external_number', 'B6')->value('status'));
+        $this->assertSame(4, app(SalesOrderService::class)->availability($this->warehouse->id, [$this->kaosL->id])[$this->kaosL->id]['available']);
     }
 
     public function test_new_sku_or_mapping_schedules_relink_but_unrelated_edits_do_not(): void
@@ -1008,6 +1060,34 @@ class ShopeeSyncTest extends TestCase
         Http::assertSent(fn ($r) => count($r['stock_list']) === 10);
     }
 
+    public function test_sync_buttons_run_in_queue_and_report_back(): void
+    {
+        $this->actingAs(User::where('username', 'superadmin')->first());
+        Queue::fake();
+
+        // Tombol tidak menunggu API Shopee (504 di nginx), cukup masuk antrean.
+        $this->post("/shopee/shops/{$this->shop->id}/sync")->assertSessionHas('success', fn ($m) => str_contains($m, 'latar belakang'));
+        $this->post("/shopee/shops/{$this->shop->id}/mappings/pull")->assertSessionHas('success');
+        Queue::assertPushed(RunMarketplaceTask::class, 2);
+        Http::assertNothingSent();
+
+        // Tombol yang sama ditekan lagi sebelum selesai: tidak dobel.
+        $this->post("/shopee/shops/{$this->shop->id}/sync")->assertSessionHas('warning');
+        Queue::assertPushed(RunMarketplaceTask::class, 2);
+
+        // Selama berjalan, halaman menampilkan pil status dan endpoint melaporkannya.
+        $this->get('/dashboard')->assertOk()->assertSee('Sinkron berjalan', false);
+        $this->getJson('/marketplace/background-tasks')->assertOk()->assertJsonCount(2, 'running')->assertJsonCount(0, 'finished');
+
+        // Job selesai / mati di tengah jalan: hasilnya dilaporkan sekali, lalu boleh ditekan lagi.
+        BackgroundTasks::finish(auth()->id(), RunMarketplaceTask::key('orders', 'shopee', $this->shop->id), true, 'Pesanan: 1 baru.');
+        (new RunMarketplaceTask('pull', 'shopee', $this->shop->id, auth()->id()))->failed(null);
+        $this->getJson('/marketplace/background-tasks')->assertOk()->assertJsonCount(0, 'running')
+            ->assertJsonPath('finished.0.type', 'success')->assertJsonPath('finished.1.type', 'error');
+        $this->getJson('/marketplace/background-tasks')->assertJsonCount(0, 'finished');
+        $this->post("/shopee/shops/{$this->shop->id}/sync")->assertSessionHas('success');
+    }
+
     public function test_sync_button_and_order_page(): void
     {
         $this->actingAs(User::where('username', 'superadmin')->first());
@@ -1140,7 +1220,8 @@ class ShopeeSyncTest extends TestCase
         // (diganti variasi baru 103), item 22 (paket) dihapus.
         $this->fakeCatalog([11 => [101 => 'POD2', 103 => 'KAOS-L']]);
 
-        $this->post('/marketplace/sync-products')->assertSessionHas('success', fn ($m) => str_contains($m, '2 SKU sudah tidak ada di toko'));
+        $this->post('/marketplace/sync-products')->assertSessionHas('success');
+        $this->assertStringContainsString('2 SKU sudah tidak ada di toko', $this->backgroundResult());
 
         $rows = $this->shop->mappings()->get()->keyBy('model_id');
         $this->assertSame([$pod2->id, 'auto', 'POD2'], [$rows[101]->product_variant_id, $rows[101]->match_type, $rows[101]->shopee_sku]);

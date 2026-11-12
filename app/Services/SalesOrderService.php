@@ -43,7 +43,7 @@ class SalesOrderService
         $reserved = DB::table('sales_order_items')
             ->join('sales_orders', 'sales_orders.id', '=', 'sales_order_items.sales_order_id')
             ->where('sales_orders.warehouse_id', $warehouseId)
-            ->whereIn('sales_orders.status', SalesOrder::RESERVING)
+            ->where(fn ($q) => SalesOrder::whereReserving($q))
             ->when($exceptOrderId, fn ($q) => $q->where('sales_orders.id', '!=', $exceptOrderId))
             ->whereIn('sales_order_items.product_variant_id', $variantIds)
             ->groupBy('sales_order_items.product_variant_id')

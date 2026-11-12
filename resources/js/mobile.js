@@ -4,7 +4,7 @@
  * kolom ketik, semuanya lewat satu jalur: bridge.on('scan').
  */
 import Alpine from 'alpinejs';
-import { ApiError, getJson, refreshSession, request } from './mobile/api';
+import { ApiError, getJson, postJson, refreshSession, request } from './mobile/api';
 import * as bridge from './mobile/bridge';
 import { catalog, resolveCode, variantLabel } from './mobile/catalog';
 import { kvGet, kvSet } from './mobile/db';
@@ -93,6 +93,109 @@ bridge.on('outbox', ({ count, failed }) => {
 });
 bridge.on('outbox-sent', ({ item }) => toast(`Terkirim: ${item.label}`, 'ok', 2200));
 
+/*
+ * Update aplikasi: cek versi terbaru ke server setiap halaman dibuka (online).
+ * Versi biasa ditawarkan sekali per sesi (bisa "Nanti"); versi wajib menutup
+ * layar sampai update dipasang. Info terakhir disimpan supaya tetap berlaku offline.
+ */
+const UPDATE_KEY = 'optima-update';
+
+Alpine.store('update', {
+    latest: null,
+    open: false,
+    status: 'idle', // idle | downloading | installing | error
+    received: 0,
+    total: 0,
+    error: '',
+    get installed() {
+        return Number(bridge.appInfo()?.versionCode || 0);
+    },
+    get installedName() {
+        return bridge.appInfo()?.versionName || '';
+    },
+    get available() {
+        return !!this.latest && this.installed > 0 && Number(this.latest.versionCode) > this.installed;
+    },
+    get mandatory() {
+        return this.available && !!this.latest.mandatory;
+    },
+    get percent() {
+        return this.total > 0 ? Math.min(100, Math.round((this.received / this.total) * 100)) : 0;
+    },
+    get sizeLabel() {
+        const size = Number(this.latest?.size || 0);
+        return size ? `${(size / 1048576).toFixed(1)} MB` : '';
+    },
+    async check() {
+        if (!bridge.isApp) return;
+        try {
+            this.apply(JSON.parse(localStorage.getItem(UPDATE_KEY) || 'null'));
+        } catch (e) {
+            // abaikan data rusak
+        }
+        if (!navigator.onLine) return;
+        try {
+            const latest = await getJson('/m/app-version');
+            localStorage.setItem(UPDATE_KEY, JSON.stringify(latest));
+            this.apply(latest);
+        } catch (e) {
+            // server tidak terjangkau: pakai info terakhir
+        }
+    },
+    apply(latest) {
+        if (!latest || this.status === 'downloading') return;
+        this.latest = latest;
+        if (!this.available) {
+            this.open = false;
+            return;
+        }
+        const dismissed = sessionStorage.getItem(`${UPDATE_KEY}-later`) === String(latest.versionCode);
+        if (this.mandatory || !dismissed) this.open = true;
+    },
+    later() {
+        if (this.mandatory || this.status === 'downloading') return;
+        sessionStorage.setItem(`${UPDATE_KEY}-later`, String(this.latest.versionCode));
+        this.open = false;
+    },
+    async start() {
+        if (!this.latest || this.status === 'downloading') return;
+        if (!bridge.canSelfUpdate) {
+            // Aplikasi versi lama: unduh lewat browser HP lalu buka file APK-nya.
+            bridge.openExternal(this.latest.url);
+            return;
+        }
+        this.status = 'downloading';
+        this.error = '';
+        this.received = 0;
+        this.total = Number(this.latest.size || 0);
+        try {
+            await bridge.installUpdate({
+                url: this.latest.url,
+                versionCode: Number(this.latest.versionCode),
+                versionName: this.latest.versionName,
+                sha256: this.latest.sha256 || '',
+                size: Number(this.latest.size || 0),
+            });
+            this.status = 'installing';
+        } catch (e) {
+            this.status = 'error';
+            this.error = e.message || 'Gagal mengunduh update.';
+        }
+    },
+});
+
+bridge.on('update-progress', ({ received, total }) => {
+    const store = Alpine.store('update');
+    store.received = Number(received || 0);
+    if (Number(total) > 0) store.total = Number(total);
+});
+
+// Kembali dari layar pasang Android tanpa memasang: tombol bisa ditekan lagi.
+document.addEventListener('visibilitychange', () => {
+    const store = Alpine.store('update');
+    if (document.visibilityState === 'visible' && store.status === 'installing') store.status = 'idle';
+});
+
 /* ---------- Kerangka: menu bawah, tombol scan, kolom scan cadangan ---------- */
 
 Alpine.data('mobileShell', () => ({
@@ -102,6 +205,7 @@ Alpine.data('mobileShell', () => ({
     init() {
         outbox.refreshCount();
         outbox.flush();
+        Alpine.store('update').check();
         bridge.on('scanner-fallback', (options) => {
             this.fallbackHint = options.hint || 'Ketik atau tempel kode';
             this.fallbackCode = '';
@@ -119,6 +223,30 @@ Alpine.data('mobileShell', () => ({
             syncBars();
         });
         new MutationObserver(syncBars).observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
+        this.watchKeyboard();
+    },
+    // Keyboard HP aktif: sembunyikan menu & tombol bawah yang menempel, lalu geser kolom yang
+    // sedang diketik ke tengah layar supaya tidak tertutup keyboard.
+    watchKeyboard() {
+        const editable = (el) => el && (el.isContentEditable || el.tagName === 'TEXTAREA'
+            || (el.tagName === 'INPUT' && !el.readOnly && !['button', 'submit', 'checkbox', 'radio', 'file', 'range', 'color', 'hidden'].includes(el.type)));
+        const height = () => window.visualViewport?.height || window.innerHeight;
+        let base = height();
+        const sync = () => {
+            const focused = editable(document.activeElement);
+            // Patokan tinggi layar tanpa keyboard (ikut berubah saat kamera atas dibuka/ditutup).
+            if (!focused || height() > base) base = height();
+            const open = focused && height() < base - 120;
+            const was = document.body.classList.contains('kb-open');
+            document.body.classList.toggle('kb-open', open);
+            if (open) {
+                const el = document.activeElement;
+                requestAnimationFrame(() => el.scrollIntoView({ block: 'center', behavior: was ? 'smooth' : 'auto' }));
+            }
+        };
+        (window.visualViewport || window).addEventListener('resize', sync);
+        document.addEventListener('focusin', () => setTimeout(sync, 60));
+        document.addEventListener('focusout', () => setTimeout(sync, 60));
     },
     scan() {
         openScanner();
@@ -133,18 +261,10 @@ Alpine.data('mobileShell', () => ({
 
 /* ---------- Beranda ---------- */
 
-Alpine.data('mobileHome', (latest) => ({
-    update: null,
+Alpine.data('mobileHome', () => ({
     init() {
-        const info = bridge.appInfo();
-        if (info && latest && Number(latest.versionCode) > Number(info.versionCode)) {
-            this.update = latest;
-        }
         // Siapkan data barang & antrean QC di HP selagi online.
         catalog().catch(() => null);
-    },
-    download() {
-        bridge.openExternal(this.update.url);
     },
 }));
 
@@ -162,9 +282,14 @@ Alpine.data('qcApp', () => ({
     photoUrl: null,
     busy: false,
     loadingQueue: false,
+    camera: false,
+    resiByCamera: false,
 
     async init() {
         useScan((code) => (this.step === 'find' ? this.find(code) : this.scanItem(code)), { hint: 'Scan resi atau no. pesanan' });
+        bridge.on('scanner', ({ open }) => (this.camera = open));
+        // Pindah halaman saat kamera barang masih terbuka: tutup dulu.
+        window.addEventListener('pagehide', () => this.closeCamera());
         this.queue = (await kvGet(`qc-queue-${warehouseId()}`).catch(() => null))?.orders || [];
         this.refreshQueue();
     },
@@ -183,11 +308,34 @@ Alpine.data('qcApp', () => ({
         }
     },
 
+    // Resi: sekali scan, kamera penuh. Barang: kamera tetap terbuka di atas sampai semua cocok.
     openCamera() {
-        openScanner({ hint: this.step === 'find' ? 'Scan resi atau no. pesanan' : 'Scan SKU / barcode barang' });
+        if (this.step === 'find') {
+            this.resiByCamera = true;
+            openScanner({ mode: 'full', continuous: false, hint: 'Scan resi atau no. pesanan' });
+            return;
+        }
+        if (this.camera) {
+            this.closeCamera();
+            return;
+        }
+        this.openItemCamera();
+    },
+
+    openItemCamera() {
+        if (this.complete) return;
+        openScanner({ mode: 'top', continuous: true, hint: 'Scan SKU / barcode barang' });
+        if (bridge.isApp) this.camera = true;
+    },
+
+    closeCamera() {
+        if (this.camera) bridge.closeScanner();
+        this.camera = false;
     },
 
     async find(raw) {
+        const viaCamera = this.resiByCamera && !!raw;
+        this.resiByCamera = false;
         const code = String(raw || this.code).trim();
         if (!code) return;
         this.code = '';
@@ -218,18 +366,61 @@ Alpine.data('qcApp', () => ({
 
         bridge.feedback('ok');
         this.order = order;
-        this.scanned = Object.fromEntries(order.lines.map((l) => [l.variant_id, 0]));
+        // SKU tanpa scan QC (hadiah, kemasan) langsung dianggap cocok.
+        this.scanned = Object.fromEntries(order.lines.map((l) => [l.variant_id, l.exempt ? l.qty : 0]));
         this.alert = null;
         this.last = null;
         this.photo = null;
         this.photoUrl = null;
         this.step = 'items';
-        scanOptions = { hint: 'Scan SKU / barcode barang' };
+        scanOptions = { mode: 'top', continuous: true, hint: 'Scan SKU / barcode barang' };
+        // Resi discan pakai kamera: langsung lanjut kamera barang tanpa tekan tombol lagi.
+        if (viaCamera) this.$nextTick(() => this.openItemCamera());
     },
 
     lineFor(code) {
         const key = norm(code);
-        return this.order.lines.find((l) => norm(l.sku) === key || (l.barcode && norm(l.barcode) === key));
+        return this.order.lines.find((l) => norm(l.sku) === key || (l.barcode && norm(l.barcode) === key) || (l.aliases || []).some((a) => norm(a) === key));
+    },
+
+    get held() {
+        return !!this.order?.hold;
+    },
+
+    async hold() {
+        if (!this.order || this.busy) return;
+        const reason = window.prompt('Alasan tahan QC (cth. barang rusak, stok kurang):');
+        if (!reason || !reason.trim()) return;
+        this.busy = true;
+        try {
+            const result = await postJson(this.order.hold_url, { reason: reason.trim() });
+            this.closeCamera();
+            this.queue = this.queue.map((o) => (o.id === result.order.id ? result.order : o));
+            toast(result.message, 'ok');
+            this.reset();
+        } catch (e) {
+            bridge.feedback('error');
+            this.alert = { kind: 'bad', title: 'Gagal menahan QC', text: e.message };
+        } finally {
+            this.busy = false;
+        }
+    },
+
+    async release() {
+        if (!this.order || this.busy) return;
+        this.busy = true;
+        try {
+            const result = await postJson(this.order.release_url, {});
+            this.order = result.order;
+            this.queue = this.queue.map((o) => (o.id === result.order.id ? result.order : o));
+            this.alert = null;
+            toast(result.message, 'ok');
+        } catch (e) {
+            bridge.feedback('error');
+            this.alert = { kind: 'bad', title: 'Gagal melepas tahanan', text: e.message };
+        } finally {
+            this.busy = false;
+        }
     },
 
     scanItem(raw) {
@@ -244,16 +435,27 @@ Alpine.data('qcApp', () => ({
             return;
         }
 
+        if (this.held) return this.reject('QC ditahan', code, 'Lepas tahan dulu sebelum scan barang.');
+
         const bundle = this.order.bundles?.[key];
         if (bundle) {
-            const over = Object.entries(bundle).some(([id, qty]) => (this.scanned[id] || 0) + qty > (this.order.lines.find((l) => String(l.variant_id) === String(id))?.qty || 0));
+            const lineOf = (id) => this.order.lines.find((l) => String(l.variant_id) === String(id));
+            const contents = Object.entries(bundle).filter(([id]) => !lineOf(id)?.exempt);
+            const over = contents.some(([id, qty]) => (this.scanned[id] || 0) + qty > (lineOf(id)?.qty || 0));
             if (over) return this.reject('Paket ini sudah lengkap discan', code);
-            Object.entries(bundle).forEach(([id, qty]) => (this.scanned[id] = (this.scanned[id] || 0) + qty));
+            contents.forEach(([id, qty]) => (this.scanned[id] = (this.scanned[id] || 0) + qty));
             return this.accept(code, 'Isi paket ditambahkan');
         }
 
         const line = this.lineFor(code);
-        if (!line) return this.reject(`Barang salah: ${code}`, code, 'Tidak ada di pesanan ini. Keluarkan dari paket.');
+        if (!line) {
+            // Kode yang tidak dikenali sama sekali dicatat di "Barcode Tidak Dikenali" (server mengecek ulang).
+            resolveCode(code).then((local) => {
+                if (!local && navigator.onLine) postJson('/scan-misses', { code, context: 'qc', sales_order_id: this.order?.id, warehouse_id: this.order?.warehouse_id }).catch(() => null);
+            }).catch(() => null);
+            return this.reject(`Barang salah: ${code}`, code, 'Tidak ada di pesanan ini. Keluarkan dari paket.');
+        }
+        if (line.exempt) return this.accept(code, `${line.sku} tanpa scan QC, sudah terhitung`);
         if ((this.scanned[line.variant_id] || 0) >= line.qty) return this.reject(`${line.sku} sudah cukup`, code, `Pesanan hanya ${line.qty}. Jangan masukkan lagi.`);
 
         this.scanned[line.variant_id] = (this.scanned[line.variant_id] || 0) + 1;
@@ -264,7 +466,10 @@ Alpine.data('qcApp', () => ({
         this.alert = null;
         this.last = { code, text };
         bridge.feedback(this.complete ? 'ok' : 'scan');
-        if (this.complete) toast('Semua barang cocok. Foto paket lalu selesaikan.', 'ok');
+        if (this.complete) {
+            this.closeCamera();
+            toast('Semua barang cocok. Foto paket lalu selesaikan.', 'ok');
+        }
     },
 
     reject(title, code, text = '') {
@@ -275,6 +480,7 @@ Alpine.data('qcApp', () => ({
     adjust(line, delta) {
         const next = Math.max(0, Math.min(line.qty, (this.scanned[line.variant_id] || 0) + delta));
         this.scanned[line.variant_id] = next;
+        if (this.complete) this.closeCamera();
     },
 
     get done() {
@@ -334,6 +540,8 @@ Alpine.data('qcApp', () => ({
     },
 
     reset() {
+        this.closeCamera();
+        this.resiByCamera = false;
         this.step = 'find';
         this.order = null;
         this.alert = null;
@@ -680,9 +888,14 @@ Alpine.data('opnameApp', (config) => ({
     busy: false,
     code: '',
     loaded: false,
+    last: null,
+    showAll: false,
+    camera: false,
 
     async init() {
         useScan((code) => this.scan(code), { hint: 'Scan rak lalu barangnya' });
+        bridge.on('scanner', ({ open }) => (this.camera = open));
+        window.addEventListener('pagehide', () => this.closeCamera());
         const key = `opname-${config.id}`;
         const stored = await kvGet(key).catch(() => null);
         if (stored) this.lines = stored.lines;
@@ -732,30 +945,59 @@ Alpine.data('opnameApp', (config) => ({
 
     openBin(entry) {
         this.bin = { id: entry.id ?? null, code: entry.code };
+        this.last = null;
+        this.showAll = false;
+    },
+
+    // Setelah scan SKU, hanya barang itu yang tampil, supaya qty tidak masuk ke SKU lain.
+    get focused() {
+        return this.lastLine && !this.showAll;
+    },
+
+    leaveBin() {
+        this.closeCamera();
+        this.bin = null;
+    },
+
+    // Rak: sekali scan, kamera penuh. Barang: kamera di atas tetap terbuka, daftar tetap terlihat.
+    openCamera() {
+        if (!this.bin) return openScanner({ mode: 'full', continuous: false, hint: 'Scan kode rak' });
+        if (this.camera) return this.closeCamera();
+        openScanner({ mode: 'top', continuous: true, hint: 'Scan SKU / barcode barang' });
+        if (bridge.isApp) this.camera = true;
+    },
+
+    closeCamera() {
+        if (this.camera) bridge.closeScanner();
+        this.camera = false;
     },
 
     async scan(raw) {
         const code = String(raw || this.code).trim();
         this.code = '';
         if (!code) return;
-        const hit = await resolveCode(code).catch(() => null);
-        const line = this.lines.find((l) => norm(l.location) === norm(code));
-        if (hit?.type === 'location' || line) {
-            const loc = hit?.item || { id: line.location_id, code: line.location };
-            this.bin = { id: loc.id, code: loc.code };
-            bridge.feedback('ok');
-            return;
+        const key = norm(code);
+
+        // Cocokkan dulu ke lembar di HP: langsung tampil tanpa menunggu data barang dimuat.
+        const line = this.lines.find((l) => l.location && norm(l.location) === key);
+        if (line) return this.enterBin({ id: line.location_id, code: line.location });
+        if (this.bin) {
+            const local = this.binLines.find((l) => norm(l.sku) === key || (l.barcode && norm(l.barcode) === key));
+            if (local) return this.count(local);
         }
+
+        const hit = await resolveCode(code).catch(() => null);
+        if (hit?.type === 'location') return this.enterBin(hit.item);
         if (!this.bin) {
             bridge.feedback('warn');
             return toast('Scan kode rak dulu, baru barangnya.', 'warn');
         }
         const variantId = hit?.type === 'variant' ? hit.item.id : null;
-        let row = this.binLines.find((l) => (variantId && l.variant_id === variantId) || norm(l.sku) === norm(code) || (l.barcode && norm(l.barcode) === norm(code)));
+        let row = this.binLines.find((l) => (variantId && l.variant_id === variantId) || norm(l.sku) === key || (l.barcode && norm(l.barcode) === key));
         if (!row) {
             if (!variantId) {
                 bridge.feedback('error');
-                return toast(`Barang "${code}" tidak dikenal.`, 'bad');
+                return toast(hit?.type === 'bundle' ? `"${code}" adalah SKU paket. Scan barang satuannya.` : `Barang "${code}" tidak dikenal.`, 'bad');
             }
             row = {
                 id: null, variant_id: variantId, sku: hit.item.sku, barcode: hit.item.barcode, name: variantLabel(hit.item),
@@ -766,8 +1008,36 @@ Alpine.data('opnameApp', (config) => ({
             row = this.lines[this.lines.length - 1];
             toast(`${row.sku} belum tercatat di rak ini, ditambahkan.`, 'warn');
         }
+        this.count(row);
+    },
+
+    enterBin(loc) {
+        this.bin = { id: loc.id ?? null, code: loc.code };
+        this.last = null;
+        this.showAll = false;
+        bridge.feedback('ok');
+    },
+
+    // Tiap scan +1, lalu tampilkan barangnya: kartu "terakhir discan" + baris disorot.
+    count(row) {
+        // Qty yang sedang diketik disimpan dulu ke barang sebelumnya, baru pindah ke barang baru.
+        if (document.activeElement?.closest?.('.step')) document.activeElement.blur();
         this.set(row, (row.counted_qty ?? 0) + 1);
+        this.last = row.key;
+        this.showAll = false;
         bridge.feedback('scan');
+        this.$nextTick(() => {
+            const el = this.$root.querySelector(`[data-line="${CSS.escape(row.key)}"]`);
+            if (!el) return;
+            el.classList.remove('flash-ok');
+            void el.offsetWidth;
+            el.classList.add('flash-ok');
+            el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+        });
+    },
+
+    get lastLine() {
+        return this.last ? this.binLines.find((l) => l.key === this.last) || null : null;
     },
 
     set(row, value) {
@@ -794,7 +1064,7 @@ Alpine.data('opnameApp', (config) => ({
             this.persist();
             toast(result.queued ? 'Hitungan disimpan di HP, dikirim saat online.' : result.data.message, result.queued ? 'warn' : 'ok', 3500);
             if (!result.queued && result.data.posted) window.location.href = '/m/opname';
-            this.bin = null;
+            this.leaveBin();
         } catch (e) {
             toast(e.message, 'bad', 6000);
         } finally {
@@ -1202,6 +1472,16 @@ Alpine.data('accountApp', () => ({
     setTheme(theme) {
         this.theme = theme;
         window.optimaTheme?.set(theme);
+    },
+    checking: false,
+    async checkUpdate() {
+        this.checking = true;
+        const store = Alpine.store('update');
+        sessionStorage.removeItem('optima-update-later');
+        await store.check();
+        this.checking = false;
+        if (store.available) store.open = true;
+        else toast(navigator.onLine ? 'Aplikasi sudah versi terbaru.' : 'Offline. Coba cek lagi saat ada sinyal.', 'ok');
     },
     changeServer() {
         if (confirm('Ganti alamat server? Anda perlu login lagi.')) bridge.changeServer();

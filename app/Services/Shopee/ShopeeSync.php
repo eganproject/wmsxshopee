@@ -42,6 +42,12 @@ class ShopeeSync
         $api = ShopeeShopApi::for($shop);
         $result = [];
 
+        // Pesanan toko ini masih diproses di sistem lain: pesanan & retur tidak ditarik.
+        if (! $shop->process_orders) {
+            $result['external'] = true;
+            $parts = array_values(array_diff($parts, ['orders', 'returns']));
+        }
+
         try {
             // Pesanan dulu supaya cadangan stok terbaru ikut terhitung saat stok dikirim.
             if (in_array('orders', $parts, true)) {
@@ -77,6 +83,9 @@ class ShopeeSync
     {
         $parts = [];
 
+        if ($result['external'] ?? false) {
+            $parts[] = 'pesanan & retur: tidak ditarik (diproses di sistem lain)';
+        }
         if (isset($result['orders'])) {
             $o = $result['orders'];
             $parts[] = "pesanan: {$o['created']} baru, {$o['updated']} diperbarui, {$o['cancelled']} batal".($o['pending'] ? ", {$o['pending']} perlu dicek" : '').(($o['failed'] ?? 0) ? ", {$o['failed']} gagal (dicoba lagi di sinkron berikutnya)" : '');

@@ -18,6 +18,9 @@ class SalesOrder extends Model
 
     public const PREFIX = 'SO';
 
+    /** Awalan nomor Barang Keluar Manual. */
+    public const OUTBOUND_PREFIX = 'BKM';
+
     /** Urutan alur pesanan; label, ikon & warna badge. */
     public const STATUSES = [
         'draft' => ['label' => 'Draft', 'icon' => 'heroicon-o-document', 'color' => 'slate',
@@ -119,6 +122,30 @@ class SalesOrder extends Model
     /** Status yang menahan (mencadangkan) stok di gudang. */
     public const RESERVING = ['confirmed', 'picking', 'packed'];
 
+    /**
+     * Batasi ke pesanan yang mencadangkan stok: status RESERVING, ditambah draft
+     * marketplace yang tertahan karena SKU belum dipetakan. Barang dari draft itu
+     * sudah dibayar dan dikurangi marketplace, jadi baris yang sudah terpetakan
+     * ikut ditahan supaya stok tidak terjual dua kali.
+     *
+     * @param  Builder<SalesOrder>|\Illuminate\Database\Query\Builder  $query
+     */
+    public static function whereReserving($query, string $table = 'sales_orders'): void
+    {
+        $query->where(fn ($q) => $q->whereIn("{$table}.status", self::RESERVING)
+            ->orWhere(fn ($draft) => $draft->where("{$table}.status", 'draft')->whereNotNull("{$table}.unmapped_skus")));
+    }
+
+    /**
+     * Draft marketplace yang tertahan karena SKU belum dipetakan.
+     *
+     * @param  Builder<SalesOrder>  $query
+     */
+    public function scopeUnmappedHeld(Builder $query): void
+    {
+        $query->where('status', 'draft')->whereNotNull('unmapped_skus');
+    }
+
     /** Status Shopee yang berarti pesanan harus disiapkan gudang. */
     public const SHOPEE_TO_FULFIL = ['READY_TO_SHIP', 'PROCESSED', 'RETRY_SHIP'];
 
@@ -170,6 +197,24 @@ class SalesOrder extends Model
         'other' => 'Lainnya',
     ];
 
+    /** Jenis dokumen: penjualan biasa, atau barang keluar manual non-penjualan. */
+    public const KINDS = [
+        'sale' => 'Penjualan',
+        'outbound' => 'Barang Keluar Manual',
+    ];
+
+    /** Tujuan barang keluar manual. */
+    public const OUTBOUND_PURPOSES = [
+        'sample' => 'Sampel',
+        'endorse' => 'Endorse / Promosi',
+        'office' => 'Kirim ke Kantor / Toko Offline',
+        'reseller' => 'Titip / Konsinyasi Reseller',
+        'gift' => 'Hadiah / Giveaway',
+        'internal' => 'Pemakaian Internal',
+        'replacement' => 'Kirim Ulang / Ganti Barang',
+        'other' => 'Lainnya',
+    ];
+
     public const PAYMENT_STATUSES = [
         'unpaid' => ['label' => 'Belum Lunas', 'color' => 'amber'],
         'paid' => ['label' => 'Lunas', 'color' => 'emerald'],
@@ -181,6 +226,8 @@ class SalesOrder extends Model
     protected $fillable = [
         'number',
         'status',
+        'kind',
+        'outbound_purpose',
         'warehouse_id',
         'order_date',
         'ordered_at',
@@ -197,6 +244,9 @@ class SalesOrder extends Model
         'qc_skip_checked_at',
         'qc_skip_checked_by',
         'qc_skip_note',
+        'qc_hold_reason',
+        'qc_held_at',
+        'qc_held_by',
         'shopee_income',
         'shopee_escrow_amount',
         'shopee_income_final',
@@ -264,6 +314,7 @@ class SalesOrder extends Model
             'shopee_shipped_at' => 'datetime',
             'shipped_automatically' => 'boolean',
             'qc_skip_checked_at' => 'datetime',
+            'qc_held_at' => 'datetime',
             'pickup_at' => 'datetime',
             'shipment_arranged_at' => 'datetime',
             'shipping_label_printed_at' => 'datetime',
@@ -297,14 +348,30 @@ class SalesOrder extends Model
         return $this->belongsTo(StockMovement::class, 'stock_movement_id');
     }
 
+    /**
+     * Pesanan marketplace ikut gudang tokonya juga: user gudang A tidak melihat
+     * pesanan toko yang terhubung ke gudang B, walau pesanannya tercatat di A
+     * (misalnya toko dipindah gudang setelah pesanan masuk).
+     *
+     * @param  list<int>  $ids
+     */
+    public function restrictToWarehouses(Builder $query, array $ids): void
+    {
+        $shopsIn = fn (string $table) => DB::table($table)->select('id')->whereIn('warehouse_id', $ids);
+
+        $query->whereIn($this->qualifyColumn('warehouse_id'), $ids)
+            ->where(fn (Builder $q) => $q->whereNull($this->qualifyColumn('shopee_shop_id'))->orWhereIn($this->qualifyColumn('shopee_shop_id'), $shopsIn('shopee_shops')))
+            ->where(fn (Builder $q) => $q->whereNull($this->qualifyColumn('tiktok_shop_id'))->orWhereIn($this->qualifyColumn('tiktok_shop_id'), $shopsIn('tiktok_shops')));
+    }
+
     public function shopeeShop(): BelongsTo
     {
-        return $this->belongsTo(ShopeeShop::class);
+        return $this->belongsTo(ShopeeShop::class)->withoutGlobalScope('warehouse_access');
     }
 
     public function tiktokShop(): BelongsTo
     {
-        return $this->belongsTo(TiktokShop::class);
+        return $this->belongsTo(TiktokShop::class)->withoutGlobalScope('warehouse_access');
     }
 
     public function arranger(): BelongsTo
@@ -334,6 +401,22 @@ class SalesOrder extends Model
     public function skippedQc(): bool
     {
         return $this->status === 'shipped' && $this->shipped_automatically;
+    }
+
+    public function qcHolder(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'qc_held_by');
+    }
+
+    /** QC ditahan (barang bermasalah, menunggu keputusan): tidak bisa di-QC sampai dilepas. */
+    public function isQcHeld(): bool
+    {
+        return $this->qc_held_at !== null;
+    }
+
+    public function qcSubstitutions(): HasMany
+    {
+        return $this->hasMany(QcSubstitution::class)->latest('id');
     }
 
     /** Terlewat QC dan belum dicek supervisor. */
@@ -431,6 +514,16 @@ class SalesOrder extends Model
     }
 
     /** Pesanan dari marketplace yang terhubung API (Shopee / TikTok). */
+    public function isOutbound(): bool
+    {
+        return $this->kind === 'outbound';
+    }
+
+    public function outboundPurposeLabel(): ?string
+    {
+        return $this->isOutbound() ? (self::OUTBOUND_PURPOSES[$this->outbound_purpose] ?? 'Lainnya') : null;
+    }
+
     public function isMarketplace(): bool
     {
         return $this->isShopee() || $this->isTiktok();
@@ -795,6 +888,7 @@ class SalesOrder extends Model
                     ->where(fn ($q) => $q->whereNotNull('shopee_shop_id')->whereNull('shopee_shipped_at')->whereIn('shopee_order_status', self::SHOPEE_AWAITING_COURIER))
                     ->orWhere(fn ($q) => $q->whereNotNull('tiktok_shop_id')->whereNull('tiktok_shipped_at')->whereIn('tiktok_order_status', self::TIKTOK_AWAITING_COURIER)))
                 ->when($filter === 'courier_overdue', fn ($q) => $q->where('shipped_at', '<=', now()->subHours((int) config('alerts.courier_scan_hours', 24)))),
+            'unmapped' => $query->unmappedHeld(),
             'shopee_ahead' => $query->whereNotNull('shopee_shop_id')
                 ->whereIn('status', ['draft', ...self::RESERVING])
                 ->whereIn('shopee_order_status', self::SHOPEE_LEFT_WAREHOUSE),
@@ -930,9 +1024,9 @@ class SalesOrder extends Model
      * Nomor pendek berurutan per bulan, cth. SO2610-001. Lewat 999 urutan
      * tetap jalan jadi 4 digit (SO2610-1000). Panggil di dalam transaksi.
      */
-    public static function nextNumber(): string
+    public static function nextNumber(string $kind = 'sale'): string
     {
-        $prefix = self::PREFIX.now()->format('ym').'-';
+        $prefix = ($kind === 'outbound' ? self::OUTBOUND_PREFIX : self::PREFIX).now()->format('ym').'-';
 
         return DocumentNumber::next(self::withoutGlobalScope('warehouse_access'), $prefix, 3);
     }

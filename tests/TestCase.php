@@ -2,6 +2,7 @@
 
 namespace Tests;
 
+use App\Support\BackgroundTasks;
 use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Foundation\Testing\TestCase as BaseTestCase;
 use Illuminate\Support\Sleep;
@@ -27,5 +28,14 @@ abstract class TestCase extends BaseTestCase
         }
 
         return parent::be($user, $guard);
+    }
+
+    /**
+     * Hasil sinkron latar belakang milik user yang login (antrean "sync" di tes
+     * menjalankan job langsung), digabung jadi satu teks.
+     */
+    protected function backgroundResult(): string
+    {
+        return collect(BackgroundTasks::poll(auth()->id())['finished'])->pluck('message')->implode(' | ');
     }
 }

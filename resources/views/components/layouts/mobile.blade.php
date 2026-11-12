@@ -87,5 +87,57 @@
             </form>
         </div>
     </template>
+
+    {{-- Update aplikasi: ditawarkan saat ada versi baru; versi wajib tidak bisa ditutup. --}}
+    <template x-if="$store.update.open && $store.update.available">
+        <div>
+            <div class="sheet-bg" :style="$store.update.mandatory && 'background:var(--bg)'" @click="$store.update.later()"></div>
+            <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="update-title">
+                <div class="grab" x-show="!$store.update.mandatory"></div>
+                <div class="row" style="margin-bottom:12px">
+                    <span class="thumb tone-info"><x-m-icon name="zap" /></span>
+                    <div class="grow">
+                        <h3 id="update-title" x-text="$store.update.mandatory ? 'Update wajib' : 'Update tersedia'"></h3>
+                        <div class="muted" style="font-size:12.5px">
+                            Versi <span x-text="$store.update.latest.versionName"></span>
+                            <span x-show="$store.update.sizeLabel" x-text="`· ${$store.update.sizeLabel}`"></span>
+                            · terpasang <span x-text="$store.update.installedName"></span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="banner warn" x-show="$store.update.mandatory" style="margin-bottom:12px">
+                    <x-m-icon name="alert" size="s" />
+                    <div>Versi ini wajib dipasang sebelum aplikasi bisa dipakai lagi. Data & antrean offline tetap aman.</div>
+                </div>
+
+                <div x-show="$store.update.latest.changelog" class="card pad" style="margin-bottom:12px">
+                    <div class="field-label" style="margin-top:0">Yang baru</div>
+                    <p style="white-space:pre-line;font-size:13.5px;line-height:1.5" x-text="$store.update.latest.changelog"></p>
+                </div>
+
+                <div x-show="$store.update.status === 'downloading'" style="margin-bottom:12px">
+                    <div class="row muted" style="font-size:12.5px;margin-bottom:6px">
+                        <span class="grow">Mengunduh update...</span>
+                        <span x-text="$store.update.total ? `${$store.update.percent}%` : ''"></span>
+                    </div>
+                    <div class="prog"><i :style="`width:${$store.update.total ? $store.update.percent : 15}%`"></i></div>
+                </div>
+
+                <div class="banner bad" x-show="$store.update.status === 'error'" style="margin-bottom:12px">
+                    <x-m-icon name="alert" size="s" />
+                    <div x-text="$store.update.error"></div>
+                </div>
+
+                <p class="muted" x-show="$store.update.status === 'installing'" style="font-size:12.5px;margin-bottom:12px">Tekan <b>Install</b> / <b>Perbarui</b> di layar Android. Bila diminta, izinkan Optima Gudang memasang aplikasi.</p>
+
+                <div class="row">
+                    <button type="button" class="btn s" x-show="!$store.update.mandatory" @click="$store.update.later()" :disabled="$store.update.status === 'downloading'">Nanti</button>
+                    <button type="button" class="btn p" @click="$store.update.start()" :class="$store.update.status === 'downloading' && 'is-busy'"
+                            x-text="$store.update.status === 'error' ? 'Coba lagi' : ($store.update.status === 'installing' ? 'Pasang lagi' : 'Update sekarang')"></button>
+                </div>
+            </div>
+        </div>
+    </template>
 </body>
 </html>

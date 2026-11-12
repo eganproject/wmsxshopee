@@ -5,7 +5,7 @@
     <td @class(['py-2.5 pr-4 font-mono font-medium text-slate-900', 'pl-4' => ! $component, 'pl-8' => $component])>
         @if ($component)<span class="text-slate-300">└</span>@endif {{ $item->variant->sku }}
     </td>
-    <td class="px-4 py-2.5">
+    <td class="cell-wrap px-4 py-2.5">
         <p class="font-medium text-slate-900">{{ $item->variant->product->name }}</p>
         @if ($item->variant->name)
             <p class="text-xs text-slate-500">{{ $item->variant->name }}</p>
@@ -39,6 +39,6 @@
     @else
         <td class="px-4 py-2.5 text-right tabular-nums text-slate-600">{{ $money($item->price) }}</td>
         <td class="px-4 py-2.5 text-right tabular-nums text-slate-900">{{ $money($item->qty * $item->price) }}</td>
-        <td class="px-4 py-2.5 text-slate-600">{{ $item->notes ?? '—' }}</td>
+        <td class="cell-wrap px-4 py-2.5 text-slate-600">{{ $item->notes ?? '—' }}</td>
     @endif
 </tr>

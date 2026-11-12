@@ -35,7 +35,7 @@
              return window.Optima.fixedBinsFor(this.defaults, this.warehouse, item.product_variant_id);
          },
          fillDefault(item) {
-             // Bin utama lokasi tetap SKU di gudang ini (Inventori > Lokasi Tetap SKU) menggantikan bin baris sebelumnya.
+             // Bin utama lokasi tetap SKU di gudang ini (Inventori > SKU per Gudang) menggantikan bin baris sebelumnya.
              const bins = this.fixedBins(item);
              if (bins.length) item.warehouse_location_id = bins[0].id;
              this.spread(item);
@@ -59,7 +59,7 @@
                      to.qty_ordered = (parseInt(to.qty_ordered) || 0) + take;
                  },
              });
-             if (changed) this.splitNote = 'Bin utama penuh, sisa barang disarankan ke bin cadangan (lihat Inventori > Lokasi Tetap SKU).';
+             if (changed) this.splitNote = 'Bin utama penuh, sisa barang disarankan ke bin cadangan (lihat Inventori > SKU per Gudang).';
          },
          locationsFor() {
              return this.locations.filter(l => String(l.warehouse_id) === String(this.warehouse));
@@ -78,11 +78,97 @@
              if (item.qty_ordered === '' || item.qty_ordered === null) return null;
              return (parseInt(item.qty_received) || 0) + (parseInt(item.qty_damaged) || 0) - (parseInt(item.qty_ordered) || 0);
          },
+         // Input banyak (modal): pilih banyak barang sekaligus, atau tempel daftar SKU + jumlah dari Excel.
+         bulk: { open: false, tab: 'pick', query: '', picked: {}, all: '', text: '' },
+         openBulk(tab) {
+             this.bulk = { open: true, tab, query: '', picked: {}, all: '', text: '' };
+             this.$nextTick(() => (tab === 'paste' ? this.$refs.bulkText : this.$refs.bulkQuery)?.focus());
+         },
+         get bulkResults() {
+             const words = this.bulk.query.toLowerCase().split(/\s+/).filter(Boolean);
+             return this.variants
+                 .filter(v => words.every(w => `${v.label} ${v.sku} ${v.barcode || ''}`.toLowerCase().includes(w)))
+                 .slice(0, 100);
+         },
+         togglePick(variant) {
+             if (this.bulk.picked[variant.id] !== undefined) { delete this.bulk.picked[variant.id]; return; }
+             this.bulk.picked[variant.id] = this.bulk.all !== '' ? this.bulk.all : 1;
+         },
+         pickAllResults() {
+             const results = this.bulkResults;
+             const allPicked = results.length && results.every(v => this.bulk.picked[v.id] !== undefined);
+             results.forEach(v => allPicked ? delete this.bulk.picked[v.id] : (this.bulk.picked[v.id] ??= (this.bulk.all !== '' ? this.bulk.all : 1)));
+         },
+         setAllQty() {
+             Object.keys(this.bulk.picked).forEach(id => this.bulk.picked[id] = this.bulk.all);
+         },
+         get pickedCount() {
+             return Object.keys(this.bulk.picked).length;
+         },
+         get pasteRows() {
+             // Satu baris per barang: SKU / barcode, Diterima, Dipesan (opsional), Rusak (opsional).
+             // Kolom dipisah tab (salin dari Excel), koma, titik koma atau spasi. SKU yang sama dijumlah.
+             const rows = [];
+             const seen = {};
+             this.bulk.text.split(/\r?\n/).forEach((line, i) => {
+                 const cols = line.trim().split(/\t|;|,|\s+/).map(c => c.trim()).filter(c => c !== '');
+                 if (! cols.length) return;
+                 const code = cols[0].toUpperCase();
+                 const num = c => (c === undefined || c === '' ? '' : (/^\d+$/.test(c) ? parseInt(c) : NaN));
+                 const [received, ordered, damaged] = [num(cols[1]), num(cols[2]), num(cols[3])];
+                 if (i === 0 && cols.length > 1 && Number.isNaN(received)) return; // baris judul dari Excel
+                 const variant = this.variants.find(v => v.sku.toUpperCase() === code || (v.barcode && v.barcode.toUpperCase() === code) || (v.aliases || []).includes(code));
+                 const invalid = [received, ordered, damaged].some(n => Number.isNaN(n));
+                 if (variant && ! invalid && seen[variant.id]) {
+                     const row = seen[variant.id];
+                     row.received = (row.received || 0) + (received === '' ? 1 : received);
+                     if (ordered !== '') row.ordered = (row.ordered || 0) + ordered;
+                     if (damaged !== '') row.damaged = (row.damaged || 0) + damaged;
+                     return;
+                 }
+                 const row = { line: i + 1, code: cols[0], variant, received: received === '' ? 1 : received, ordered, damaged,
+                     error: ! variant ? 'SKU / barcode tidak ditemukan' : (invalid ? 'Jumlah harus angka bulat' : '') };
+                 if (variant && ! invalid) seen[variant.id] = row;
+                 rows.push(row);
+             });
+             return rows;
+         },
+         get pasteValid() {
+             return this.pasteRows.filter(r => ! r.error);
+         },
+         addEntries(entries) {
+             entries.forEach(({ id, received, ordered, damaged }) => {
+                 const add = (row, key, qty) => { if (qty !== '' && qty !== null && qty !== undefined) row[key] = (parseInt(row[key]) || 0) + (parseInt(qty) || 0); };
+                 // Barang yang sudah ada di daftar: jumlahnya ditambah (baris terakhir barang itu, seperti scan).
+                 let row = this.items.filter(i => String(i.product_variant_id) === String(id)).pop();
+                 const isNew = ! row;
+                 if (isNew) {
+                     row = this.items.find(i => ! i.product_variant_id);
+                     if (! row) { row = this.blank(); this.items.push(row); row = this.items[this.items.length - 1]; }
+                     row.product_variant_id = String(id);
+                     row.qty_received = '';
+                 }
+                 add(row, 'qty_received', received);
+                 add(row, 'qty_ordered', ordered);
+                 add(row, 'qty_damaged', damaged);
+                 if (row.qty_received === '') row.qty_received = 0;
+                 isNew ? this.fillDefault(row) : this.spread(row);
+             });
+             this.errors = {};
+             this.bulk.open = false;
+             window.Optima?.toast?.(`${entries.length} barang ditambahkan ke daftar.`);
+         },
+         applyPicked() {
+             this.addEntries(Object.entries(this.bulk.picked).map(([id, qty]) => ({ id, received: qty === '' ? 1 : qty })));
+         },
+         applyPaste() {
+             this.addEntries(this.pasteValid.map(r => ({ id: r.variant.id, received: r.received, ordered: r.ordered, damaged: r.damaged })));
+         },
          addScanned() {
              const code = this.scan.trim().toUpperCase();
              if (! code) return;
-             const variant = this.variants.find(v => v.sku === code || (v.barcode && v.barcode.toUpperCase() === code));
-             if (! variant) { this.scanError = `SKU / barcode ${code} tidak ditemukan.`; return; }
+             const variant = this.variants.find(v => v.sku === code || (v.barcode && v.barcode.toUpperCase() === code) || (v.aliases || []).includes(code));
+             if (! variant) { window.reportScanMiss?.(code, 'receipt'); this.scanError = `SKU / barcode ${code} tidak ditemukan.`; return; }
              this.scanError = '';
              this.scan = '';
              // Scan barang yang sudah ada di daftar menambah jumlah diterima 1 (baris terakhir
@@ -155,12 +241,18 @@
                 </h2>
                 <p class="mt-0.5 text-sm text-slate-500">Scan SKU / barcode: barang baru menambah baris, barang yang sama menambah jumlah diterima.</p>
             </div>
-            <div class="sm:w-72">
-                <div class="relative">
-                    <x-heroicon-o-qr-code class="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-slate-400" />
-                    <input type="text" class="form-input pl-8" placeholder="Scan SKU / barcode lalu Enter" x-model="scan" @keydown.enter.prevent="addScanned()">
+            <div class="flex flex-col gap-2 sm:flex-row sm:items-start">
+                <button type="button" class="btn-secondary whitespace-nowrap" @click="openBulk('pick')"
+                        data-hint-title="Input banyak" data-hint="Pilih banyak barang sekaligus dari daftar, atau tempel SKU dan jumlah dari Excel.">
+                    <x-heroicon-o-queue-list class="size-5" /> Input Banyak
+                </button>
+                <div class="sm:w-72">
+                    <div class="relative">
+                        <x-heroicon-o-qr-code class="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-slate-400" />
+                        <input type="text" class="form-input pl-8" placeholder="Scan SKU / barcode lalu Enter" x-model="scan" @keydown.enter.prevent="addScanned()">
+                    </div>
+                    <p class="mt-1 text-xs text-rose-600" x-show="scanError" x-text="scanError" x-cloak></p>
                 </div>
-                <p class="mt-1 text-xs text-rose-600" x-show="scanError" x-text="scanError" x-cloak></p>
             </div>
         </div>
 
@@ -183,7 +275,7 @@
                         <th class="px-2 py-2 text-right font-normal">Diterima Baik <span class="whitespace-nowrap">* <x-hint text="Jumlah barang dalam kondisi baik. Hanya angka ini yang masuk stok jual di lokasi bin." /></span></th>
                         <th class="px-2 py-2 text-right font-normal"><span class="whitespace-nowrap">Rusak <x-hint text="Jumlah barang rusak / cacat dari kiriman ini. Masuk ke Stok Rusak gudang, tidak ikut dijual." /></span></th>
                         <th class="px-2 py-2 text-right font-normal"><span class="whitespace-nowrap">Selisih <x-hint text="Dipesan dikurangi (Diterima Baik + Rusak). Angka positif berarti kiriman kurang dari pesanan." /></span></th>
-                        <th class="px-2 py-2 font-normal">Lokasi <span class="whitespace-nowrap">Bin <x-hint text="Bin tempat barang ditaruh. Otomatis disarankan dari Lokasi Tetap SKU. Kosong = masuk sebagai stok Tanpa bin." /></span></th>
+                        <th class="px-2 py-2 font-normal">Lokasi <span class="whitespace-nowrap">Bin <x-hint text="Bin tempat barang ditaruh. Otomatis disarankan dari lokasi tetap di SKU per Gudang. Kosong = masuk sebagai stok Tanpa bin." /></span></th>
                         <th class="px-2 py-2 font-normal">Keterangan</th>
                         <th class="py-2 pl-2"></th>
                     </tr>
@@ -248,7 +340,10 @@
             <button type="button" class="btn-secondary mt-3" @click="items.push(blank())">
                 <x-heroicon-o-plus class="size-5" /> Tambah Baris
             </button>
+            <p class="mt-3 text-xs text-slate-500" x-show="items.length > 200" x-cloak><span class="font-medium text-rose-600">Maksimal 200 baris per penerimaan.</span> Pecah menjadi beberapa penerimaan.</p>
             <p class="mt-3 text-xs text-slate-500">Hanya jumlah <span class="font-medium">Diterima Baik</span> yang masuk stok. Barang <span class="font-medium">Rusak</span> masuk ke Stok Rusak gudang (tidak ikut dijual), lalu bisa diretur ke supplier, dimusnahkan atau diperbaiki. Baris tanpa lokasi bin masuk sebagai stok "Tanpa bin" di gudang tujuan.</p>
         </div>
     </div>
+
+    @include('inventory.receipts._bulk-modal')
 </div>

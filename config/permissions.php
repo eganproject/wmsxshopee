@@ -107,6 +107,7 @@ return [
             'icon' => 'heroicon-o-device-phone-mobile',
             'actions' => [
                 'access' => 'Download & login aplikasi Android Optima Gudang (menu di dalamnya tetap mengikuti hak akses lain)',
+                'releases' => 'Upload versi APK baru, catatan update & atur update wajib',
             ],
         ],
 
@@ -126,7 +127,9 @@ return [
                 'create' => 'Buat, ubah & impor draft pesanan',
                 'confirm' => 'Konfirmasi pesanan (cadangkan stok)',
                 'fulfill' => 'Picking, QC scan, atur pickup / drop off, cetak resi & serah terima (stok keluar)',
-                'skip_scan' => 'Kemas & kirim tanpa scan (lewati QC / serah terima)',
+                'skip_scan' => 'Kirim tanpa scan serah terima & cek pesanan terlewat QC',
+                'qc_substitute' => 'Ganti SKU barang saat QC kemas (substitusi, wajib alasan)',
+                'qc_settings' => 'Atur daftar SKU tanpa scan QC',
                 'cancel' => 'Batalkan pesanan',
                 'delete' => 'Hapus draft pesanan',
                 'income' => 'Lihat rincian pendapatan Shopee & pembayaran TikTok (harga, potongan & dana diterima)',

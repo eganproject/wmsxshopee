@@ -42,32 +42,51 @@
     @endif
 
     <div class="card">
-        <form method="GET" class="flex flex-col gap-3 border-b border-slate-100 p-4 md:flex-row md:items-center">
-            <input type="hidden" name="view" value="{{ $mode }}">
-            @if ($filter)
-                <input type="hidden" name="status" value="{{ $filter }}">
-            @endif
-            <div class="relative flex-1">
-                <x-heroicon-o-magnifying-glass class="pointer-events-none absolute top-1/2 left-3.5 size-5 -translate-y-1/2 text-slate-400" />
-                <input type="search" name="search" value="{{ request('search') }}" class="form-input pl-11"
-                       placeholder="{{ ['location' => 'Cari SKU, barcode, nama produk atau kode lokasi...', 'bundle' => 'Cari SKU paket, nama paket atau SKU isi...'][$mode] ?? 'Cari SKU, barcode atau nama produk...' }}">
-            </div>
-            <select name="warehouse" class="form-input md:w-52" onchange="this.form.submit()">
-                <option value="">Semua gudang</option>
-                @foreach ($warehouses as $warehouse)
-                    <option value="{{ $warehouse->id }}" @selected(request('warehouse') == $warehouse->id)>{{ $warehouse->code }} · {{ $warehouse->name }}</option>
-                @endforeach
-            </select>
-            <label class="flex items-center gap-2 text-sm whitespace-nowrap text-slate-600">
-                <input type="checkbox" name="zero" value="1" class="form-checkbox" @checked(request()->boolean('zero')) onchange="this.form.submit()">
-                {{ ['variant' => 'Tampilkan semua SKU', 'bundle' => 'Tampilkan paket nonaktif'][$mode] ?? 'Tampilkan stok 0' }}
-            </label>
-            <div class="flex gap-2">
-                <button type="submit" class="btn-secondary"><x-heroicon-o-funnel class="size-5" /> Filter</button>
-                @if (request()->hasAny(['search', 'warehouse', 'zero', 'status']))
-                    <a href="{{ route('inventory.stocks.index', ['view' => $mode]) }}" class="btn-icon" title="Reset filter"><x-heroicon-o-x-mark class="size-5" /></a>
+        {{-- Cari banyak seperti di halaman Pesanan: tempel banyak SKU / barcode, satu per baris. --}}
+        <form method="GET" class="border-b border-slate-100 p-4"
+              x-data="{ multi: @js($searchTerms > 1 && str_contains((string) request('search'), "\n")) }">
+            <div class="flex flex-col gap-3 md:flex-row md:items-start">
+                <input type="hidden" name="view" value="{{ $mode }}">
+                @if ($filter)
+                    <input type="hidden" name="status" value="{{ $filter }}">
                 @endif
+                <div class="relative flex-1">
+                    <x-heroicon-o-magnifying-glass class="pointer-events-none absolute top-2.5 left-3.5 size-5 text-slate-400" x-show="! multi" />
+                    <input type="search" name="search" value="{{ request('search') }}" x-ref="single" x-show="! multi" :disabled="multi" class="form-input pr-9 pl-11"
+                           placeholder="{{ ['location' => 'Cari SKU, barcode, nama produk atau kode lokasi...', 'bundle' => 'Cari SKU paket, nama paket atau SKU isi...'][$mode] ?? 'Cari SKU, barcode atau nama produk...' }}"
+                           @paste="const text = $event.clipboardData.getData('text'); if (/[\r\n]/.test(text.trim())) { $event.preventDefault(); multi = true; $nextTick(() => { $refs.multi.value = text.trim(); $refs.multi.focus() }) }">
+                    <textarea name="search" rows="4" x-ref="multi" x-show="multi" x-cloak :disabled="! multi"
+                              placeholder="{{ ['location' => 'Tempel banyak SKU / barcode / kode lokasi, satu per baris.', 'bundle' => 'Tempel banyak SKU paket / SKU isi, satu per baris.'][$mode] ?? 'Tempel banyak SKU / barcode, satu per baris.' }} Ctrl+Enter untuk cari."
+                              class="form-input pr-9 font-mono text-xs" @keydown.ctrl.enter.prevent="$el.form.requestSubmit()"
+                              @keydown.meta.enter.prevent="$el.form.requestSubmit()">{{ request('search') }}</textarea>
+                    <button type="button" class="absolute top-1.5 right-1.5 rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+                            :title="multi ? 'Kembali ke cari satu' : 'Cari banyak sekaligus (satu per baris)'"
+                            @click="if (multi) { $refs.single.value = $refs.multi.value.split(/[\r\n]+/).filter(Boolean).join(', ') } else { $refs.multi.value = $refs.single.value.split(/\s*[,;]\s*/).filter(Boolean).join('\n') } multi = ! multi; $nextTick(() => (multi ? $refs.multi : $refs.single).focus())">
+                        <x-heroicon-o-queue-list class="size-4" />
+                    </button>
+                </div>
+                <select name="warehouse" class="form-input md:w-52" onchange="this.form.submit()">
+                    <option value="">Semua gudang</option>
+                    @foreach ($warehouses as $warehouse)
+                        <option value="{{ $warehouse->id }}" @selected(request('warehouse') == $warehouse->id)>{{ $warehouse->code }} · {{ $warehouse->name }}</option>
+                    @endforeach
+                </select>
+                <label class="flex items-center gap-2 text-sm whitespace-nowrap text-slate-600 md:h-10">
+                    <input type="checkbox" name="zero" value="1" class="form-checkbox" @checked(request()->boolean('zero')) onchange="this.form.submit()">
+                    {{ ['variant' => 'Tampilkan semua SKU', 'bundle' => 'Tampilkan paket nonaktif'][$mode] ?? 'Tampilkan stok 0' }}
+                </label>
+                <div class="flex gap-2">
+                    <button type="submit" class="btn-secondary"><x-heroicon-o-funnel class="size-5" /> Filter</button>
+                    @if (request()->hasAny(['search', 'warehouse', 'zero', 'status']))
+                        <a href="{{ route('inventory.stocks.index', ['view' => $mode]) }}" class="btn-icon" title="Reset filter"><x-heroicon-o-x-mark class="size-5" /></a>
+                    @endif
+                </div>
             </div>
+            @if ($searchTerms > 1)
+                <p class="mt-3 flex items-center gap-1 text-xs text-slate-500">
+                    <x-heroicon-o-information-circle class="size-4" /> Mencari {{ $searchTerms }} kata sekaligus (cocok persis). Ditemukan {{ number_format($stocks->total(), 0, ',', '.') }} baris.
+                </p>
+            @endif
         </form>
 
         <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-4 py-3">

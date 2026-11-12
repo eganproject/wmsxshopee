@@ -22,11 +22,13 @@ use App\Http\Controllers\LabelController;
 use App\Http\Controllers\Marketplace\MarketplaceController;
 use App\Http\Controllers\Marketplace\MarketplaceProductStatusController;
 use App\Http\Controllers\Marketplace\MarketplaceSyncLogController;
+use App\Http\Controllers\Master\BarcodeController;
 use App\Http\Controllers\Master\BundleController;
 use App\Http\Controllers\Master\BundleImportController;
 use App\Http\Controllers\Master\CourierController;
 use App\Http\Controllers\Master\LocationController;
 use App\Http\Controllers\Master\LocationImportController;
+use App\Http\Controllers\Master\ProductBulkUpdateController;
 use App\Http\Controllers\Master\ProductController;
 use App\Http\Controllers\Master\ProductImportController;
 use App\Http\Controllers\Master\RackController;
@@ -42,6 +44,7 @@ use App\Http\Controllers\Mobile\OpnameController as MobileOpnameController;
 use App\Http\Controllers\Mobile\PrintController as MobilePrintController;
 use App\Http\Controllers\Mobile\QcController as MobileQcController;
 use App\Http\Controllers\Mobile\ReceiptController as MobileReceiptController;
+use App\Http\Controllers\Mobile\ReleaseController as MobileReleaseController;
 use App\Http\Controllers\Mobile\ReturnController as MobileReturnController;
 use App\Http\Controllers\Mobile\ScanController as MobileScanController;
 use App\Http\Controllers\Mobile\StockCheckController as MobileStockCheckController;
@@ -52,10 +55,12 @@ use App\Http\Controllers\Sales\HandoverController;
 use App\Http\Controllers\Sales\OrderSavedFilterController;
 use App\Http\Controllers\Sales\OrderSkuMappingController;
 use App\Http\Controllers\Sales\QcController;
+use App\Http\Controllers\Sales\QcLogController;
 use App\Http\Controllers\Sales\SalesOrderController;
 use App\Http\Controllers\Sales\SalesOrderImportController;
 use App\Http\Controllers\Sales\SalesReturnController;
 use App\Http\Controllers\Sales\ShipmentController;
+use App\Http\Controllers\ScanMissController;
 use App\Http\Controllers\SearchController;
 use App\Http\Controllers\SettingsController;
 use App\Http\Controllers\Shopee\ShopeeSettingController;
@@ -75,6 +80,11 @@ Route::post('shopee/webhook', ShopeeWebhookController::class)->name('shopee.webh
 // Webhook TikTok Shop (tanpa login; diverifikasi lewat tanda tangan app secret).
 Route::post('tiktok/webhook', TiktokWebhookController::class)->name('tiktok.webhook');
 
+// Unduh APK aplikasi Android lewat link bertanda tangan (dibuat di halaman/cek versi
+// untuk user yang login), supaya browser HP & aplikasi versi lama bisa mengunduhnya.
+Route::get('aplikasi-android/download/{release}/optima-gudang.apk', [MobileAppController::class, 'download'])
+    ->middleware(['signed', 'throttle:30,1'])->name('mobile.download');
+
 // Tidak ada route register: akun hanya dibuat lewat admin panel.
 Route::middleware('guest')->group(function () {
     Route::get('login', [LoginController::class, 'create'])->name('login');
@@ -85,11 +95,14 @@ Route::middleware(['auth', 'auth.session', 'active'])->group(function () {
     Route::post('logout', [LoginController::class, 'destroy'])->name('logout');
 
     Route::get('dashboard', DashboardController::class)->name('dashboard');
-    Route::get('notifications', NotificationController::class)->name('notifications.index');
+    Route::get('notifications', [NotificationController::class, 'index'])->name('notifications.index');
+    Route::post('notifications/read', [NotificationController::class, 'read'])->middleware('throttle:60,1')->name('notifications.read');
     Route::get('settings', SettingsController::class)->name('settings');
 
     // Pencarian global (Ctrl+K). Tiap grup dicek hak lihatnya di App\Support\GlobalSearch.
     Route::get('search', SearchController::class)->middleware('throttle:120,1')->name('search');
+    // Halaman scan (web & aplikasi) melaporkan kode yang tidak dikenali.
+    Route::post('scan-misses', ScanMissController::class)->middleware('throttle:240,1')->name('scan-misses.store');
 
     Route::get('profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::put('profile', [ProfileController::class, 'update'])->name('profile.update');
@@ -100,6 +113,31 @@ Route::middleware(['auth', 'auth.session', 'active'])->group(function () {
         Route::get('products/import', [ProductImportController::class, 'create'])->middleware('can:products.create')->name('products.import');
         Route::post('products/import', [ProductImportController::class, 'store'])->middleware('can:products.create')->name('products.import.store');
         Route::get('products/import/template.{format}', [ProductImportController::class, 'template'])->middleware('can:products.create')->name('products.import.template');
+
+        // Update massal produk per kolom: pilih kolom → template → unggah → pratinjau → terapkan.
+        Route::middleware('can:products.edit')->prefix('products/bulk-update')->name('products.bulk-update')->controller(ProductBulkUpdateController::class)->group(function () {
+            Route::get('/', 'create');
+            Route::get('template', 'template')->name('.template');
+            Route::post('/', 'store')->name('.store');
+            Route::get('preview', 'preview')->name('.preview');
+            Route::post('apply', 'apply')->name('.apply');
+            Route::delete('preview', 'destroy')->name('.destroy');
+        });
+
+        // Barcode alias per varian & barcode yang di-scan tapi tidak dikenali.
+        Route::middleware('can:products.view')->group(function () {
+            Route::get('barcodes', [BarcodeController::class, 'index'])->name('barcodes.index');
+            Route::get('barcodes/lookup', [BarcodeController::class, 'lookup'])->name('barcodes.lookup');
+            Route::get('barcodes/misses', [BarcodeController::class, 'misses'])->name('barcodes.misses');
+        });
+        Route::middleware('can:products.edit')->group(function () {
+            Route::post('barcodes', [BarcodeController::class, 'store'])->name('barcodes.store');
+            Route::get('barcodes/import', [BarcodeController::class, 'importCreate'])->name('barcodes.import');
+            Route::post('barcodes/import', [BarcodeController::class, 'importStore'])->name('barcodes.import.store');
+            Route::get('barcodes/import/template.{format}', [BarcodeController::class, 'template'])->name('barcodes.import.template');
+            Route::delete('barcodes/{barcode}', [BarcodeController::class, 'destroy'])->name('barcodes.destroy');
+            Route::post('barcodes/misses/{miss}/resolve', [BarcodeController::class, 'resolve'])->name('barcodes.misses.resolve');
+        });
 
         // Impor massal zona, rak & lokasi bin dari Excel/CSV.
         Route::get('bundles/import', [BundleImportController::class, 'create'])->middleware('can:products.create')->name('bundles.import');
@@ -167,6 +205,7 @@ Route::middleware(['auth', 'auth.session', 'active'])->group(function () {
         Route::get('transfers/create', [WarehouseTransferController::class, 'create'])->middleware('can:inventory.create')->name('transfers.create');
         Route::post('transfers', [WarehouseTransferController::class, 'store'])->middleware('can:inventory.create')->name('transfers.store');
         Route::get('transfers/{transfer}', [WarehouseTransferController::class, 'show'])->middleware('can:inventory.view')->name('transfers.show');
+        Route::get('transfers/{transfer}/delivery-note', [WarehouseTransferController::class, 'deliveryNote'])->middleware('can:inventory.view')->name('transfers.delivery-note');
         Route::post('transfers/{transfer}/receive', [WarehouseTransferController::class, 'receive'])->middleware('can:inventory.create')->name('transfers.receive');
         Route::post('transfers/{transfer}/cancel', [WarehouseTransferController::class, 'cancel'])->middleware('can:inventory.create')->name('transfers.cancel');
 
@@ -236,6 +275,9 @@ Route::middleware(['auth', 'auth.session', 'active'])->group(function () {
         Route::get('reorder', [ReportController::class, 'reorder'])->name('reorder');
         Route::get('movements', [ReportController::class, 'movements'])->name('movements');
         Route::get('lost-items', [ReportController::class, 'lostItems'])->name('lost-items');
+        Route::get('runout', [ReportController::class, 'runout'])->name('runout');
+        Route::get('balance', [ReportController::class, 'balance'])->name('balance');
+        Route::get('moving', [ReportController::class, 'moving'])->name('moving');
     });
 
     // Pesanan penjualan manual: draft -> dikonfirmasi (stok dicadangkan) -> diambil ->
@@ -249,8 +291,18 @@ Route::middleware(['auth', 'auth.session', 'active'])->group(function () {
         Route::get('orders/import/template.{format}', [SalesOrderImportController::class, 'template'])->middleware('can:sales.create')->name('orders.import.template');
         Route::get('qc', [QcController::class, 'index'])->middleware('can:sales.fulfill')->name('qc.index');
         Route::post('qc', [QcController::class, 'lookup'])->middleware('can:sales.fulfill')->name('qc.lookup');
+        // Riwayat & pengaturan QC: substitusi SKU, scan resi ganda, SKU tanpa scan QC.
+        Route::get('qc-log/substitutions', [QcLogController::class, 'substitutions'])->middleware('can:sales.fulfill')->name('qc.substitutions');
+        Route::get('qc-log/duplicates', [QcLogController::class, 'duplicates'])->middleware('can:sales.fulfill')->name('qc.duplicates');
+        Route::get('qc-exempt', [QcLogController::class, 'exempt'])->middleware('can:sales.fulfill')->name('qc.exempt');
+        Route::get('qc-exempt/variants', [BarcodeController::class, 'lookup'])->middleware('can:sales.qc_settings')->name('qc.exempt.variants');
+        Route::post('qc-exempt', [QcLogController::class, 'storeExempt'])->middleware('can:sales.qc_settings')->name('qc.exempt.store');
+        Route::delete('qc-exempt/{exempt}', [QcLogController::class, 'destroyExempt'])->middleware('can:sales.qc_settings')->name('qc.exempt.destroy');
         Route::get('qc/{order}', [QcController::class, 'show'])->middleware('can:sales.fulfill')->name('qc.show');
         Route::post('qc/{order}', [QcController::class, 'store'])->middleware('can:sales.fulfill')->name('qc.store');
+        Route::post('qc/{order}/hold', [QcController::class, 'hold'])->middleware('can:sales.fulfill')->name('qc.hold');
+        Route::post('qc/{order}/release', [QcController::class, 'release'])->middleware('can:sales.fulfill')->name('qc.release');
+        Route::post('qc/{order}/substitute', [QcController::class, 'substitute'])->middleware('can:sales.qc_substitute')->name('qc.substitute');
         Route::get('handovers', [HandoverController::class, 'index'])->middleware('can:sales.fulfill')->name('handovers.index');
         Route::post('handovers/scan', [HandoverController::class, 'scan'])->middleware('can:sales.fulfill')->name('handovers.scan');
         Route::get('handovers/{handover}', [HandoverController::class, 'show'])->middleware('can:sales.fulfill')->name('handovers.show');
@@ -274,7 +326,6 @@ Route::middleware(['auth', 'auth.session', 'active'])->group(function () {
         Route::get('orders/{order}/picking', [SalesOrderController::class, 'picking'])->middleware('can:sales.fulfill')->name('orders.picking');
         Route::post('orders/{order}/pick', [SalesOrderController::class, 'pick'])->middleware('can:sales.fulfill')->name('orders.pick');
         Route::get('orders/{order}/pick-list', [SalesOrderController::class, 'pickList'])->middleware('can:sales.view')->name('orders.pick-list');
-        Route::post('orders/{order}/pack', [SalesOrderController::class, 'pack'])->middleware('can:sales.skip_scan')->name('orders.pack');
         Route::post('orders/{order}/ship', [SalesOrderController::class, 'ship'])->middleware('can:sales.skip_scan')->name('orders.ship');
         Route::post('orders/{order}/qc-skip-check', [SalesOrderController::class, 'checkQcSkip'])->middleware('can:sales.skip_scan')->name('orders.qc-skip-check');
         Route::post('orders/{order}/hand-to-customer', [SalesOrderController::class, 'handToCustomer'])->middleware('can:sales.fulfill')->name('orders.hand-to-customer');
@@ -302,7 +353,9 @@ Route::middleware(['auth', 'auth.session', 'active'])->group(function () {
         Route::get('products', MarketplaceProductStatusController::class)->middleware('can:marketplace.view')->name('products');
         Route::post('sync-products', [MarketplaceController::class, 'syncProducts'])->middleware('can:marketplace.view')->name('sync-products');
         Route::post('sync-all', [MarketplaceController::class, 'syncAll'])->middleware('can:marketplace.view')->name('sync-all');
+        Route::get('background-tasks', [MarketplaceController::class, 'backgroundTasks'])->middleware('can:marketplace.view')->name('background-tasks');
         Route::post('shops/{platform}/{shop}/sync-all', [MarketplaceController::class, 'syncShop'])->whereIn('platform', ['shopee', 'tiktok'])->whereNumber('shop')->middleware('can:marketplace.view')->name('shops.sync-all');
+        Route::put('shops/{platform}/{shop}/order-processing', [MarketplaceController::class, 'orderProcessing'])->whereIn('platform', ['shopee', 'tiktok'])->whereNumber('shop')->middleware('can:marketplace.view')->name('shops.order-processing');
         Route::get('sync-logs', [MarketplaceSyncLogController::class, 'index'])->middleware('can:marketplace.view')->name('sync-logs');
         Route::post('sync-logs/retry-stock', [MarketplaceSyncLogController::class, 'retryStock'])->middleware('can:marketplace.view')->name('sync-logs.retry-stock');
         Route::post('sync-logs/retry-push', [MarketplaceSyncLogController::class, 'retryPush'])->middleware('can:marketplace.view')->name('sync-logs.retry-push');
@@ -345,6 +398,7 @@ Route::middleware(['auth', 'auth.session', 'active'])->group(function () {
         Route::get('shops', fn () => redirect()->route('marketplace.shops', ['platform' => 'tiktok']))->name('shops.index');
         Route::post('shops/connect', [TiktokShopController::class, 'connect'])->middleware('can:tiktok.connect')->name('shops.connect');
         Route::get('callback', [TiktokShopController::class, 'callback'])->middleware('can:tiktok.connect')->name('callback');
+        Route::post('callback', [TiktokShopController::class, 'confirm'])->middleware('can:tiktok.connect')->name('callback.confirm');
         Route::put('shops/{shop}', [TiktokShopController::class, 'update'])->middleware('can:tiktok.connect')->name('shops.update');
         Route::post('shops/{shop}/refresh', [TiktokShopController::class, 'refresh'])->middleware('can:tiktok.connect')->name('shops.refresh');
         Route::post('shops/{shop}/sync', [TiktokShopController::class, 'sync'])->middleware('can:tiktok.sync')->name('shops.sync');
@@ -363,6 +417,14 @@ Route::middleware(['auth', 'auth.session', 'active'])->group(function () {
     // yang dimuat aplikasi. Login aplikasi butuh mobile.access; tiap menu di dalamnya
     // tetap dijaga permission fiturnya masing-masing.
     Route::get('aplikasi-android', [MobileAppController::class, 'page'])->middleware('can:mobile.access')->name('mobile.app');
+    // Versi APK: upload APK baru, catatan perubahan & tanda wajib update.
+    Route::prefix('aplikasi-android/versi')->name('mobile.releases.')->middleware('can:mobile.releases')->group(function () {
+        Route::get('create', [MobileReleaseController::class, 'create'])->name('create');
+        Route::post('/', [MobileReleaseController::class, 'store'])->name('store');
+        Route::get('{release}/edit', [MobileReleaseController::class, 'edit'])->name('edit');
+        Route::put('{release}', [MobileReleaseController::class, 'update'])->name('update');
+        Route::delete('{release}', [MobileReleaseController::class, 'destroy'])->name('destroy');
+    });
 
     Route::prefix('m')->name('mobile.')->middleware(['can:mobile.access', 'idempotent'])->group(function () {
         Route::get('/', [MobileHomeController::class, 'index'])->name('home');
@@ -381,6 +443,8 @@ Route::middleware(['auth', 'auth.session', 'active'])->group(function () {
             Route::get('qc/queue', [MobileQcController::class, 'queue'])->name('qc.queue');
             Route::get('qc/find', [MobileQcController::class, 'find'])->name('qc.find');
             Route::post('qc/{order}', [MobileQcController::class, 'store'])->name('qc.store');
+            Route::post('qc/{order}/hold', [MobileQcController::class, 'hold'])->name('qc.hold');
+            Route::post('qc/{order}/release', [MobileQcController::class, 'release'])->name('qc.release');
             Route::get('handover', [MobileHandoverController::class, 'index'])->name('handover');
             Route::post('handover/scan', [MobileHandoverController::class, 'scan'])->name('handover.scan');
             Route::get('handover/{handover}', [MobileHandoverController::class, 'show'])->name('handover.show');

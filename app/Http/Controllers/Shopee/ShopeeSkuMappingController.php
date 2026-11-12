@@ -4,27 +4,28 @@ namespace App\Http\Controllers\Shopee;
 
 use App\Http\Controllers\Concerns\ResolvesSkuTarget;
 use App\Http\Controllers\Controller;
+use App\Jobs\RunMarketplaceTask;
 use App\Models\Bundle;
 use App\Models\ProductVariant;
 use App\Models\ShopeeShop;
 use App\Models\ShopeeSkuMapping;
-use App\Services\MarketplaceProductSync;
 use App\Services\Shopee\ShopeeCatalog;
-use App\Services\Shopee\ShopeeException;
+use App\Support\SkuMappingExport;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class ShopeeSkuMappingController extends Controller
 {
     use ResolvesSkuTarget;
 
-    public function index(Request $request, ShopeeShop $shop): View
+    public function index(Request $request, ShopeeShop $shop): View|BinaryFileResponse
     {
-        $mappings = $shop->mappings()
+        $query = $shop->mappings()
             ->with(['variant.product:id,name', 'bundle:id,sku,name'])
             ->when($request->filled('search'), function (Builder $query) use ($request) {
                 $like = '%'.str_replace(['%', '_'], ['\%', '\_'], $request->string('search')->trim()).'%';
@@ -37,17 +38,25 @@ class ShopeeSkuMappingController extends Controller
             ->when($request->input('status') === 'unmapped', fn ($q) => $q->whereNull('product_variant_id')->whereNull('bundle_id'))
             ->when($request->input('status') === 'failed', fn ($q) => $q->whereNotNull('stock_error'))
             ->when($request->input('status') === 'bundle_like', fn ($q) => $q->bundleLike())
-            ->orderBy('item_name')->orderBy('model_name')
-            ->paginate(25)->withQueryString();
+            ->orderBy('item_name')->orderBy('model_name');
 
-        return view('shopee.mappings.index', [
-            'shop' => $shop,
-            'mappings' => $mappings,
+        $summary = [
             'total' => $shop->mappings()->whereNull('removed_at')->count(),
             'unmapped' => $shop->mappings()->whereNull('removed_at')->whereNull('product_variant_id')->whereNull('bundle_id')->count(),
             'failed' => $shop->mappings()->whereNull('removed_at')->whereNotNull('stock_error')->count(),
             'removed' => $shop->mappings()->whereNotNull('removed_at')->count(),
             'bundleLike' => $shop->mappings()->whereNull('removed_at')->bundleLike()->count(),
+        ];
+
+        // Ekspor Excel mengikuti pencarian & filter status yang sedang dipakai.
+        if ($request->input('export') === 'xlsx') {
+            return SkuMappingExport::download($request, $shop, $query, $summary);
+        }
+
+        return view('shopee.mappings.index', [
+            'shop' => $shop,
+            'mappings' => $query->paginate(25)->withQueryString(),
+            ...$summary,
         ]);
     }
 
@@ -104,15 +113,16 @@ class ShopeeSkuMappingController extends Controller
     }
 
     /** Tarik daftar produk & variasi dari Shopee lalu cocokkan otomatis. */
-    public function pull(ShopeeShop $shop, ShopeeCatalog $catalog): RedirectResponse
+    public function pull(Request $request, ShopeeShop $shop): RedirectResponse
     {
-        try {
-            $result = $catalog->pull($shop);
-        } catch (ShopeeException $e) {
-            return back()->with('error', 'Gagal menarik produk dari Shopee. '.$e->getMessage());
+        if (! $shop->isConnected()) {
+            return back()->with('error', 'Toko perlu diotorisasi ulang sebelum produk bisa ditarik.');
         }
 
-        return back()->with('success', "{$result['items']} produk ({$result['rows']} baris SKU) ditarik dari Shopee, {$result['matched']} cocok otomatis".MarketplaceProductSync::removedNote($result).'.'.$this->relinkOrders());
+        // Lewat antrean: toko dengan ribuan SKU bisa lebih lama dari batas waktu nginx (504).
+        return RunMarketplaceTask::start('pull', 'shopee', $shop, $request->user()->id)
+            ? back()->with('success', RunMarketplaceTask::queuedMessage())
+            : back()->with('warning', RunMarketplaceTask::busyMessage());
     }
 
     /** Pilihan target pemetaan untuk Tom Select: varian gudang & paket. */

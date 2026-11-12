@@ -5,7 +5,9 @@
         'amber' => 'bg-amber-50 text-amber-700',
         'slate' => 'bg-slate-100 text-slate-600',
     ];
-    $active = collect($groups)->filter(fn ($group) => $group['count'] > 0);
+    $active = collect($groups)->filter(fn ($group) => $group['count'] > 0)
+        ->sortByDesc(fn ($group) => $group['unread'] > 0);
+    $unread = collect($groups)->sum('unread');
 @endphp
 
 <x-layouts.app title="Notifikasi">
@@ -15,7 +17,13 @@
         <span class="font-medium text-slate-700">Notifikasi</span>
     </x-slot:breadcrumb>
 
-    <x-page-header title="Notifikasi" description="Peringatan stok dan pekerjaan yang tertunda di gudang yang bisa Anda akses.">
+    <x-page-header title="Notifikasi" description="Peringatan stok dan pekerjaan yang tertunda di gudang yang bisa Anda akses. Peringatan tetap tampil selama masalahnya belum selesai; yang sudah dibaca tidak dihitung di lonceng.">
+        @if ($unread)
+            <form method="POST" action="{{ route('notifications.read') }}">
+                @csrf
+                <button type="submit" class="btn-secondary"><x-heroicon-o-check class="size-5" /> Tandai semua dibaca ({{ $fmt($unread) }})</button>
+            </form>
+        @endif
         @can('reports.view')
             <a href="{{ route('reports.reorder') }}" class="btn-secondary"><x-heroicon-o-shopping-bag class="size-5" /> Saran Pembelian</a>
         @endcan
@@ -32,6 +40,9 @@
                         <span class="block text-xs text-slate-500">{{ $group['label'] }}</span>
                         <span class="block text-lg font-semibold tabular-nums text-slate-900">{{ $fmt($group['count']) }}</span>
                     </span>
+                    @if ($group['unread'])
+                        <span class="shrink-0 rounded-full bg-rose-50 px-2 py-0.5 text-xs font-medium text-rose-700 tabular-nums">{{ $fmt($group['unread']) }} baru</span>
+                    @endif
                 </a>
             @endforeach
         </div>
@@ -54,10 +65,27 @@
                             <x-dynamic-component :component="$group['icon']" class="size-4" />
                         </span>
                         <div>
-                            <h2 class="text-base font-semibold text-slate-900">{{ $group['label'] }} <span class="text-slate-500 tabular-nums">({{ $fmt($group['count']) }})</span></h2>
+                            <h2 class="text-base font-semibold text-slate-900">
+                                {{ $group['label'] }} <span class="text-slate-500 tabular-nums">({{ $fmt($group['count']) }})</span>
+                                @if ($group['unread'])
+                                    <span class="ml-1 rounded-full bg-rose-50 px-2 py-0.5 align-middle text-xs font-medium text-rose-700 tabular-nums">{{ $fmt($group['unread']) }} baru</span>
+                                @else
+                                    <span class="ml-1 rounded-full bg-slate-100 px-2 py-0.5 align-middle text-xs font-medium text-slate-500">Sudah dibaca</span>
+                                @endif
+                            </h2>
                             <p class="text-xs text-slate-500">{{ $group['hint'] }}</p>
                         </div>
                     </div>
+                    <div class="flex flex-wrap items-center gap-3">
+                    @if ($group['unread'])
+                        <form method="POST" action="{{ route('notifications.read') }}">
+                            @csrf
+                            <input type="hidden" name="group" value="{{ $group['key'] }}">
+                            <button type="submit" class="inline-flex items-center gap-1 text-sm text-slate-600 hover:text-slate-900" data-testid="mark-group-read">
+                                <x-heroicon-o-check class="size-4" /> Tandai dibaca
+                            </button>
+                        </form>
+                    @endif
                     @switch($group['key'])
                         @case('low_stock')
                             <div class="flex gap-3 text-sm">
@@ -77,6 +105,9 @@
                             @break
                         @case('held_orders')
                             <a href="{{ route('sales.orders.index', ['status' => 'draft']) }}" class="text-sm text-slate-600 hover:text-slate-900">Lihat pesanan</a>
+                            @break
+                        @case('unmapped_orders')
+                            <a href="{{ route('sales.orders.index', ['shopee' => 'unmapped']) }}" class="text-sm text-slate-600 hover:text-slate-900">Lihat pesanan</a>
                             @break
                         @case('courier_pending')
                         @case('shopee_ahead')
@@ -102,16 +133,20 @@
                             <a href="{{ route('inventory.adjustments.index', ['status' => 'pending']) }}" class="text-sm text-slate-600 hover:text-slate-900">Lihat penyesuaian</a>
                             @break
                     @endswitch
+                    </div>
                 </div>
 
                 <ul class="divide-y divide-slate-100">
                     @foreach ($group['items'] as $item)
-                        <li class="flex items-center gap-3 px-5 py-2.5">
+                        <li @class(['relative flex items-center gap-3 px-5 py-2.5', 'bg-brand-50/40' => $item->alert_unread])>
+                            @if ($item->alert_unread)
+                                <span class="absolute top-1/2 left-2 size-1.5 -translate-y-1/2 rounded-full bg-brand-600" title="Baru" data-testid="alert-unread"></span>
+                            @endif
                             @switch($group['key'])
                                 @case('low_stock')
                                     <div class="min-w-0 flex-1">
-                                        <a href="{{ route('inventory.stocks.index', ['view' => 'location', 'search' => $item->sku]) }}" class="font-mono text-sm font-medium text-slate-900 hover:text-brand-600">{{ $item->sku }}</a>
-                                        <p class="truncate text-xs text-slate-500">{{ $item->product_name }}{{ $item->variant_name ? ' · '.$item->variant_name : '' }}</p>
+                                        <a href="{{ route('inventory.stocks.index', ['view' => 'location', 'search' => $item->sku, 'warehouse' => $item->warehouse_id]) }}" class="font-mono text-sm font-medium text-slate-900 hover:text-brand-600">{{ $item->sku }}</a>
+                                        <p class="truncate text-xs text-slate-500">{{ $item->warehouse_code }} · {{ $item->product_name }}{{ $item->variant_name ? ' · '.$item->variant_name : '' }}</p>
                                     </div>
                                     <div class="text-right">
                                         <p @class(['text-sm font-semibold tabular-nums', 'text-rose-600' => $item->available <= 0, 'text-amber-700' => $item->available > 0])>
@@ -136,6 +171,22 @@
                                         <p class="truncate text-xs text-slate-500">{{ $item->name }}</p>
                                     </div>
                                     <p class="max-w-[50%] truncate text-right text-xs text-slate-500" title="Komponen">{{ $item->items->map(fn ($component) => $component->qty.'× '.$component->variant?->sku)->join(', ') }}</p>
+                                    @break
+                                @case('unmapped_orders')
+                                    <div class="min-w-0 flex-1">
+                                        <a href="{{ route('sales.orders.show', $item) }}" class="text-sm font-medium text-slate-900 hover:text-brand-600">{{ $item->number }}</a>
+                                        <p class="truncate text-xs text-slate-500">{{ $item->channel_name }} · {{ $item->warehouse?->code }}{{ $item->external_number ? ' · '.$item->external_number : '' }}</p>
+                                        <p class="text-xs">
+                                            <span class="text-slate-500">Belum dipetakan:</span>
+                                            <span class="font-mono font-medium text-amber-700">{{ collect($item->unmapped_skus)->map(fn ($sku) => $sku ?: 'Tanpa SKU')->join(', ') }}</span>
+                                        </p>
+                                    </div>
+                                    <div class="shrink-0 text-right">
+                                        <a href="{{ route('sales.orders.show', $item) }}" class="btn-secondary px-2.5 py-1 text-xs">
+                                            <x-heroicon-o-link class="size-4" /> Petakan SKU
+                                        </a>
+                                        <p class="mt-1 text-xs text-slate-500" title="{{ $item->ordered_at?->translatedFormat('d M Y H:i') }}">{{ ($item->ordered_at ?? $item->created_at)?->diffForHumans() }}</p>
+                                    </div>
                                     @break
                                 @case('held_orders')
                                     <div class="min-w-0 flex-1">
@@ -230,6 +281,18 @@
                                     <p class="text-xs text-slate-500" title="{{ $item->submitted_at?->translatedFormat('d M Y H:i') }}">{{ $item->submitted_at?->diffForHumans() }}</p>
                                     @break
                             @endswitch
+                            @if ($item->alert_unread)
+                                <form method="POST" action="{{ route('notifications.read') }}" class="shrink-0">
+                                    @csrf
+                                    <input type="hidden" name="group" value="{{ $group['key'] }}">
+                                    <input type="hidden" name="item" value="{{ $item->alert_key }}">
+                                    <button type="submit" class="btn-icon size-7" title="Tandai dibaca" aria-label="Tandai dibaca">
+                                        <x-heroicon-o-check class="size-4" />
+                                    </button>
+                                </form>
+                            @else
+                                <span class="size-7 shrink-0" aria-hidden="true"></span>
+                            @endif
                         </li>
                     @endforeach
                     @if ($group['count'] > $group['items']->count())

@@ -191,7 +191,7 @@ class MobileAppTest extends TestCase
     {
         $spx = Courier::where('code', 'SPX')->firstOrFail();
         $order = $this->order(['tracking_number' => 'SPX-1', 'courier_id' => $spx->id]);
-        $this->post("/sales/orders/{$order->id}/pack")->assertSessionHasNoErrors();
+        app(\App\Services\SalesOrderService::class)->pack($order);
 
         $this->get('/m/handover')->assertOk()->assertSee($spx->name);
         $this->postJson('/m/handover/scan', ['code' => 'SPX-1'])->assertOk()->assertJsonPath('order.number', $order->number);
@@ -334,7 +334,7 @@ class MobileAppTest extends TestCase
     public function test_return_from_order_with_condition_and_photo(): void
     {
         $order = $this->order(['tracking_number' => 'RESI-RT']);
-        $this->post("/sales/orders/{$order->id}/pack")->assertSessionHasNoErrors();
+        app(\App\Services\SalesOrderService::class)->pack($order);
         $order->update(['status' => 'shipped', 'shipped_at' => now()]);
 
         $item = $order->items()->first();

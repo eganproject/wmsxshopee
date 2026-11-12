@@ -83,6 +83,10 @@ input, select, textarea { font: inherit; color: inherit; }
 
 .bar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 30; padding: 12px 16px calc(14px + env(safe-area-inset-bottom)); display: flex; gap: 10px; background: var(--surface); border-top: 1px solid var(--border); }
 .has-nav .bar { bottom: calc(76px + env(safe-area-inset-bottom)); padding-bottom: 12px; }
+/* Keyboard aktif: menu & tombol bawah disembunyikan supaya kolom yang diketik tidak tertutup. */
+.kb-open .bar, .kb-open .nav { display: none; }
+.kb-open .top { position: static; }
+.m-page.kb-open { padding-bottom: 40vh; }
 .bar-note { font-size: 12px; color: var(--muted); display: flex; align-items: center; gap: 6px; position: absolute; left: 16px; right: 16px; top: -26px; }
 
 .thumb { width: 44px; height: 44px; border-radius: 12px; display: grid; place-items: center; flex: none; font-weight: 700; font-size: 13px; }
@@ -112,6 +116,10 @@ input, select, textarea { font: inherit; color: inherit; }
 .step > input { width: 52px; text-align: center; font-size: 15px; font-weight: 700; border: 0; border-left: 1px solid var(--border); border-right: 1px solid var(--border); height: 100%; background: transparent; outline: none; -moz-appearance: textfield; }
 .step > input::-webkit-outer-spin-button, .step > input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
 .step.active { border-color: var(--text); box-shadow: 0 0 0 3px var(--surface2); }
+.scan-focus { padding: 14px; }
+.step.lg { height: 56px; border-radius: 14px; width: 100%; }
+.step.lg > button { flex: none; width: 64px; color: var(--text); }
+.step.lg > input { flex: 1; min-width: 0; width: auto; font-size: 22px; }
 
 .input, .select, .textarea { display: block; width: 100%; height: 50px; border-radius: 14px; border: 1px solid var(--border); background: var(--surface); padding: 0 14px; font-size: 15px; outline: none; }
 .textarea { height: auto; min-height: 76px; padding: 12px 14px; resize: none; }

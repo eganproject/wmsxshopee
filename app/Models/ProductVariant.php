@@ -3,9 +3,11 @@
 namespace App\Models;
 
 use App\Support\Cartons;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class ProductVariant extends Model
 {
@@ -61,6 +63,42 @@ class ProductVariant extends Model
     public function ledgers(): HasMany
     {
         return $this->hasMany(StockLedger::class);
+    }
+
+    /** Barcode tambahan (alias) selain barcode utama. */
+    public function aliases(): HasMany
+    {
+        return $this->hasMany(ProductBarcode::class)->orderBy('barcode');
+    }
+
+    public function qcExemption(): HasOne
+    {
+        return $this->hasOne(QcExemptVariant::class);
+    }
+
+    /**
+     * Cari varian dari hasil scan: SKU, barcode utama, lalu barcode alias.
+     */
+    public static function findByCode(string $code): ?self
+    {
+        $code = trim($code);
+        if ($code === '') {
+            return null;
+        }
+
+        return self::query()->where('sku', $code)->orWhere('barcode', $code)->first()
+            ?? self::query()->whereHas('aliases', fn ($q) => $q->where('barcode', $code))->first();
+    }
+
+    /**
+     * Batasi query varian ke yang SKU / barcode / alias-nya cocok persis dengan kode.
+     *
+     * @param  Builder<ProductVariant>  $query
+     */
+    public function scopeMatchingCode($query, string $code): void
+    {
+        $query->where(fn ($q) => $q->where('sku', $code)->orWhere('barcode', $code)
+            ->orWhereHas('aliases', fn ($a) => $a->where('barcode', $code)));
     }
 
     /** "SKU · Nama Produk / Varian" untuk pilihan & label. */

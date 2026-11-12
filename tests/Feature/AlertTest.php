@@ -101,8 +101,10 @@ class AlertTest extends TestCase
 
         $groups = app(AlertService::class)->groups($this->superAdmin());
 
-        // Total kaos 38 di semua gudang, jadi belum menipis.
-        $this->assertSame(0, $groups['low_stock']['count']);
+        // Stok minimum per gudang: kaos Jakarta 8 (<= 10) menipis, Bandung 30 aman,
+        // topi tanpa stok minimum tidak dihitung.
+        $this->assertSame(1, $groups['low_stock']['count']);
+        $this->assertSame(["{$this->jakarta->id}-{$this->kaos->id}"], $groups['low_stock']['keys']);
         $this->assertSame(['SO-LAMA'], $groups['pending_orders']['items']->pluck('number')->all());
         $this->assertSame(['SO-DRAFT'], $groups['draft_orders']['items']->pluck('number')->all());
         $this->assertSame(['GR-LAMA'], $groups['draft_receipts']['items']->pluck('number')->all());
@@ -111,6 +113,63 @@ class AlertTest extends TestCase
         $this->get('/notifications')->assertOk()
             ->assertSee('Pesanan tertunda')->assertSee('SO-LAMA')->assertDontSee('SO-BARU')
             ->assertSee('GR-LAMA')->assertDontSee('GR-BARU');
+    }
+
+    public function test_notifications_can_be_marked_read_per_item_group_and_all(): void
+    {
+        $old = fn (string $number) => SalesOrder::create(['number' => $number, 'status' => 'confirmed', 'warehouse_id' => $this->jakarta->id,
+            'order_date' => today()->subDays(3), 'customer_name' => 'Budi', 'confirmed_at' => now()->subDays(3)]);
+        $first = $old('SO-SATU');
+        $old('SO-DUA');
+        GoodsReceipt::create(['number' => 'GR-LAMA', 'status' => 'draft', 'supplier_id' => $this->supplier->id, 'warehouse_id' => $this->jakarta->id, 'receipt_date' => today()])
+            ->forceFill(['created_at' => now()->subDays(3)])->save();
+
+        $admin = $this->superAdmin();
+        $this->actingAs($admin);
+        $alerts = app(AlertService::class);
+
+        $summary = $alerts->summary($admin);
+        $this->assertGreaterThanOrEqual(3, $summary['unread']);
+        $this->assertSame($summary['total'], $summary['unread']);
+
+        // Satu pesanan ditandai dibaca: tetap tampil, tapi tidak dihitung baru.
+        $this->post('/notifications/read', ['group' => 'pending_orders', 'item' => (string) $first->id])->assertRedirect();
+        $groups = $alerts->groups($admin);
+        $this->assertSame(2, $groups['pending_orders']['count']);
+        $this->assertSame(1, $groups['pending_orders']['unread']);
+        $this->assertSame('SO-DUA', $groups['pending_orders']['items']->first()->number, 'yang belum dibaca tampil di atas');
+        $this->assertFalse($groups['pending_orders']['items']->firstWhere('number', 'SO-SATU')->alert_unread);
+
+        // Satu grup ditandai dibaca.
+        $this->post('/notifications/read', ['group' => 'pending_orders'])->assertRedirect();
+        $groups = $alerts->groups($admin);
+        $this->assertSame(0, $groups['pending_orders']['unread']);
+        $this->assertSame(1, $groups['draft_receipts']['unread']);
+
+        // Semua ditandai dibaca: lonceng tidak menampilkan angka lagi, halaman tetap menampilkan peringatannya.
+        $this->post('/notifications/read')->assertRedirect()->assertSessionHas('success');
+        $this->assertSame(0, $alerts->summary($admin)['unread']);
+        $this->get('/dashboard')->assertOk()->assertDontSee('data-testid="notification-count"', false)
+            ->assertSee('data-testid="notification-read-dot"', false);
+        $this->get('/notifications')->assertOk()->assertSee('SO-SATU')->assertSee('Sudah dibaca')
+            ->assertDontSee('data-testid="alert-unread"', false);
+
+        // Masalah baru muncul lagi setelah semua dibaca: dihitung baru.
+        $old('SO-TIGA');
+        AlertService::forget($admin);
+        $this->assertSame(1, $alerts->summary($admin)['unread']);
+        $this->get('/dashboard')->assertSee('data-testid="notification-count"', false);
+    }
+
+    public function test_read_state_is_per_user(): void
+    {
+        SalesOrder::create(['number' => 'SO-LAMA', 'status' => 'confirmed', 'warehouse_id' => $this->jakarta->id,
+            'order_date' => today()->subDays(3), 'customer_name' => 'Budi', 'confirmed_at' => now()->subDays(3)]);
+        $staff = $this->jakartaStaff();
+        $this->actingAs($this->superAdmin())->post('/notifications/read')->assertRedirect();
+
+        $this->actingAs($staff);
+        $this->assertGreaterThan(0, app(AlertService::class)->summary($staff)['unread']);
     }
 
     public function test_alerts_respect_warehouse_access(): void
@@ -193,9 +252,10 @@ class AlertTest extends TestCase
         }
         $reader->close();
 
-        $this->assertSame('Saran Beli', $sheetRows[0][11]);
+        $this->assertSame('Saran Beli', $sheetRows[0][12]);
         $this->assertSame('KAOS', $sheetRows[1][0]);
-        $this->assertEquals(42, $sheetRows[1][11]);
+        $this->assertSame('JKT01', $sheetRows[1][3]);
+        $this->assertEquals(42, $sheetRows[1][12]);
     }
 
     public function test_reorder_hides_other_warehouses_from_limited_user(): void

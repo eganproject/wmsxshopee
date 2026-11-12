@@ -10,6 +10,7 @@ import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.provider.MediaStore
+import android.provider.Settings
 import android.view.View
 import android.view.ViewGroup
 import android.view.WindowManager
@@ -37,6 +38,7 @@ import androidx.webkit.WebSettingsCompat
 import androidx.webkit.WebViewFeature
 import org.json.JSONObject
 import java.io.File
+import kotlin.concurrent.thread
 
 /**
  * Satu layar WebView yang memuat halaman mobile Optima (/m) dari server.
@@ -56,6 +58,8 @@ class MainActivity : AppCompatActivity() {
     private var photoUri: Uri? = null
     private var pendingPermission: ((Boolean) -> Unit)? = null
     private var torchOn = false
+    private var updating = false
+    private var pendingInstall: (() -> Unit)? = null
 
     private val permissionLauncher =
         registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { result ->
@@ -80,6 +84,14 @@ class MainActivity : AppCompatActivity() {
                 else -> null
             }
             callback.onReceiveValue(picked)
+        }
+
+    // Kembali dari pengaturan "Instal aplikasi tidak dikenal".
+    private val installPermissionLauncher =
+        registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
+            val next = pendingInstall
+            pendingInstall = null
+            next?.invoke()
         }
 
     @SuppressLint("SetJavaScriptEnabled")
@@ -314,6 +326,58 @@ class MainActivity : AppCompatActivity() {
             repeatCount = Animation.INFINITE
         }
         line.startAnimation(anim)
+    }
+
+    /**
+     * Unduh update lalu buka layar pasang Android. done(ok, pesan) dipanggil saat layar
+     * pasang terbuka atau saat gagal. Bila izin memasang aplikasi belum ada, pengguna
+     * diarahkan ke pengaturannya dulu lalu pemasangan dilanjutkan.
+     */
+    fun startUpdate(release: AppUpdater.Release, done: (Boolean, String) -> Unit) {
+        if (updating) {
+            done(false, "Update sedang diunduh.")
+            return
+        }
+        updating = true
+        val updater = AppUpdater(this)
+        thread {
+            val file = try {
+                updater.download(release) { received, total ->
+                    js("window.OptimaBridge && OptimaBridge._event('update-progress', {received:$received,total:$total})")
+                }
+            } catch (e: Exception) {
+                updating = false
+                done(false, e.message ?: "Gagal mengunduh update.")
+                return@thread
+            }
+            runOnUiThread {
+                updating = false
+                val install = {
+                    try {
+                        startActivity(updater.installIntent(file))
+                        done(true, "")
+                    } catch (e: Exception) {
+                        done(false, "Layar pasang Android tidak bisa dibuka.")
+                    }
+                }
+                if (updater.canInstall()) {
+                    install()
+                } else {
+                    toast("Izinkan Optima Gudang memasang aplikasi, lalu tekan kembali.")
+                    pendingInstall = {
+                        if (updater.canInstall()) install() else done(false, "Izin \"Instal aplikasi tidak dikenal\" belum diberikan untuk Optima Gudang.")
+                    }
+                    try {
+                        installPermissionLauncher.launch(
+                            Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:$packageName")),
+                        )
+                    } catch (e: Exception) {
+                        pendingInstall = null
+                        done(false, "Buka Pengaturan HP lalu izinkan Optima Gudang memasang aplikasi.")
+                    }
+                }
+            }
+        }
     }
 
     /** Warna status bar & navigasi mengikuti halaman (terang / gelap). */

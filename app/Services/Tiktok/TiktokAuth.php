@@ -3,6 +3,7 @@
 namespace App\Services\Tiktok;
 
 use App\Models\TiktokShop;
+use App\Services\TokenWebhook;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
@@ -31,8 +32,8 @@ class TiktokAuth
             throw new TiktokException('TikTok tidak mengembalikan toko apa pun untuk otorisasi ini.');
         }
 
-        return DB::transaction(fn () => array_map(function (array $info) use ($attributes, $token, $warehouseId) {
-            $shop = TiktokShop::firstOrNew(['shop_id' => (string) $info['id']]);
+        $shops = DB::transaction(fn () => array_map(function (array $info) use ($attributes, $token, $warehouseId) {
+            $shop = TiktokShop::withoutGlobalScope('warehouse_access')->firstOrNew(['shop_id' => (string) $info['id']]);
             $shop->fill([
                 ...$attributes,
                 'shop_cipher' => $info['cipher'] ?? null,
@@ -54,6 +55,12 @@ class TiktokAuth
 
             return $shop;
         }, $authorized));
+
+        foreach ($shops as $shop) {
+            TokenWebhook::tiktok($shop, $client->appKey(), $token);
+        }
+
+        return $shops;
     }
 
     /** Access token yang masih berlaku; diperbarui dulu bila hampir kedaluwarsa. */
@@ -77,7 +84,9 @@ class TiktokAuth
         return Cache::lock('tiktok:refresh:'.($shop->open_id ?: $shop->id), 30)->block(15, function () use ($shop, $client, $onlyIfExpiringWithin) {
             $shop->refresh();
 
-            if (! $shop->isConnected()) {
+            // Toko yang sempat ditandai perlu otorisasi ulang tetap dicoba selama refresh token
+            // masih ada: bila TikTok menerimanya, toko kembali terhubung tanpa otorisasi ulang.
+            if (blank($shop->refresh_token)) {
                 throw new TiktokException("Toko {$shop->displayName()} belum terhubung atau perlu diotorisasi ulang.");
             }
 
@@ -85,22 +94,24 @@ class TiktokAuth
                 return false;
             }
 
-            $siblings = TiktokShop::query()
+            $siblings = TiktokShop::withoutGlobalScope('warehouse_access')
                 ->when($shop->open_id, fn ($q) => $q->where('open_id', $shop->open_id), fn ($q) => $q->whereKey($shop->id))
                 ->get();
 
             try {
-                $attributes = $this->tokenAttributes($client->token('refresh_token', $shop->refresh_token));
+                $token = $client->token('refresh_token', $shop->refresh_token);
+                $attributes = $this->tokenAttributes($token);
             } catch (TiktokException $e) {
                 $siblings->each->update([
                     'last_error' => mb_substr($e->getMessage(), 0, 500),
-                    'status' => $e->needsReauthorization() ? 'expired' : $shop->status,
+                    'status' => $e->refreshRejected() ? 'expired' : $shop->status,
                 ]);
 
                 throw $e;
             }
 
             $siblings->each->update([...$attributes, 'last_error' => null]);
+            $siblings->each(fn (TiktokShop $sibling) => TokenWebhook::tiktok($sibling, $client->appKey(), $token));
             $shop->refresh();
 
             return true;

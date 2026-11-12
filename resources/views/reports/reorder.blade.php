@@ -17,7 +17,7 @@
 
     <div class="mb-6 grid gap-4 sm:grid-cols-3">
         <div class="card p-4">
-            <p class="text-xs text-slate-500">SKU Perlu <span class="whitespace-nowrap">Dibeli <x-hint text="Jumlah SKU yang saran belinya lebih dari nol." /></span></p>
+            <p class="text-xs text-slate-500">SKU Perlu <span class="whitespace-nowrap">Dibeli <x-hint text="Jumlah baris SKU per gudang yang saran belinya lebih dari nol." /></span></p>
             <p @class(['mt-1 text-xl font-semibold tabular-nums', 'text-rose-600' => $summary['skus'] > 0, 'text-slate-900' => ! $summary['skus']])>{{ $fmt($summary['skus']) }} SKU</p>
             <p class="text-xs text-slate-500">{{ $fmt($summary['below']) }} sudah di bawah stok minimum</p>
         </div>
@@ -29,7 +29,7 @@
         <div class="card flex items-start gap-2 p-4 text-xs text-slate-500">
             <x-heroicon-o-information-circle class="size-4 shrink-0" />
             <span>
-                Stok target = stok minimum + rata-rata terjual per hari × {{ $suggestions->coverDays }} hari.
+                Dihitung per gudang. Stok target = stok minimum gudang + rata-rata terjual per hari × {{ $suggestions->coverDays }} hari.
                 Saran beli = stok target − tersedia − qty di draft penerimaan. Penjualan paket ikut dihitung ke komponennya.
             </span>
         </div>
@@ -75,7 +75,8 @@
                     <tr>
                         <th class="h-8 px-4 py-0 font-normal">SKU</th>
                         <th class="h-8 px-4 py-0 font-normal">Produk / Varian</th>
-                        <th class="h-8 px-4 py-0 text-right font-normal">Stok <span class="whitespace-nowrap">Min. <x-hint text="Batas stok minimum dari Master Produk." /></span></th>
+                        <th class="h-8 px-4 py-0 font-normal">Gudang</th>
+                        <th class="h-8 px-4 py-0 text-right font-normal">Stok <span class="whitespace-nowrap">Min. <x-hint text="Stok minimum gudang ini dari halaman SKU per Gudang. Kosong di sana = memakai stok minimum Master Produk." /></span></th>
                         <th class="h-8 px-4 py-0 text-right font-normal"><span class="whitespace-nowrap">Tersedia <x-hint text="Stok fisik dikurangi yang sudah dicadangkan pesanan." /></span></th>
                         <th class="h-8 px-4 py-0 text-right font-normal">Draft <span class="whitespace-nowrap">Terima <x-hint text="Barang yang sudah dicatat di Penerimaan Barang tapi belum dikonfirmasi diterima. Dianggap akan datang, jadi mengurangi saran beli." /></span></th>
                         <th class="h-8 px-4 py-0 text-right font-normal"><span class="whitespace-nowrap">Terjual/Hari <x-hint text="Rata-rata terjual per hari dalam {{ $suggestions->lookbackDays }} hari terakhir." /></span></th>
@@ -89,12 +90,18 @@
                     @forelse ($rows as $row)
                         <tr class="hover:bg-slate-50/60">
                             <td class="px-4 py-2.5 font-mono font-medium text-slate-900">
-                                @can('inventory.view')<a href="{{ route('inventory.stocks.index', ['view' => 'location', 'search' => $row->sku, 'warehouse' => request('warehouse')]) }}" class="hover:text-brand-600" title="Lihat stok per lokasi">{{ $row->sku }}</a>@else{{ $row->sku }}@endcan
+                                @can('inventory.view')<a href="{{ route('inventory.stocks.index', ['view' => 'location', 'search' => $row->sku, 'warehouse' => $row->warehouse_id]) }}" class="hover:text-brand-600" title="Lihat stok per lokasi">{{ $row->sku }}</a>@else{{ $row->sku }}@endcan
                             </td>
                             <td class="px-4 py-2.5">
                                 <p class="text-slate-900">{{ $row->product_name }}</p>
                                 @if ($row->variant_name)
                                     <p class="text-xs text-slate-500">{{ $row->variant_name }}</p>
+                                @endif
+                            </td>
+                            <td class="px-4 py-2.5">
+                                <p class="font-medium text-slate-700">{{ $row->warehouse_code }}</p>
+                                @if ($row->supply_code)
+                                    <p class="text-xs text-slate-500" title="Gudang ini biasanya diisi ulang lewat transfer dari gudang cadangan">isi ulang dari {{ $row->supply_code }}</p>
                                 @endif
                             </td>
                             <td class="px-4 py-2.5 text-right tabular-nums text-slate-600">{{ $row->min_stock === null ? '—' : $fmt($row->min_stock) }}</td>
@@ -117,7 +124,7 @@
                             <td class="max-w-40 truncate px-4 py-2.5 text-slate-600">{{ $suppliers[$row->id] ?? '—' }}</td>
                         </tr>
                     @empty
-                        <x-empty-state colspan="10" icon="heroicon-o-shopping-bag" title="Belum ada yang perlu dibeli" :description="'Saran muncul untuk varian yang punya stok minimum atau terjual dalam '.$suggestions->lookbackDays.' hari terakhir.'" />
+                        <x-empty-state colspan="11" icon="heroicon-o-shopping-bag" title="Belum ada yang perlu dibeli" :description="'Saran muncul untuk varian yang punya stok minimum atau terjual dalam '.$suggestions->lookbackDays.' hari terakhir.'" />
                     @endforelse
                 </tbody>
             </table>

@@ -153,6 +153,21 @@ class ShipmentFlowTest extends TestCase
         $this->get("/sales/orders/{$order->id}")->assertOk()->assertSee('Cetak Resi')->assertSee('13:00-17:00');
     }
 
+    public function test_shopee_pickup_slots_are_offered_even_when_not_required(): void
+    {
+        $order = $this->shopeeOrder('S1');
+        $this->fakeLogistics(['pickup' => ['address_id'], 'dropoff' => []]);
+
+        // Jadwal tetap bisa dipilih, plus pilihan ikut jadwal Shopee; panel diagnosa untuk Super Admin.
+        $this->get("/sales/orders/{$order->id}/shipment")->assertOk()
+            ->assertSee('id="pickup_time_id"', false)->assertSee('Ikuti jadwal Shopee')
+            ->assertSee('Data pengiriman dari Shopee')->assertSee('slot-b2');
+
+        $this->post("/sales/orders/{$order->id}/shipment", ['method' => 'pickup', 'address_id' => 2, 'pickup_time_id' => 'slot-b1'])
+            ->assertSessionHasNoErrors();
+        Http::assertSent(fn (Request $r) => str_contains($r->url(), 'ship_order') && $r['pickup'] === ['address_id' => 2, 'pickup_time_id' => 'slot-b1']);
+    }
+
     public function test_order_list_shows_arranged_pickup_in_shipping_column(): void
     {
         $this->shopeeOrder('V1', ['shipping_method' => 'pickup', 'pickup_at' => now()->setTime(16, 0), 'shipment_arranged_at' => now()]);
@@ -510,6 +525,35 @@ class ShipmentFlowTest extends TestCase
         $this->assertSame(['packed', $this->admin->id], [$order->fresh()->status, $order->fresh()->qc_checked_by]);
     }
 
+    public function test_qc_queue_filters_by_warehouse_courier_and_age(): void
+    {
+        $other = Warehouse::create(['code' => 'BDG01', 'name' => 'Gudang Bandung', 'address' => 'Jl. Gudang 2', 'city' => 'Bandung', 'pic_name' => 'Andi', 'is_active' => true]);
+        $jne = Courier::where('is_active', true)->firstOrFail();
+
+        $old = $this->order(['courier_id' => $jne->id, 'tracking_number' => 'RESI-LAMA', 'shipping_method' => 'pickup']);
+        $this->pick($old);
+        $old->update(['picking_at' => now()->subHours(6)]);
+        $fresh = $this->order(['tracking_number' => 'RESI-BARU']);
+        $this->pick($fresh);
+        $elsewhere = $this->order(['tracking_number' => 'RESI-BDG']);
+        $this->pick($elsewhere);
+        $elsewhere->update(['warehouse_id' => $other->id]);
+
+        $this->get('/sales/qc')->assertOk()->assertSee($old->number)->assertSee($elsewhere->number)->assertSee('BDG01');
+
+        // Pilihan gudang diingat untuk kunjungan berikutnya.
+        $this->get("/sales/qc?warehouse={$this->warehouse->id}")->assertOk()->assertSee($old->number)->assertDontSee($elsewhere->number);
+        $this->get('/sales/qc')->assertSee($old->number)->assertDontSee($elsewhere->number);
+
+        $this->get("/sales/qc?courier={$jne->id}")->assertSee($old->number)->assertDontSee($fresh->number);
+        $this->get('/sales/qc?shipment=pickup')->assertSee($old->number)->assertDontSee($fresh->number);
+        $this->get('/sales/qc?search=RESI-BARU')->assertSee($fresh->number)->assertDontSee($old->number);
+
+        // Yang sudah lebih dari batas jam ditandai merah.
+        $this->get('/sales/qc?warehouse=')->assertSee($elsewhere->number)
+            ->assertSee('data-age="late"', false)->assertSee('data-age="ok"', false)->assertDontSee('data-age="warn"', false);
+    }
+
     public function test_handover_scan_ships_orders_and_prints_manifest(): void
     {
         $spx = Courier::where('code', 'SPX')->firstOrFail();
@@ -520,7 +564,7 @@ class ShipmentFlowTest extends TestCase
         $shopee = $this->shopeeOrder('H1', ['tracking_number' => 'SPX-S', 'courier_id' => $spx->id]);
         foreach ([$a, $b, $shopee] as $order) {
             $this->pick($order);
-            $this->post("/sales/orders/{$order->id}/pack")->assertSessionHasNoErrors();
+            app(\App\Services\SalesOrderService::class)->pack($order);
         }
 
         $this->get('/sales/handovers')->assertOk()->assertSeeText('Scan Resi / No. Pesanan');
@@ -561,7 +605,7 @@ class ShipmentFlowTest extends TestCase
         $spx = Courier::where('code', 'SPX')->firstOrFail();
         $shopee = $this->shopeeOrder('M1', ['tracking_number' => 'SPX-M', 'courier_id' => $spx->id]);
         $this->pick($shopee);
-        $this->post("/sales/orders/{$shopee->id}/pack")->assertSessionHasNoErrors();
+        app(\App\Services\SalesOrderService::class)->pack($shopee);
         $ship = fn () => $this->post("/sales/orders/{$shopee->id}/ship", ['courier_id' => $spx->id, 'tracking_number' => 'SPX-M']);
 
         $ship()->assertSessionHasErrors(['code' => "{$shopee->number}: pengiriman belum diatur di Shopee. Atur pickup / drop off dulu."]);
@@ -575,6 +619,17 @@ class ShipmentFlowTest extends TestCase
         $this->assertSame('shipped', $shopee->fresh()->status);
     }
 
+    /** Kemas hanya lewat QC Scan; tombol "Kemas tanpa Scan" sudah dihapus, termasuk untuk admin. */
+    public function test_pack_without_scan_is_removed(): void
+    {
+        $order = $this->order(['tracking_number' => 'JNE2']);
+        $this->pick($order);
+
+        $this->get("/sales/orders/{$order->id}")->assertOk()->assertSee('QC Scan')->assertDontSee('Kemas tanpa Scan');
+        $this->post("/sales/orders/{$order->id}/pack")->assertNotFound();
+        $this->assertSame('picking', $order->fresh()->status);
+    }
+
     public function test_staff_must_use_scans_instead_of_manual_pack_and_ship(): void
     {
         $order = $this->order(['tracking_number' => 'JNE1']);
@@ -584,7 +639,7 @@ class ShipmentFlowTest extends TestCase
         $staff->assignRole('Staff Gudang');
         $this->actingAs($staff);
 
-        $this->post("/sales/orders/{$order->id}/pack")->assertForbidden();
+        $this->post("/sales/orders/{$order->id}/pack")->assertNotFound();
         $this->get("/sales/orders/{$order->id}")->assertOk()->assertSee('QC Scan')->assertDontSee('Kemas tanpa Scan');
         $this->post("/sales/qc/{$order->id}", ['scanned' => [$this->kaosM->id => 2]])->assertSessionHasNoErrors();
         $this->post("/sales/orders/{$order->id}/ship", ['courier_id' => Courier::first()->id, 'tracking_number' => 'JNE1'])->assertForbidden();

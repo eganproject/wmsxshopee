@@ -113,7 +113,7 @@ class SpreadsheetImport
      */
     public static function mapColumns(array $headerRow, array $aliases): array
     {
-        $normalized = collect($headerRow)->map(fn ($v) => trim((string) preg_replace('/[^a-z0-9]+/', '_', mb_strtolower(trim((string) $v))), '_'));
+        $normalized = collect($headerRow)->map(fn ($v) => self::normalizeHeader($v));
         $map = [];
 
         foreach ($aliases as $key => $names) {
@@ -124,6 +124,12 @@ class SpreadsheetImport
         }
 
         return $map;
+    }
+
+    /** Judul kolom jadi huruf kecil dengan garis bawah, cth. "Nama Produk" → nama_produk. */
+    public static function normalizeHeader(mixed $value): string
+    {
+        return trim((string) preg_replace('/[^a-z0-9]+/', '_', mb_strtolower(trim((string) $value))), '_');
     }
 
     public static function clean(mixed $value): mixed

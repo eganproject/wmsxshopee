@@ -45,7 +45,11 @@ class ShopeeLogistics
             ...$package,
         ]))['response'] ?? [];
 
-        return $this->parseOptions($response);
+        // Respons mentah ikut disimpan untuk panel diagnosa di halaman atur pengiriman.
+        return [...$this->parseOptions($response), 'raw' => [
+            'info_needed' => $response['info_needed'] ?? null,
+            'pickup' => $response['pickup'] ?? null,
+        ]];
     }
 
     /**

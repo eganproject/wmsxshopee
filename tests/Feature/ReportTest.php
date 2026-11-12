@@ -101,8 +101,8 @@ class ReportTest extends TestCase
         // Cadangan 5 → tersedia 1 (<= 2) → ikut muncul.
         $order->items()->first()->update(['qty' => 5]);
         $rows = $this->readXlsx($this->get(route('reports.min-stock', ['export' => 'xlsx']))->streamedContent());
-        $this->assertSame(['KAOS-M', 'Kaos Polos', 'M', 'PCS', 10, 6, 0, 6, 4], $rows[1]);
-        $this->assertSame(['KAOS-L', 'Kaos Polos', 'L', 'PCS', 2, 6, 5, 1, 1], $rows[2]);
+        $this->assertSame(['KAOS-M', 'Kaos Polos', 'M', 'JKT01', 'PCS', 10, 'Master Produk', 6, 0, 6, 4], $rows[1]);
+        $this->assertSame(['KAOS-L', 'Kaos Polos', 'L', 'JKT01', 'PCS', 2, 'Master Produk', 6, 5, 1, 1], $rows[2]);
     }
 
     public function test_movement_report_summarises_period(): void
