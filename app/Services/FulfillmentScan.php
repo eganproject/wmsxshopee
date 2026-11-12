@@ -86,7 +86,7 @@ class FulfillmentScan
         $problems = [];
 
         if ($order->cancelRequested()) {
-            throw ValidationException::withMessages(['scan' => "{$order->number}: pembeli mengajukan pembatalan di ".($order->isTiktok() ? 'TikTok' : 'Shopee').". Jangan dikemas sampai ada keputusan di Seller Center."]);
+            throw ValidationException::withMessages(['scan' => "{$order->number}: pembeli mengajukan pembatalan di ".($order->isTiktok() ? 'TikTok' : 'Shopee').'. Jangan dikemas sampai ada keputusan di Seller Center.']);
         }
 
         if ($order->isQcHeld()) {
