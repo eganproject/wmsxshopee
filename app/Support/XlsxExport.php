@@ -64,7 +64,8 @@ class XlsxExport
      */
     public static function workbook(string $filename, array $sheets): BinaryFileResponse
     {
-        $path = tempnam(sys_get_temp_dir(), 'xlsx').'.xlsx';
+        // Nama acak tanpa tempnam(): tempnam() meninggalkan file kosong setiap ekspor.
+        $path = sys_get_temp_dir().'/xlsx-'.bin2hex(random_bytes(8)).'.xlsx';
         // Saat dicetak: A4 mendatar, semua kolom muat selebar satu halaman.
         $writer = new Writer(new Options(pageSetup: new PageSetup(PageOrientation::LANDSCAPE, PaperSize::A4, fitToHeight: 0, fitToWidth: 1)));
         $writer->openToFile($path);

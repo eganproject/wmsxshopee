@@ -13,6 +13,7 @@ use App\Models\WarehouseLocation;
 use App\Models\WarehouseRack;
 use App\Models\WarehouseZone;
 use App\Services\ProductImporter;
+use App\Support\XlsxExport;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use OpenSpout\Common\Entity\Row;
@@ -392,5 +393,18 @@ class ImportExportTest extends TestCase
         $this->assertCount(2, $rows);
         $this->assertSame(['BDG01', 'Tanpa bin', 'KAOS'], array_slice($rows[1], 0, 3));
         $this->assertSame(9, $rows[1][7]);
+    }
+
+    public function test_export_writes_text_starting_with_equals_as_text_not_formula(): void
+    {
+        $file = XlsxExport::download('x.xlsx', ['Nama'], [['=HYPERLINK("http://contoh.test","klik")'], ['Budi'], [5]])->getFile()->getPathname();
+
+        $zip = new \ZipArchive;
+        $zip->open($file);
+        $sheet = $zip->getFromName('xl/worksheets/sheet1.xml');
+        $zip->close();
+
+        $this->assertStringNotContainsString('<f>', $sheet);
+        $this->assertSame('=HYPERLINK("http://contoh.test","klik")', $this->readXlsx($file)[1][0]);
     }
 }

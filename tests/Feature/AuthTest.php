@@ -102,4 +102,16 @@ class AuthTest extends TestCase
 
         $this->assertTrue(password_verify('rahasia123', $user->fresh()->password));
     }
+
+    public function test_password_reset_by_admin_logs_out_existing_sessions(): void
+    {
+        $user = User::factory()->create();
+        $this->actingAs($user)->get('/dashboard')->assertOk();
+
+        // Admin mengganti password (mis. akun dicurigai bocor): sesi lama harus berakhir.
+        $user->update(['password' => 'password-baru-123']);
+
+        $this->get('/dashboard')->assertRedirect(route('login'));
+        $this->assertGuest();
+    }
 }
