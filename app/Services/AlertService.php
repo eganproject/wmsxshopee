@@ -292,7 +292,11 @@ class AlertService
     public function markItemRead(User $user, string $group, string $itemKey): void
     {
         $row = AlertRead::firstOrNew(['user_id' => $user->id, 'group' => $group]);
-        $row->item_keys = array_values(array_unique([...($row->item_keys ?? []), $itemKey]));
+        // Kunci baris yang sudah tidak aktif dibuang, sama seperti "tandai semua dibaca",
+        // supaya daftar kunci tidak terus membesar.
+        $active = array_fill_keys($this->groups($user, 0)[$group]['keys'] ?? [], true);
+        $kept = array_values(array_filter($row->item_keys ?? [], fn ($key) => isset($active[(string) $key])));
+        $row->item_keys = array_values(array_unique([...$kept, $itemKey]));
         $row->save();
 
         self::forget($user);

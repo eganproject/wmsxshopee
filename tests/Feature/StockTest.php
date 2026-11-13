@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\Product;
+use App\Models\ProductBarcode;
 use App\Models\ProductVariant;
 use App\Models\Stock;
 use App\Models\StockLedger;
@@ -353,6 +354,12 @@ class StockTest extends TestCase
 
         // Satu kata tetap pencarian sebagian seperti sebelumnya.
         $this->assertCount(3, $this->get('/inventory/stocks?view=variant&search=KAOS')->viewData('stocks'));
+
+        // Barcode alias (Master › Barcode) ikut dikenali, satu kode maupun banyak kode, di semua tampilan.
+        ProductBarcode::create(['product_variant_id' => $third->id, 'barcode' => 'ALIAS-XL']);
+        $this->assertSame(['KAOS-XL'], $this->get('/inventory/stocks?view=variant&search=ALIAS-XL')->viewData('stocks')->pluck('sku')->all());
+        $this->assertEqualsCanonicalizing(['KAOS-M', 'KAOS-XL'], $this->get('/inventory/stocks?'.http_build_query(['view' => 'variant', 'search' => "KAOS-M\nALIAS-XL"]))->viewData('stocks')->pluck('sku')->all());
+        $this->assertSame([$third->id], $this->get('/inventory/stocks?'.http_build_query(['view' => 'location', 'search' => 'ALIAS-XL, TIDAK-ADA']))->viewData('stocks')->pluck('product_variant_id')->all());
     }
 
     public function test_location_and_variant_with_stock_history_cannot_be_deleted(): void
