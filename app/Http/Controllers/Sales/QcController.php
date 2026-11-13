@@ -102,6 +102,10 @@ class QcController extends Controller
             return back()->with('error', "{$order->number} berstatus {$order->statusLabel()}. QC hanya untuk pesanan yang Sedang Diambil (picking selesai).");
         }
 
+        if ($order->cancelRequested()) {
+            return back()->with('error', "{$order->number}: pembeli mengajukan pembatalan di ".($order->isTiktok() ? 'TikTok' : 'Shopee').'. Jangan dikemas, sisihkan barangnya sampai ada keputusan di Seller Center.');
+        }
+
         return redirect()->route('sales.qc.show', $order);
     }
 

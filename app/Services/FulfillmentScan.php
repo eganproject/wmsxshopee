@@ -85,6 +85,10 @@ class FulfillmentScan
         $expected = collect($this->expected($order)['lines'])->keyBy('variant_id');
         $problems = [];
 
+        if ($order->cancelRequested()) {
+            throw ValidationException::withMessages(['scan' => "{$order->number}: pembeli mengajukan pembatalan di ".($order->isTiktok() ? 'TikTok' : 'Shopee').'. Jangan dikemas sampai ada keputusan di Seller Center.']);
+        }
+
         if ($order->isQcHeld()) {
             throw ValidationException::withMessages(['scan' => "QC {$order->number} sedang ditahan: {$order->qc_hold_reason}. Lepas tahan dulu."]);
         }

@@ -64,9 +64,17 @@
         </a>
         @foreach (\App\Models\SalesOrder::MARKETPLACE_STATUSES as $value => $meta)
             @continue(! ($marketplaceCounts[$value] ?? 0) && $marketplaceFilter !== $value)
+            {{-- Pengajuan batal dibuat mencolok: paketnya harus ditahan. --}}
+            @php($urgent = $value === 'cancel_requested' && ($marketplaceCounts[$value] ?? 0) > 0)
             <a href="{{ route('sales.orders.index', [...request()->except(['mp', 'page']), 'mp' => $value]) }}"
                data-hint-title="{{ $meta['label'] }} di marketplace" data-hint="{{ $meta['hint'] }}"
-               @class([$chip, 'border-slate-900 bg-slate-900 text-white dark:border-slate-200 dark:bg-slate-200 dark:text-slate-900' => $marketplaceFilter === $value, 'border-slate-200 bg-white text-slate-600 hover:border-slate-300' => $marketplaceFilter !== $value])>
+               @class([$chip,
+                   'border-slate-900 bg-slate-900 text-white dark:border-slate-200 dark:bg-slate-200 dark:text-slate-900' => $marketplaceFilter === $value,
+                   'border-rose-300 bg-rose-50 font-semibold text-rose-700 hover:border-rose-400' => $marketplaceFilter !== $value && $urgent,
+                   'border-slate-200 bg-white text-slate-600 hover:border-slate-300' => $marketplaceFilter !== $value && ! $urgent])>
+                @if ($urgent && $marketplaceFilter !== $value)
+                    <span class="relative flex size-2"><span class="absolute inline-flex size-full animate-ping rounded-full bg-rose-400 opacity-75"></span><span class="relative inline-flex size-2 rounded-full bg-rose-500"></span></span>
+                @endif
                 {{ $meta['label'] }} <span class="opacity-60">{{ $marketplaceCounts[$value] ?? 0 }}</span>
             </a>
         @endforeach
@@ -104,6 +112,57 @@
             @endif
         </a>
     </div>
+
+    {{-- Pembeli minta batal saat gudang masih memproses: selalu tampil (tidak ikut tab / filter) supaya tidak terlewat. --}}
+    @if ($cancelRequests->isNotEmpty())
+        @php($packedCancel = $cancelRequests->where('status', 'packed')->count())
+        <div class="mb-4 rounded-lg border border-rose-300 bg-rose-50 px-4 py-3 text-sm text-rose-800 dark:border-rose-800 dark:bg-rose-950/40 dark:text-rose-200" role="alert" data-testid="cancel-request-banner">
+            <div class="flex flex-col gap-3 sm:flex-row sm:items-start">
+                <x-heroicon-o-hand-raised class="size-6 shrink-0 text-rose-600 dark:text-rose-400" />
+                <div class="min-w-0 flex-1">
+                    <p class="font-semibold">
+                        {{ $cancelRequests->count() }} pesanan diajukan batal oleh pembeli{{ $packedCancel ? ", {$packedCancel} sudah dikemas" : '' }}. Tahan paketnya.
+                    </p>
+                    <p class="mt-0.5 text-rose-700 dark:text-rose-300">
+                        Jangan dikemas atau diserahkan ke kurir. Terima atau tolak pembatalannya di Seller Center Shopee / TikTok; Optima mengikuti otomatis saat sinkron. Kalau disetujui setelah dikemas, bongkar paket dan kembalikan barang ke bin asal.
+                    </p>
+                    <div class="mt-2 flex flex-wrap gap-1.5">
+                        @foreach ($cancelRequests->take(8) as $cancelOrder)
+                            <a href="{{ route('sales.orders.show', $cancelOrder) }}"
+                               class="inline-flex items-center gap-1.5 rounded-md border border-rose-200 bg-white px-2 py-0.5 text-xs hover:border-rose-400 dark:border-rose-800 dark:bg-slate-900">
+                                <x-marketplace-logo :platform="$cancelOrder->marketplacePlatform()" class="size-3.5" />
+                                <span class="font-mono font-semibold text-slate-900 dark:text-slate-100">{{ $cancelOrder->number }}</span>
+                                <span @class(['font-medium', 'text-rose-600 dark:text-rose-400' => $cancelOrder->status === 'packed', 'text-slate-500' => $cancelOrder->status !== 'packed'])>{{ $cancelOrder->statusLabel() }}</span>
+                                <span class="text-slate-400">{{ $cancelOrder->warehouse?->code }}</span>
+                            </a>
+                        @endforeach
+                        @if ($cancelRequests->count() > 8)
+                            <span class="self-center text-xs">+{{ $cancelRequests->count() - 8 }} lainnya</span>
+                        @endif
+                    </div>
+                </div>
+                @if (request('mp') !== 'cancel_requested' || request()->hasAny(['status', 'platform', 'channel', 'courier', 'warehouse', 'search']))
+                    <a href="{{ route('sales.orders.index', ['mp' => 'cancel_requested', 'dates' => 'all']) }}" class="btn-secondary shrink-0 border-rose-300 text-rose-700 dark:border-rose-800 dark:text-rose-300">
+                        Lihat semua
+                    </a>
+                @endif
+            </div>
+        </div>
+    @endif
+
+    {{-- Terlewat QC belum dicek: ditonjolkan di tab Semua, Dikirim dan Selesai (tempat pesanan ini berada). --}}
+    @if ($qcSkipCount && ! $qcFilter && in_array(request('status'), [null, '', 'shipped', 'completed'], true))
+        <div class="mb-4 flex flex-col gap-3 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800 sm:flex-row sm:items-center dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200" role="alert" data-testid="qc-skip-banner">
+            <x-heroicon-o-shield-exclamation class="size-6 shrink-0 text-amber-600 dark:text-amber-400" />
+            <div class="min-w-0 flex-1">
+                <p class="font-semibold">{{ $qcSkipCount }} pesanan terlewat QC dan belum dicek.</p>
+                <p class="mt-0.5 text-amber-700 dark:text-amber-300">Kurir mengambil paketnya sebelum QC kemas / serah terima, jadi isi paket dan bin yang dipakai belum diperiksa. Barisnya ditandai kuning di bawah.</p>
+            </div>
+            <a href="{{ route('sales.orders.index', [...request()->except(['qc', 'page']), 'qc' => 'unchecked']) }}" class="btn-secondary shrink-0 border-amber-300 text-amber-800 dark:border-amber-800 dark:text-amber-200">
+                Tampilkan saja yang terlewat QC
+            </a>
+        </div>
+    @endif
 
     @foreach (['shipment_failures' => 'belum bisa diatur pengirimannya', 'pick_failures' => 'belum bisa ditandai Sedang Diambil'] as $key => $title)
         @if ($failures = session($key))
@@ -422,7 +481,8 @@
                     @php($deadline = $order->shipByDeadline())
                     @php($syncIssue = $order->syncIssue())
                     @php($completed = $order->completedTime())
-                    <tbody @class(['border-t border-slate-200', 'bg-rose-50/40' => $syncIssue]) :class="selected.includes({{ $order->id }}) && 'bg-sky-50/60'">
+                    @php($qcUnchecked = $order->needsQcSkipCheck())
+                    <tbody @class(['border-t border-slate-200', 'bg-rose-50/40' => $syncIssue, 'bg-amber-50/60 dark:bg-amber-950/20' => ! $syncIssue && $qcUnchecked]) :class="selected.includes({{ $order->id }}) && 'bg-sky-50/60'">
                         <tr class="bg-slate-50/70 text-xs">
                             @if ($canFulfill)
                                 <td class="py-2 pl-4"><input type="checkbox" value="{{ $order->id }}" x-model.number="selected" aria-label="Pilih {{ $order->number }}"></td>
@@ -430,6 +490,18 @@
                             <td colspan="4" class="px-3 py-2">
                                 <div class="flex flex-wrap items-center gap-x-4 gap-y-1">
                                     <a href="{{ route('sales.orders.show', $order) }}" class="font-mono text-[13px] font-semibold text-slate-900 hover:text-brand-600">{{ $order->number }}</a>
+                                    @if ($qcUnchecked)
+                                        {{-- Terlewat QC: dikirim otomatis dari marketplace sebelum QC kemas / serah terima. --}}
+                                        <a href="{{ route('sales.orders.show', $order) }}" data-testid="qc-skip-badge"
+                                           class="inline-flex items-center gap-1 rounded-full border border-amber-300 bg-amber-100 px-2 py-0.5 font-semibold text-amber-800 hover:border-amber-400 dark:border-amber-800 dark:bg-amber-900/40 dark:text-amber-200"
+                                           data-hint-title="Terlewat QC, belum dicek" data-hint="Kurir sudah mengambil paket sebelum QC kemas / serah terima di gudang. Stok keluar dari bin usulan otomatis." data-hint-next="Buka pesanan, cek barang & bin yang dipakai, lalu tekan Tandai Sudah Dicek.">
+                                            <x-heroicon-o-shield-exclamation class="size-3.5" /> Terlewat QC · cek
+                                        </a>
+                                    @elseif ($order->skippedQc())
+                                        <span class="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-slate-500 dark:bg-slate-800" title="Terlewat QC, sudah dicek{{ $order->qc_skip_note ? ': '.$order->qc_skip_note : '' }}">
+                                            <x-heroicon-o-shield-check class="size-3.5" /> Terlewat QC · sudah dicek
+                                        </span>
+                                    @endif
                                     @if ($order->isOutbound())
                                         <span class="inline-flex items-center gap-1 rounded-full bg-violet-50 px-2 py-0.5 font-medium text-violet-700" title="Barang Keluar Manual (bukan penjualan)">
                                             <x-heroicon-o-arrow-up-tray class="size-3.5" /> {{ $order->outboundPurposeLabel() }}

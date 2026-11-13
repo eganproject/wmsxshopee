@@ -619,6 +619,41 @@ class ShipmentFlowTest extends TestCase
         $this->assertSame('shipped', $shopee->fresh()->status);
     }
 
+    /** Pengajuan batal pembeli: QC Kemas ditolak, banner & notifikasi muncul, teks baris menyesuaikan status gudang. */
+    public function test_buyer_cancel_request_blocks_qc_and_is_highlighted(): void
+    {
+        $picking = $this->shopeeOrder('C1', ['tracking_number' => 'SPX-C1']);
+        $this->pick($picking);
+        $picking->update(['shopee_order_status' => 'IN_CANCEL']);
+
+        $this->post('/sales/qc', ['code' => 'SPX-C1'])->assertSessionHas('error');
+        $this->post("/sales/qc/{$picking->id}", ['scanned' => [$this->kaosM->id => 2]])->assertSessionHasErrors('scan');
+        $this->assertSame('picking', $picking->fresh()->status);
+
+        $packed = $this->shopeeOrder('C2', ['tracking_number' => 'SPX-C2']);
+        $this->pick($packed);
+        app(\App\Services\SalesOrderService::class)->pack($packed);
+        $packed->update(['shopee_order_status' => 'IN_CANCEL']);
+
+        $this->assertSame('Pembeli minta batal: tahan paket, jangan serahkan ke kurir', $packed->fresh()->syncIssue());
+        $this->assertSame('Pembeli minta batal: jangan dikemas', $picking->fresh()->syncIssue());
+
+        // Banner tampil di tab mana pun, termasuk tab yang tidak memuat pesanannya.
+        $this->get('/sales/orders?status=draft')->assertOk()
+            ->assertSee('data-testid="cancel-request-banner"', false)
+            ->assertSee('2 pesanan diajukan batal oleh pembeli, 1 sudah dikemas')
+            ->assertSee($packed->number)->assertSee($picking->number);
+
+        $groups = app(\App\Services\AlertService::class)->groups($this->admin);
+        $this->assertSame(2, $groups['cancel_requests']['count']);
+        $this->get('/notifications')->assertOk()->assertSee('Pembeli minta batal')->assertSee('Sudah dikemas: tahan paket');
+
+        // Ditolak: kembali normal, banner hilang.
+        $packed->update(['shopee_order_status' => 'PROCESSED']);
+        $picking->update(['shopee_order_status' => 'READY_TO_SHIP']);
+        $this->get('/sales/orders')->assertOk()->assertDontSee('data-testid="cancel-request-banner"', false);
+    }
+
     /** Kemas hanya lewat QC Scan; tombol "Kemas tanpa Scan" sudah dihapus, termasuk untuk admin. */
     public function test_pack_without_scan_is_removed(): void
     {

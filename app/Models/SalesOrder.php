@@ -593,6 +593,36 @@ class SalesOrder extends Model
         return ! $this->isShopee() || $this->shopee_order_status === 'READY_TO_SHIP';
     }
 
+    /** Pembeli sedang mengajukan batal di Shopee / TikTok (belum ada keputusan penjual). */
+    public function cancelRequested(): bool
+    {
+        return $this->marketplaceStatus() === 'cancel_requested';
+    }
+
+    /**
+     * Pengingat untuk gudang bila pesanan dibatalkan setelah barang diambil dari bin:
+     * stok di sistem kembali ke bin hasil picking, jadi barang fisiknya juga harus dikembalikan.
+     */
+    public function restockReminder(): ?string
+    {
+        return match ($this->status) {
+            'packed' => 'Paket sudah dikemas: bongkar paket dan kembalikan barang ke bin asal.',
+            'picking' => 'Barang sudah diambil: kembalikan ke bin asal.',
+            default => null,
+        };
+    }
+
+    /**
+     * Pesanan yang masih diproses gudang (draft s.d. Sudah Dikemas) sementara pembeli
+     * mengajukan batal di marketplace. Paketnya harus ditahan sampai ada keputusan.
+     *
+     * @param  Builder<SalesOrder>  $query
+     */
+    public function scopeCancelRequestedOpen(Builder $query): void
+    {
+        $query->whereIn('status', ['draft', ...self::RESERVING])->whereMarketplaceStatus('cancel_requested');
+    }
+
     /** Pembeli mengajukan / sudah membatalkan di marketplace, tapi di Optima belum dibatalkan. */
     public function marketplaceCancelPending(): bool
     {
@@ -760,7 +790,11 @@ class SalesOrder extends Model
         $key = $this->marketplaceStatus();
 
         if ($open && $key === 'cancel_requested') {
-            return 'Pembeli minta batal, jangan dikemas';
+            return match ($this->status) {
+                'packed' => 'Pembeli minta batal: tahan paket, jangan serahkan ke kurir',
+                'picking' => 'Pembeli minta batal: jangan dikemas',
+                default => 'Pembeli minta batal: jangan diproses dulu',
+            };
         }
         if ($open && $key === 'cancelled') {
             return "Batal di {$platform}, belum dibatalkan di gudang";

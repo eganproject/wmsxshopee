@@ -63,6 +63,10 @@ class QcController extends Controller
             return response()->json(['message' => "{$order->number} berstatus {$order->statusLabel()}. QC hanya untuk pesanan yang Sedang Diambil."], 422);
         }
 
+        if ($order->cancelRequested()) {
+            return response()->json(['message' => "{$order->number}: pembeli mengajukan pembatalan di ".($order->isTiktok() ? 'TikTok' : 'Shopee').'. Jangan dikemas, sisihkan barangnya sampai ada keputusan di Seller Center.'], 422);
+        }
+
         $order->load(['courier', 'qcHolder']);
 
         return response()->json(['order' => $this->payload($order, $scan)]);

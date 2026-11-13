@@ -115,6 +115,12 @@ class SalesOrderController extends Controller
             'qcSkipCount' => $this->filtered($request->duplicate(collect($request->query())->except(['qc', 'page'])->all()))
                 ->when($request->filled('status'), fn ($query) => $query->inListTab((string) $request->input('status')))
                 ->qcSkipped('unchecked')->count(),
+            // Banner "Pembeli minta batal": tidak ikut filter/tab, supaya selalu terlihat di semua tab.
+            'cancelRequests' => SalesOrder::query()->cancelRequestedOpen()
+                ->with('warehouse:id,code')
+                ->orderByRaw("CASE status WHEN 'packed' THEN 0 WHEN 'picking' THEN 1 ELSE 2 END")
+                ->orderBy('id')
+                ->get(['id', 'number', 'status', 'warehouse_id', 'shopee_shop_id', 'tiktok_shop_id', 'shopee_order_status', 'tiktok_order_status', 'tiktok_cancel_requested', 'tracking_number']),
             // Data per baris untuk aksi massal: tombol hanya muncul untuk pesanan yang bisa diproses.
             'bulkRows' => $orders->getCollection()->mapWithKeys(fn (SalesOrder $order) => [$order->id => [
                 'arrange' => $order->canBulkArrangeShipment(),

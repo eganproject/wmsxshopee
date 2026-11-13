@@ -542,6 +542,24 @@ class ShopeeSyncTest extends TestCase
         Http::assertSent(fn (Request $r) => str_contains($r->url(), 'get_tracking_number') && $r['order_sn'] === 'D2' && ! isset($r['package_number']));
     }
 
+    /** Batal disetujui setelah paket dikemas: alasan batal mengingatkan gudang membongkar paket. */
+    public function test_cancel_after_packing_reminds_to_unpack_and_restock(): void
+    {
+        $this->fakeOrders([$this->order('D3', 'READY_TO_SHIP', [$this->line(11, 101, 2)])]);
+        $this->artisan('shopee:sync --only=orders')->assertSuccessful();
+        SalesOrder::where('external_number', 'D3')->update(['status' => 'packed', 'packed_at' => now()]);
+
+        $this->resync([$this->order('D3', 'IN_CANCEL', [$this->line(11, 101, 2)])]);
+        $this->assertTrue(SalesOrder::where('external_number', 'D3')->first()->cancelRequested());
+
+        $this->resync([$this->order('D3', 'CANCELLED', [$this->line(11, 101, 2)], ['cancel_reason' => 'BUYER_REQUEST'])]);
+
+        $order = SalesOrder::where('external_number', 'D3')->first();
+        $this->assertSame('cancelled', $order->status);
+        $this->assertStringContainsString('BUYER_REQUEST', $order->cancel_reason);
+        $this->assertStringContainsString('bongkar paket dan kembalikan barang ke bin asal', $order->cancel_reason);
+    }
+
     private function resync(array $orders): void
     {
         Http::swap(new Factory);
@@ -649,6 +667,12 @@ class ShopeeSyncTest extends TestCase
             ->assertOk()->assertSee($order->number)->assertSee('Terlewat QC, belum dicek');
         $this->actingAs($admin)->get(route('sales.orders.show', $order))
             ->assertOk()->assertSee('Terlewat QC kemas dan serah terima')->assertSee('Tandai Sudah Dicek');
+        // Ditonjolkan di tab Dikirim (banner + badge di baris), tidak di tab lain.
+        $this->actingAs($admin)->get(route('sales.orders.index', ['status' => 'shipped']))->assertOk()
+            ->assertSee('data-testid="qc-skip-banner"', false)->assertSee('1 pesanan terlewat QC dan belum dicek.')
+            ->assertSee('data-testid="qc-skip-badge"', false);
+        $this->actingAs($admin)->get(route('sales.orders.index', ['status' => 'packed']))->assertOk()
+            ->assertDontSee('data-testid="qc-skip-banner"', false);
 
         $this->actingAs($admin)->post(route('sales.orders.qc-skip-check', $order), ['qc_skip_note' => 'Barang & bin sesuai'])
             ->assertRedirect();
@@ -663,6 +687,9 @@ class ShopeeSyncTest extends TestCase
         $this->assertSame($admin->id, $log->user_id);
         $this->assertStringContainsString('Barang & bin sesuai', json_encode($log->properties, JSON_UNESCAPED_UNICODE));
         $this->actingAs($admin)->get(route('sales.orders.show', $order))->assertOk()->assertSee('Sudah dicek oleh');
+        $this->actingAs($admin)->get(route('sales.orders.index', ['status' => 'shipped']))->assertOk()
+            ->assertDontSee('data-testid="qc-skip-banner"', false)->assertDontSee('data-testid="qc-skip-badge"', false)
+            ->assertSee('Terlewat QC · sudah dicek');
 
         // Dua kali tidak bisa; pesanan yang lewat proses gudang biasa juga tidak.
         $this->actingAs($admin)->post(route('sales.orders.qc-skip-check', $order))->assertSessionHasErrors('order');
@@ -734,7 +761,7 @@ class ShopeeSyncTest extends TestCase
         $this->assertSame('to_ship', $orders[$m1]->marketplaceStatus());
         $this->assertNull($orders[$m1]->syncIssue());
         $this->assertSame('cancel_requested', $orders[$m2]->marketplaceStatus());
-        $this->assertSame('Pembeli minta batal, jangan dikemas', $orders[$m2]->syncIssue());
+        $this->assertSame('Pembeli minta batal: jangan diproses dulu', $orders[$m2]->syncIssue());
         $this->assertSame('in_transit', $orders[$m3]->marketplaceStatus());
         $this->assertSame('Sudah dikirim di Shopee, belum di gudang', $orders[$m3]->syncIssue());
 
@@ -749,10 +776,12 @@ class ShopeeSyncTest extends TestCase
 
         $admin = User::where('email', 'superadmin@wms.local')->firstOrFail();
         $this->actingAs($admin)->get(route('sales.orders.index', ['mp' => 'out_of_sync']))->assertOk()
-            ->assertSee('Status Marketplace')->assertSee('Pembeli minta batal, jangan dikemas')
+            ->assertSee('Status Marketplace')->assertSee('Pembeli minta batal: jangan diproses dulu')
             ->assertSee($orders[$m2]->number)->assertSee($orders[$m3]->number)->assertDontSee($orders[$m1]->number);
         $this->actingAs($admin)->get(route('sales.orders.index', ['mp' => 'to_ship']))->assertOk()
-            ->assertSee($orders[$m1]->number)->assertDontSee($orders[$m2]->number)->assertSee('READY_TO_SHIP');
+            ->assertSee($orders[$m1]->number)->assertSee('READY_TO_SHIP')
+            // M2 tetap muncul di banner "Pembeli minta batal", tapi tidak di daftar.
+            ->assertViewHas('orders', fn ($page) => $page->getCollection()->pluck('id')->all() === [$orders[$m1]->id]);
     }
 
     public function test_shipped_in_shopee_without_stock_is_flagged(): void

@@ -109,6 +109,9 @@
                         @case('unmapped_orders')
                             <a href="{{ route('sales.orders.index', ['shopee' => 'unmapped']) }}" class="text-sm text-slate-600 hover:text-slate-900">Lihat pesanan</a>
                             @break
+                        @case('cancel_requests')
+                            <a href="{{ route('sales.orders.index', ['mp' => 'cancel_requested', 'dates' => 'all']) }}" class="text-sm text-slate-600 hover:text-slate-900">Lihat pesanan</a>
+                            @break
                         @case('courier_pending')
                         @case('shopee_ahead')
                             <a href="{{ route('sales.orders.index', ['shopee' => $group['key'] === 'courier_pending' ? 'courier_overdue' : 'shopee_ahead']) }}" class="text-sm text-slate-600 hover:text-slate-900">Lihat pesanan</a>
@@ -232,6 +235,18 @@
                                     <div class="text-right">
                                         <p class="text-xs font-medium text-slate-700">Gudang: {{ $item->statusLabel() }} · {{ $item->isTiktok() ? 'TikTok: '.$item->tiktokStatusLabel() : 'Shopee: '.$item->shopeeStatusLabel() }}</p>
                                         <p class="text-xs text-slate-500" title="{{ $since?->translatedFormat('d M Y H:i') }}">{{ $since?->diffForHumans() }}</p>
+                                    </div>
+                                    @break
+                                @case('cancel_requests')
+                                    <div class="min-w-0 flex-1">
+                                        <a href="{{ route('sales.orders.show', $item) }}" class="text-sm font-medium text-slate-900 hover:text-brand-600">{{ $item->number }}</a>
+                                        <p class="truncate text-xs text-slate-500">{{ $item->channel_name }} · {{ $item->warehouse?->code }}{{ $item->tracking_number ? ' · '.$item->tracking_number : ($item->external_number ? ' · '.$item->external_number : '') }}</p>
+                                    </div>
+                                    <div class="text-right">
+                                        <p @class(['text-xs font-medium', 'text-rose-600' => $item->status === 'packed', 'text-slate-700' => $item->status !== 'packed'])>
+                                            {{ $item->status === 'packed' ? 'Sudah dikemas: tahan paket' : 'Gudang: '.$item->statusLabel() }}
+                                        </p>
+                                        <p class="text-xs text-slate-500">Putuskan di {{ $item->isTiktok() ? 'TikTok' : 'Shopee' }} Seller Center</p>
                                     </div>
                                     @break
                                 @case('qc_skipped')
