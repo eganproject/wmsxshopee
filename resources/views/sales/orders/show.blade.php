@@ -81,7 +81,7 @@
                     <x-heroicon-o-truck class="size-5" /> {{ $order->isShipmentArranged() ? 'Ubah Pengiriman' : 'Atur Pengiriman' }}
                 </a>
             @endif
-            @if ($order->hasStatus('confirmed'))
+            @if ($order->hasStatus('confirmed') && ! $order->marketplaceCancelPending())
                 <a href="{{ route('sales.orders.picking', $order) }}" class="btn-primary"><x-heroicon-o-hand-raised class="size-5" /> Picking</a>
             @elseif ($order->hasStatus('picking'))
                 <a href="{{ route('sales.qc.show', $order) }}" class="btn-primary"><x-heroicon-o-viewfinder-circle class="size-5" /> QC Scan</a>
@@ -160,6 +160,8 @@
             </div>
         </div>
     @endif
+
+    @include('sales.orders._cancel-request-banner')
 
     @if ($order->shopee_shop_id)
         <div @class([

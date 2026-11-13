@@ -188,8 +188,8 @@ class TiktokReturnSync
             } elseif ($mapping?->bundle_id) {
                 $bundleLine = $order->bundles->firstWhere('bundle_id', $mapping->bundle_id);
 
-                foreach ($bundleLine ? $order->items->where('sales_order_bundle_id', $bundleLine->id) : [] as $component) {
-                    $rows[] = ['sales_order_item_id' => $component->id, 'product_variant_id' => $component->product_variant_id, 'qty_good' => min($qty * max(1, (int) $component->bundle_component_qty), $component->qty), 'reason' => $reason];
+                if ($bundleLine) {
+                    array_push($rows, ...SalesReturn::linesForBundle($order, $bundleLine, $qty, $reason));
                 }
             }
         }

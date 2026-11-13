@@ -182,6 +182,7 @@ class SalesOrderService
     {
         DB::transaction(function () use ($order, $picks) {
             $order = $this->lock($order, ['confirmed']);
+            $this->ensureNotCancelRequested($order);
             $order->load('items.variant');
             $this->lockVariants($order);
 
@@ -343,6 +344,24 @@ class SalesOrderService
      *
      * @throws ValidationException
      */
+    /**
+     * Pesanan yang sedang diajukan / sudah dibatalkan pembeli di Shopee / TikTok tidak boleh
+     * di-picking: barangnya hanya akan tertahan di QC lalu harus dikembalikan ke bin.
+     *
+     * @throws ValidationException
+     */
+    public function ensureNotCancelRequested(SalesOrder $order): void
+    {
+        if ($order->marketplaceCancelPending()) {
+            $platform = $order->isTiktok() ? 'TikTok' : 'Shopee';
+            $message = $order->cancelRequested()
+                ? "{$order->number}: pembeli mengajukan pembatalan di {$platform}. Jangan di-picking dulu; tunggu keputusan di Seller Center, lalu sinkronkan ulang."
+                : "{$order->number} sudah dibatalkan di {$platform}. Batalkan pesanan ini di Optima, jangan di-picking.";
+
+            throw ValidationException::withMessages(['order' => $message]);
+        }
+    }
+
     private function lock(SalesOrder $order, array $allowed): SalesOrder
     {
         $locked = SalesOrder::whereKey($order->id)->lockForUpdate()->firstOrFail();
