@@ -10,6 +10,7 @@ use App\Http\Controllers\Inventory\DamagedDocumentController;
 use App\Http\Controllers\Inventory\DamagedStockController;
 use App\Http\Controllers\Inventory\GoodsReceiptController;
 use App\Http\Controllers\Inventory\OpeningStockImportController;
+use App\Http\Controllers\Inventory\SkuSettingImportController;
 use App\Http\Controllers\Inventory\StockAdjustmentController;
 use App\Http\Controllers\Inventory\StockCardController;
 use App\Http\Controllers\Inventory\StockController;
@@ -212,6 +213,15 @@ Route::middleware(['auth', 'auth.session', 'active'])->group(function () {
         // Lokasi tetap SKU & stok min/maks per gudang.
         Route::get('sku-settings', [WarehouseVariantSettingController::class, 'index'])->middleware('can:inventory.view')->name('sku-settings.index');
         Route::put('sku-settings', [WarehouseVariantSettingController::class, 'update'])->middleware('can:inventory.create')->name('sku-settings.update');
+        // Import update SKU per Gudang: pilih kolom → template → unggah → pratinjau → terapkan.
+        Route::middleware('can:inventory.create')->prefix('sku-settings/import')->name('sku-settings.import')->controller(SkuSettingImportController::class)->group(function () {
+            Route::get('/', 'create');
+            Route::get('template', 'template')->name('.template');
+            Route::post('/', 'store')->name('.store');
+            Route::get('preview', 'preview')->name('.preview');
+            Route::post('apply', 'apply')->name('.apply');
+            Route::delete('preview', 'destroy')->name('.destroy');
+        });
 
         // Penerimaan barang: draft bisa diubah/dihapus; setelah dikonfirmasi diterima,
         // stok masuk lewat mutasi Barang Masuk dan dokumen terkunci.
