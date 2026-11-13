@@ -1,36 +1,30 @@
 @php($outboundList = request('kind') === 'outbound')
-<x-layouts.app :title="$outboundList ? 'Barang Keluar Manual' : 'Pesanan'">
+<x-layouts.app title="Pesanan">
     <x-slot:breadcrumb>
         <x-heroicon-o-home class="size-4" />
         <x-heroicon-o-chevron-right class="size-3.5" />
         <span>Penjualan</span>
         <x-heroicon-o-chevron-right class="size-3.5" />
-        <span class="font-medium text-slate-700">{{ $outboundList ? 'Barang Keluar Manual' : 'Pesanan' }}</span>
+        <span class="font-medium text-slate-700">Pesanan</span>
     </x-slot:breadcrumb>
 
-    <x-page-header :title="$outboundList ? 'Barang Keluar Manual' : 'Pesanan'"
-                   :description="$outboundList
-                       ? 'Barang keluar tanpa penjualan (sampel, endorse, kirim ke kantor, hadiah). Sama seperti pesanan: konfirmasi, picking, QC Kemas, lalu serah terima. Stok baru berkurang saat diserahkan.'
-                       : 'Pesanan manual, Shopee dan TikTok. Konfirmasi untuk mencadangkan stok, lalu atur pengiriman, picking, kemas dan kirim.'"
-                   :icon="$outboundList ? 'heroicon-o-arrow-up-tray' : 'heroicon-o-shopping-cart'">
+    <x-page-header title="Pesanan"
+                   description="Pesanan manual, Shopee dan TikTok, juga barang keluar manual (sampel, endorse, kirim ke kantor). Konfirmasi untuk mencadangkan stok, lalu atur pengiriman, picking, kemas dan kirim."
+                   icon="heroicon-o-shopping-cart">
         {{-- Ekspor mengikuti tab, pencarian, filter & urutan yang sedang dipakai. --}}
         <a href="{{ request()->fullUrlWithQuery(['export' => 'xlsx', 'page' => null, 'ids' => null]) }}" class="btn-secondary" data-no-loading
            data-hint-title="Ekspor Excel" data-hint="Mengunduh {{ number_format($orders->total(), 0, ',', '.') }} pesanan sesuai tab, pencarian dan filter yang sedang dipakai. Isi file: sheet Pesanan, sheet Item (per SKU) dan sheet Info (filter yang dipakai). Centang pesanan untuk mengekspor yang dipilih saja.">
             <x-heroicon-o-arrow-down-tray class="size-5" /> Ekspor Excel <span class="text-slate-500">({{ number_format($orders->total(), 0, ',', '.') }})</span>
         </a>
         @can('sales.create')
-            @if ($outboundList)
-                <a href="{{ route('sales.orders.create', ['kind' => 'outbound']) }}" class="btn-primary">
-                    <x-heroicon-o-plus class="size-5" /> Barang Keluar Baru
-                </a>
-            @else
-                <a href="{{ route('sales.orders.import') }}" class="btn-secondary">
-                    <x-heroicon-o-arrow-up-tray class="size-5" /> Impor Excel / CSV
-                </a>
-                <a href="{{ route('sales.orders.create') }}" class="btn-primary">
-                    <x-heroicon-o-plus class="size-5" /> Pesanan Baru
-                </a>
-            @endif
+            <a href="{{ route('sales.orders.import') }}" class="btn-secondary">
+                <x-heroicon-o-arrow-up-tray class="size-5" /> Impor Excel / CSV
+            </a>
+            {{-- Satu tombol: jenis Penjualan / Barang Keluar dipilih di formulir. --}}
+            <a href="{{ route('sales.orders.create', $outboundList ? ['kind' => 'outbound'] : []) }}" class="btn-primary"
+               data-hint-title="Pesanan Baru" data-hint="Buat penjualan manual (WhatsApp, toko offline, reseller) atau barang keluar tanpa penjualan (sampel, endorse, kirim ke kantor). Jenisnya dipilih di bagian atas formulir.">
+                <x-heroicon-o-plus class="size-5" /> Pesanan Baru
+            </a>
         @endcan
     </x-page-header>
 
@@ -199,6 +193,36 @@
         @php($platform = request('platform'))
         @php($channel = request('channel'))
         <div class="space-y-2 border-b border-slate-100 px-4 pt-4 pb-3 text-sm">
+            @php($kindFilter = (string) request('kind'))
+            <div class="flex flex-col gap-1.5 sm:flex-row sm:items-start">
+                <span class="w-20 shrink-0 pt-1 text-xs text-slate-500">Jenis</span>
+                <div class="flex flex-wrap gap-1.5" data-testid="kind-chips">
+                    @foreach (['' => 'Semua', 'sale' => 'Penjualan', 'outbound' => 'Barang Keluar Manual'] as $value => $label)
+                        <a href="{{ route('sales.orders.index', [...request()->except(['kind', 'purpose', 'page']), 'kind' => $value ?: null]) }}"
+                           @if ($value === 'outbound') data-hint-title="Barang Keluar Manual" data-hint="Barang keluar tanpa penjualan (sampel, endorse, kirim ke kantor, hadiah). Alurnya sama dengan pesanan: konfirmasi, picking, QC Kemas, lalu serah terima. Stok baru berkurang saat diserahkan." @endif
+                           @class([$pill, $pillOn => $kindFilter === $value, $pillOff => $kindFilter !== $value])>
+                            @if ($value === 'outbound')
+                                <x-heroicon-o-arrow-up-tray class="size-3.5" />
+                            @endif
+                            {{ $label }}
+                        </a>
+                    @endforeach
+                </div>
+            </div>
+            @if ($outboundList)
+                @php($purposeFilter = (string) request('purpose'))
+                <div class="flex flex-col gap-1.5 sm:flex-row sm:items-start">
+                    <span class="w-20 shrink-0 pt-1 text-xs text-slate-500">Tujuan</span>
+                    <div class="flex flex-wrap gap-1.5" data-testid="purpose-chips">
+                        <a href="{{ route('sales.orders.index', request()->except(['purpose', 'page'])) }}"
+                           @class([$pill, $pillOn => $purposeFilter === '', $pillOff => $purposeFilter !== ''])>Semua</a>
+                        @foreach (\App\Models\SalesOrder::OUTBOUND_PURPOSES as $value => $label)
+                            <a href="{{ route('sales.orders.index', [...request()->except(['purpose', 'page']), 'purpose' => $value]) }}"
+                               @class([$pill, $pillOn => $purposeFilter === $value, $pillOff => $purposeFilter !== $value])>{{ $label }}</a>
+                        @endforeach
+                    </div>
+                </div>
+            @endif
             <div class="flex flex-col gap-1.5 sm:flex-row sm:items-start">
                 <span class="w-20 shrink-0 pt-1 text-xs text-slate-500">Platform</span>
                 <div class="flex flex-wrap gap-1.5">
@@ -260,7 +284,8 @@
                 </div>
             @endif
             {{-- Pencarian tersimpan milik user ini: kombinasi filter yang dipakai ulang sekali klik. --}}
-            @php($currentQuery = collect(request()->query())->only(\App\Http\Controllers\Sales\OrderSavedFilterController::KEYS)->filter(fn ($v) => is_string($v) && $v !== '')->all())
+            {{-- Rentang 30 hari bawaan tidak ikut disimpan, supaya pencarian tersimpan tetap mengikuti hari ini. --}}
+            @php($currentQuery = collect(request()->query())->only(\App\Http\Controllers\Sales\OrderSavedFilterController::KEYS)->except($defaultDates ? ['from', 'to'] : [])->filter(fn ($v) => is_string($v) && $v !== '')->all())
             <div class="flex flex-col gap-1.5 sm:flex-row sm:items-start" x-data="{ saving: @js($errors->has('name')) }">
                 <span class="w-20 shrink-0 pt-1 text-xs text-slate-500">Tersimpan</span>
                 <div class="flex flex-1 flex-wrap items-center gap-1.5" data-testid="saved-filters">
@@ -305,7 +330,7 @@
         @php($quickDates = ['Hari Ini' => [$today, $today], '7 Hari' => [now()->subDays(6)->toDateString(), $today], '30 Hari' => [now()->subDays(29)->toDateString(), $today]])
         <form method="GET" class="space-y-3 border-b border-slate-100 p-4"
               x-data="{ multi: @js($searchTerms > 1 && str_contains((string) request('search'), "\n")) }">
-            @foreach (['status', 'mp', 'shopee', 'platform', 'channel', 'courier'] as $keep)
+            @foreach (['kind', 'purpose', 'status', 'mp', 'shopee', 'platform', 'channel', 'courier', 'dates'] as $keep)
                 @if (request()->filled($keep))
                     <input type="hidden" name="{{ $keep }}" value="{{ request($keep) }}">
                 @endif
@@ -374,6 +399,9 @@
                         <button type="button" @click="$refs.from.value = '{{ $start }}'; $refs.to.value = '{{ $end }}'; $el.form.requestSubmit()"
                                 @class([$pill, 'py-1.5', $pillOn => $from === $start && $to === $end, $pillOff => ! ($from === $start && $to === $end)])>{{ $label }}</button>
                     @endforeach
+                    <a href="{{ route('sales.orders.index', [...request()->except(['from', 'to', 'page']), 'dates' => 'all']) }}"
+                       data-hint-title="Semua tanggal" data-hint="Bawaan daftar pesanan adalah 30 hari terakhir. Pilih ini untuk melihat pesanan dari semua tanggal."
+                       @class([$pill, 'py-1.5', $pillOn => blank($from) && blank($to), $pillOff => filled($from) || filled($to)])>Semua</a>
                 </div>
                 <div class="flex flex-wrap items-center gap-2 lg:ml-auto">
                     {{-- Jumlah data per halaman di atas daftar supaya mudah dijangkau. --}}
@@ -391,8 +419,9 @@
                         @endforeach
                     </select>
                     <button type="submit" class="btn-primary"><x-heroicon-o-funnel class="size-5" /> Cari</button>
-                    @if (request()->hasAny(['search', 'search_by', 'warehouse', 'shipment', 'speed', 'label', 'date_by', 'from', 'to', 'sort']))
-                        <a href="{{ route('sales.orders.index', request()->only(['status', 'mp', 'shopee', 'platform', 'channel', 'courier', 'per_page'])) }}" class="btn-icon" title="Reset filter"><x-heroicon-o-x-mark class="size-5" /></a>
+                    {{-- Reset mengembalikan ke bawaan: 30 hari terakhir. --}}
+                    @if (request()->hasAny(['search', 'search_by', 'warehouse', 'shipment', 'speed', 'label', 'date_by', 'dates', 'sort']) || ! $defaultDates)
+                        <a href="{{ route('sales.orders.index', request()->only(['kind', 'status', 'mp', 'shopee', 'platform', 'channel', 'courier', 'per_page'])) }}" class="btn-icon" title="Reset filter"><x-heroicon-o-x-mark class="size-5" /></a>
                     @endif
                 </div>
             </div>
@@ -623,7 +652,7 @@
                     <tbody>
                         <x-empty-state :colspan="$canFulfill ? 5 : 4" icon="heroicon-o-shopping-cart" title="Belum ada pesanan" description="Input pesanan manual atau impor dari file Excel / CSV.">
                             @can('sales.create')
-                                <a href="{{ route('sales.orders.create', $outboundList ? ['kind' => 'outbound'] : []) }}" class="btn-primary"><x-heroicon-o-plus class="size-5" /> {{ $outboundList ? 'Buat Barang Keluar' : 'Buat Pesanan' }}</a>
+                                <a href="{{ route('sales.orders.create', $outboundList ? ['kind' => 'outbound'] : []) }}" class="btn-primary"><x-heroicon-o-plus class="size-5" /> Buat Pesanan</a>
                             @endcan
                         </x-empty-state>
                     </tbody>

@@ -61,6 +61,12 @@ class SalesOrderController extends Controller
         'deadline' => 'Batas kirim terdekat',
     ];
 
+    /** Rentang tanggal bawaan daftar pesanan: 30 hari terakhir. */
+    public static function defaultDates(): array
+    {
+        return ['from' => now()->subDays(29)->toDateString(), 'to' => now()->toDateString()];
+    }
+
     /** Batas jumlah nomor yang ditempel sekaligus di kotak cari. */
     private const MAX_SEARCH_TERMS = 500;
 
@@ -70,6 +76,13 @@ class SalesOrderController extends Controller
         if ($request->input('status') === 'picked') {
             return redirect()->route('sales.orders.index', ['status' => 'picking', ...$request->except('status')]);
         }
+
+        // Bawaan: 30 hari terakhir (tanggal pesanan), kecuali sedang mencari nomor, membuka tautan
+        // antrean kerja (notifikasi, Terlewat QC) atau memilih "Semua tanggal" (dates=all).
+        if (! $request->hasAny(['from', 'to', 'dates', 'search', 'shopee', 'qc'])) {
+            $request->merge(self::defaultDates());
+        }
+        $defaultDates = $request->only(['from', 'to']) === self::defaultDates() && blank($request->input('date_by'));
 
         $query = $this->filtered($request)
             ->with(['warehouse', 'courier', 'looseItems.variant.product', 'bundles.bundle'])
@@ -108,6 +121,7 @@ class SalesOrderController extends Controller
 
         return view('sales.orders.index', [
             'orders' => $orders,
+            'defaultDates' => $defaultDates,
             'counts' => $counts,
             'marketplaceCounts' => $marketplaceCounts,
             'outOfSyncCount' => $marketplaceBase()->outOfSync()->count(),
@@ -659,6 +673,8 @@ class SalesOrderController extends Controller
             $shopee = (string) $request->input('shopee');
             $add('Status Shopee', $legacy[$shopee] ?? (SalesOrder::SHOPEE_STATUSES[$shopee]['label'] ?? $shopee));
         }
+        $add('Jenis', SalesOrder::KINDS[(string) $request->input('kind')] ?? null);
+        $add('Tujuan', SalesOrder::OUTBOUND_PURPOSES[(string) $request->input('purpose')] ?? null);
         $add('Platform', ['shopee' => 'Shopee', 'tiktok' => 'TikTok', 'manual' => 'Manual'][(string) $request->input('platform')] ?? null);
         $add('Toko', $request->filled('channel') ? (string) $request->input('channel') : null);
         $add('Gudang', $request->filled('warehouse') ? Warehouse::find($request->integer('warehouse'))?->code : null);
