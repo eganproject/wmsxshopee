@@ -39,6 +39,12 @@ class SalesReturnItem extends Model
         return $this->belongsTo(SalesOrderItem::class, 'sales_order_item_id');
     }
 
+    /** Barang yang ikut di paket retur pesanan tapi bukan bagian pesanannya (kelebihan / barang lain). */
+    public function isOutsideOrder(): bool
+    {
+        return $this->sales_order_item_id === null && $this->salesReturn?->sales_order_id !== null;
+    }
+
     public function variant(): BelongsTo
     {
         return $this->belongsTo(ProductVariant::class, 'product_variant_id');

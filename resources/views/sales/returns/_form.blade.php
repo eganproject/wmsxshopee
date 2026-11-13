@@ -33,6 +33,7 @@
          lookupError: '',
          looking: false,
          orderRows: [],
+         extraRows: [],
          manualRows: [],
          variants: @js($variants),
          locations: @js($locations),
@@ -45,6 +46,8 @@
              const saved = @js($items);
              if (this.source === 'order') {
                  this.orderRows = this.order ? this.buildOrderRows(saved) : [];
+                 // Baris tanpa baris pesanan = barang di luar pesanan (kelebihan / barang lain di paket).
+                 this.extraRows = this.order ? saved.filter(row => ! row.sales_order_item_id).map(row => this.row(row)) : [];
                  this.manualRows = [this.blankRow()];
              } else {
                  this.manualRows = saved.length ? saved.map(row => this.row(row)) : [this.blankRow()];
@@ -65,7 +68,15 @@
              });
          },
          get rows() {
-             return this.source === 'order' ? this.orderRows : this.manualRows;
+             return this.source === 'order' ? [...this.orderRows, ...this.extraRows] : this.manualRows;
+         },
+         addExtra(variantId = '', qty = '') {
+             const last = this.extraRows[this.extraRows.length - 1] || this.orderRows[0];
+             this.extraRows.push(this.row({ product_variant_id: String(variantId), qty_good: qty, warehouse_location_id: last ? last.warehouse_location_id : '', reason: last ? last.reason : '' }));
+         },
+         removeExtra(item) {
+             this.extraRows = this.extraRows.filter(r => r.uid !== item.uid);
+             this.errors = {};
          },
          get variantOptions() {
              return this.variants.map(v => ({ value: v.id, text: v.label }));
@@ -107,6 +118,7 @@
              this.order = order;
              this.choices = [];
              this.orderRows = this.buildOrderRows();
+             this.extraRows = [];
              this.errors = {};
              this.setWarehouse(order.warehouse_id);
              this.$nextTick(() => this.$refs.itemScan?.focus());
@@ -114,6 +126,7 @@
          resetOrder() {
              this.order = null;
              this.orderRows = [];
+             this.extraRows = [];
              this.$nextTick(() => this.$refs.orderScan?.focus());
          },
          addScanned() {
@@ -124,11 +137,17 @@
              this.scanError = '';
              if (this.source === 'order') {
                  // Scan barang dari paket: jumlah layak jual baris itu bertambah 1, maksimal sisa yang bisa diretur.
+                 // Barang yang tidak ada di pesanan, atau sudah melebihi jumlah kirim, masuk ke baris "di luar pesanan".
                  const rows = this.orderRows.filter(r => match(r.line));
-                 if (! rows.length) { this.scanError = `${code} tidak ada di pesanan ${this.order.number}.`; return; }
                  const row = rows.find(r => this.qty(r) < r.line.remaining);
-                 if (! row) { this.scanError = `${code} sudah mencapai jumlah maksimal retur.`; return; }
-                 row.qty_good = (parseInt(row.qty_good) || 0) + 1;
+                 if (row) { row.qty_good = (parseInt(row.qty_good) || 0) + 1; return; }
+                 const variant = this.variants.find(match);
+                 if (! variant) { window.reportScanMiss?.(code, 'return'); this.scanError = `SKU / barcode ${code} tidak ditemukan.`; return; }
+                 const extra = this.extraRows.find(r => String(r.product_variant_id) === String(variant.id));
+                 if (extra) { extra.qty_good = (parseInt(extra.qty_good) || 0) + 1; } else { this.addExtra(variant.id, 1); }
+                 this.scanError = rows.length
+                     ? `${code} sudah melebihi jumlah yang dikirim; kelebihannya dicatat sebagai barang di luar pesanan.`
+                     : `${code} tidak ada di pesanan ${this.order.number}; dicatat sebagai barang di luar pesanan.`;
                  return;
              }
              const variant = this.variants.find(match);
@@ -312,14 +331,14 @@
                         <th class="px-2 py-2 font-normal">Alasan <span class="whitespace-nowrap">* <x-hint text="Alasan pembeli mengembalikan barang. Dipakai untuk analisis retur." /></span></th>
                         <th class="px-2 py-2 font-normal"><span class="whitespace-nowrap">Foto <x-hint text="Foto kondisi barang sebagai bukti, misalnya untuk klaim ke marketplace atau supplier." /></span></th>
                         <th class="px-2 py-2 font-normal">Keterangan</th>
-                        <th class="py-2 pl-2" x-show="source === 'manual'"></th>
+                        <th class="py-2 pl-2"></th>
                     </tr>
                 </thead>
                 <tbody>
                     <template x-for="(item, index) in rows" :key="item.uid">
                         <tr class="align-top" :class="source === 'order' && ! qty(item) && 'opacity-60'">
                             <td class="py-1.5 pr-2">
-                                <template x-if="source === 'order'">
+                                <template x-if="item.line">
                                     <div class="min-w-56 pt-1">
                                         <input type="hidden" :name="`items[${index}][sales_order_item_id]`" :value="item.sales_order_item_id">
                                         <p class="font-mono font-medium text-slate-900" x-text="item.line.sku"></p>
@@ -327,8 +346,9 @@
                                         <p class="text-xs text-violet-600" x-show="item.line.bundle" x-text="'Isi paket ' + item.line.bundle"></p>
                                     </div>
                                 </template>
-                                <template x-if="source === 'manual'">
+                                <template x-if="! item.line">
                                     <div>
+                                        <p class="mb-1 inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-700" x-show="source === 'order'" x-cloak><x-heroicon-o-exclamation-triangle class="size-3.5" /> Di luar pesanan</p>
                                         <select class="form-input min-w-64" :name="`items[${index}][product_variant_id]`" x-model="item.product_variant_id"
                                                 x-tom-select="{ options: variantOptions, value: item.product_variant_id }" data-placeholder="Cari SKU / nama barang"
                                                 :class="errors[`items.${index}.product_variant_id`] && 'form-input-error'"></select>
@@ -337,7 +357,7 @@
                                 </template>
                             </td>
                             <td class="px-2 py-1.5 text-right" x-show="source === 'order'">
-                                <span class="inline-block pt-1.5 tabular-nums text-slate-600" x-text="item.line?.shipped"></span>
+                                <span class="inline-block pt-1.5 tabular-nums text-slate-600" x-text="item.line ? item.line.shipped : '—'"></span>
                             </td>
                             <td class="px-2 py-1.5">
                                 <input type="number" min="0" step="1" class="form-input w-16 text-right" :name="`items[${index}][qty_good]`" x-model="item.qty_good" placeholder="0"
@@ -350,17 +370,19 @@
                             </td>
                             <td class="px-2 py-1.5">
                                 <input type="number" min="0" step="1" class="form-input w-16 text-right" :name="`items[${index}][qty_missing]`" x-model="item.qty_missing" placeholder="0"
+                                       :disabled="! item.line && source === 'order'" :title="! item.line && source === 'order' ? 'Barang di luar pesanan tidak bisa hilang' : ''"
                                        :class="errors[`items.${index}.qty_missing`] && 'form-input-error'">
+                                <p class="mt-1 max-w-40 text-xs text-rose-600" x-show="errors[`items.${index}.qty_missing`]" x-text="errors[`items.${index}.qty_missing`]"></p>
                             </td>
                             <td class="px-2 py-1.5">
-                                <div x-show="parseInt(item.qty_good) > 0 || source === 'manual'">
+                                <div x-show="parseInt(item.qty_good) > 0 || ! item.line">
                                     <select class="form-input min-w-32" :name="`items[${index}][warehouse_location_id]`" x-model="item.warehouse_location_id"
                                             x-tom-select="{ options: locationOptions, value: item.warehouse_location_id }" data-placeholder="Tanpa bin"
                                             :class="errors[`items.${index}.warehouse_location_id`] && 'form-input-error'">
                                         <option value="">Tanpa bin</option>
                                     </select>
                                 </div>
-                                <span class="inline-block pt-1.5 text-xs text-slate-400" x-show="! (parseInt(item.qty_good) > 0) && source === 'order'">—</span>
+                                <span class="inline-block pt-1.5 text-xs text-slate-400" x-show="! (parseInt(item.qty_good) > 0) && item.line">—</span>
                                 <p class="mt-1 max-w-48 text-xs text-rose-600" x-show="errors[`items.${index}.warehouse_location_id`]" x-text="errors[`items.${index}.warehouse_location_id`]"></p>
                             </td>
                             <td class="px-2 py-1.5">
@@ -397,9 +419,9 @@
                             <td class="px-2 py-1.5">
                                 <input type="text" class="form-input min-w-32" maxlength="255" :name="`items[${index}][notes]`" x-model="item.notes" placeholder="cth. segel terbuka">
                             </td>
-                            <td class="py-1.5 pl-2" x-show="source === 'manual'">
+                            <td class="py-1.5 pl-2">
                                 <button type="button" class="btn-icon hover:bg-rose-50 hover:text-rose-600" title="Hapus baris"
-                                        x-show="manualRows.length > 1" @click="manualRows.splice(index, 1); errors = {}">
+                                        x-show="source === 'manual' ? manualRows.length > 1 : ! item.line" @click="source === 'manual' ? (manualRows.splice(index, 1), errors = {}) : removeExtra(item)">
                                     <x-heroicon-o-trash class="size-5" />
                                 </button>
                             </td>
@@ -419,6 +441,12 @@
             <button type="button" class="btn-secondary mt-3" x-show="source === 'manual'" @click="manualRows.push(blankRow())">
                 <x-heroicon-o-plus class="size-5" /> Tambah Baris
             </button>
+            <div class="mt-3 flex flex-wrap items-center gap-3" x-show="source === 'order'" x-cloak>
+                <button type="button" class="btn-secondary" @click="addExtra()" data-testid="add-extra">
+                    <x-heroicon-o-plus class="size-5" /> Tambah Barang di Luar Pesanan
+                </button>
+                <p class="text-xs text-slate-500">Untuk kelebihan kiriman atau barang lain yang ikut di paket retur. Scan barang yang tidak ada di pesanan juga otomatis masuk ke sini. Tidak mengurangi sisa retur pesanan, tetap masuk stok saat diterima.</p>
+            </div>
             <p class="mt-3 text-xs text-slate-500">Hanya jumlah <span class="font-medium">Layak Jual</span> yang masuk lagi ke stok. Barang <span class="font-medium">Rusak</span> masuk ke Stok Rusak gudang (tidak ikut dijual), lalu bisa diretur, dimusnahkan, diperbaiki atau dirakit. <span class="font-medium">Hilang</span> untuk barang yang seharusnya ikut kembali tapi tidak ada di paket (bahan klaim ke Shopee / kurir); alasannya otomatis "Tidak ada di paket". Tanpa lokasi bin, barang masuk sebagai stok "Tanpa bin".</p>
         </div>
     </div>
