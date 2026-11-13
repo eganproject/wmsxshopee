@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Inventory;
 
 use App\Http\Controllers\Controller;
 use App\Models\Bundle;
+use App\Models\ProductBarcode;
 use App\Models\SalesOrder;
 use App\Models\Stock;
 use App\Models\Warehouse;
@@ -12,6 +13,7 @@ use App\Services\WarehouseSupply;
 use App\Support\StockOverview;
 use App\Support\XlsxExport;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Query\Builder as QueryBuilder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\View\View;
@@ -56,7 +58,7 @@ class StockController extends Controller
                         ->whereIn('sku', $terms)
                         ->orWhereIn('barcode', $terms)
                         ->orWhereIn('name', $terms)
-                        ->orWhereHas('items.variant', fn ($v) => $v->whereIn('sku', $terms)));
+                        ->orWhereHas('items.variant', fn ($v) => $v->whereIn('sku', $terms)->orWhereIn('id', self::aliasOwners($terms))));
 
                     return;
                 }
@@ -66,7 +68,7 @@ class StockController extends Controller
                     ->where('sku', 'like', "%{$search}%")
                     ->orWhere('barcode', $search)
                     ->orWhere('name', 'like', "%{$search}%")
-                    ->orWhereHas('items.variant', fn ($v) => $v->where('sku', 'like', "%{$search}%")));
+                    ->orWhereHas('items.variant', fn ($v) => $v->where('sku', 'like', "%{$search}%")->orWhereIn('id', self::aliasOwners([$search]))));
             })
             ->orderBy('sku');
 
@@ -145,6 +147,7 @@ class StockController extends Controller
                     $query->where(fn ($q) => $q
                         ->whereIn('product_variants.sku', $terms)
                         ->orWhereIn('product_variants.barcode', $terms)
+                        ->orWhereIn('product_variants.id', self::aliasOwners($terms))
                         ->orWhereIn('products.name', $terms));
 
                     return;
@@ -154,6 +157,7 @@ class StockController extends Controller
                 $query->where(fn ($q) => $q
                     ->where('product_variants.sku', 'like', "%{$search}%")
                     ->orWhere('product_variants.barcode', $search)
+                    ->orWhereIn('product_variants.id', self::aliasOwners([$search]))
                     ->orWhere('products.name', 'like', "%{$search}%"));
             });
 
@@ -209,6 +213,7 @@ class StockController extends Controller
                         ->whereHas('variant', fn ($v) => $v
                             ->whereIn('sku', $terms)
                             ->orWhereIn('barcode', $terms)
+                            ->orWhereIn('id', self::aliasOwners($terms))
                             ->orWhereHas('product', fn ($p) => $p->whereIn('name', $terms)))
                         ->orWhereHas('location', fn ($l) => $l->whereIn('code', $terms)));
 
@@ -259,6 +264,16 @@ class StockController extends Controller
             'sellable' => collect(),
             'picked' => $stocks->getCollection()->mapWithKeys(fn (Stock $s) => [$s->id => $pickedQty($s)]),
         ]);
+    }
+
+    /**
+     * Varian pemilik barcode alias (Master › Barcode) untuk kode-kode ini, sebagai subquery.
+     *
+     * @param  list<string>  $codes
+     */
+    private static function aliasOwners(array $codes): QueryBuilder
+    {
+        return ProductBarcode::query()->toBase()->whereIn('barcode', $codes)->select('product_variant_id');
     }
 
     /**

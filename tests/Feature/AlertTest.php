@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\AlertRead;
 use App\Models\Bundle;
 use App\Models\GoodsReceipt;
 use App\Models\Product;
@@ -139,6 +140,15 @@ class AlertTest extends TestCase
         $this->assertSame(1, $groups['pending_orders']['unread']);
         $this->assertSame('SO-DUA', $groups['pending_orders']['items']->first()->number, 'yang belum dibaca tampil di atas');
         $this->assertFalse($groups['pending_orders']['items']->firstWhere('number', 'SO-SATU')->alert_unread);
+
+        // Masalah yang sudah selesai tidak lagi disimpan sebagai "dibaca": kalau muncul lagi, dihitung baru.
+        $first->update(['status' => 'cancelled']);
+        AlertService::forget($admin);
+        $this->post('/notifications/read', ['group' => 'pending_orders', 'item' => (string) SalesOrder::where('number', 'SO-DUA')->value('id')])->assertRedirect();
+        $this->assertSame([(string) SalesOrder::where('number', 'SO-DUA')->value('id')], array_map('strval', AlertRead::where('user_id', $admin->id)->where('group', 'pending_orders')->value('item_keys')));
+        $first->update(['status' => 'confirmed']);
+        AlertService::forget($admin);
+        $this->assertSame(1, $alerts->groups($admin)['pending_orders']['unread']);
 
         // Satu grup ditandai dibaca.
         $this->post('/notifications/read', ['group' => 'pending_orders'])->assertRedirect();
