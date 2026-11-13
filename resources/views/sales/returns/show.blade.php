@@ -178,6 +178,9 @@
                                 @if ($item->orderItem?->bundleLine)
                                     <p class="text-xs text-violet-600">Isi paket {{ $item->orderItem->bundleLine->bundle->sku }}</p>
                                 @endif
+                                @if ($return->sales_order_id && $item->sales_order_item_id === null)
+                                    <p class="inline-flex items-center gap-1 text-xs font-medium text-amber-700"><x-heroicon-o-exclamation-triangle class="size-3.5" /> Di luar pesanan (kelebihan / barang lain di paket)</p>
+                                @endif
                             </td>
                             <td @class(['px-4 py-2.5 text-right tabular-nums', 'font-semibold text-slate-900' => $item->qty_good > 0, 'text-slate-400' => ! $item->qty_good])>
                                 {{ number_format($item->qty_good, 0, ',', '.') }}

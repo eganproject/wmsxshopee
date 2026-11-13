@@ -186,6 +186,43 @@ class SalesReturn extends Model
     }
 
     /**
+     * Baris retur untuk $qty paket dari satu baris paket pesanan, dipecah ke barang isinya.
+     * Jatah barang = isi per paket x jumlah paket; bila isi paket sudah diganti sebagian saat
+     * QC (Ganti SKU, bundle_component_qty kosong), sisa jatah dibagi ke baris-baris itu tanpa
+     * melebihi total isi $qty paket, supaya retur tidak menambah stok lebih dari yang dikirim.
+     *
+     * @return list<array{sales_order_item_id: int, product_variant_id: int, qty_good: int, reason: string}>
+     */
+    public static function linesForBundle(SalesOrder $order, SalesOrderBundle $line, int $qty, string $reason): array
+    {
+        $components = $order->items->where('sales_order_bundle_id', $line->id)->sortBy('id')->values();
+        if ($qty < 1 || $line->qty < 1 || $components->isEmpty()) {
+            return [];
+        }
+
+        // Total barang untuk $qty paket, dari isi pesanan (bukan master paket yang bisa berubah).
+        $budget = (int) floor((int) $components->sum('qty') * min($qty, (int) $line->qty) / (int) $line->qty);
+        $rows = [];
+        $take = function (SalesOrderItem $item, int $units) use (&$rows, &$budget, $reason) {
+            $units = min($units, (int) $item->qty, $budget);
+            if ($units > 0) {
+                $rows[] = ['sales_order_item_id' => $item->id, 'product_variant_id' => $item->product_variant_id, 'qty_good' => $units, 'reason' => $reason];
+                $budget -= $units;
+            }
+        };
+
+        // Baris yang isi per paketnya jelas dulu, lalu baris hasil Ganti SKU sebagian.
+        foreach ($components->whereNotNull('bundle_component_qty') as $item) {
+            $take($item, $qty * (int) $item->bundle_component_qty);
+        }
+        foreach ($components->whereNull('bundle_component_qty') as $item) {
+            $take($item, (int) $item->qty);
+        }
+
+        return $rows;
+    }
+
+    /**
      * Batasi baris retur otomatis (Shopee/TikTok) ke sisa yang belum diretur, supaya
      * barang yang sudah pernah diretur tidak menambah stok lagi. Baris yang sisanya 0 dibuang.
      *

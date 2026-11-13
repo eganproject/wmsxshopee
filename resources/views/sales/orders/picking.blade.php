@@ -25,6 +25,8 @@
         <a href="{{ route('sales.orders.show', $order) }}" class="btn-secondary"><x-heroicon-o-arrow-left class="size-5" /> Kembali</a>
     </x-page-header>
 
+    @include('sales.orders._cancel-request-banner')
+
     @if ($shortage->isNotEmpty())
         <div class="mb-6 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
             <p class="flex items-center gap-1.5 font-medium"><x-heroicon-o-truck class="size-4" /> Menunggu stok dari gudang cadangan</p>

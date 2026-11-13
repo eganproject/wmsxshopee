@@ -385,4 +385,40 @@ class SalesReturnTest extends TestCase
 
         $this->actingAs($user)->get(route('sales.returns.index'))->assertForbidden();
     }
+
+    /** Paket retur berisi kelebihan dan barang lain di luar pesanan: tetap masuk stok, tidak mengurangi sisa retur pesanan. */
+    public function test_order_return_accepts_items_outside_the_order_without_touching_order_limits(): void
+    {
+        $extra = Product::create(['sku' => 'TOPI', 'name' => 'Topi', 'unit_id' => Unit::where('code', 'PCS')->value('id'), 'has_variants' => false, 'is_active' => true])
+            ->variants()->create(['sku' => 'TOPI', 'is_active' => true]);
+
+        // Baris pesanan tetap dibatasi jumlah kirim.
+        $this->post(route('sales.returns.store'), $this->orderPayload([
+            ['sales_order_item_id' => $this->line($this->variant), 'qty_good' => 4, 'reason' => 'other'],
+        ]))->assertSessionHasErrors('items.0.qty_good');
+
+        // Kelebihan KAOS-M (1 pcs) dan barang lain (TOPI) dicatat sebagai baris di luar pesanan.
+        $this->post(route('sales.returns.store'), $this->orderPayload([
+            ['sales_order_item_id' => $this->line($this->variant), 'qty_good' => 3, 'warehouse_location_id' => $this->bin->id, 'reason' => 'other'],
+            ['sales_order_item_id' => '', 'product_variant_id' => $this->variant->id, 'qty_good' => 1, 'warehouse_location_id' => $this->bin->id, 'reason' => 'other', 'notes' => 'kelebihan kiriman'],
+            ['sales_order_item_id' => '', 'product_variant_id' => $extra->id, 'qty_good' => 1, 'qty_damaged' => 1, 'reason' => 'other'],
+        ], ['action' => 'receive']))->assertSessionHasNoErrors()->assertRedirect();
+
+        $return = SalesReturn::with('items')->sole();
+        $this->assertSame('received', $return->status);
+        $this->assertCount(3, $return->items);
+        $this->assertTrue($return->items[1]->isOutsideOrder());
+        $this->assertFalse($return->items[0]->isOutsideOrder());
+        $this->assertSame(4, $this->qty($this->bin));
+        $this->assertSame(1, $this->qty(null, $extra));
+        $this->assertSame(3, SalesReturn::returnedQty([$this->line($this->variant)])[$this->line($this->variant)] ?? 0);
+
+        // Barang di luar pesanan tidak bisa dicatat hilang.
+        $this->post(route('sales.returns.store'), $this->orderPayload([
+            ['sales_order_item_id' => '', 'product_variant_id' => $extra->id, 'qty_missing' => 1, 'reason' => 'other'],
+        ]))->assertSessionHasErrors('items.0.qty_missing');
+
+        $this->get(route('sales.returns.show', $return))->assertOk()->assertSee('Di luar pesanan');
+        $this->get(route('sales.returns.create', ['order' => $this->order->id]))->assertOk()->assertSee('Tambah Barang di Luar Pesanan');
+    }
 }

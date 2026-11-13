@@ -284,7 +284,7 @@ class SalesReturnController extends Controller
                     'product_variant_id' => $item->product_variant_id,
                     'to_location_id' => $item->warehouse_location_id,
                     'qty' => $item->qty_good,
-                    'notes' => $item->reasonLabel(),
+                    'notes' => $item->reasonLabel().($item->isOutsideOrder() ? ' · di luar pesanan' : ''),
                 ])->values()->all());
             }
 
@@ -475,8 +475,9 @@ class SalesReturnController extends Controller
             'external_number' => ['nullable', 'string', 'max:100'],
             'notes' => ['nullable', 'string', 'max:1000'],
             'items' => ['required', 'array', 'min:1', 'max:200'],
-            'items.*.sales_order_item_id' => [Rule::requiredIf($fromOrder), 'nullable', 'integer'],
-            'items.*.product_variant_id' => [Rule::requiredIf(! $fromOrder), 'nullable', 'integer', Rule::exists('product_variants', 'id')],
+            // Retur pesanan: baris tanpa sales_order_item_id = barang di luar pesanan (kelebihan / barang lain).
+            'items.*.sales_order_item_id' => ['nullable', 'integer'],
+            'items.*.product_variant_id' => ['required_without:items.*.sales_order_item_id', 'nullable', 'integer', Rule::exists('product_variants', 'id')],
             'items.*.qty_good' => ['nullable', 'integer', 'min:0', 'max:1000000'],
             'items.*.qty_damaged' => ['nullable', 'integer', 'min:0', 'max:1000000'],
             'items.*.qty_missing' => ['nullable', 'integer', 'min:0', 'max:1000000'],
@@ -494,6 +495,7 @@ class SalesReturnController extends Controller
             'items.*.warehouse_location_id.exists' => 'Lokasi bin harus lokasi aktif di gudang yang dipilih.',
             'items.*.photo.mimes' => 'Foto harus JPG, PNG atau WEBP.',
             'items.*.photo.max' => 'Foto maksimal 5 MB.',
+            'items.*.product_variant_id.required_without' => 'Pilih barangnya.',
         ], [
             'warehouse_id' => 'gudang',
             'return_date' => 'tanggal retur',
@@ -540,6 +542,16 @@ class SalesReturnController extends Controller
             $taken = [];
 
             foreach ($rows as $index => $row) {
+                // Barang di luar pesanan (kelebihan kiriman / barang lain di paket): tidak dibatasi jumlah
+                // pesanan dan tidak mengurangi sisa retur, tapi tetap masuk stok saat diterima.
+                if ($row['sales_order_item_id'] === null) {
+                    if ($row['qty_missing'] > 0) {
+                        throw ValidationException::withMessages(["items.{$index}.qty_missing" => 'Barang di luar pesanan tidak bisa dicatat hilang; isi layak jual atau rusak saja.']);
+                    }
+
+                    continue;
+                }
+
                 $orderItem = $orderItems->get($row['sales_order_item_id']);
 
                 if (! $orderItem) {

@@ -255,6 +255,13 @@ class SalesOrderController extends Controller
             return redirect()->route('sales.orders.show', $order)->with('error', "{$order->number} tidak dalam status Dikonfirmasi.");
         }
 
+        // Pembeli minta batal / sudah batal di marketplace: jangan sampai barang diambil dari bin.
+        try {
+            $service->ensureNotCancelRequested($order);
+        } catch (ValidationException $e) {
+            return redirect()->route('sales.orders.show', $order)->with('error', collect($e->errors())->flatten()->first());
+        }
+
         $order->load(['warehouse', 'items.variant.product.unit', 'items.bundleLine.bundle']);
         $variantIds = $order->items->pluck('product_variant_id')->all();
 

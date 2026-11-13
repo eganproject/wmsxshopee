@@ -9,6 +9,7 @@ use App\Models\ProductBarcode;
 use App\Models\ProductVariant;
 use App\Models\SalesOrder;
 use App\Models\SalesReturn;
+use App\Models\SalesReturnItem;
 use App\Models\ShopeeShop;
 use App\Models\Unit;
 use App\Models\User;
@@ -172,5 +173,69 @@ class QcSubstitutionFollowUpTest extends TestCase
     public function test_qc_queue_page_has_no_statement_in_x_init(): void
     {
         $this->get('/sales/qc')->assertOk()->assertDontSee('x-init="try', false);
+    }
+
+    /** Temuan audit 13 Nov (N1): paket qty 2 (isi M x1), 1 M diganti L, retur 1 paket hanya mengembalikan 1 pcs. */
+    public function test_bundle_return_after_partial_substitution_does_not_exceed_shipped_units(): void
+    {
+        $shop = $this->shop();
+        $bundle = Bundle::create(['sku' => 'PAKET', 'name' => 'Paket', 'is_active' => true]);
+        $bundle->items()->create(['product_variant_id' => $this->m->id, 'qty' => 1, 'sort_order' => 0]);
+        $shop->mappings()->create(['item_id' => 22, 'model_id' => 0, 'shopee_sku' => 'PAKET', 'bundle_id' => $bundle->id]);
+        $order = $this->picked([], [['bundle_id' => $bundle->id, 'qty' => 2, 'price' => 1000]], ['shopee_shop_id' => $shop->id, 'external_number' => 'SN2']);
+        app(QcControl::class)->substitute($order, $this->m->id, $this->l->id, 1, 'habis', $this->admin->id);
+        $this->qcAndShip($order);
+
+        $result = app(ShopeeReturnSync::class)->apply($shop, ['return_sn' => 'RET2', 'order_sn' => 'SN2', 'status' => 'REQUESTED', 'reason' => 'OTHER',
+            'item' => [['item_id' => 22, 'model_id' => 0, 'amount' => 1]]]);
+
+        $this->assertSame('created', $result);
+        $this->assertSame(1, (int) SalesReturn::sole()->items->sum('qty_good'));
+
+        // Retur kedua untuk paket yang tersisa: total tetap 2 pcs (isi 2 paket), tidak lebih.
+        app(ShopeeReturnSync::class)->apply($shop, ['return_sn' => 'RET3', 'order_sn' => 'SN2', 'status' => 'REQUESTED', 'reason' => 'OTHER',
+            'item' => [['item_id' => 22, 'model_id' => 0, 'amount' => 2]]]);
+        $this->assertSame(2, (int) SalesReturnItem::sum('qty_good'));
+    }
+
+    /** Paket utuh (tanpa Ganti SKU): retur 1 dari 2 paket berisi M x2 + L x1 tetap memakai isi per paket. */
+    public function test_bundle_return_without_substitution_uses_per_bundle_contents(): void
+    {
+        $shop = $this->shop();
+        $bundle = Bundle::create(['sku' => 'PAKET', 'name' => 'Paket', 'is_active' => true]);
+        $bundle->items()->create(['product_variant_id' => $this->m->id, 'qty' => 2, 'sort_order' => 0]);
+        $bundle->items()->create(['product_variant_id' => $this->l->id, 'qty' => 1, 'sort_order' => 1]);
+        $shop->mappings()->create(['item_id' => 22, 'model_id' => 0, 'shopee_sku' => 'PAKET', 'bundle_id' => $bundle->id]);
+        $order = $this->picked([], [['bundle_id' => $bundle->id, 'qty' => 2, 'price' => 1000]], ['shopee_shop_id' => $shop->id, 'external_number' => 'SN4']);
+        $this->qcAndShip($order);
+
+        app(ShopeeReturnSync::class)->apply($shop, ['return_sn' => 'RET4', 'order_sn' => 'SN4', 'status' => 'REQUESTED', 'reason' => 'OTHER',
+            'item' => [['item_id' => 22, 'model_id' => 0, 'amount' => 1]]]);
+
+        $lines = SalesReturn::sole()->items->mapWithKeys(fn ($item) => [$item->product_variant_id => $item->qty_good])->all();
+        $this->assertEquals([$this->m->id => 2, $this->l->id => 1], $lines);
+    }
+
+    /** Temuan audit 13 Nov (N2): pesanan yang pembelinya minta batal tidak bisa di-picking satu per satu. */
+    public function test_single_picking_is_blocked_while_buyer_requests_cancellation(): void
+    {
+        $shop = $this->shop();
+        $service = app(SalesOrderService::class);
+        $order = SalesOrder::create(['number' => SalesOrder::nextNumber(), 'status' => 'draft', 'warehouse_id' => $this->warehouse->id,
+            'order_date' => now()->toDateString(), 'customer_name' => 'Budi', 'tracking_number' => 'R'.uniqid(),
+            'shopee_shop_id' => $shop->id, 'external_number' => 'SN5', 'shopee_order_status' => 'IN_CANCEL']);
+        $service->fillLines($order, [['product_variant_id' => $this->m->id, 'qty' => 1, 'price' => 1000]], []);
+        $service->confirm($order->fresh());
+        $order = $order->fresh();
+
+        $this->get(route('sales.orders.show', $order))->assertOk()->assertSee('Pembeli mengajukan pembatalan di Shopee')->assertDontSee(route('sales.orders.picking', $order));
+        $this->get(route('sales.orders.picking', $order))->assertRedirect(route('sales.orders.show', $order))->assertSessionHas('error');
+        $this->post(route('sales.orders.pick', $order), ['picks' => $service->suggestPicks($order)])->assertSessionHasErrors('order');
+        $this->assertSame('confirmed', $order->fresh()->status);
+
+        // Pengajuan batal ditolak penjual: picking jalan seperti biasa.
+        $order->update(['shopee_order_status' => 'READY_TO_SHIP']);
+        $this->post(route('sales.orders.pick', $order), ['picks' => $service->suggestPicks($order->fresh())])->assertSessionHasNoErrors();
+        $this->assertSame('picking', $order->fresh()->status);
     }
 }
