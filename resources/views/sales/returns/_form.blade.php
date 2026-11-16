@@ -23,153 +23,20 @@
 @endphp
 
 <div class="space-y-6"
-     x-data="{
-         source: @js(old('source', $return->source ?? 'order')),
-         warehouse: @js((string) old('warehouse_id', $defaultWarehouse)),
-         tracking: @js((string) old('tracking_number', $return->tracking_number ?? '')),
-         order: @js($orderPayload),
-         choices: [],
-         code: '',
-         lookupError: '',
-         looking: false,
-         orderRows: [],
-         extraRows: [],
-         manualRows: [],
-         variants: @js($variants),
-         locations: @js($locations),
-         reasons: @js($reasonOptions),
-         errors: @js($rowErrors),
-         scan: '',
-         scanError: '',
-         uid: 0,
-         init() {
-             const saved = @js($items);
-             if (this.source === 'order') {
-                 this.orderRows = this.order ? this.buildOrderRows(saved) : [];
-                 // Baris tanpa baris pesanan = barang di luar pesanan (kelebihan / barang lain di paket).
-                 this.extraRows = this.order ? saved.filter(row => ! row.sales_order_item_id).map(row => this.row(row)) : [];
-                 this.manualRows = [this.blankRow()];
-             } else {
-                 this.manualRows = saved.length ? saved.map(row => this.row(row)) : [this.blankRow()];
-             }
-         },
-         row(data) {
-             return { ...@js($blank), ...data, uid: ++this.uid, preview: '' };
-         },
-         blankRow() {
-             // Baris baru ikut lokasi bin & alasan baris terakhir supaya tidak perlu pilih ulang.
-             const last = this.manualRows[this.manualRows.length - 1];
-             return this.row({ warehouse_location_id: last ? last.warehouse_location_id : '', reason: last ? last.reason : '' });
-         },
-         buildOrderRows(saved = []) {
-             return this.order.items.map(line => {
-                 const prev = saved.find(row => String(row.sales_order_item_id) === String(line.id)) || {};
-                 return this.row({ ...prev, sales_order_item_id: String(line.id), product_variant_id: String(line.product_variant_id), line });
-             });
-         },
-         get rows() {
-             return this.source === 'order' ? [...this.orderRows, ...this.extraRows] : this.manualRows;
-         },
-         addExtra(variantId = '', qty = '') {
-             const last = this.extraRows[this.extraRows.length - 1] || this.orderRows[0];
-             this.extraRows.push(this.row({ product_variant_id: String(variantId), qty_good: qty, warehouse_location_id: last ? last.warehouse_location_id : '', reason: last ? last.reason : '' }));
-         },
-         removeExtra(item) {
-             this.extraRows = this.extraRows.filter(r => r.uid !== item.uid);
-             this.errors = {};
-         },
-         get variantOptions() {
-             return this.variants.map(v => ({ value: v.id, text: v.label }));
-         },
-         get locationOptions() {
-             return this.locations.filter(l => String(l.warehouse_id) === String(this.warehouse)).map(l => ({ value: l.id, text: l.code }));
-         },
-         qty(item) {
-             return (parseInt(item.qty_good) || 0) + (parseInt(item.qty_damaged) || 0) + (parseInt(item.qty_missing) || 0);
-         },
-         totals() {
-             const sum = key => this.rows.reduce((total, item) => total + (parseInt(item[key]) || 0), 0);
-             return { good: sum('qty_good'), damaged: sum('qty_damaged'), missing: sum('qty_missing') };
-         },
-         setWarehouse(id) {
-             this.warehouse = String(id);
-             document.getElementById('warehouse_id')?.tomselect?.setValue(this.warehouse, true);
-         },
-         async lookup() {
-             const code = this.code.trim();
-             if (! code || this.looking) return;
-             this.looking = true;
-             this.lookupError = '';
-             this.choices = [];
-             try {
-                 const response = await fetch(@js(route('sales.returns.lookup')) + '?' + new URLSearchParams({ code, except: @js((string) ($return->id ?? '')) }), { headers: { Accept: 'application/json' } });
-                 const data = await response.json();
-                 if (! response.ok) { this.lookupError = data.message || 'Pesanan tidak ditemukan.'; return; }
-                 if (data.matched_tracking && ! this.tracking) this.tracking = code;
-                 if (data.orders.length === 1) this.pick(data.orders[0]); else this.choices = data.orders;
-                 this.code = '';
-             } catch (e) {
-                 this.lookupError = 'Gagal mencari pesanan. Coba lagi.';
-             } finally {
-                 this.looking = false;
-             }
-         },
-         pick(order) {
-             this.order = order;
-             this.choices = [];
-             this.orderRows = this.buildOrderRows();
-             this.extraRows = [];
-             this.errors = {};
-             this.setWarehouse(order.warehouse_id);
-             this.$nextTick(() => this.$refs.itemScan?.focus());
-         },
-         resetOrder() {
-             this.order = null;
-             this.orderRows = [];
-             this.extraRows = [];
-             this.$nextTick(() => this.$refs.orderScan?.focus());
-         },
-         addScanned() {
-             const code = this.scan.trim().toUpperCase();
-             if (! code) return;
-             const match = v => v.sku.toUpperCase() === code || (v.barcode && v.barcode.toUpperCase() === code) || (v.aliases || []).includes(code);
-             this.scan = '';
-             this.scanError = '';
-             if (this.source === 'order') {
-                 // Scan barang dari paket: jumlah layak jual baris itu bertambah 1, maksimal sisa yang bisa diretur.
-                 // Barang yang tidak ada di pesanan, atau sudah melebihi jumlah kirim, masuk ke baris "di luar pesanan".
-                 const rows = this.orderRows.filter(r => match(r.line));
-                 const row = rows.find(r => this.qty(r) < r.line.remaining);
-                 if (row) { row.qty_good = (parseInt(row.qty_good) || 0) + 1; return; }
-                 const variant = this.variants.find(match);
-                 if (! variant) { window.reportScanMiss?.(code, 'return'); this.scanError = `SKU / barcode ${code} tidak ditemukan.`; return; }
-                 const extra = this.extraRows.find(r => String(r.product_variant_id) === String(variant.id));
-                 if (extra) { extra.qty_good = (parseInt(extra.qty_good) || 0) + 1; } else { this.addExtra(variant.id, 1); }
-                 this.scanError = rows.length
-                     ? `${code} sudah melebihi jumlah yang dikirim; kelebihannya dicatat sebagai barang di luar pesanan.`
-                     : `${code} tidak ada di pesanan ${this.order.number}; dicatat sebagai barang di luar pesanan.`;
-                 return;
-             }
-             const variant = this.variants.find(match);
-             if (! variant) { window.reportScanMiss?.(code, 'return'); this.scanError = `SKU / barcode ${code} tidak ditemukan.`; return; }
-             const existing = this.manualRows.find(r => String(r.product_variant_id) === String(variant.id));
-             if (existing) { existing.qty_good = (parseInt(existing.qty_good) || 0) + 1; return; }
-             const empty = this.manualRows.find(r => ! r.product_variant_id);
-             if (empty) { empty.product_variant_id = String(variant.id); empty.qty_good = empty.qty_good || 1; return; }
-             this.manualRows.push({ ...this.blankRow(), product_variant_id: String(variant.id), qty_good: 1 });
-         },
-         preview(item, event) {
-             const file = event.target.files[0];
-             item.preview = file ? URL.createObjectURL(file) : '';
-         },
-         clearPhoto(item) {
-             item.photo_path = '';
-             item.photo_url = '';
-             item.preview = '';
-             const input = document.getElementById(`photo-${item.uid}`);
-             if (input) input.value = '';
-         },
-     }">
+     x-data="salesReturnForm(@js([
+         'source' => old('source', $return->source ?? 'order'),
+         'warehouse' => (string) old('warehouse_id', $defaultWarehouse),
+         'tracking' => (string) old('tracking_number', $return->tracking_number ?? ''),
+         'order' => $orderPayload,
+         'variants' => $variants,
+         'locations' => $locations,
+         'reasons' => $reasonOptions,
+         'errors' => $rowErrors,
+         'items' => $items,
+         'blank' => $blank,
+         'lookupUrl' => route('sales.returns.lookup'),
+         'except' => (string) ($return->id ?? ''),
+     ]))">
     <input type="hidden" name="source" :value="source">
 
     <div class="card">

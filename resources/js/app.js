@@ -4,6 +4,7 @@ import collapse from '@alpinejs/collapse';
 import { enhance, enhanceDate, enhanceSelect, registerAlpine } from './form-controls';
 import { fixedBinsFor, spreadToFixedBins } from './fixed-bins';
 import { labelBuilder } from './labels';
+import { salesReturnForm } from './sales-return';
 import { globalSearch } from './search';
 import { initAutoScan } from './scan';
 import { initUi, registerToasts } from './ui';
@@ -11,6 +12,7 @@ import { initUi, registerToasts } from './ui';
 Alpine.plugin(collapse);
 registerAlpine(Alpine);
 Alpine.data('labelBuilder', labelBuilder);
+Alpine.data('salesReturnForm', salesReturnForm);
 Alpine.data('globalSearch', globalSearch);
 const toast = registerToasts(Alpine);
 

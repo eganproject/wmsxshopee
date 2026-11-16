@@ -372,7 +372,9 @@ class SalesReturnTest extends TestCase
         $return = SalesReturn::sole();
 
         $this->get(route('sales.returns.index'))->assertOk()->assertSee($return->number);
-        $this->get(route('sales.returns.create'))->assertOk()->assertSee('Scan Resi');
+        // Komponen Alpine harus di modul JS; kalau x-data inline putus (kutip ganda), kodenya tampil sebagai teks.
+        $this->get(route('sales.returns.create'))->assertOk()->assertSee('Scan Resi')
+            ->assertSee('x-data="salesReturnForm(', false)->assertDontSee('getElementById(`photo-', false);
         $this->get(route('sales.returns.create', ['order' => $this->order->id]))->assertOk()->assertSee('SO2610-001');
         $this->get(route('sales.returns.show', $return))->assertOk()->assertSee('Pembeli berubah pikiran');
         $this->get(route('sales.returns.edit', $return))->assertOk();
