@@ -472,6 +472,16 @@
                                 <template x-for="id in ids('pick')" :key="id"><input type="hidden" name="orders[]" :value="id"></template>
                                 <button type="submit" class="btn-secondary"><x-heroicon-o-hand-raised class="size-5" /> Tandai Sedang Diambil <span class="text-slate-500" x-text="'(' + count('pick') + ')'"></span></button>
                             </form>
+                            @can('sales.skip_scan')
+                                {{-- Terlewat QC: tandai sudah dicek banyak pesanan sekaligus dengan satu catatan (cth. kurir instan ambil paket sebelum scan). --}}
+                                <form method="POST" action="{{ route('sales.orders.qc-skip-check.bulk') }}" x-show="count('qc')" class="flex flex-wrap items-center gap-2" data-testid="qc-skip-bulk"
+                                      data-confirm-title="Tandai Sudah Dicek?" :data-confirm="count('qc') + ' pesanan terlewat QC ditandai sudah dicek oleh Anda dengan catatan yang sama. Pastikan barang, jumlah dan bin yang dipakai sudah dicek ke packer.'" data-confirm-text="Tandai Sudah Dicek">
+                                    @csrf
+                                    <template x-for="id in ids('qc')" :key="id"><input type="hidden" name="orders[]" :value="id"></template>
+                                    <input name="qc_skip_note" maxlength="255" class="form-input w-56" placeholder="Catatan, cth. SPX Instant, barang & bin sesuai" aria-label="Catatan pengecekan">
+                                    <button type="submit" class="btn-secondary border-amber-300 text-amber-800"><x-heroicon-o-check-badge class="size-5" /> Tandai Sudah Dicek <span class="text-slate-500" x-text="'(' + count('qc') + ')'"></span></button>
+                                </form>
+                            @endcan
                             <a :href="@js(request()->fullUrlWithQuery(['export' => 'xlsx', 'page' => null, 'ids' => null])) + '&ids=' + selected.join(',')" class="btn-secondary" data-no-loading
                                title="Unduh Excel untuk pesanan yang dicentang saja">
                                 <x-heroicon-o-arrow-down-tray class="size-5" /> Ekspor Excel <span class="text-slate-500" x-text="'(' + selected.length + ')'"></span>
@@ -526,7 +536,8 @@
                                            data-hint-title="Terlewat QC, belum dicek" data-hint="Kurir sudah mengambil paket sebelum QC kemas / serah terima di gudang. Stok keluar dari bin usulan otomatis." data-hint-next="Buka pesanan, cek barang & bin yang dipakai, lalu tekan Tandai Sudah Dicek.">
                                             <x-heroicon-o-shield-exclamation class="size-3.5" /> Terlewat QC · cek
                                         </a>
-                                    @elseif ($order->skippedQc())
+                                    @elseif ($qcFilter && $order->skippedQc())
+                                        {{-- Sudah dicek: hanya tampil saat filter Terlewat QC aktif (dan di detail pesanan) supaya daftar tidak penuh tanda lama. --}}
                                         <span class="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-slate-500 dark:bg-slate-800" title="Terlewat QC, sudah dicek{{ $order->qc_skip_note ? ': '.$order->qc_skip_note : '' }}">
                                             <x-heroicon-o-shield-check class="size-3.5" /> Terlewat QC · sudah dicek
                                         </span>
@@ -601,7 +612,7 @@
                                         <x-sales.status-badge :status="$order->status" />
                                     </div>
                                     @if ($order->isMarketplace())
-                                        <x-sales.marketplace-status :order="$order" :issue="$syncIssue" class="max-w-56" />
+                                        <x-sales.marketplace-status :order="$order" :issue="$syncIssue" :show-qc-checked="(bool) $qcFilter" class="max-w-56" />
                                     @endif
                                 </div>
                             </td>
