@@ -143,6 +143,7 @@ class SalesOrderController extends Controller
                 'label' => $order->hasShippingLabel(),
                 'reprint' => $order->hasShippingLabel() && $order->isLabelPrinted(),
                 'pick' => $order->canBulkPick(),
+                'qc' => $order->needsQcSkipCheck(),
             ]]),
             'warehouses' => Warehouse::orderBy('code')->get(),
             'shops' => $this->shopChips($request),
@@ -435,6 +436,59 @@ class SalesOrderController extends Controller
         AlertService::forget($request->user());
 
         return redirect()->back()->with('success', "Pesanan {$order->number} ditandai sudah dicek.");
+    }
+
+    /**
+     * Tandai banyak pesanan terlewat QC sudah dicek sekaligus dari daftar pesanan,
+     * dengan satu catatan yang sama (cth. kasus kurir instan mengambil paket
+     * sebelum scan). Pesanan yang tidak terlewat QC atau sudah dicek dilewati.
+     */
+    public function bulkCheckQcSkip(Request $request): RedirectResponse
+    {
+        $data = $request->validate([
+            'orders' => ['required', 'array', 'max:100'],
+            'orders.*' => ['integer', 'distinct'],
+            'qc_skip_note' => ['nullable', 'string', 'max:255'],
+        ], ['orders.required' => 'Pilih pesanan yang akan ditandai sudah dicek.', 'orders.max' => 'Maksimal :max pesanan sekali proses.'], ['qc_skip_note' => 'catatan']);
+
+        $note = filled($data['qc_skip_note'] ?? null) ? trim($data['qc_skip_note']) : null;
+
+        // Scope gudang: pesanan di gudang yang tidak bisa diakses user tidak ikut terambil.
+        $orders = SalesOrder::whereKey($data['orders'])->orderBy('id')->get();
+        $checked = [];
+        $skipped = [];
+
+        foreach ($orders as $order) {
+            if (! $order->needsQcSkipCheck()) {
+                $skipped[] = $order->number;
+
+                continue;
+            }
+
+            $order->update([
+                'qc_skip_checked_at' => now(),
+                'qc_skip_checked_by' => $request->user()->id,
+                'qc_skip_note' => $note,
+            ]);
+            $checked[] = $order->number;
+        }
+
+        if ($checked) {
+            AlertService::forget($request->user());
+        }
+
+        $messages = [];
+        if ($checked) {
+            $messages[] = count($checked).' pesanan ditandai sudah dicek.';
+        }
+        if ($skipped) {
+            $messages[] = count($skipped).' pesanan dilewati karena tidak terlewat QC atau sudah dicek ('.implode(', ', $skipped).').';
+        }
+        if ($missing = count($data['orders']) - $orders->count()) {
+            $messages[] = "{$missing} pesanan tidak ditemukan.";
+        }
+
+        return back()->with($checked ? 'success' : 'info', implode(' ', $messages));
     }
 
     /** Pesanan diambil pembeli: setelah dikemas langsung diserahkan, tanpa kurir dan resi. */

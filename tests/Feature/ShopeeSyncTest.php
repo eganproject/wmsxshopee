@@ -689,10 +689,58 @@ class ShopeeSyncTest extends TestCase
         $this->actingAs($admin)->get(route('sales.orders.show', $order))->assertOk()->assertSee('Sudah dicek oleh');
         $this->actingAs($admin)->get(route('sales.orders.index', ['status' => 'shipped']))->assertOk()
             ->assertDontSee('data-testid="qc-skip-banner"', false)->assertDontSee('data-testid="qc-skip-badge"', false)
-            ->assertSee('Terlewat QC · sudah dicek');
+            ->assertDontSee('Terlewat QC · sudah dicek'); // tanda lama hanya tampil lewat filter
+        $this->actingAs($admin)->get(route('sales.orders.index', ['qc' => 'checked']))->assertOk()
+            ->assertSee($order->number)->assertSee('Terlewat QC · sudah dicek');
 
         // Dua kali tidak bisa; pesanan yang lewat proses gudang biasa juga tidak.
         $this->actingAs($admin)->post(route('sales.orders.qc-skip-check', $order))->assertSessionHasErrors('order');
+    }
+
+    public function test_skipped_qc_orders_can_be_checked_in_bulk_from_the_order_list(): void
+    {
+        $this->fakeOrders([
+            $this->order('B1', 'READY_TO_SHIP', [$this->line(11, 101, 1)]),
+            $this->order('B2', 'READY_TO_SHIP', [$this->line(11, 101, 1)]),
+            $this->order('B3', 'READY_TO_SHIP', [$this->line(11, 101, 1)]),
+        ]);
+        $this->artisan('shopee:sync --only=orders')->assertSuccessful();
+        $this->resync([
+            $this->order('B1', 'SHIPPED', [$this->line(11, 101, 1)]),
+            $this->order('B2', 'SHIPPED', [$this->line(11, 101, 1)]),
+            $this->order('B3', 'READY_TO_SHIP', [$this->line(11, 101, 1)]),
+        ]);
+
+        [$b1, $b2, $b3] = ['B1', 'B2', 'B3'];
+        $orders = SalesOrder::whereIn('external_number', [$b1, $b2, $b3])->get()->keyBy('external_number');
+        $this->assertSame(2, SalesOrder::qcSkipped('unchecked')->count());
+
+        $admin = User::where('email', 'superadmin@wms.local')->firstOrFail();
+        $this->actingAs($admin)->get(route('sales.orders.index', ['status' => 'shipped']))->assertOk()
+            ->assertSee('data-testid="qc-skip-bulk"', false);
+
+        $this->actingAs($admin)
+            ->post(route('sales.orders.qc-skip-check.bulk'), ['orders' => [$orders[$b1]->id, $orders[$b2]->id, $orders[$b3]->id, 999999], 'qc_skip_note' => 'SPX Instant, barang & bin sesuai'])
+            ->assertRedirect()->assertSessionHas('success', fn ($m) => str_contains($m, '2 pesanan ditandai sudah dicek.')
+                && str_contains($m, '1 pesanan dilewati') && str_contains($m, '1 pesanan tidak ditemukan.'));
+
+        $this->assertSame(0, SalesOrder::qcSkipped('unchecked')->count());
+        foreach ([$b1, $b2] as $sn) {
+            $order = $orders[$sn]->fresh();
+            $this->assertSame($admin->id, $order->qc_skip_checked_by);
+            $this->assertSame('SPX Instant, barang & bin sesuai', $order->qc_skip_note);
+        }
+        $this->assertNull($orders[$b3]->fresh()->qc_skip_checked_at);
+        $this->assertSame(0, app(AlertService::class)->groups($admin)['qc_skipped']['count']);
+
+        // Sekali lagi: semuanya dilewati, tidak ada yang ditimpa.
+        $this->actingAs($admin)->post(route('sales.orders.qc-skip-check.bulk'), ['orders' => [$orders[$b1]->id]])
+            ->assertRedirect()->assertSessionHas('info');
+
+        // Staff Gudang tanpa izin sales.skip_scan tidak bisa.
+        $staff = User::factory()->create(['username' => 'staf-qc', 'is_active' => true]);
+        $staff->assignRole('Staff Gudang');
+        $this->actingAs($staff)->post(route('sales.orders.qc-skip-check.bulk'), ['orders' => [$orders[$b1]->id]])->assertForbidden();
     }
 
     public function test_qc_skip_check_rejects_orders_shipped_through_the_warehouse(): void
