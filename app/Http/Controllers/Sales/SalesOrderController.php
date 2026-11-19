@@ -52,6 +52,7 @@ class SalesOrderController extends Controller
         '' => 'Tanggal pesanan',
         'deadline' => 'Batas kirim',
         'shipped' => 'Tanggal dikirim',
+        'printed' => 'Tanggal cetak resi',
     ];
 
     /** Urutan daftar pesanan. */
@@ -883,6 +884,10 @@ class SalesOrderController extends Controller
             'shipped' => $query
                 ->when($from, fn ($q) => $q->whereDate('shipped_at', '>=', $from))
                 ->when($to, fn ($q) => $q->whereDate('shipped_at', '<=', $to)),
+            // Waktu cetak terakhir dari Optima; pesanan yang belum pernah dicetak tidak ikut.
+            'printed' => $query
+                ->when($from, fn ($q) => $q->whereDate('shipping_label_printed_at', '>=', $from))
+                ->when($to, fn ($q) => $q->whereDate('shipping_label_printed_at', '<=', $to)),
             default => $query
                 ->when($from, fn ($q) => $q->whereDate('order_date', '>=', $from))
                 ->when($to, fn ($q) => $q->whereDate('order_date', '<=', $to)),

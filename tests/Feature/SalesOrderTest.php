@@ -454,6 +454,21 @@ class SalesOrderTest extends TestCase
             ->assertOk()->assertSee('SO-SOON')->assertDontSee('SO-LATER')->assertDontSee('SO-NONE');
     }
 
+    public function test_order_list_filters_by_shipping_label_print_date(): void
+    {
+        $this->listOrder('SO-PRINT-TODAY', ['shipping_label_printed_at' => now(), 'shipping_label_print_count' => 1]);
+        $this->listOrder('SO-PRINT-OLD', ['shipping_label_printed_at' => now()->subDays(3), 'shipping_label_print_count' => 2]);
+        $this->listOrder('SO-UNPRINTED');
+
+        $today = now()->toDateString();
+        $this->get(route('sales.orders.index', ['date_by' => 'printed', 'from' => $today, 'to' => $today]))
+            ->assertOk()->assertSee('SO-PRINT-TODAY')->assertDontSee('SO-PRINT-OLD')->assertDontSee('SO-UNPRINTED')
+            ->assertSee('Tanggal cetak resi');
+
+        $this->get(route('sales.orders.index', ['date_by' => 'printed', 'from' => now()->subDays(5)->toDateString(), 'to' => $today]))
+            ->assertOk()->assertSee('SO-PRINT-TODAY')->assertSee('SO-PRINT-OLD')->assertDontSee('SO-UNPRINTED');
+    }
+
     public function test_order_list_per_page_choice(): void
     {
         foreach (range(1, 25) as $i) {
