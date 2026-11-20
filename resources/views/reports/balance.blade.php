@@ -18,7 +18,7 @@
     <div class="mb-6 grid gap-4 sm:grid-cols-3">
         <div class="card p-4"><p class="text-xs text-slate-500">Total Saldo</p><p class="mt-1 text-xl font-semibold tabular-nums text-slate-900">{{ $fmt($totals->qty ?? 0) }}</p></div>
         <div class="card p-4"><p class="text-xs text-slate-500">Jumlah SKU</p><p class="mt-1 text-xl font-semibold tabular-nums text-slate-900">{{ $fmt($totals->skus ?? 0) }}</p></div>
-        <div class="card p-4"><p class="text-xs text-slate-500">Baris</p><p class="mt-1 text-xl font-semibold tabular-nums text-slate-900">{{ $fmt($totals->lines ?? 0) }}</p></div>
+        <div class="card p-4"><p class="text-xs text-slate-500">Baris</p><p class="mt-1 text-xl font-semibold tabular-nums text-slate-900">{{ $fmt($totals->row_count ?? 0) }}</p></div>
     </div>
 
     <div class="card">
