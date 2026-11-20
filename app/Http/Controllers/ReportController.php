@@ -292,8 +292,9 @@ class ReportController extends Controller
                 ]));
         }
 
+        // "lines" dan "rows" kata kunci MySQL/MariaDB; alias COUNT dipakai tanpa kurung terbalik, jadi jangan pakai kata kunci.
         $totals = DB::query()->fromSub((clone $query)->reorder()->toBase(), 'rows')
-            ->selectRaw('COALESCE(SUM(balance), 0) as qty, COUNT(*) as lines, COUNT(DISTINCT product_variant_id) as skus')
+            ->selectRaw('COALESCE(SUM(balance), 0) as qty, COUNT(*) as row_count, COUNT(DISTINCT product_variant_id) as skus')
             ->first();
 
         return view('reports.balance', [

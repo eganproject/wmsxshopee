@@ -127,6 +127,30 @@ class ReportTest extends TestCase
         $this->assertSame(['KAOS-M', 0, 12, 0, 0, 12], [$last[2][0], ...array_slice($last[2], 4)]);
     }
 
+    public function test_balance_report_shows_totals_as_of_date(): void
+    {
+        // Hari ini: KAOS-M 12 - 5 - 1 = 6 (transfer antar bin tidak mengubah saldo), KAOS-L 6. Per gudang (default) dan per SKU.
+        $this->get(route('reports.balance'))->assertOk()
+            ->assertSee('KAOS-M')->assertSee('KAOS-L')->assertSee('JKT01')
+            ->assertViewHas('totals', fn ($totals) => (int) $totals->qty === 12 && (int) $totals->row_count === 2 && (int) $totals->skus === 2);
+
+        $this->get(route('reports.balance', ['group' => 'sku', 'zero' => 1]))->assertOk()
+            ->assertViewHas('totals', fn ($totals) => (int) $totals->qty === 12 && (int) $totals->row_count === 2);
+
+        // Akhir bulan lalu: belum ada mutasi keluar.
+        $lastMonth = now()->subMonth()->endOfMonth()->toDateString();
+        $rows = $this->readXlsx($this->get(route('reports.balance', ['date' => $lastMonth, 'export' => 'xlsx']))->streamedContent());
+        $this->assertSame(['SKU', 'Produk', 'Varian', 'Gudang', 'Satuan', 'Saldo '.now()->subMonth()->endOfMonth()->format('d/m/Y'), 'Mutasi Terakhir'], $rows[0]);
+        $this->assertSame(['KAOS-L', 'JKT01', 6], [$rows[1][0], $rows[1][3], $rows[1][5]]);
+        $this->assertSame(['KAOS-M', 'JKT01', 12], [$rows[2][0], $rows[2][3], $rows[2][5]]);
+        $this->assertCount(3, $rows);
+
+        // Sebelum ada mutasi: kosong.
+        $this->get(route('reports.balance', ['date' => now()->subMonths(2)->toDateString()]))->assertOk()
+            ->assertDontSee('KAOS-M')
+            ->assertViewHas('totals', fn ($totals) => (int) $totals->qty === 0 && (int) $totals->row_count === 0);
+    }
+
     public function test_reports_need_permission(): void
     {
         $staff = User::create(['name' => 'Staff', 'username' => 'staff', 'email' => 'staff@wms.local', 'password' => 'password', 'is_active' => true]);
