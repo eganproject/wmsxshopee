@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Support\BundleLikeSku;
+use App\Support\MarketplaceStorefront;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -20,6 +21,10 @@ class TiktokSkuMapping extends Model
         'product_variant_id',
         'bundle_id',
         'match_type',
+        'channel_price',
+        'channel_stock',
+        'channel_status',
+        'image_url',
         'stock_pushed',
         'stock_pushed_at',
         'stock_error',
@@ -29,6 +34,8 @@ class TiktokSkuMapping extends Model
     protected function casts(): array
     {
         return [
+            'channel_price' => 'decimal:2',
+            'channel_stock' => 'integer',
             'stock_pushed' => 'integer',
             'stock_pushed_at' => 'datetime',
             'removed_at' => 'datetime',
@@ -65,6 +72,12 @@ class TiktokSkuMapping extends Model
     public function looksLikeBundle(): bool
     {
         return $this->product_variant_id !== null && BundleLikeSku::matches($this->seller_sku);
+    }
+
+    /** Halaman produk ini di etalase TikTok Shop (dibuka di tab baru dari halaman Produk Channel). */
+    public function storefrontUrl(): string
+    {
+        return MarketplaceStorefront::tiktok($this->shop, $this->product_id);
     }
 
     public function isRemoved(): bool

@@ -20,6 +20,7 @@ use App\Http\Controllers\Inventory\VariantLookupController;
 use App\Http\Controllers\Inventory\WarehouseTransferController;
 use App\Http\Controllers\Inventory\WarehouseVariantSettingController;
 use App\Http\Controllers\LabelController;
+use App\Http\Controllers\Marketplace\MarketplaceChannelProductController;
 use App\Http\Controllers\Marketplace\MarketplaceController;
 use App\Http\Controllers\Marketplace\MarketplaceProductStatusController;
 use App\Http\Controllers\Marketplace\MarketplaceSyncLogController;
@@ -362,6 +363,9 @@ Route::middleware(['auth', 'auth.session', 'active'])->group(function () {
     Route::prefix('marketplace')->name('marketplace.')->group(function () {
         Route::get('shops', [MarketplaceController::class, 'shops'])->middleware('can:marketplace.view')->name('shops');
         Route::get('products', MarketplaceProductStatusController::class)->middleware('can:marketplace.view')->name('products');
+        // Produk Channel: semua listing toko (Shopee & TikTok) per produk marketplace beserta variasinya.
+        Route::get('channel-products', [MarketplaceChannelProductController::class, 'index'])->middleware('can:marketplace.view')->name('channel-products');
+        Route::post('channel-products/auto-match', [MarketplaceChannelProductController::class, 'autoMatch'])->middleware('can:marketplace.view')->name('channel-products.auto-match');
         Route::post('sync-products', [MarketplaceController::class, 'syncProducts'])->middleware('can:marketplace.view')->name('sync-products');
         Route::post('sync-all', [MarketplaceController::class, 'syncAll'])->middleware('can:marketplace.view')->name('sync-all');
         Route::get('background-tasks', [MarketplaceController::class, 'backgroundTasks'])->middleware('can:marketplace.view')->name('background-tasks');

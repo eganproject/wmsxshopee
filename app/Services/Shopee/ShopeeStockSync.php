@@ -109,7 +109,8 @@ class ShopeeStockSync
             $message = $error($row);
 
             $row->update($message === null
-                ? ['stock_pushed' => max(0, $stock($row)), 'stock_pushed_at' => now(), 'stock_error' => null]
+                // Stok di Shopee kini sama dengan yang dikirim (ditampilkan di Produk Channel).
+                ? ['stock_pushed' => max(0, $stock($row)), 'channel_stock' => max(0, $stock($row)), 'stock_pushed_at' => now(), 'stock_error' => null]
                 : ['stock_error' => mb_substr($message, 0, 255)]);
         }
     }
