@@ -1,82 +1,10 @@
 @props(['title' => null])
 
 @php
-    $navigation = [
-        [
-            'heading' => null,
-            'items' => [
-                ['label' => 'Dashboard', 'route' => 'dashboard', 'active' => 'dashboard', 'icon' => 'heroicon-o-squares-2x2', 'can' => null],
-                ['label' => 'Notifikasi', 'route' => 'notifications.index', 'active' => 'notifications.*', 'icon' => 'heroicon-o-bell', 'can' => null],
-            ],
-        ],
-        [
-            'heading' => 'Master Data',
-            'items' => [
-                ['label' => 'Gudang & Lokasi', 'route' => 'master.warehouses.index', 'active' => ['master.warehouses.*', 'master.zones.*', 'master.racks.*', 'master.locations.*'], 'icon' => 'heroicon-o-building-office-2', 'can' => 'warehouses.view'],
-                ['label' => 'Produk', 'route' => 'master.products.index', 'active' => ['master.products.*', 'master.bundles.*', 'master.barcodes.*', 'master.units.*'], 'icon' => 'heroicon-o-cube', 'can' => 'products.view'],
-                ['label' => 'Kurir', 'route' => 'master.couriers.index', 'active' => 'master.couriers.*', 'icon' => 'heroicon-o-truck', 'can' => 'couriers.view'],
-                ['label' => 'Supplier', 'route' => 'master.suppliers.index', 'active' => 'master.suppliers.*', 'icon' => 'heroicon-o-building-storefront', 'can' => 'suppliers.view'],
-            ],
-        ],
-        [
-            'heading' => 'Penjualan',
-            'items' => [
-                // Barang Keluar Manual ada di halaman Pesanan: filter Jenis & pilihan jenis saat membuat baru.
-                ['label' => 'Pesanan', 'route' => 'sales.orders.index', 'active' => 'sales.orders.*', 'icon' => 'heroicon-o-shopping-cart', 'can' => 'sales.view'],
-                ['label' => 'QC Kemas', 'route' => 'sales.qc.index', 'active' => 'sales.qc.*', 'icon' => 'heroicon-o-viewfinder-circle', 'can' => 'sales.fulfill'],
-                ['label' => 'Serah Terima', 'route' => 'sales.handovers.index', 'active' => 'sales.handovers.*', 'icon' => 'heroicon-o-paper-airplane', 'can' => 'sales.fulfill'],
-                ['label' => 'Retur Penjualan', 'route' => 'sales.returns.index', 'active' => 'sales.returns.*', 'icon' => 'heroicon-o-arrow-uturn-left', 'can' => 'returns.view'],
-            ],
-        ],
-        [
-            'heading' => 'Inventori',
-            'items' => [
-                ['label' => 'Penerimaan Barang', 'route' => 'inventory.receipts.index', 'active' => 'inventory.receipts.*', 'icon' => 'heroicon-o-inbox-arrow-down', 'can' => 'receipts.view'],
-                // Kartu Stok & Mutasi Stok adalah tab di halaman Stok, jadi menu Stok tetap aktif di sana.
-                ['label' => 'Stok', 'route' => 'inventory.stocks.index', 'active' => ['inventory.stocks.*', 'inventory.stock-card.*', 'inventory.movements.*'], 'icon' => 'heroicon-o-archive-box', 'can' => 'inventory.view'],
-                // Stok minimum/maksimum dan lokasi tetap (bin) tiap SKU per gudang.
-                ['label' => 'SKU per Gudang', 'route' => 'inventory.sku-settings.index', 'active' => 'inventory.sku-settings.*', 'icon' => 'heroicon-o-adjustments-horizontal', 'can' => 'inventory.view'],
-                ['label' => 'Transfer Gudang', 'route' => 'inventory.transfers.index', 'active' => 'inventory.transfers.*', 'icon' => 'heroicon-o-truck', 'can' => 'inventory.view'],
-                ['label' => 'Penyesuaian Stok', 'route' => 'inventory.adjustments.index', 'active' => 'inventory.adjustments.*', 'icon' => 'heroicon-o-adjustments-horizontal', 'can' => 'adjustments.view'],
-                ['label' => 'Stok Rusak', 'route' => 'inventory.damaged.index', 'active' => 'inventory.damaged.*', 'icon' => 'heroicon-o-exclamation-triangle', 'can' => 'damaged.view'],
-                ['label' => 'Stock Opname', 'route' => 'inventory.counts.index', 'active' => 'inventory.counts.*', 'icon' => 'heroicon-o-clipboard-document-check', 'can' => 'opname.view'],
-                // Label produk butuh hak lihat produk, label lokasi butuh hak lihat gudang.
-                ['label' => 'Cetak Label', 'route' => auth()->user()?->can('products.view') ? 'labels.products' : 'labels.locations', 'active' => 'labels.*', 'icon' => 'heroicon-o-qr-code', 'can' => ['products.view', 'warehouses.view']],
-                ['label' => 'Aplikasi Android', 'route' => 'mobile.app', 'active' => 'mobile.app', 'icon' => 'heroicon-o-device-phone-mobile', 'can' => 'mobile.access'],
-            ],
-        ],
-        [
-            'heading' => 'Laporan',
-            'items' => [
-                ['label' => 'Stok per Lokasi', 'route' => 'reports.stock-locations', 'active' => 'reports.stock-locations', 'icon' => 'heroicon-o-map-pin', 'can' => 'reports.view'],
-                ['label' => 'Stok Minimum', 'route' => 'reports.min-stock', 'active' => 'reports.min-stock', 'icon' => 'heroicon-o-bell-alert', 'can' => 'reports.view'],
-                ['label' => 'Saran Pembelian', 'route' => 'reports.reorder', 'active' => 'reports.reorder', 'icon' => 'heroicon-o-shopping-bag', 'can' => 'reports.view'],
-                ['label' => 'Pergerakan Barang', 'route' => 'reports.movements', 'active' => 'reports.movements', 'icon' => 'heroicon-o-presentation-chart-line', 'can' => 'reports.view'],
-                ['label' => 'Fast / Slow Moving', 'route' => 'reports.moving', 'active' => 'reports.moving', 'icon' => 'heroicon-o-bolt', 'can' => 'reports.view'],
-                ['label' => 'Saldo per Tanggal', 'route' => 'reports.balance', 'active' => 'reports.balance', 'icon' => 'heroicon-o-calendar-days', 'can' => 'reports.view'],
-                ['label' => 'Prakiraan Stok Habis', 'route' => 'reports.runout', 'active' => 'reports.runout', 'icon' => 'heroicon-o-clock', 'can' => 'reports.view'],
-                ['label' => 'Barang Hilang', 'route' => 'reports.lost-items', 'active' => 'reports.lost-items', 'icon' => 'heroicon-o-question-mark-circle', 'can' => 'reports.view'],
-            ],
-        ],
-        [
-            'heading' => 'Integrasi',
-            'items' => [
-                ['label' => 'Toko Marketplace', 'route' => 'marketplace.shops', 'active' => ['marketplace.shops', 'shopee.mappings.*', 'tiktok.mappings.*'], 'icon' => 'heroicon-o-building-storefront', 'can' => ['shopee.view', 'tiktok.view']],
-                ['label' => 'Produk Channel', 'route' => 'marketplace.channel-products', 'active' => 'marketplace.channel-products', 'icon' => 'heroicon-o-squares-2x2', 'can' => ['shopee.view', 'tiktok.view']],
-                ['label' => 'Status Produk', 'route' => 'marketplace.products', 'active' => 'marketplace.products', 'icon' => 'heroicon-o-check-badge', 'can' => ['shopee.view', 'tiktok.view']],
-                ['label' => 'Riwayat Sinkron', 'route' => 'marketplace.sync-logs', 'active' => 'marketplace.sync-logs', 'icon' => 'heroicon-o-arrow-path', 'can' => ['shopee.view', 'tiktok.view']],
-            ],
-        ],
-        [
-            'heading' => 'Administrasi',
-            'items' => [
-                // Semua menu pengaturan dikumpulkan di halaman Pengaturan (App\Support\SettingsMenu).
-                ['label' => 'Pengaturan', 'route' => 'settings', 'active' => \App\Support\SettingsMenu::activePatterns(), 'icon' => 'heroicon-o-cog-6-tooth', 'can' => null],
-            ],
-        ],
-    ];
-
     $user = auth()->user();
+    // Struktur menu ada di App\Support\Navigation: tautan tunggal + grup yang bisa dilipat.
+    $navigation = \App\Support\Navigation::sidebar($user);
+    $activeGroup = collect($navigation)->first(fn ($entry) => $entry['type'] === 'group' && request()->routeIs($entry['active']))['key'] ?? null;
 @endphp
 
 <!DOCTYPE html>
@@ -129,34 +57,58 @@
             </button>
         </div>
 
-        <nav id="sidebar-nav" class="sidebar-scroll flex-1 overflow-x-hidden overflow-y-auto">
-            @foreach ($navigation as $section)
-                @php($items = collect($section['items'])->filter(fn ($item) => ! $item['can'] || $user->canAny((array) $item['can'])))
-                @if ($items->isNotEmpty())
-                    <div class="mt-1">
-                        @if ($section['heading'])
-                            <p class="px-2 pt-3 pb-1 text-xs whitespace-nowrap text-slate-500 lg:collapsed:hidden">{{ $section['heading'] }}</p>
-                            <hr class="mx-2 my-2 hidden border-slate-200 lg:collapsed:block">
-                        @endif
-                        <ul class="space-y-px">
-                            @foreach ($items as $item)
-                                @php($active = request()->routeIs($item['active']))
-                                <li>
-                                    <a href="{{ route($item['route'], $item['params'] ?? []) }}" data-tip="{{ $item['label'] }}" @if ($active) aria-current="page" @endif
-                                       @class([
-                                           'flex h-7 items-center gap-2 rounded-lg px-2 text-[13px] whitespace-nowrap transition lg:collapsed:justify-center lg:collapsed:px-0',
-                                           'bg-white font-medium text-slate-900 shadow-sm ring-1 ring-slate-200' => $active,
-                                           'text-slate-700 hover:bg-slate-100' => ! $active,
-                                       ])>
-                                        <x-dynamic-component :component="$item['icon']" @class(['size-4 shrink-0', 'text-slate-900' => $active, 'text-slate-500' => ! $active]) />
-                                        <span class="truncate lg:collapsed:sr-only">{{ $item['label'] }}</span>
-                                    </a>
-                                </li>
-                            @endforeach
-                        </ul>
-                    </div>
-                @endif
-            @endforeach
+        <nav id="sidebar-nav" class="sidebar-scroll flex-1 overflow-x-hidden overflow-y-auto" x-data="sidebarGroups(@js($activeGroup))">
+            <ul class="space-y-px">
+                @foreach ($navigation as $entry)
+                    @if ($entry['type'] === 'link')
+                        @php($active = request()->routeIs($entry['active']))
+                        <li>
+                            <a href="{{ route($entry['route']) }}" data-tip="{{ $entry['label'] }}"@if ($active) aria-current="page"@endif
+                               @class([
+                                   'flex h-7 items-center gap-2 rounded-lg px-2 text-[13px] whitespace-nowrap transition lg:collapsed:justify-center lg:collapsed:px-0',
+                                   'bg-white font-medium text-slate-900 shadow-sm ring-1 ring-slate-200' => $active,
+                                   'text-slate-700 hover:bg-slate-100' => ! $active,
+                               ])>
+                                <x-dynamic-component :component="$entry['icon']" @class(['size-4 shrink-0', 'text-slate-900' => $active, 'text-slate-500' => ! $active]) />
+                                <span class="truncate lg:collapsed:sr-only">{{ $entry['label'] }}</span>
+                            </a>
+                        </li>
+                    @else
+                        @php($groupActive = $entry['key'] === $activeGroup)
+                        <li data-group="{{ $entry['key'] }}" data-group-label="{{ $entry['label'] }}">
+                            {{-- Judul grup: klik untuk buka/tutup; saat sidebar diciutkan jadi ikon dengan menu melayang. --}}
+                            <button type="button" @click="toggle('{{ $entry['key'] }}')" :aria-expanded="isOpen('{{ $entry['key'] }}')"
+                                    data-group-toggle
+                                    @class([
+                                        'flex h-7 w-full items-center gap-2 rounded-lg px-2 text-left text-[13px] whitespace-nowrap transition lg:collapsed:justify-center lg:collapsed:px-0',
+                                        'font-medium text-slate-900 hover:bg-slate-100 lg:collapsed:bg-white lg:collapsed:shadow-sm lg:collapsed:ring-1 lg:collapsed:ring-slate-200' => $groupActive,
+                                        'text-slate-700 hover:bg-slate-100' => ! $groupActive,
+                                    ])>
+                                <x-dynamic-component :component="$entry['icon']" @class(['size-4 shrink-0', 'text-slate-900' => $groupActive, 'text-slate-500' => ! $groupActive]) />
+                                <span class="flex-1 truncate lg:collapsed:sr-only">{{ $entry['label'] }}</span>
+                                <x-heroicon-o-chevron-right class="size-3.5 shrink-0 text-slate-400 transition-transform lg:collapsed:hidden" ::class="isOpen('{{ $entry['key'] }}') && 'rotate-90'" />
+                            </button>
+                            {{-- Grup aktif dirender terbuka sejak server agar tidak berkedip; grup lain menunggu status tersimpan. --}}
+                            <ul x-show="isOpen('{{ $entry['key'] }}')" x-collapse.duration.150ms @unless ($groupActive) x-cloak @endunless
+                                data-group-items class="my-1 ml-[15px] space-y-px border-l border-slate-200 pl-1.5 lg:collapsed:hidden">
+                                @foreach ($entry['items'] as $item)
+                                    @php($active = request()->routeIs($item['active']))
+                                    <li>
+                                        <a href="{{ route($item['route']) }}"@if ($active) aria-current="page"@endif
+                                           @class([
+                                               'flex h-7 items-center gap-2 rounded-lg px-2 text-[13px] whitespace-nowrap transition',
+                                               'bg-white font-medium text-slate-900 shadow-sm ring-1 ring-slate-200' => $active,
+                                               'text-slate-700 hover:bg-slate-100' => ! $active,
+                                           ])>
+                                            <span class="truncate">{{ $item['label'] }}</span>
+                                        </a>
+                                    </li>
+                                @endforeach
+                            </ul>
+                        </li>
+                    @endif
+                @endforeach
+            </ul>
         </nav>
         {{-- Pulihkan posisi scroll menu sebelum tampil agar tidak melompat ke atas tiap pindah halaman. --}}
         <script>
@@ -188,6 +140,12 @@
     {{-- Tooltip nama menu saat sidebar diciutkan --}}
     <div id="sidebar-tip" role="tooltip" class="pointer-events-none fixed z-[90] hidden -translate-y-1/2 rounded-md bg-slate-900 px-2 py-1 text-xs whitespace-nowrap text-white shadow-lg"></div>
 
+    {{-- Menu melayang berisi isi grup saat sidebar diciutkan (sidebarTips di app.js) --}}
+    <div id="sidebar-flyout" class="fixed z-[90] hidden w-52 rounded-xl border border-slate-200 bg-white p-1.5 shadow-lg shadow-slate-900/10">
+        <p data-part="label" class="px-2 pt-1 pb-1.5 text-xs font-medium text-slate-500"></p>
+        <ul data-part="items" class="space-y-px [&_a]:flex [&_a]:h-7 [&_a]:items-center [&_a]:rounded-lg [&_a]:px-2 [&_a]:text-[13px] [&_a]:text-slate-700 [&_a:hover]:bg-slate-100 [&_a[aria-current]]:bg-slate-100 [&_a[aria-current]]:font-medium [&_a[aria-current]]:text-slate-900"></ul>
+    </div>
+
     {{-- Tooltip penjelasan untuk semua elemen [data-hint] dan ikon <x-hint> (initHintTips di app.js) --}}
     <div id="hint-tip" role="tooltip" class="pointer-events-none fixed z-[90] hidden w-72 max-w-[calc(100vw-1.5rem)] rounded-lg border border-slate-200 bg-white p-3 text-left opacity-0 shadow-lg shadow-slate-900/10 transition-opacity duration-150">
         <span data-part="arrow" class="absolute size-2.5 rotate-45 border-t border-l border-slate-200 bg-white"></span>
@@ -217,7 +175,7 @@
                 @endisset
             </div>
 
-            <x-global-search :navigation="$navigation" :settings="\App\Support\SettingsMenu::visibleGroups($user)" />
+            <x-global-search />
 
             @can('marketplace.view')
                 <x-marketplace-shops-menu />

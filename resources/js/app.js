@@ -90,15 +90,74 @@ Alpine.data('sidebarToggle', () => ({
 }));
 
 // Nama menu muncul di samping ikon saat sidebar diciutkan (tooltip fixed agar tidak terpotong scroll menu).
+// Grup menu sidebar yang bisa dilipat. Status buka/tutup diingat per browser (localStorage);
+// grup yang berisi halaman aktif selalu terbuka. Saat sidebar diciutkan, klik judul grup
+// membuka halaman pertama grup itu (isinya tampil lewat menu melayang, lihat sidebarTips).
+const GROUPS_KEY = 'sidebar-groups';
+const sidebarCollapsed = () => document.documentElement.classList.contains('sidebar-collapsed') && window.matchMedia('(min-width: 64rem)').matches;
+
+Alpine.data('sidebarGroups', (activeGroup = null) => ({
+    open: {},
+    init() {
+        try { this.open = JSON.parse(localStorage.getItem(GROUPS_KEY) || '{}') || {}; } catch (e) { this.open = {}; }
+        if (activeGroup) this.open[activeGroup] = true;
+    },
+    isOpen(key) {
+        return !! this.open[key];
+    },
+    toggle(key) {
+        if (sidebarCollapsed()) {
+            const first = this.$el.querySelector(`[data-group="${key}"] [data-group-items] a`);
+            if (first) window.location.assign(first.href);
+            return;
+        }
+        this.open = { ...this.open, [key]: ! this.open[key] };
+        try { localStorage.setItem(GROUPS_KEY, JSON.stringify(this.open)); } catch (e) {}
+    },
+}));
+
 Alpine.data('sidebarTips', () => ({
     init() {
         const tip = document.getElementById('sidebar-tip');
-        const active = () => document.documentElement.classList.contains('sidebar-collapsed') && window.matchMedia('(min-width: 64rem)').matches;
+        const flyout = document.getElementById('sidebar-flyout');
+        const active = sidebarCollapsed;
+        let hideTimer;
+        const hideAll = () => {
+            tip?.classList.add('hidden');
+            flyout?.classList.add('hidden');
+        };
+        const placeFlyout = (rect) => {
+            if (! flyout) return;
+            flyout.style.left = `${rect.right + 8}px`;
+            flyout.style.top = '0px';
+            flyout.classList.remove('hidden');
+            const height = flyout.offsetHeight;
+            const top = Math.max(8, Math.min(rect.top - 6, window.innerHeight - height - 8));
+            flyout.style.top = `${top}px`;
+        };
+        const showGroup = (li) => {
+            if (! flyout) return;
+            const items = li.querySelector('[data-group-items]');
+            flyout.querySelector('[data-part=label]').textContent = li.dataset.groupLabel;
+            flyout.querySelector('[data-part=items]').innerHTML = items ? items.innerHTML : '';
+            tip?.classList.add('hidden');
+            placeFlyout(li.getBoundingClientRect());
+        };
         const show = (event) => {
+            clearTimeout(hideTimer);
+            if (! active()) {
+                hideAll();
+                return;
+            }
+            const group = event.target.closest?.('[data-group]');
+            if (group) {
+                showGroup(group);
+                return;
+            }
             const target = event.target.closest?.('[data-tip]');
-            if (! tip) return;
-            if (! target || ! active()) {
-                tip.classList.add('hidden');
+            flyout?.classList.add('hidden');
+            if (! target || ! tip) {
+                tip?.classList.add('hidden');
                 return;
             }
             const rect = target.getBoundingClientRect();
@@ -107,15 +166,21 @@ Alpine.data('sidebarTips', () => ({
             tip.style.top = `${rect.top + rect.height / 2}px`;
             tip.classList.remove('hidden');
         };
-        const hide = () => tip?.classList.add('hidden');
+        // Beri jeda agar kursor sempat pindah dari ikon grup ke menu melayangnya.
+        const hide = () => {
+            clearTimeout(hideTimer);
+            hideTimer = setTimeout(hideAll, 150);
+        };
         this.$el.addEventListener('mouseover', show);
         this.$el.addEventListener('focusin', show);
         this.$el.addEventListener('mouseleave', hide);
         this.$el.addEventListener('focusout', hide);
+        flyout?.addEventListener('mouseenter', () => clearTimeout(hideTimer));
+        flyout?.addEventListener('mouseleave', hide);
         const nav = this.$el.querySelector('nav');
         let scrollTimer;
         nav?.addEventListener('scroll', () => {
-            hide();
+            hideAll();
             // Thumb scrollbar tampil sebentar saat menu digulir, lalu memudar lagi.
             nav.classList.add('is-scrolling');
             clearTimeout(scrollTimer);

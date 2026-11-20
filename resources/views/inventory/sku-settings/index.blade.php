@@ -14,6 +14,8 @@
         @endcan
     </x-page-header>
 
+    <x-inventory.tabs />
+
     <div class="card">
         <form method="GET" class="flex flex-col gap-3 border-b border-slate-100 p-4 lg:flex-row lg:items-center">
             <select name="warehouse" class="form-input lg:w-56" onchange="this.form.submit()">

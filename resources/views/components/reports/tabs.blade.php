@@ -1,16 +1,5 @@
-{{-- Navigasi antar laporan: Stok per Lokasi → Stok Minimum → Saran Pembelian → Pergerakan Barang → Fast/Slow Moving → Saldo per Tanggal → Prakiraan Stok Habis → Barang Hilang --}}
-@php
-    $tabs = [
-        ['label' => 'Stok per Lokasi', 'route' => 'reports.stock-locations', 'icon' => 'heroicon-o-map-pin'],
-        ['label' => 'Stok Minimum', 'route' => 'reports.min-stock', 'icon' => 'heroicon-o-bell-alert'],
-        ['label' => 'Saran Pembelian', 'route' => 'reports.reorder', 'icon' => 'heroicon-o-shopping-bag'],
-        ['label' => 'Pergerakan Barang', 'route' => 'reports.movements', 'icon' => 'heroicon-o-presentation-chart-line'],
-        ['label' => 'Fast / Slow Moving', 'route' => 'reports.moving', 'icon' => 'heroicon-o-bolt'],
-        ['label' => 'Saldo per Tanggal', 'route' => 'reports.balance', 'icon' => 'heroicon-o-calendar-days'],
-        ['label' => 'Prakiraan Stok Habis', 'route' => 'reports.runout', 'icon' => 'heroicon-o-clock'],
-        ['label' => 'Barang Hilang', 'route' => 'reports.lost-items', 'icon' => 'heroicon-o-question-mark-circle'],
-    ];
-@endphp
+{{-- Navigasi antar laporan; daftar dan urutannya dari App\Support\ReportsMenu (sama dengan halaman Laporan). --}}
+@php($tabs = \App\Support\ReportsMenu::items())
 
 <nav class="mb-6 flex gap-1 overflow-x-auto rounded-xl border border-slate-200 bg-white p-1 shadow-sm">
     @foreach ($tabs as $tab)

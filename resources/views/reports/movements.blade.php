@@ -7,7 +7,7 @@
     <x-slot:breadcrumb>
         <x-heroicon-o-home class="size-4" />
         <x-heroicon-o-chevron-right class="size-3.5" />
-        <span>Laporan</span>
+        <a href="{{ route('reports.index') }}" class="hover:text-slate-700">Laporan</a>
         <x-heroicon-o-chevron-right class="size-3.5" />
         <span class="font-medium text-slate-700">Pergerakan Barang</span>
     </x-slot:breadcrumb>

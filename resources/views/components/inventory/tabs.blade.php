@@ -1,9 +1,10 @@
-{{-- Navigasi antar halaman inventori: Stok → Kartu Stok → Mutasi Stok --}}
+{{-- Navigasi antar halaman inventori: Stok → Kartu Stok → Mutasi Stok → SKU per Gudang --}}
 @php
     $tabs = [
         ['label' => 'Stok', 'route' => 'inventory.stocks.index', 'active' => 'inventory.stocks.*', 'icon' => 'heroicon-o-archive-box'],
         ['label' => 'Kartu Stok', 'route' => 'inventory.stock-card.index', 'active' => 'inventory.stock-card.*', 'icon' => 'heroicon-o-document-chart-bar'],
         ['label' => 'Mutasi Stok', 'route' => 'inventory.movements.index', 'active' => 'inventory.movements.*', 'icon' => 'heroicon-o-arrows-right-left'],
+        ['label' => 'SKU per Gudang', 'route' => 'inventory.sku-settings.index', 'active' => 'inventory.sku-settings.*', 'icon' => 'heroicon-o-adjustments-horizontal'],
     ];
 @endphp
 

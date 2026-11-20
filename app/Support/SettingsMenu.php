@@ -38,6 +38,7 @@ class SettingsMenu
             [
                 'heading' => 'Sistem',
                 'items' => [
+                    ['label' => 'Aplikasi Android', 'description' => 'Unduh APK Optima Gudang untuk HP dan terbitkan versi baru.', 'route' => 'mobile.app', 'active' => ['mobile.app', 'mobile.releases.*'], 'icon' => 'heroicon-o-device-phone-mobile', 'can' => 'mobile.access', 'keywords' => 'apk hp mobile download upload versi'],
                     ['label' => 'Log Aktivitas', 'description' => 'Riwayat perubahan data dan aktivitas pengguna.', 'route' => 'admin.activity.index', 'active' => 'admin.activity.*', 'icon' => 'heroicon-o-clock', 'can' => 'activity.view', 'keywords' => 'audit riwayat'],
                     ['label' => 'Backup Database', 'description' => 'Buat dan unduh cadangan database.', 'route' => 'admin.backups.index', 'active' => 'admin.backups.*', 'icon' => 'heroicon-o-circle-stack', 'can' => 'backups.view', 'keywords' => 'cadangan restore'],
                 ],

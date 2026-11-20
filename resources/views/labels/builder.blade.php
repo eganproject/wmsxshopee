@@ -18,8 +18,6 @@
     <x-slot:breadcrumb>
         <x-heroicon-o-home class="size-4" />
         <x-heroicon-o-chevron-right class="size-3.5" />
-        <span>Inventori</span>
-        <x-heroicon-o-chevron-right class="size-3.5" />
         <span class="font-medium text-slate-700">{{ $title }}</span>
     </x-slot:breadcrumb>
 

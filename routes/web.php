@@ -53,6 +53,7 @@ use App\Http\Controllers\Mobile\StockCheckController as MobileStockCheckControll
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\ReportController;
+use App\Http\Controllers\ReportsIndexController;
 use App\Http\Controllers\Sales\HandoverController;
 use App\Http\Controllers\Sales\OrderSavedFilterController;
 use App\Http\Controllers\Sales\OrderSkuMappingController;
@@ -281,6 +282,7 @@ Route::middleware(['auth', 'auth.session', 'active'])->group(function () {
 
     // Laporan stok; tiap laporan bisa diekspor ke Excel lewat ?export=xlsx.
     Route::prefix('reports')->name('reports.')->middleware('can:reports.view')->group(function () {
+        Route::get('/', ReportsIndexController::class)->name('index');
         Route::get('stock-locations', [ReportController::class, 'stockLocations'])->name('stock-locations');
         Route::get('min-stock', [ReportController::class, 'minStock'])->name('min-stock');
         Route::get('reorder', [ReportController::class, 'reorder'])->name('reorder');
