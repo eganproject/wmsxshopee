@@ -10,8 +10,11 @@ use App\Support\SkuLookup;
  * Daftar item & variasi (model) toko Shopee untuk pemetaan SKU.
  *
  *   /product/get_item_list       -> item_id per halaman (maks 100)
- *   /product/get_item_base_info  -> nama & item_sku (maks 50 item per panggilan)
- *   /product/get_model_list      -> model_id & model_sku untuk item bervariasi
+ *   /product/get_item_base_info  -> nama, item_sku, status, gambar, harga & stok (maks 50 item per panggilan)
+ *   /product/get_model_list      -> model_id, model_sku, harga & stok untuk item bervariasi
+ *
+ * Harga, stok di Shopee, status tayang dan gambar ikut disimpan untuk halaman
+ * Produk Channel (lihat MarketplaceChannelProductController).
  */
 class ShopeeCatalog
 {
@@ -57,16 +60,17 @@ class ShopeeCatalog
 
             foreach ($items as $item) {
                 if (empty($item['has_model'])) {
-                    $seen[] = $this->upsert($shop, $item, 0, $item['item_sku'] ?? null, null);
+                    $seen[] = $this->upsert($shop, $item, 0, $item['item_sku'] ?? null, null, $this->listing($item, $item, null));
                     $rows++;
 
                     continue;
                 }
 
                 $models = $call('/api/v2/product/get_model_list', ['item_id' => $item['item_id']])['response'] ?? [];
+                $tiers = $models['tier_variation'] ?? [];
 
                 foreach ($models['model'] ?? [] as $model) {
-                    $seen[] = $this->upsert($shop, $item, (int) $model['model_id'], $model['model_sku'] ?? null, $this->modelName($model, $models['tier_variation'] ?? []));
+                    $seen[] = $this->upsert($shop, $item, (int) $model['model_id'], $model['model_sku'] ?? null, $this->modelName($model, $tiers), $this->listing($item, $model, $this->modelImage($model, $tiers)));
                     $rows++;
                 }
             }
@@ -122,9 +126,10 @@ class ShopeeCatalog
      * yang baru (pemetaan manual tetap dipertahankan).
      *
      * @param  array<string, mixed>  $item
+     * @param  array<string, mixed>  $listing  harga, stok, status & gambar (lihat listing())
      * @return int id baris
      */
-    private function upsert(ShopeeShop $shop, array $item, int $modelId, ?string $sku, ?string $modelName): int
+    private function upsert(ShopeeShop $shop, array $item, int $modelId, ?string $sku, ?string $modelName, array $listing = []): int
     {
         $sku = filled($sku) ? trim($sku) : null;
         $mapping = $shop->mappings()->firstOrNew(['item_id' => $item['item_id'], 'model_id' => $modelId]);
@@ -133,9 +138,50 @@ class ShopeeCatalog
             $mapping->fill(['product_variant_id' => null, 'bundle_id' => null, 'match_type' => null, 'stock_error' => null]);
         }
 
-        $mapping->fill(['shopee_sku' => $sku, 'item_name' => $item['item_name'] ?? null, 'model_name' => $modelName, 'removed_at' => null])->save();
+        $mapping->fill(['shopee_sku' => $sku, 'item_name' => $item['item_name'] ?? null, 'model_name' => $modelName, 'removed_at' => null, ...$listing])->save();
 
         return $mapping->id;
+    }
+
+    /**
+     * Data listing untuk halaman Produk Channel. Harga & stok diambil dari
+     * item (tanpa variasi) atau model (bervariasi); status & gambar dari item.
+     * Kunci yang datanya tidak ada di jawaban API tidak ikut, supaya nilai lama
+     * tidak tertimpa null.
+     *
+     * @param  array<string, mixed>  $item
+     * @param  array<string, mixed>  $priced  item atau model yang membawa price_info & stock_info_v2
+     * @return array<string, mixed>
+     */
+    private function listing(array $item, array $priced, ?string $image): array
+    {
+        $price = $priced['price_info'][0]['current_price'] ?? $priced['price_info'][0]['original_price'] ?? null;
+        $stock = $priced['stock_info_v2']['summary_info']['total_available_stock']
+            ?? (isset($priced['stock_info_v2']['seller_stock']) ? array_sum(array_column($priced['stock_info_v2']['seller_stock'], 'stock')) : null);
+
+        return array_filter([
+            'channel_price' => is_numeric($price) ? round((float) $price, 2) : null,
+            'channel_stock' => is_numeric($stock) ? (int) $stock : null,
+            'channel_status' => isset($item['item_status']) ? mb_substr((string) $item['item_status'], 0, 20) : null,
+            'image_url' => mb_substr((string) ($image ?? $item['image']['image_url_list'][0] ?? ''), 0, 500) ?: null,
+        ], fn ($value) => $value !== null);
+    }
+
+    /**
+     * Gambar variasi: gambar opsi tier pertama bila Shopee memberinya (cth. per warna).
+     *
+     * @param  array<string, mixed>  $model
+     * @param  list<array<string, mixed>>  $tiers
+     */
+    private function modelImage(array $model, array $tiers): ?string
+    {
+        foreach ($model['tier_index'] ?? [] as $tier => $index) {
+            if (filled($url = $tiers[$tier]['option_list'][$index]['image']['image_url'] ?? null)) {
+                return $url;
+            }
+        }
+
+        return null;
     }
 
     /**

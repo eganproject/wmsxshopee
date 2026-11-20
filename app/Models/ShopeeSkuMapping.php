@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Support\BundleLikeSku;
+use App\Support\MarketplaceStorefront;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -23,6 +24,10 @@ class ShopeeSkuMapping extends Model
         'product_variant_id',
         'bundle_id',
         'match_type',
+        'channel_price',
+        'channel_stock',
+        'channel_status',
+        'image_url',
         'stock_pushed',
         'stock_pushed_at',
         'stock_error',
@@ -34,6 +39,8 @@ class ShopeeSkuMapping extends Model
         return [
             'item_id' => 'integer',
             'model_id' => 'integer',
+            'channel_price' => 'decimal:2',
+            'channel_stock' => 'integer',
             'stock_pushed' => 'integer',
             'stock_pushed_at' => 'datetime',
             'removed_at' => 'datetime',
@@ -70,6 +77,12 @@ class ShopeeSkuMapping extends Model
     public function looksLikeBundle(): bool
     {
         return $this->product_variant_id !== null && BundleLikeSku::matches($this->shopee_sku);
+    }
+
+    /** Halaman produk ini di etalase Shopee (dibuka di tab baru dari halaman Produk Channel). */
+    public function storefrontUrl(): string
+    {
+        return MarketplaceStorefront::shopee($this->shop, $this->item_id);
     }
 
     public function isRemoved(): bool

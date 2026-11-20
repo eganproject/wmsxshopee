@@ -16,6 +16,8 @@ use App\Support\SkuLookup;
  * tetap perlu dipetakan. Hanya produk yang sudah dihapus yang dilewati.
  *
  * Satu baris pemetaan = satu sku_id. Produk tanpa variasi tetap punya satu SKU.
+ * Harga jual, stok di TikTok dan status produk ikut disimpan untuk halaman
+ * Produk Channel (jawaban pencarian produk tidak membawa gambar).
  */
 class TiktokCatalog
 {
@@ -51,7 +53,7 @@ class TiktokCatalog
                 $inactive += $status !== '' && $status !== 'ACTIVATE' ? 1 : 0;
 
                 foreach ($product['skus'] ?? [] as $sku) {
-                    $seen[] = $this->upsert($shop, $product, $sku);
+                    $seen[] = $this->upsert($shop, $product, $sku, $status);
                     $rows++;
 
                     // Gudang TikTok tempat stok dikirim diambil dari SKU bila belum diatur.
@@ -95,6 +97,25 @@ class TiktokCatalog
     }
 
     /**
+     * Harga, stok & status untuk halaman Produk Channel. Kunci yang datanya tidak
+     * ada di jawaban API tidak ikut, supaya nilai lama tidak tertimpa null.
+     *
+     * @param  array<string, mixed>  $sku
+     * @return array<string, mixed>
+     */
+    private function listing(array $sku, string $status): array
+    {
+        $price = $sku['price']['sale_price'] ?? $sku['price']['tax_exclusive_price'] ?? null;
+        $stock = isset($sku['inventory']) ? array_sum(array_map(fn ($row) => (int) ($row['quantity'] ?? 0), $sku['inventory'])) : null;
+
+        return array_filter([
+            'channel_price' => is_numeric($price) ? round((float) $price, 2) : null,
+            'channel_stock' => $stock,
+            'channel_status' => $status !== '' ? mb_substr($status, 0, 20) : null,
+        ], fn ($value) => $value !== null);
+    }
+
+    /**
      * Nama variasi dari sales_attributes, cth. "Hitam, M".
      *
      * @param  array<string, mixed>  $sku
@@ -118,7 +139,7 @@ class TiktokCatalog
      * @param  array<string, mixed>  $sku
      * @return int id baris
      */
-    private function upsert(TiktokShop $shop, array $product, array $sku): int
+    private function upsert(TiktokShop $shop, array $product, array $sku, string $status = ''): int
     {
         $sellerSku = filled($sku['seller_sku'] ?? null) ? trim($sku['seller_sku']) : null;
         $mapping = $shop->mappings()->firstOrNew(['sku_id' => (string) $sku['id']]);
@@ -133,6 +154,7 @@ class TiktokCatalog
             'product_name' => isset($product['title']) ? mb_substr($product['title'], 0, 255) : null,
             'sku_name' => self::skuName($sku),
             'removed_at' => null,
+            ...$this->listing($sku, $status),
         ])->save();
 
         return $mapping->id;

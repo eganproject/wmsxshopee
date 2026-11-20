@@ -62,6 +62,7 @@
             'heading' => 'Integrasi',
             'items' => [
                 ['label' => 'Toko Marketplace', 'route' => 'marketplace.shops', 'active' => ['marketplace.shops', 'shopee.mappings.*', 'tiktok.mappings.*'], 'icon' => 'heroicon-o-building-storefront', 'can' => ['shopee.view', 'tiktok.view']],
+                ['label' => 'Produk Channel', 'route' => 'marketplace.channel-products', 'active' => 'marketplace.channel-products', 'icon' => 'heroicon-o-squares-2x2', 'can' => ['shopee.view', 'tiktok.view']],
                 ['label' => 'Status Produk', 'route' => 'marketplace.products', 'active' => 'marketplace.products', 'icon' => 'heroicon-o-check-badge', 'can' => ['shopee.view', 'tiktok.view']],
                 ['label' => 'Riwayat Sinkron', 'route' => 'marketplace.sync-logs', 'active' => 'marketplace.sync-logs', 'icon' => 'heroicon-o-arrow-path', 'can' => ['shopee.view', 'tiktok.view']],
             ],

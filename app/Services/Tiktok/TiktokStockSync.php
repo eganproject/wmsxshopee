@@ -78,7 +78,8 @@ class TiktokStockSync
             }
 
             $skus += $rows->count();
-            $rows->each(fn (TiktokSkuMapping $row) => $row->update(['stock_pushed' => max(0, $stock($row)), 'stock_pushed_at' => now(), 'stock_error' => null]));
+            // Stok di TikTok kini sama dengan yang dikirim (ditampilkan di Produk Channel).
+            $rows->each(fn (TiktokSkuMapping $row) => $row->update(['stock_pushed' => max(0, $stock($row)), 'channel_stock' => max(0, $stock($row)), 'stock_pushed_at' => now(), 'stock_error' => null]));
         }
 
         $shop->update([
