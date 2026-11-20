@@ -3,22 +3,21 @@
     produk/SKU, pesanan, resi, retur, penerimaan, mutasi, opname, lokasi & supplier dicari
     lewat route('search'). Logika di resources/js/search.js.
 --}}
-@props(['navigation' => [], 'settings' => []])
-
 @php
     $user = auth()->user();
 
-    $pages = collect($navigation)
-        ->flatMap(fn ($section) => collect($section['items'])
-            ->filter(fn ($item) => ! $item['can'] || $user->canAny((array) $item['can']))
-            ->map(fn ($item) => [
-                'kind' => 'page',
-                'title' => $item['label'],
-                'subtitle' => $section['heading'] ?? 'Menu',
-                'url' => route($item['route']),
-            ]))
+    // Halaman dari sidebar (termasuk tab & halaman tanpa menu sidebar), Laporan, dan Pengaturan.
+    $pages = collect(\App\Support\Navigation::searchPages($user))
+        ->map(fn ($item) => ['kind' => 'page', 'title' => $item['title'], 'subtitle' => $item['subtitle'], 'url' => route($item['route']), 'keywords' => $item['keywords']])
+        ->concat(collect(\App\Support\ReportsMenu::visibleGroups($user))->flatMap(fn ($group) => collect($group['items'])->map(fn ($item) => [
+            'kind' => 'page',
+            'title' => $item['label'],
+            'subtitle' => 'Laporan · '.$group['heading'],
+            'url' => route($item['route']),
+            'keywords' => $item['keywords'] ?? '',
+        ])))
         // Halaman di dalam Pengaturan tetap bisa dicari langsung (Profil Saya termasuk di sini).
-        ->concat(collect($settings)->flatMap(fn ($group) => collect($group['items'])->map(fn ($item) => [
+        ->concat(collect(\App\Support\SettingsMenu::visibleGroups($user))->flatMap(fn ($group) => collect($group['items'])->map(fn ($item) => [
             'kind' => 'page',
             'title' => $item['label'],
             'subtitle' => 'Pengaturan · '.$group['heading'],

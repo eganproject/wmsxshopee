@@ -16,7 +16,7 @@
     <x-slot:breadcrumb>
         <x-heroicon-o-home class="size-4" />
         <x-heroicon-o-chevron-right class="size-3.5" />
-        <span>Integrasi</span>
+        <span>Marketplace</span>
         <x-heroicon-o-chevron-right class="size-3.5" />
         <span class="font-medium text-slate-700">Riwayat Sinkron</span>
     </x-slot:breadcrumb>

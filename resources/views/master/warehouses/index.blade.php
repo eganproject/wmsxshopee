@@ -8,6 +8,7 @@
     </x-slot:breadcrumb>
 
     <x-page-header title="Master Gudang" description="Kelola gudang beserta struktur zona, rak, dan lokasi bin." icon="heroicon-o-building-office-2">
+        <a href="{{ route('labels.locations') }}" class="btn-secondary"><x-heroicon-o-qr-code class="size-5" /> Cetak Label Lokasi</a>
         @can('warehouses.create')
             <a href="{{ route('master.warehouses.create') }}" class="btn-primary">
                 <x-heroicon-o-plus class="size-5" /> Tambah Gudang

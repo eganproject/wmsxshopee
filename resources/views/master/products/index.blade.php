@@ -9,6 +9,7 @@
 
     <x-page-header title="Master Produk" description="SKU internal, varian, barcode, berat dan dimensi barang." icon="heroicon-o-cube">
         <x-reports.export-button />
+        <a href="{{ route('labels.products') }}" class="btn-secondary"><x-heroicon-o-qr-code class="size-5" /> Cetak Label</a>
         @can('products.edit')
             <a href="{{ route('master.products.bulk-update', array_filter(request()->only(['search', 'category', 'status']), 'filled')) }}" class="btn-secondary">
                 <x-heroicon-o-pencil-square class="size-5" /> Update Massal

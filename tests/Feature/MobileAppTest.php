@@ -121,7 +121,8 @@ class MobileAppTest extends TestCase
             ->assertSee('releases/download/android-v', false)
             ->assertSee('Download APK')
             ->assertSee('<svg', false);
-        $this->get('/dashboard')->assertSee(route('mobile.app'));
+        // Menu Aplikasi Android ada di halaman Pengaturan (grup Sistem), bukan di sidebar.
+        $this->get(route('settings'))->assertSee('href="'.route('mobile.app').'"', false);
     }
 
     public function test_menus_follow_each_role_permission(): void
