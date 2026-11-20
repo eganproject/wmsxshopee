@@ -105,7 +105,7 @@
                 <thead class="bg-slate-50 text-left text-[13px] text-slate-500">
                     <tr>
                         <th class="h-8 px-4 py-0 font-normal">Produk & <span class="whitespace-nowrap">variasi <x-hint text="Produk seperti tampil di toko marketplace. Klik namanya untuk membuka etalase di tab baru. Baris di bawahnya adalah variasi / SKU channel produk itu." /></span></th>
-                        <th class="h-8 px-4 py-0 font-normal">SKU <span class="whitespace-nowrap">channel <x-hint text="SKU yang diisi penjual di marketplace untuk variasi ini. Bila sama dengan SKU Optima, otomatis terhubung saat Sinkron Produk / Cocokkan Otomatis." /></span></th>
+                        <th class="h-8 px-4 py-0 font-normal">SKU <span class="whitespace-nowrap">channel <x-hint text="SKU yang diisi penjual di marketplace untuk variasi ini. Bila sama dengan SKU Optima, otomatis terhubung saat Sinkron Produk atau pencocokan otomatis." /></span></th>
                         <th class="h-8 px-4 py-0 text-right font-normal">Harga</th>
                         <th class="h-8 px-4 py-0 text-right font-normal">Stok di <span class="whitespace-nowrap">toko <x-hint text="Stok variasi ini di marketplace: dari tarik produk terakhir, atau sama dengan stok terakhir yang berhasil dikirim Optima." /></span></th>
                         <th class="h-8 px-4 py-0 font-normal">SKU <span class="whitespace-nowrap">Optima <x-hint text="Varian atau paket di Optima yang terhubung ke variasi ini. Kosong = belum terhubung: stoknya tidak dikirim dan pesanannya tertahan di Draft." /></span></th>

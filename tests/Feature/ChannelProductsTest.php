@@ -149,13 +149,13 @@ class ChannelProductsTest extends TestCase
             '*/product/get_item_list*' => fn (Request $r) => Http::response(['error' => '', 'response' => [
                 'item' => $r['item_status'] === 'NORMAL' ? [['item_id' => 11]] : [['item_id' => 22]], 'has_next_page' => false,
             ]]),
-            '*/product/get_item_base_info*' => fn (Request $r) => Http::response(['error' => '', 'response' => ['item_list' => str_contains($r['item_id_list'], '22')
-                ? [['item_id' => 22, 'item_name' => 'Paket Hemat 2 Kaos', 'has_model' => false, 'item_sku' => 'PAKET-2', 'item_status' => 'UNLIST',
+            '*/product/get_item_base_info*' => fn (Request $r) => Http::response(['error' => '', 'response' => ['item_list' => array_values(array_filter([
+                ['item_id' => 11, 'item_name' => 'Kaos Polos Premium', 'has_model' => true, 'item_status' => 'NORMAL', 'image' => ['image_url_list' => ['https://cf.shopee.co.id/file/kaos-baru.jpg']]],
+                ['item_id' => 22, 'item_name' => 'Paket Hemat 2 Kaos', 'has_model' => false, 'item_sku' => 'PAKET-2', 'item_status' => 'UNLIST',
                     'image' => ['image_url_list' => ['https://cf.shopee.co.id/file/paket.jpg']],
                     'price_info' => [['current_price' => 80000, 'original_price' => 90000]],
-                    'stock_info_v2' => ['summary_info' => ['total_available_stock' => 3]]]]
-                : [['item_id' => 11, 'item_name' => 'Kaos Polos Premium', 'has_model' => true, 'item_status' => 'NORMAL', 'image' => ['image_url_list' => ['https://cf.shopee.co.id/file/kaos-baru.jpg']]]],
-            ]]),
+                    'stock_info_v2' => ['summary_info' => ['total_available_stock' => 3]]],
+            ], fn ($item) => in_array((string) $item['item_id'], explode(',', $r['item_id_list']), true)))]]),
             '*/product/get_model_list*' => Http::response(['error' => '', 'response' => [
                 'tier_variation' => [['name' => 'Warna', 'option_list' => [['option' => 'Merah', 'image' => ['image_url' => 'https://cf.shopee.co.id/file/merah.jpg']]]], ['name' => 'Ukuran', 'option_list' => [['option' => 'M'], ['option' => 'XL']]]],
                 'model' => [
