@@ -22,6 +22,8 @@ class SkuMappingExport
         'mapped' => 'Sudah dipetakan',
         'failed' => 'Gagal kirim stok',
         'bundle_like' => 'Mirip paket, dipetakan ke produk',
+        'sku_conflict' => 'Beda dari SKU gudang yang sama',
+        'inactive_target' => 'Dipetakan ke produk/paket nonaktif',
         'removed' => 'Tidak ada di toko',
     ];
 

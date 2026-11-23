@@ -32,6 +32,7 @@ class ShopeeSkuMapping extends Model
         'stock_pushed_at',
         'stock_error',
         'removed_at',
+        'bundle_like_ignored_at',
     ];
 
     protected function casts(): array
@@ -44,6 +45,7 @@ class ShopeeSkuMapping extends Model
             'stock_pushed' => 'integer',
             'stock_pushed_at' => 'datetime',
             'removed_at' => 'datetime',
+            'bundle_like_ignored_at' => 'datetime',
         ];
     }
 
@@ -76,7 +78,7 @@ class ShopeeSkuMapping extends Model
 
     public function looksLikeBundle(): bool
     {
-        return $this->product_variant_id !== null && BundleLikeSku::matches($this->shopee_sku);
+        return $this->product_variant_id !== null && $this->bundle_like_ignored_at === null && BundleLikeSku::matches($this->shopee_sku);
     }
 
     /** Halaman produk ini di etalase Shopee (dibuka di tab baru dari halaman Produk Channel). */

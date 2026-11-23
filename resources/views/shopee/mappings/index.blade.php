@@ -55,25 +55,7 @@
         </a>
     </div>
 
-    @if ($removed && request('status') !== 'removed')
-        <div class="mb-6 flex items-start gap-2 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
-            <x-heroicon-o-archive-box-x-mark class="mt-0.5 size-5 shrink-0 text-slate-400" />
-            <p>
-                {{ $removed }} SKU sudah tidak ada lagi di Shopee (variasi/SKU dihapus atau diganti di toko). Barisnya disembunyikan, tidak dikirim stoknya, dan tidak dihitung gagal.
-                <a href="{{ route('shopee.mappings.index', [$shop, 'status' => 'removed']) }}" class="font-medium text-slate-900 underline underline-offset-2">Lihat</a>
-            </p>
-        </div>
-    @endif
-
-    @if ($bundleLike && request('status') !== 'bundle_like')
-        <div class="mb-6 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-            <x-heroicon-o-gift class="mt-0.5 size-5 shrink-0 text-amber-500" />
-            <p>
-                {{ $bundleLike }} SKU terlihat seperti paket (berawalan {{ implode(', ', \App\Support\BundleLikeSku::prefixes()) }}) tapi dipetakan ke produk biasa. Stok yang dikirim ke Shopee dan dicek saat pesanan masuk dihitung dari produk itu, bukan dari isi paket. Bila memang paket, petakan ke Produk Paket.
-                <a href="{{ route('shopee.mappings.index', [$shop, 'status' => 'bundle_like']) }}" class="font-medium underline underline-offset-2">Lihat</a>
-            </p>
-        </div>
-    @endif
+    <x-marketplace.mapping-problems :problems="$problems" platform="shopee" />
 
     @can('shopee.mapping')
         <details class="card mb-6" @if ($errors->any()) open @endif>
@@ -111,8 +93,10 @@
                 <option value="">Semua baris</option>
                 <option value="unmapped" @selected(request('status') === 'unmapped')>Belum dipetakan</option>
                 <option value="mapped" @selected(request('status') === 'mapped')>Sudah dipetakan</option>
-                <option value="failed" @selected(request('status') === 'failed')>Gagal kirim stok</option>
+                <option value="failed" @selected(request('status') === 'failed')>Gagal kirim stok ({{ $failed }})</option>
                 <option value="bundle_like" @selected(request('status') === 'bundle_like')>Mirip paket, dipetakan ke produk ({{ $bundleLike }})</option>
+                <option value="sku_conflict" @selected(request('status') === 'sku_conflict')>Beda dari SKU gudang yang sama</option>
+                <option value="inactive_target" @selected(request('status') === 'inactive_target')>Dipetakan ke produk/paket nonaktif</option>
                 <option value="removed" @selected(request('status') === 'removed')>Tidak ada di toko ({{ $removed }})</option>
             </select>
             <div class="flex gap-2">
@@ -174,6 +158,20 @@
                                             <span class="cursor-help rounded-full bg-sky-50 px-2 py-0.5 text-xs text-sky-700" data-hint-title="Otomatis" data-hint="Dicocokkan otomatis karena SKU di Shopee sama dengan SKU varian / paket di gudang. Ikut berubah bila SKU di Shopee diganti.">Otomatis</span>
                                         @endif
                                     </form>
+                                    @if ($mapping->looksLikeBundle())
+                                        <div class="mt-1.5 flex flex-wrap items-center gap-1.5 text-xs">
+                                            <a href="{{ route('master.bundles.create', ['sku' => $mapping->shopee_sku, 'name' => $mapping->item_name, 'variant' => $mapping->product_variant_id, 'map' => 'shopee:'.$mapping->id]) }}"
+                                               class="btn-secondary h-7 px-2.5 text-xs" data-hint-title="Buat Produk Paket" data-hint="Buka form Produk Paket dengan SKU Shopee dan isi awal dari produk yang sekarang dipetakan. Setelah disimpan, baris ini otomatis dipetakan ke paket baru itu.">
+                                                <x-heroicon-o-gift class="size-3.5" /> Buat Paket
+                                            </a>
+                                            <form method="POST" action="{{ route('shopee.mappings.not-bundle', [$shop, $mapping]) }}">
+                                                @csrf
+                                                <button type="submit" class="btn-secondary h-7 px-2.5 text-xs" data-hint-title="Bukan paket" data-hint="SKU ini memang produk biasa. Tanda Mirip paket dihapus dan tidak dihitung masalah lagi.">
+                                                    <x-heroicon-o-check class="size-3.5" /> Bukan paket
+                                                </button>
+                                            </form>
+                                        </div>
+                                    @endif
                                 @else
                                     {{ $mapping->variant?->displayName() ?? ($mapping->bundle ? 'Paket · '.$mapping->bundle->displayName() : '—') }}
                                 @endcan

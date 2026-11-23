@@ -23,12 +23,15 @@ class BundleLikeSku
         return $sku !== '' && collect(self::prefixes())->contains(fn ($prefix) => str_starts_with($sku, $prefix));
     }
 
-    /** Batasi query pemetaan ke baris SKU mirip paket yang dipetakan ke varian. */
+    /**
+     * Batasi query pemetaan ke baris SKU mirip paket yang dipetakan ke varian.
+     * Baris yang sudah ditandai "Bukan paket" (bundle_like_ignored_at) tidak ikut.
+     */
     public static function apply(Builder $query, string $column): Builder
     {
         $prefixes = self::prefixes();
 
-        return $query->whereNotNull('product_variant_id')->where(function (Builder $q) use ($prefixes, $column) {
+        return $query->whereNotNull('product_variant_id')->whereNull('bundle_like_ignored_at')->where(function (Builder $q) use ($prefixes, $column) {
             $q->whereRaw('1 = 0');
 
             foreach ($prefixes as $prefix) {

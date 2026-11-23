@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Tiktok;
 
+use App\Http\Controllers\Concerns\ResolvesSkuMappingProblems;
 use App\Http\Controllers\Concerns\ResolvesSkuTarget;
 use App\Http\Controllers\Controller;
 use App\Jobs\RunMarketplaceTask;
@@ -9,6 +10,7 @@ use App\Models\TiktokShop;
 use App\Models\TiktokSkuMapping;
 use App\Services\Tiktok\TiktokCatalog;
 use App\Support\SkuMappingExport;
+use App\Support\SkuMappingProblems;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -18,7 +20,13 @@ use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class TiktokSkuMappingController extends Controller
 {
+    use ResolvesSkuMappingProblems;
     use ResolvesSkuTarget;
+
+    protected function platform(): string
+    {
+        return 'tiktok';
+    }
 
     public function index(Request $request, TiktokShop $shop): View|BinaryFileResponse
     {
@@ -32,9 +40,8 @@ class TiktokSkuMappingController extends Controller
             // SKU yang sudah tidak ada di toko hanya tampil di filter "Tidak ada di toko".
             ->when($request->input('status') === 'removed', fn ($q) => $q->whereNotNull('removed_at'), fn ($q) => $q->whereNull('removed_at'))
             ->when($request->input('status') === 'mapped', fn ($q) => $q->where(fn ($q) => $q->whereNotNull('product_variant_id')->orWhereNotNull('bundle_id')))
-            ->when($request->input('status') === 'unmapped', fn ($q) => $q->whereNull('product_variant_id')->whereNull('bundle_id'))
-            ->when($request->input('status') === 'failed', fn ($q) => $q->whereNotNull('stock_error'))
-            ->when($request->input('status') === 'bundle_like', fn ($q) => $q->bundleLike())
+            // Filter masalah (belum dipetakan, gagal kirim, mirip paket, beda SKU, nonaktif) = card Masalah pemetaan.
+            ->when(in_array($request->input('status'), SkuMappingProblems::KEYS, true), fn ($q) => SkuMappingProblems::scope($q, $request->input('status'), 'tiktok'))
             ->orderBy('product_name')->orderBy('sku_name');
 
         $summary = [
@@ -53,6 +60,7 @@ class TiktokSkuMappingController extends Controller
         return view('tiktok.mappings.index', [
             'shop' => $shop,
             'mappings' => $query->paginate(25)->withQueryString(),
+            'problems' => SkuMappingProblems::for('tiktok', $shop)->all($request->user()),
             ...$summary,
         ]);
     }
@@ -103,6 +111,26 @@ class TiktokSkuMappingController extends Controller
         $matched = $catalog->autoMatch($shop);
 
         return back()->with('success', ($matched ? "{$matched} baris cocok otomatis berdasarkan SKU." : 'Tidak ada SKU baru yang cocok. Petakan sisanya secara manual.').$this->relinkOrders());
+    }
+
+    /** Tombol di card Masalah pemetaan: petakan ulang SKU yang beda dari SKU gudang. */
+    public function fix(Request $request, TiktokShop $shop): RedirectResponse
+    {
+        return $this->fixProblem($request, $shop);
+    }
+
+    /** Tombol di card Masalah pemetaan: kirim ulang stok toko ini sekarang. */
+    public function retryStock(Request $request, TiktokShop $shop): RedirectResponse
+    {
+        return $this->retryStockFor($request, $shop);
+    }
+
+    /** Tombol "Bukan paket" di baris SKU mirip paket. */
+    public function notBundle(TiktokShop $shop, TiktokSkuMapping $mapping): RedirectResponse
+    {
+        abort_unless($mapping->tiktok_shop_id === $shop->id, 404);
+
+        return $this->markNotBundle($shop, $mapping);
     }
 
     /** Tarik daftar produk & SKU dari TikTok lalu cocokkan otomatis. */

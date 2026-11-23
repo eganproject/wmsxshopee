@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Shopee;
 
+use App\Http\Controllers\Concerns\ResolvesSkuMappingProblems;
 use App\Http\Controllers\Concerns\ResolvesSkuTarget;
 use App\Http\Controllers\Controller;
 use App\Jobs\RunMarketplaceTask;
@@ -11,6 +12,7 @@ use App\Models\ShopeeShop;
 use App\Models\ShopeeSkuMapping;
 use App\Services\Shopee\ShopeeCatalog;
 use App\Support\SkuMappingExport;
+use App\Support\SkuMappingProblems;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -21,7 +23,13 @@ use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class ShopeeSkuMappingController extends Controller
 {
+    use ResolvesSkuMappingProblems;
     use ResolvesSkuTarget;
+
+    protected function platform(): string
+    {
+        return 'shopee';
+    }
 
     public function index(Request $request, ShopeeShop $shop): View|BinaryFileResponse
     {
@@ -35,9 +43,8 @@ class ShopeeSkuMappingController extends Controller
             // SKU yang sudah tidak ada di toko hanya tampil di filter "Tidak ada di toko".
             ->when($request->input('status') === 'removed', fn ($q) => $q->whereNotNull('removed_at'), fn ($q) => $q->whereNull('removed_at'))
             ->when($request->input('status') === 'mapped', fn ($q) => $q->where(fn ($q) => $q->whereNotNull('product_variant_id')->orWhereNotNull('bundle_id')))
-            ->when($request->input('status') === 'unmapped', fn ($q) => $q->whereNull('product_variant_id')->whereNull('bundle_id'))
-            ->when($request->input('status') === 'failed', fn ($q) => $q->whereNotNull('stock_error'))
-            ->when($request->input('status') === 'bundle_like', fn ($q) => $q->bundleLike())
+            // Filter masalah (belum dipetakan, gagal kirim, mirip paket, beda SKU, nonaktif) = card Masalah pemetaan.
+            ->when(in_array($request->input('status'), SkuMappingProblems::KEYS, true), fn ($q) => SkuMappingProblems::scope($q, $request->input('status'), 'shopee'))
             ->orderBy('item_name')->orderBy('model_name');
 
         $summary = [
@@ -56,6 +63,7 @@ class ShopeeSkuMappingController extends Controller
         return view('shopee.mappings.index', [
             'shop' => $shop,
             'mappings' => $query->paginate(25)->withQueryString(),
+            'problems' => SkuMappingProblems::for('shopee', $shop)->all($request->user()),
             ...$summary,
         ]);
     }
@@ -110,6 +118,26 @@ class ShopeeSkuMappingController extends Controller
         $matched = $catalog->autoMatch($shop);
 
         return back()->with('success', ($matched ? "{$matched} baris cocok otomatis berdasarkan SKU." : 'Tidak ada SKU baru yang cocok. Petakan sisanya secara manual.').$this->relinkOrders());
+    }
+
+    /** Tombol di card Masalah pemetaan: petakan ulang SKU yang beda dari SKU gudang. */
+    public function fix(Request $request, ShopeeShop $shop): RedirectResponse
+    {
+        return $this->fixProblem($request, $shop);
+    }
+
+    /** Tombol di card Masalah pemetaan: kirim ulang stok toko ini sekarang. */
+    public function retryStock(Request $request, ShopeeShop $shop): RedirectResponse
+    {
+        return $this->retryStockFor($request, $shop);
+    }
+
+    /** Tombol "Bukan paket" di baris SKU mirip paket. */
+    public function notBundle(ShopeeShop $shop, ShopeeSkuMapping $mapping): RedirectResponse
+    {
+        abort_unless($mapping->shopee_shop_id === $shop->id, 404);
+
+        return $this->markNotBundle($shop, $mapping);
     }
 
     /** Tarik daftar produk & variasi dari Shopee lalu cocokkan otomatis. */
