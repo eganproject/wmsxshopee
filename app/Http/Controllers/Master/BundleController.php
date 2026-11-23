@@ -4,9 +4,13 @@ namespace App\Http\Controllers\Master;
 
 use App\Http\Controllers\Controller;
 use App\Models\Bundle;
+use App\Models\BundleItem;
 use App\Models\ProductVariant;
+use App\Models\ShopeeSkuMapping;
+use App\Models\TiktokSkuMapping;
 use App\Models\Warehouse;
 use App\Services\BundleImporter;
+use App\Services\MarketplaceOrderRelink;
 use App\Services\SalesOrderService;
 use App\Support\XlsxExport;
 use Illuminate\Http\RedirectResponse;
@@ -59,17 +63,58 @@ class BundleController extends Controller
         ]);
     }
 
-    public function create(): View
+    /**
+     * Form paket baru. Dari tombol "Buat Paket" di halaman Pemetaan SKU, form
+     * terisi SKU & nama listing marketplace dan isi awalnya varian yang sekarang
+     * dipetakan (?sku=&name=&variant=&map=shopee:ID), lalu setelah disimpan
+     * baris pemetaan itu langsung dipetakan ke paket baru.
+     */
+    public function create(Request $request): View
     {
-        return view('master.bundles.create', $this->formData(new Bundle(['is_active' => true])));
+        $bundle = new Bundle([
+            'is_active' => true,
+            'sku' => strtoupper(trim($request->string('sku')->toString())) ?: null,
+            'name' => trim($request->string('name')->toString()) ?: null,
+        ]);
+
+        if ($variant = ProductVariant::find($request->integer('variant'))) {
+            $bundle->setRelation('items', collect([new BundleItem(['product_variant_id' => $variant->id, 'qty' => 1])]));
+        }
+
+        return view('master.bundles.create', [...$this->formData($bundle), 'mapping' => $this->mappingToLink($request)]);
     }
 
     public function store(Request $request): RedirectResponse
     {
         $bundle = $this->save($request, new Bundle);
 
+        if ($mapping = $this->mappingToLink($request)) {
+            $mapping->update(['product_variant_id' => null, 'bundle_id' => $bundle->id, 'match_type' => 'manual', 'stock_error' => null]);
+            $linked = app(MarketplaceOrderRelink::class)->relinkAll();
+            $platform = $mapping instanceof ShopeeSkuMapping ? 'shopee' : 'tiktok';
+
+            return redirect()->route("{$platform}.mappings.index", $mapping->shop)
+                ->with('success', "Paket {$bundle->name} dibuat dan SKU ".($mapping->shopee_sku ?? $mapping->seller_sku).' dipetakan ke paket itu.'
+                    .($linked ? " {$linked} pesanan yang tertahan kini terhubung dan diproses." : ''));
+        }
+
         return redirect()->route('master.bundles.index')
             ->with('success', "Paket {$bundle->name} berhasil ditambahkan.");
+    }
+
+    /**
+     * Baris pemetaan marketplace ("shopee:ID" / "tiktok:ID" di ?map=) yang akan
+     * dipetakan ke paket baru; null bila tidak ada atau user tak punya izin pemetaannya.
+     */
+    private function mappingToLink(Request $request): ShopeeSkuMapping|TiktokSkuMapping|null
+    {
+        [$platform, $id] = array_pad(explode(':', (string) ($request->input('map') ?? old('map')), 2), 2, null);
+
+        if (! in_array($platform, ['shopee', 'tiktok'], true) || ! ctype_digit((string) $id) || ! $request->user()->can("{$platform}.mapping")) {
+            return null;
+        }
+
+        return $platform === 'shopee' ? ShopeeSkuMapping::find($id) : TiktokSkuMapping::find($id);
     }
 
     public function edit(Bundle $bundle): View

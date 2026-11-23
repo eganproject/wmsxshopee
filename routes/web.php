@@ -402,6 +402,9 @@ Route::middleware(['auth', 'auth.session', 'active'])->group(function () {
         Route::post('shops/{shop}/mappings', [ShopeeSkuMappingController::class, 'store'])->middleware('can:shopee.mapping')->name('mappings.store');
         Route::post('shops/{shop}/mappings/auto-match', [ShopeeSkuMappingController::class, 'autoMatch'])->middleware('can:shopee.mapping')->name('mappings.auto-match');
         Route::post('shops/{shop}/mappings/pull', [ShopeeSkuMappingController::class, 'pull'])->middleware('can:shopee.mapping')->name('mappings.pull');
+        Route::post('shops/{shop}/mappings/fix', [ShopeeSkuMappingController::class, 'fix'])->middleware('can:shopee.mapping')->name('mappings.fix');
+        Route::post('shops/{shop}/mappings/retry-stock', [ShopeeSkuMappingController::class, 'retryStock'])->middleware('can:shopee.sync')->name('mappings.retry-stock');
+        Route::post('shops/{shop}/mappings/{mapping}/not-bundle', [ShopeeSkuMappingController::class, 'notBundle'])->middleware('can:shopee.mapping')->name('mappings.not-bundle');
         Route::put('shops/{shop}/mappings/{mapping}', [ShopeeSkuMappingController::class, 'update'])->middleware('can:shopee.mapping')->name('mappings.update');
         Route::delete('shops/{shop}/mappings/{mapping}', [ShopeeSkuMappingController::class, 'destroy'])->middleware('can:shopee.mapping')->name('mappings.destroy');
     });
@@ -426,6 +429,9 @@ Route::middleware(['auth', 'auth.session', 'active'])->group(function () {
         Route::post('shops/{shop}/mappings', [TiktokSkuMappingController::class, 'store'])->middleware('can:tiktok.mapping')->name('mappings.store');
         Route::post('shops/{shop}/mappings/auto-match', [TiktokSkuMappingController::class, 'autoMatch'])->middleware('can:tiktok.mapping')->name('mappings.auto-match');
         Route::post('shops/{shop}/mappings/pull', [TiktokSkuMappingController::class, 'pull'])->middleware('can:tiktok.mapping')->name('mappings.pull');
+        Route::post('shops/{shop}/mappings/fix', [TiktokSkuMappingController::class, 'fix'])->middleware('can:tiktok.mapping')->name('mappings.fix');
+        Route::post('shops/{shop}/mappings/retry-stock', [TiktokSkuMappingController::class, 'retryStock'])->middleware('can:tiktok.sync')->name('mappings.retry-stock');
+        Route::post('shops/{shop}/mappings/{mapping}/not-bundle', [TiktokSkuMappingController::class, 'notBundle'])->middleware('can:tiktok.mapping')->name('mappings.not-bundle');
         Route::put('shops/{shop}/mappings/{mapping}', [TiktokSkuMappingController::class, 'update'])->middleware('can:tiktok.mapping')->name('mappings.update');
         Route::delete('shops/{shop}/mappings/{mapping}', [TiktokSkuMappingController::class, 'destroy'])->middleware('can:tiktok.mapping')->name('mappings.destroy');
     });
